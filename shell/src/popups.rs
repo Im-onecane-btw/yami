@@ -120,7 +120,7 @@ fn cal(ui: &mut Ui, st: &State, b: R) {
 fn sound(ui: &mut Ui, st: &State, b: R) {
     let t = ui.t;
     let a = &st.audio;
-    let sink = a.sinks.iter().find(|s| s.name == a.sink).map(|s| s.desc.clone()).unwrap_or_default();
+    let sink = a.sinks.iter().find(|s| s.name == a.sink).map(|s| crate::audio::label(&st.set, s)).unwrap_or_default();
     let mut y = head(ui, b, "speaker", "звук", &sink);
     // выход
     ui.button(R::new(b.x, y + 18, 26, 22), "", if a.muted { "mute" } else { "speaker" }, Tone::Ghost, a.muted, true, Act::VolMute);
@@ -135,7 +135,7 @@ fn sound(ui: &mut Ui, st: &State, b: R) {
             let r = R::new(b.x, y, b.w, 24);
             ui.button(r, "", "", Tone::Ghost, on, true, Act::Sink(s.name.clone()));
             ui.cv.fill(R::new(r.x + 8, r.cy() - 3, 6, 6), if on { t.ember } else { t.border });
-            ui.text_in(PX, R::new(r.x + 22, r.y, r.w - 26, r.h), &s.desc, if on { WHITE } else { t.text });
+            ui.text_in(PX, R::new(r.x + 22, r.y, r.w - 26, r.h), &crate::audio::label(&st.set, s), if on { WHITE } else { t.text });
             y += 26;
         }
         y += 6;

@@ -18,6 +18,8 @@ pub struct Cfg {
     /// миниатюры для картинок не больше, МБ
     pub thumb_max_mb: u32,
     pub sidebar: bool,
+    /// диски и флешки в боковой панели
+    pub devices: bool,
     /// панель сведений справа
     pub info: bool,
     pub terminal: String,
@@ -41,6 +43,7 @@ impl Default for Cfg {
             thumbs: true,
             thumb_max_mb: 40,
             sidebar: true,
+            devices: true,
             info: false,
             terminal: "kitty".into(),
             confirm_trash: false,

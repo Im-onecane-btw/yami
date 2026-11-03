@@ -147,6 +147,7 @@ polkit change after a shell restart (`yami restart`), portals from the next logi
 | `agentPolkit` | `true` | the polkit password window |
 | `notifMax`, `notifHistory` | `4`, `50` | cards on screen at once; how many the history keeps |
 | `notifImages` | `true` | pictures in cards (icons and previews; at most 1024², files ≤ 16 MB) |
+| `audioNames` | `{}` | your names for sound devices: PipeWire name (`pactl list short sinks`) → label, e.g. `{"alsa_output.usb-…-00.analog-stereo": "Headphones"}` |
 | `mediaArtNet` | `true` | album covers from the player's web links (`curl`, https after redirects, ≤ 16 MB); off: only local files |
 | `portalFiles`, `portalCast` | `true`, `true` | file dialogs from yami-files, the screen-share picker from the shell (else GTK / GNOME) |
 
@@ -194,6 +195,7 @@ mouse: settings → widgets, edit mode.
 | `sort`, `desc` | `"name"`, `false` | `name` `size` `time` `type` |
 | `thumbs`, `thumbMaxMb` | `true`, `40` | thumbnails, and the largest image to thumbnail, MB |
 | `sidebar`, `info` | `true`, `false` | places on the left, details on the right |
+| `devices` | `true` | drives and USB sticks in the sidebar |
 | `terminal` | `"kitty"` | «open terminal here» |
 | `confirmTrash`, `singleClick`, `split` | `false` | |
 | `width`, `height` | `1060`, `660` | window size at start |

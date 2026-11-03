@@ -245,6 +245,8 @@ pub struct Settings {
     pub notif_images: bool,
     /// обложки музыки по ссылкам из сети (иначе — только локальные файлы)
     pub media_art_net: bool,
+    /// свои имена звуковых устройств: имя PipeWire (`pactl list sinks`) → как показывать
+    pub audio_names: std::collections::BTreeMap<String, String>,
     /// порталы: диалог файлов yami-files и выбор экрана для трансляций (иначе GTK / GNOME)
     pub portal_files: bool,
     pub portal_cast: bool,
@@ -396,6 +398,7 @@ impl Default for Settings {
             notif_history: 50,
             notif_images: true,
             media_art_net: true,
+            audio_names: Default::default(),
             portal_files: true,
             portal_cast: true,
             update_check: true,

@@ -6,6 +6,9 @@ subjects when that section is empty).
 
 ## Unreleased
 
+- `audioNames`: your own names for sound devices in the sound popup
+- yami-files: `devices` hides drives and USB sticks from the sidebar
+
 ## 2.1.0
 
 - `yami`: one command for the whole desktop (open, palette, wallpaper, restart, status, doctor, update)

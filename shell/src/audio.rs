@@ -67,6 +67,11 @@ fn dev(v: &Value) -> Dev {
     }
 }
 
+/// как показывать устройство: своё имя из настроек (audioNames) или описание PipeWire
+pub fn label(set: &crate::config::Settings, d: &Dev) -> String {
+    set.audio_names.get(&d.name).filter(|s| !s.is_empty()).cloned().unwrap_or_else(|| d.desc.clone())
+}
+
 pub fn query() -> AudioState {
     let info = pactl_json(&["info"]);
     let sink = info["default_sink_name"].as_str().unwrap_or("").to_string();

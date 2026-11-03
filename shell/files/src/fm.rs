@@ -1634,6 +1634,10 @@ impl Fm {
     // ── устройства ─────────────────────────────────────────────────────────
     pub fn refresh_devices(&mut self) {
         self.dev_tick = Instant::now();
+        if !self.cfg.devices {
+            self.devs.clear();
+            return;
+        }
         match &self.tx {
             Some(tx) => {
                 let tx = tx.clone();
