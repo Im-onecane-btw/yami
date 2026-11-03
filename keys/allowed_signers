@@ -2,3 +2,4 @@
 # `yami update` reads this file from the version that is already installed and installs only
 # tags signed by one of these keys (settings → updates → signature check). Empty file: releases
 # are installed unsigned, as on the first install. Add a key with: tools/release.sh --keygen
+193045225+Trendorin@users.noreply.github.com namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBT1+xwLEYAQEz3AMdzTPm/C9ZFFFP8CTAJ43RKHdUOx

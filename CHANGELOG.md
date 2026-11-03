@@ -8,6 +8,7 @@ subjects when that section is empty).
 
 - `yami`: one command for the whole desktop (open, palette, wallpaper, restart, status, doctor, update)
 - updates from settings or `yami update`: releases or every commit, signed tags, rollback
+- releases are signed: from this version on, `yami update` installs only tags signed with the key in `keys/allowed_signers`
 - settings → services: the notification server, tray, polkit window, portals and covers can be turned off
 - notification and tray pictures are size-checked; covers and icon paths are read with a cap
 - the album-cover cache no longer grows with every track
