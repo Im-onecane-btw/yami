@@ -6,11 +6,11 @@
 
 Пиксельный рабочий стол для niri — целыми пикселями.
 
-[![Release](https://img.shields.io/github/v/release/Trendorin/yami?label=release&color=b23c24)](https://github.com/Trendorin/yami/releases/latest)
-[![License](https://img.shields.io/badge/license-MIT-b23c24)](LICENSE)
-![Rust](https://img.shields.io/badge/rust-1.89%2B-b23c24)
-![niri](https://img.shields.io/badge/niri-26.04-b23c24)
-![Platform](https://img.shields.io/badge/platform-Linux%20%C2%B7%20Wayland-b23c24)
+[![Release](https://img.shields.io/github/v/release/Trendorin/yami?label=release&color=a8a29c)](https://github.com/Trendorin/yami/releases/latest)
+[![License](https://img.shields.io/badge/license-MIT-a8a29c)](LICENSE)
+![Rust](https://img.shields.io/badge/rust-1.89%2B-a8a29c)
+![niri](https://img.shields.io/badge/niri-26.04-a8a29c)
+![Platform](https://img.shields.io/badge/platform-Linux%20%C2%B7%20Wayland-a8a29c)
 
 [Установка](#установка) · [Скриншоты](#скриншоты) · [Настройки](docs/CONFIG.md) · [Изменения](CHANGELOG.md) · [English](README.md)
 
