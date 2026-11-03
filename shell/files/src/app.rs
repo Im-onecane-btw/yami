@@ -118,6 +118,8 @@ pub struct App {
     dirty: bool,
     frame_pending: bool,
     anim: bool,
+    /// прошлый шаг плавной прокрутки
+    scroll_t: Instant,
     zones: Vec<Zone<Act>>,
     fonts: Fonts,
     icons: Icons,
@@ -221,6 +223,7 @@ pub fn run(fm_init: impl FnOnce(Option<calloop::channel::Sender<Msg>>) -> Fm) ->
         configured: false,
         dirty: true,
         frame_pending: false,
+        scroll_t: Instant::now(),
         anim: false,
         zones: vec![],
         fonts: Fonts::with(fm.look.font("files")),
@@ -317,23 +320,6 @@ impl App {
         }
         if self.fm.dev_tick.elapsed().as_secs() >= 4 {
             self.fm.refresh_devices();
-        }
-        // плавная прокрутка
-        let mut moving = false;
-        for t in self.fm.tabs.iter_mut() {
-            for v in t.panes.iter_mut() {
-                let d = v.target - v.scroll;
-                if d.abs() > 0.5 {
-                    v.scroll += d * 0.45;
-                    moving = true;
-                } else if d != 0.0 {
-                    v.scroll = v.target;
-                    moving = true;
-                }
-            }
-        }
-        if moving {
-            self.dirty = true;
         }
         if self.fm.toast.as_ref().map(|t| t.1.elapsed().as_millis() > 3300).unwrap_or(false) {
             self.fm.toast = None;
@@ -499,8 +485,32 @@ impl App {
         let _ = self.conn.flush();
     }
 
+    /// плавная прокрутка колесом: шаг по времени кадра (frame callback), а не по таймеру —
+    /// таймер тикает раз в 50–250 мс, и список ехал рывками. true — ещё едет
+    fn step_scroll(&mut self) -> bool {
+        let now = Instant::now();
+        // первый кадр после покоя — как один кадр 60 Гц
+        let dt = now.duration_since(self.scroll_t).as_secs_f32().min(1.0 / 30.0);
+        self.scroll_t = now;
+        let k = 1.0 - 0.7f32.powf(dt * 60.0);
+        let mut moving = false;
+        for t in self.fm.tabs.iter_mut() {
+            for v in t.panes.iter_mut() {
+                let d = v.target - v.scroll;
+                if d.abs() > 0.5 {
+                    v.scroll += d * k;
+                    moving = true;
+                } else if d != 0.0 {
+                    v.scroll = v.target;
+                }
+            }
+        }
+        moving
+    }
+
     fn draw(&mut self) {
         self.dirty = false;
+        let scrolling = self.step_scroll();
         let (w, h) = (self.w, self.h);
         // HiDPI: буфер в физических пикселях, холст логический, увеличение ближайшим соседом
         let (pw, ph) = if self.hidpi.is_none() || self.scale == 1.0 { (w, h) } else { yami_px::gfx::phys(w, h, self.scale) };
@@ -526,7 +536,7 @@ impl App {
             let mut ui = Ui { cv: Canvas::new(buf, w, h), f: &mut self.fonts, ic: &mut self.icons, t: self.fm.look.theme, zones: vec![], ptr: self.ptr, down, anim: false, blink: self.blink, tr: crate::i18n::tr };
             draw::draw(&mut ui, &self.fm, w, h);
             self.zones = std::mem::take(&mut ui.zones);
-            self.anim = ui.anim;
+            self.anim = ui.anim || scrolling;
             blur = std::mem::take(&mut ui.cv.blur);
         }
         if up {

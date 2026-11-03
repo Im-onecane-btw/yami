@@ -11,6 +11,8 @@ subjects when that section is empty).
 - Recordings and streams no longer show black boxes where notifications and the curtain's «hidden» badge are: on yami-niri 26.04-yami.5 they are simply left out (`hide-from`). Settings → services → notifications in recordings shows them instead
 - The privacy curtain also covers a single window shared on its own (OBS window capture, Discord window share), on yami-niri 26.04-yami.5
 - The launcher's search hint no longer starts under the text cursor
+- yami-files scrolls with the wheel at the screen's frame rate instead of in steps
+- The notification countdown bar moves smoothly
 
 ## 2.1.0
 
