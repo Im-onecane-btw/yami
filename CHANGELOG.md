@@ -13,6 +13,7 @@ subjects when that section is empty).
 - The launcher's search hint no longer starts under the text cursor
 - yami-files scrolls with the wheel at the screen's frame rate instead of in steps
 - The notification countdown bar moves smoothly
+- Settings → widgets names graph widgets in English in the English interface
 
 ## 2.1.0
 

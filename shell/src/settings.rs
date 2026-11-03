@@ -348,7 +348,7 @@ fn tab_widgets(ui: &mut Ui, st: &State, b: R) {
         let c = if w.on { t.ok } else { t.text_faint };
         ui.cv.fill(R::new(r.x + 8, r.cy() - 3, 6, 6), c);
         let extra = if w.kind == "graph" { format!(" · {}", crate::i18n::tr(name_of(SOURCES, &w.source))) } else { String::new() };
-        ui.text_in(PX, R::new(r.x + 22, r.y, r.w - 26, r.h), &format!("{}{}", name_of(KINDS, &w.kind), extra), if sel { WHITE } else if w.on { t.text } else { t.text_faint });
+        ui.text_in(PX, R::new(r.x + 22, r.y, r.w - 26, r.h), &format!("{}{}", crate::i18n::tr(name_of(KINDS, &w.kind)), extra), if sel { WHITE } else if w.on { t.text } else { t.text_faint });
         y += 30;
     }
     y += 8;
@@ -927,6 +927,18 @@ impl App {
                     }
                     self.settings_changed();
                 }
+                "kb_apply" => {
+                    self.st.set.kb_layout = self.st.keys.lay.text.trim().to_string();
+                    self.st.keys.lay.clear();
+                    self.st.field_focus = None;
+                    self.settings_changed();
+                }
+                "kb_switch" => {
+                    let sw = crate::keys::SWITCHES;
+                    let i = sw.iter().position(|x| x.0 == self.st.set.kb_switch).map(|i| (i + 1) % sw.len()).unwrap_or(0);
+                    self.st.set.kb_switch = sw[i].0.to_string();
+                    self.settings_changed();
+                }
                 "game_apply" => {
                     let p = self.st.game_field.text.trim().to_string();
                     self.st.set.game_apps = p;
@@ -1038,6 +1050,10 @@ impl App {
                     let p = self.st.set.float_apps.clone();
                     self.st.float_field.set(&p);
                 }
+                if *k == "kb_layout" && self.st.keys.lay.text.is_empty() {
+                    let p = self.st.set.kb_layout.clone();
+                    self.st.keys.lay.set(&p);
+                }
                 if *k == "game_apps" && self.st.game_field.text.is_empty() {
                     let p = self.st.set.game_apps.clone();
                     self.st.game_field.set(&p);
@@ -1086,6 +1102,8 @@ impl App {
                         self.settings_click(&Act::SCycle("shot_dir_apply"));
                     } else if f == "game_apps" {
                         self.settings_click(&Act::SCycle("game_apply"));
+                    } else if f == "kb_layout" {
+                        self.settings_click(&Act::SCycle("kb_apply"));
                     } else if f == "key_cmd" {
                         self.settings_click(&Act::KeyAdd);
                     } else {
@@ -1100,6 +1118,7 @@ impl App {
                         "float_apps" => &mut self.st.float_field,
                         "key_cmd" => &mut self.st.keys.cmd,
                         "game_apps" => &mut self.st.game_field,
+                        "kb_layout" => &mut self.st.keys.lay,
                         _ => &mut self.st.wall_field,
                     };
                     App::edit_field(field, e, &mods);

@@ -62,6 +62,7 @@ const TARGETS: &[&str] = &[
     "settings:fonts",
     "settings:keys-rec",
     "settings:keys-custom",
+    "settings:keys-layout",
     "settings:agents",
     "settings:updates",
     "settings:updates-new",
@@ -169,6 +170,18 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
             if arg == "screens" {
                 st.disp.outs = crate::displays::mock();
             }
+            if arg == "widgets" {
+                // все виды и источники в списке, чтобы --lang en видел каждую подпись
+                let mut ws = vec![];
+                for (i, (k, _)) in crate::widgets::KINDS.iter().enumerate() {
+                    ws.push(crate::config::Widget::new(i as u32 + 1, k));
+                }
+                for (i, (src, _)) in crate::widgets::SOURCES.iter().enumerate() {
+                    ws.push(crate::config::Widget { source: src.to_string(), ..crate::config::Widget::new(20 + i as u32, "graph") });
+                }
+                st.set.widgets = ws;
+                st.sel_widget = 1;
+            }
             if arg.starts_with("updates") {
                 // образец, а не то, что стоит на этой машине
                 st.stab = "updates";
@@ -179,6 +192,8 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
                 st.stab = "keys";
                 if k == "rec" {
                     st.keys.capture = Some("launcher".into());
+                } else if k == "layout" {
+                    st.keys.cat = "layout";
                 } else {
                     st.keys.cat = "custom";
                     st.set.custom_binds = vec![crate::keys::Custom { key: "Mod+Shift+B".into(), cmd: "kitty -e btop".into() }];
