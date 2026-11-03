@@ -6,17 +6,17 @@
 
 A pixel-art desktop for niri, drawn in whole pixels.
 
-[![Release](https://img.shields.io/github/v/release/Trendorin/yami?label=release&color=c4161c)](https://github.com/Trendorin/yami/releases/latest)
-[![License](https://img.shields.io/badge/license-MIT-c4161c)](LICENSE)
-![Rust](https://img.shields.io/badge/rust-1.89%2B-c4161c)
-![niri](https://img.shields.io/badge/niri-26.04-c4161c)
-![Platform](https://img.shields.io/badge/platform-Linux%20%C2%B7%20Wayland-c4161c)
+[![Release](https://img.shields.io/github/v/release/Trendorin/yami?label=release&color=a8a29c)](https://github.com/Trendorin/yami/releases/latest)
+[![License](https://img.shields.io/badge/license-MIT-a8a29c)](LICENSE)
+![Rust](https://img.shields.io/badge/rust-1.89%2B-a8a29c)
+![niri](https://img.shields.io/badge/niri-26.04-a8a29c)
+![Platform](https://img.shields.io/badge/platform-Linux%20%C2%B7%20Wayland-a8a29c)
 
 [Install](#installation) · [Screenshots](#screenshots) · [Settings](docs/CONFIG.md) · [Changelog](CHANGELOG.md) · [Русский](README.ru.md)
 
 </div>
 
-<img src=".github/assets/desktop-en.png" width="100%" alt="The yami desktop: the bar, a clock and a CPU graph on the pixel wallpaper, a notification, the launcher and the dock">
+<img src=".github/assets/desktop-en.png" width="100%" alt="The yami desktop: the bar, clock and graph widgets on the pixel wallpaper, the launcher open">
 
 **yami** (闇, "darkness") turns the [niri](https://github.com/YaLTeR/niri) Wayland compositor into a
 finished desktop: dark graphite, one accent colour, crisp unantialiased pixel fonts. Its own
@@ -107,16 +107,17 @@ Files, images, the login screen and every other app follow the same palette.
 
 ## Screenshots
 
-Every picture is drawn by the shell itself (`yami-shell shot --defaults`, regenerated with
-`tools/readme-art.py`); windows, apps and notifications in them are made up.
+Screenshots of a real yami session (`tools/readme-shots.sh`), the palette is «ash».
 
 | Settings → colour: seven palettes or your own accent | Settings → updates: releases, signatures, rollback |
 |---|---|
 | <img src=".github/assets/settings-color-en.png" alt="Settings → colour: seven palettes or your own accent"> | <img src=".github/assets/settings-updates-en.png" alt="Settings → updates: releases, signatures, rollback"> |
+| yami-files: thumbnails, places, tabs and split view | yami-view: real pixels, quick edits |
+| <img src=".github/assets/files-en.png" alt="yami-files: thumbnails, places, tabs and split view"> | <img src=".github/assets/view-en.png" alt="yami-view: real pixels, quick edits"> |
 | Settings → services: hand any of them to another program | Settings → keys: every binding, recorded live |
 | <img src=".github/assets/settings-agents-en.png" alt="Settings → services: hand any of them to another program"> | <img src=".github/assets/settings-keys-en.png" alt="Settings → keys: every binding, recorded live"> |
-| Screenshot overlay: area, loupe, marks | Sound popup: outputs, volume, apps |
-| <img src=".github/assets/screenshot-en.png" alt="Screenshot overlay: area, loupe, marks"> | <img src=".github/assets/popup-sound-en.png" alt="Sound popup: outputs, volume, apps"> |
+| Screenshot overlay: area, window or screen | Sound popup: outputs, volume, microphone |
+| <img src=".github/assets/screenshot-en.png" alt="Screenshot overlay: area, window or screen"> | <img src=".github/assets/popup-sound-en.png" alt="Sound popup: outputs, volume, microphone"> |
 
 ## Installation
 
@@ -342,7 +343,7 @@ log in, `~/.local/lib/yami-niri/yami-niri.sh off`. Details: [fork/README.md](for
 | `yami-shell shot [TARGET…] --lang en [--transparent] -o DIR` | render panels to PNG without a compositor; fails on untranslated text |
 | `yami-files shot`, `yami-view shot` | the same for the file manager and the viewer |
 | `tools/sddm-preview.sh OUT.png` | render the login screen offscreen with your palette (`--window` to try it) |
-| `tools/readme-art.py` | redraw the README pictures in `.github/assets` from the shell's own panels |
+| `tools/readme-art.py`, `tools/readme-shots.sh` | the README's logo and cards; real screenshots of your session (empty workspace, plain device names, everything put back) |
 | `tools/release.sh X.Y.Z` | cut a release: changelog, versions, check, signed tag, push (`--keygen` once for the key) |
 | `tools/deploy.sh` | build, install to `~/.local/bin` and restart the running shell (refuses while a game has focus); `--files-only` installs yami-files and yami-view only |
 

@@ -1,12 +1,9 @@
-"""Pictures for the README in .github/assets: the logo, a whole desktop, feature cards and panel
-shots, in both languages. Everything comes from the project itself: panels are drawn by
-`yami-shell shot --defaults` (made-up windows, apps and notifications), colours by theme.py
-`derive`, the wallpaper by theme.py `wallpaper`, icons from gfx.rs `icon7`, fonts from fonts/.
-Needs Pillow (as theme.py) and a built shell.  Usage: tools/readme-art.py [path/to/yami-shell]"""
+"""Drawn pictures for the README in .github/assets: the pixel logo and the feature cards, in both
+languages, from the project itself: colours by theme.py `derive`, icons from gfx.rs `icon7`, fonts
+from fonts/. Screenshots of a real session come from tools/readme-shots.sh.
+Needs Pillow (as theme.py).  Usage: tools/readme-art.py [#accent]  (default: the shell's palette)"""
 import re
-import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -16,8 +13,20 @@ sys.path.insert(0, str(ROOT / "tools"))
 import theme  # noqa: E402
 
 OUT = ROOT / ".github/assets"
-SHELL = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "shell/target/release/yami-shell"
-P = theme.derive("#c4161c")
+def accent():
+    """акцент — тот же, что на скриншотах (палитра шелла), а без настроек — «кровь»"""
+    try:
+        import json
+        st = json.loads((Path.home() / ".config/yami-shell.json").read_text())
+    except (OSError, ValueError):
+        st = {}
+    presets = dict(re.findall(r'Preset \{ id: "(\w+)", name: "[^"]*", accent: 0x([0-9a-f]{6})', (ROOT / "shell/px/src/theme.rs").read_text()))
+    if re.fullmatch(r"#?[0-9a-fA-F]{6}", st.get("accent") or ""):
+        return "#" + st["accent"].lstrip("#")
+    return "#" + presets.get(st.get("palette", "blood"), "c4161c")
+
+
+P = theme.derive(sys.argv[1] if len(sys.argv) > 1 else accent())
 TINY = str(ROOT / "fonts/Tiny5.ttf")
 DOT = str(ROOT / "fonts/DotGothic16-Regular.ttf")
 
@@ -73,8 +82,8 @@ CARDS = [
      "шелл на ~15 МБ", "бар, лаунчер, док, уведомления и виджеты:", "один бинарь на Rust, без тулкитов"),
     ("drop", "one accent", "pick a colour: Qt, KDE, GTK, kitty, browsers,", "cursor and the login screen follow",
      "один акцент", "выбери цвет: Qt, KDE, GTK, kitty, браузеры,", "курсор и экран входа перекрасятся"),
-    ("play", "made for games", "yami-niri: tearing, VRR in games; while you play", "notifications wait, the profile is «performance»",
-     "для игр", "yami-niri: tearing, VRR в играх; пока играешь,", "уведомления ждут, профиль «производительность»"),
+    ("play", "made for games", "yami-niri: tearing, VRR in games; while you play", "notifications wait, power goes to performance",
+     "для игр", "yami-niri: tearing, VRR в играх; пока играешь,", "уведомления ждут, питание на максимум"),
     ("folder", "files and viewer", "yami-files with the portal file dialog for every", "app, yami-view for pictures",
      "файлы и картинки", "yami-files и диалог выбора файлов для всех", "программ, yami-view для картинок"),
     ("down", "signed updates", "settings or yami update: built from source,", "tags checked by the author's key, rollback",
@@ -116,56 +125,13 @@ def logo():
             f'<g fill="{bg}">{dots}</g></svg>\n')
 
 
-def shots(lang, tmp):
-    targets = ["bar", "launcher", "dock", "notif", "widget:clock", "widget:graph", "settings:color", "settings:updates-new",
-               "settings:agents", "settings:keys", "popup:sound", "screenshot"]
-    out = Path(tmp) / lang
-    for flag, sub in (("--transparent", "t"), ("", "o")):
-        args = [str(SHELL), "shot", "--defaults", "--lang", lang, "-o", str(out / sub), *([flag] if flag else []), *targets]
-        subprocess.run(args, check=True, stdout=subprocess.DEVNULL)
-    # для стола — прозрачные (на обои), для галереи — как в документации, на подложке
-    t = {f.stem: Image.open(f).convert("RGBA") for f in (out / "t").glob("*.png")}
-    o = {f.stem: Image.open(f).convert("RGBA") for f in (out / "o").glob("*.png")}
-    return t, o
-
-
-def desktop(s, tmp):
-    """весь стол: пиксельные обои палитры ×4, бар, виджеты, карточка, лаунчер, док"""
-    theme.HOME = Path(tmp)
-    theme.wallpaper(P)
-    W, H = 1920, 1080
-    im = Image.open(Path(tmp) / ".local/state/yami/wallpaper.png").convert("RGBA").resize((W, H), Image.NEAREST)
-    d = ImageDraw.Draw(im)
-    # иероглиф обоев, как рисует шелл (wallKanji): крупно, тоном рамки
-    k = Image.new("1", (20, 20), 0)
-    kd = ImageDraw.Draw(k)
-    kd.fontmode = "1"
-    kd.text((2, 1), "闇", font=ImageFont.truetype(DOT, 16), fill=1)
-    for y in range(20):
-        for x in range(20):
-            if k.getpixel((x, y)):
-                d.rectangle([W - 420 + x * 18, H - 470 + y * 18, W - 420 + x * 18 + 17, H - 470 + y * 18 + 17], fill=rgb("border", 110))
-    im.alpha_composite(s["bar"], (0, 0))
-    im.alpha_composite(s["widget-clock"], (48, 72))
-    im.alpha_composite(s["widget-graph"], (48, 72 + s["widget-clock"].height + 16))
-    im.alpha_composite(s["notif"], (W - s["notif"].width - 12, 44))
-    im.alpha_composite(s["launcher"], ((W - s["launcher"].width) // 2, (H - s["launcher"].height) // 2 - 40))
-    im.alpha_composite(s["dock"], ((W - s["dock"].width) // 2, H - s["dock"].height))
-    return im
-
-
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "logo.svg").write_text(logo())
-    with tempfile.TemporaryDirectory() as tmp:
-        for lang in ("en", "ru"):
-            s, solid = shots(lang, tmp)
-            desktop(s, tmp).convert("RGB").save(OUT / f"desktop-{lang}.png", optimize=True)
-            for c in CARDS:
-                card(c, lang).save(OUT / f"card-{c[0]}-{lang}.png", optimize=True)
-            for k in ("settings-color", "settings-updates-new", "settings-agents", "settings-keys", "screenshot", "popup-sound"):
-                solid[k].save(OUT / f"{k.replace('-new', '')}-{lang}.png", optimize=True)
-    print(f"readme-art: {len(list(OUT.iterdir()))} files in {OUT.relative_to(ROOT)}")
+    for lang in ("en", "ru"):
+        for c in CARDS:
+            card(c, lang).save(OUT / f"card-{c[0]}-{lang}.png", optimize=True)
+    print(f"readme-art: logo and {len(CARDS) * 2} cards in {OUT.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

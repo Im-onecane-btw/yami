@@ -6,17 +6,17 @@
 
 Пиксельный рабочий стол для niri — целыми пикселями.
 
-[![Release](https://img.shields.io/github/v/release/Trendorin/yami?label=release&color=c4161c)](https://github.com/Trendorin/yami/releases/latest)
-[![License](https://img.shields.io/badge/license-MIT-c4161c)](LICENSE)
-![Rust](https://img.shields.io/badge/rust-1.89%2B-c4161c)
-![niri](https://img.shields.io/badge/niri-26.04-c4161c)
-![Platform](https://img.shields.io/badge/platform-Linux%20%C2%B7%20Wayland-c4161c)
+[![Release](https://img.shields.io/github/v/release/Trendorin/yami?label=release&color=a8a29c)](https://github.com/Trendorin/yami/releases/latest)
+[![License](https://img.shields.io/badge/license-MIT-a8a29c)](LICENSE)
+![Rust](https://img.shields.io/badge/rust-1.89%2B-a8a29c)
+![niri](https://img.shields.io/badge/niri-26.04-a8a29c)
+![Platform](https://img.shields.io/badge/platform-Linux%20%C2%B7%20Wayland-a8a29c)
 
 [Установка](#установка) · [Скриншоты](#скриншоты) · [Настройки](docs/CONFIG.md) · [Изменения](CHANGELOG.md) · [English](README.md)
 
 </div>
 
-<img src=".github/assets/desktop-ru.png" width="100%" alt="Рабочий стол yami: бар, часы и график процессора на пиксельных обоях, уведомление, меню программ и док">
+<img src=".github/assets/desktop-ru.png" width="100%" alt="Рабочий стол yami: бар, виджеты часов и графиков на пиксельных обоях, открыто меню программ">
 
 **yami** (闇, «тьма») превращает Wayland-композитор [niri](https://github.com/YaLTeR/niri) в
 готовый рабочий стол: тёмный графит, один акцентный цвет, чёткие пиксельные шрифты без
@@ -112,16 +112,17 @@
 
 ## Скриншоты
 
-Все картинки рисует сам шелл (`yami-shell shot --defaults`, пересобираются
-`tools/readme-art.py`); окна, программы и уведомления на них выдуманы.
+Скриншоты настоящего сеанса yami (`tools/readme-shots.sh`), палитра «пепел».
 
 | Настройки → цвет: семь палитр или свой акцент | Настройки → обновления: выпуски, подписи, откат |
 |---|---|
 | <img src=".github/assets/settings-color-ru.png" alt="Настройки → цвет: семь палитр или свой акцент"> | <img src=".github/assets/settings-updates-ru.png" alt="Настройки → обновления: выпуски, подписи, откат"> |
+| yami-files: миниатюры, места, вкладки и две панели | yami-view: честные пиксели, быстрая правка |
+| <img src=".github/assets/files-ru.png" alt="yami-files: миниатюры, места, вкладки и две панели"> | <img src=".github/assets/view-ru.png" alt="yami-view: честные пиксели, быстрая правка"> |
 | Настройки → службы: любую можно отдать другой программе | Настройки → клавиши: все сочетания, запись на лету |
 | <img src=".github/assets/settings-agents-ru.png" alt="Настройки → службы: любую можно отдать другой программе"> | <img src=".github/assets/settings-keys-ru.png" alt="Настройки → клавиши: все сочетания, запись на лету"> |
-| Скриншот: область, лупа, пометки | Звук: выходы, громкость, программы |
-| <img src=".github/assets/screenshot-ru.png" alt="Скриншот: область, лупа, пометки"> | <img src=".github/assets/popup-sound-ru.png" alt="Звук: выходы, громкость, программы"> |
+| Скриншот: область, окно или экран | Звук: выходы, громкость, микрофон |
+| <img src=".github/assets/screenshot-ru.png" alt="Скриншот: область, окно или экран"> | <img src=".github/assets/popup-sound-ru.png" alt="Звук: выходы, громкость, микрофон"> |
 
 ## Установка
 
@@ -341,7 +342,7 @@ fork/yami-niri.sh off       # вернуться на niri из пакета
 | `yami-shell shot [ЦЕЛЬ…] --lang en [--transparent] -o ПАПКА` | панели в PNG без композитора; падает на непереведённых надписях |
 | `yami-files shot`, `yami-view shot` | то же для файлов и просмотрщика |
 | `tools/sddm-preview.sh OUT.png` | экран входа offscreen в твоей палитре (`--window` — окном) |
-| `tools/readme-art.py` | перерисовать картинки README в `.github/assets` из панелей самого шелла |
+| `tools/readme-art.py`, `tools/readme-shots.sh` | логотип и карточки README; настоящие скриншоты твоего сеанса (пустой стол, простые имена устройств, всё возвращается) |
 | `tools/release.sh X.Y.Z` | выпуск: changelog, версии, проверка, подписанный тег, push (`--keygen` — один раз для ключа) |
 | `tools/deploy.sh` | собрать, поставить в `~/.local/bin` и перезапустить шелл (не трогает, пока в фокусе игра); `--files-only` — только yami-files и yami-view |
 
