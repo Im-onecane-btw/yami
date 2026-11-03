@@ -53,6 +53,8 @@ pub struct Niri {
     pub yami: bool,
     /// форк умеет `show-only-in` (шторка для трансляций): уровень ≥ 4
     pub cast_only: bool,
+    /// уровень форка (0 — сток): от него зависит, какие правила niri поймёт
+    pub level: u32,
     pub stacking: bool,
     /// сток: окна, которые сделали плавающими мы, и спрятанные «свёрнутые»
     pub floated_by_us: Vec<u64>,
@@ -203,6 +205,7 @@ impl Niri {
         let lvl = fork_level();
         n.yami = lvl > 0;
         n.cast_only = lvl >= 4;
+        n.level = lvl;
         n
     }
 

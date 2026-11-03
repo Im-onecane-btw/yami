@@ -1219,7 +1219,7 @@ impl App {
     }
 
     pub fn write_fx(&mut self) {
-        let _ = config::write_atomic(&config::config_dir().join("niri/yami-fx.kdl"), &self.st.set.fx_kdl(self.st.niri.yami, self.st.niri.cast_only, self.st.curtain.is_some()));
+        let _ = config::write_atomic(&config::config_dir().join("niri/yami-fx.kdl"), &self.st.set.fx_kdl(self.st.niri.level, self.st.curtain.is_some()));
     }
 
     // ── простой: замок и гашение экрана ─────────────────────────────────────

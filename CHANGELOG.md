@@ -8,6 +8,8 @@ subjects when that section is empty).
 
 - `audioNames`: your own names for sound devices in the sound popup
 - yami-files: `devices` hides drives and USB sticks from the sidebar
+- Recordings and streams no longer show black boxes where notifications and the curtain's «hidden» badge are: on yami-niri 26.04-yami.5 they are simply left out (`hide-from`). Settings → services → notifications in recordings shows them instead
+- The privacy curtain also covers a single window shared on its own (OBS window capture, Discord window share), on yami-niri 26.04-yami.5
 - The launcher's search hint no longer starts under the text cursor
 
 ## 2.1.0

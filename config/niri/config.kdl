@@ -200,11 +200,8 @@ layer-rule {
     match namespace="^yami-wall$"
     place-within-backdrop true
 }
-// notifications are hidden from screen capture; remove this rule if you need them
-layer-rule {
-    match namespace="^yami-notif$"
-    block-out-from "screen-capture"
-}
+// notifications are hidden from screen capture by a rule in yami-fx.kdl
+// (settings → services → notifications in recordings)
 
 // ─── environment ───────────────────────────────────────────────────────────
 // GPU-specific variables (NVIDIA etc.) live in yami-local.kdl, written by install.sh

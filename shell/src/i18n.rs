@@ -553,6 +553,8 @@ const PAIRS: &[(&str, &str)] = &[
     ("выкл — mako, dunst и т.п.", "off: mako, dunst and the like"),
     ("картинки в карточках", "pictures in cards"),
     ("значки и превью от программ", "icons and previews from apps"),
+    ("уведомления в записи и трансляциях", "notifications in recordings and streams"),
+    ("выкл — зрители и запись их не видят", "off: viewers and recordings never see them"),
     ("на экране сразу", "on screen at once"),
     ("в истории", "kept in history"),
     ("трей и пароли", "tray and passwords"),

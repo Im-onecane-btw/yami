@@ -147,6 +147,7 @@ polkit change after a shell restart (`yami restart`), portals from the next logi
 | `agentPolkit` | `true` | the polkit password window |
 | `notifMax`, `notifHistory` | `4`, `50` | cards on screen at once; how many the history keeps |
 | `notifImages` | `true` | pictures in cards (icons and previews; at most 1024², files ≤ 16 MB) |
+| `notifCast` | `false` | notifications show in recordings and streams; off: viewers never see them (yami-niri ≥ `.5` simply leaves them out, other niri blacks them out) |
 | `audioNames` | `{}` | your names for sound devices: PipeWire name (`pactl list short sinks`) → label, e.g. `{"alsa_output.usb-…-00.analog-stereo": "Headphones"}` |
 | `mediaArtNet` | `true` | album covers from the player's web links (`curl`, https after redirects, ≤ 16 MB); off: only local files |
 | `portalFiles`, `portalCast` | `true`, `true` | file dialogs from yami-files, the screen-share picker from the shell (else GTK / GNOME) |

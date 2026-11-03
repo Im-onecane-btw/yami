@@ -36,6 +36,7 @@ pub fn toggle(s: &mut Settings, k: &str) -> bool {
         "agent_tray" => &mut s.agent_tray,
         "agent_polkit" => &mut s.agent_polkit,
         "notif_images" => &mut s.notif_images,
+        "notif_cast" => &mut s.notif_cast,
         "media_art_net" => &mut s.media_art_net,
         "portal_files" => &mut s.portal_files,
         "portal_cast" => &mut s.portal_cast,
@@ -74,7 +75,9 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     y += 46;
     opt_btn(ui, R::new(b.x, y, half, 26), "на экране сразу", &s.notif_max.to_string(), Act::SCycle("notif_max"));
     opt_btn(ui, R::new(x2, y, half, 26), "в истории", &s.notif_history.to_string(), Act::SCycle("notif_history"));
-    y += 40;
+    y += 34;
+    ui.toggle(R::new(b.x, y, b.w, 40), "уведомления в записи и трансляциях", "выкл — зрители и запись их не видят", s.notif_cast, Act::SBool("notif_cast"));
+    y += 46;
     y = title(ui, b.x, y, b.w, "трей и пароли");
     ui.toggle(R::new(b.x, y, half, 40), "трей", "значки программ в баре", s.agent_tray, Act::SBool("agent_tray"));
     ui.toggle(R::new(x2, y, half, 40), "окно пароля polkit", "выкл — другой агент", s.agent_polkit, Act::SBool("agent_polkit"));

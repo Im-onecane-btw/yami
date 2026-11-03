@@ -243,6 +243,8 @@ pub struct Settings {
     pub notif_history: u32,
     /// картинки в уведомлениях (значки, превью от программ)
     pub notif_images: bool,
+    /// уведомления видны в записи и трансляциях (иначе их не видят зрители)
+    pub notif_cast: bool,
     /// обложки музыки по ссылкам из сети (иначе — только локальные файлы)
     pub media_art_net: bool,
     /// свои имена звуковых устройств: имя PipeWire (`pactl list sinks`) → как показывать
@@ -397,6 +399,7 @@ impl Default for Settings {
             notif_max: 4,
             notif_history: 50,
             notif_images: true,
+            notif_cast: false,
             media_art_net: true,
             audio_names: Default::default(),
             portal_files: true,
@@ -595,14 +598,14 @@ impl Settings {
         }
     }
 
-    /// yami-fx.kdl; `yami` — niri наш форк (понимает allow-tearing)
-    /// cast_only — niri умеет `show-only-in`; curtain — шторка опущена (без cast_only тогда
+    /// yami-fx.kdl для niri уровня `lvl` (0 — сток, иначе наш форк: allow-tearing; ≥ 4 —
+    /// `show-only-in`; ≥ 5 — `hide-from`); curtain — шторка опущена (без `show-only-in` тогда
     /// прячутся окна)
-    pub fn fx_kdl(&self, yami: bool, cast_only: bool, curtain: bool) -> String {
-        let mut l: Vec<String> = vec!["// yami: written by the shell (settings → look, windows, games). Do not edit by hand: it is rewritten.".into(), String::new()];
+    pub fn fx_kdl(&self, lvl: u32, curtain: bool) -> String {
+        let mut l: Vec<String> = vec!["// yami: written by the shell (settings → look, windows, games, services). Do not edit by hand: it is rewritten.".into(), String::new()];
         self.float_kdl(&mut l);
-        crate::games::kdl(self, yami, &mut l);
-        crate::curtain::kdl(cast_only, curtain, &mut l);
+        crate::games::kdl(self, lvl > 0, &mut l);
+        crate::curtain::kdl(lvl, curtain, self.notif_cast, &mut l);
         if !self.blur_term && !self.blur_shell {
             l.push("blur { off; }".into());
             return l.join("\n") + "\n";

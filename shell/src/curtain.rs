@@ -35,13 +35,21 @@ pub fn next_style(id: &str) -> &'static str {
     STYLES[(i + 1) % STYLES.len()].0
 }
 
-/// правила niri: слой шторки — только в трансляции, значок — нигде, кроме экрана
-pub fn kdl(cast_only: bool, on: bool, l: &mut Vec<String>) {
-    l.push("// privacy curtain (settings → screenshots)".into());
-    for s in ["layer-rule {", &format!("    match namespace=\"^{BADGE_NS}$\""), "    block-out-from \"screen-capture\"", "}"] {
+/// правила niri: слой шторки — только в трансляции, значок и (если так выбрано) уведомления —
+/// только на экране. `hide-from` (форк ≥ 5) их просто не рисует в захвате; `block-out-from`
+/// старого niri заливает весь слой чёрным, вместе с полями тени
+pub fn kdl(lvl: u32, on: bool, notif_cast: bool, l: &mut Vec<String>) {
+    let hide = if lvl >= 5 { "    hide-from \"screen-capture\"" } else { "    block-out-from \"screen-capture\"" };
+    l.push("// privacy curtain (settings → screenshots), notifications (settings → services)".into());
+    for s in ["layer-rule {", &format!("    match namespace=\"^{BADGE_NS}$\""), hide, "}"] {
         l.push(s.into());
     }
-    if cast_only {
+    if !notif_cast {
+        for s in ["layer-rule {", "    match namespace=\"^yami-notif$\"", hide, "}"] {
+            l.push(s.into());
+        }
+    }
+    if lvl >= 4 {
         for s in ["layer-rule {", &format!("    match namespace=\"^{NS}$\""), "    show-only-in \"screencast\"", "}"] {
             l.push(s.into());
         }
