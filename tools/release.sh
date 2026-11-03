@@ -3,7 +3,9 @@
 # «release: X.Y.Z» and a tag vX.Y.Z (signed when a signing key is set, refused unsigned when
 # keys/allowed_signers already holds keys, since clients would reject it), then push. Users get it
 # through settings → updates or `yami update`.
+# With gh logged in, the push also publishes the GitHub release (the changelog section + install).
 #   tools/release.sh X.Y.Z [--no-push]   release
+#   tools/release.sh --publish X.Y.Z     (re)publish the GitHub release of an existing tag
 #   tools/release.sh --keygen            make an ssh signing key and trust it in keys/allowed_signers
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -15,6 +17,49 @@ say() { printf '\e[38;2;196;22;28m▪\e[0m %s\n' "$*"; }
 die() { printf '\e[31m✕ %s\e[0m\n' "$*" >&2; exit 1; }
 KEYS=keys/allowed_signers
 has_keys() { grep -qvE '^\s*(#|$)' "$KEYS" 2>/dev/null; }
+
+# the GitHub release of tag vX.Y.Z: its CHANGELOG section, how to install, how to check the tag
+publish() { # ver
+  local v=$1 notes
+  command -v gh >/dev/null && gh auth status >/dev/null 2>&1 || {
+    say "$(t "gh не вошёл — релиз на GitHub потом: tools/release.sh --publish $v" "gh is not logged in: publish later with tools/release.sh --publish $v")"
+    return 0
+  }
+  git rev-parse -q --verify "refs/tags/v$v" >/dev/null || die "$(t "нет тега v$v" "no tag v$v")"
+  notes="$(git show "v$v:CHANGELOG.md" | awk -v h="## $v" '$0 == h { on = 1; next } on && /^## / { exit } on' | sed -e '/./,$!d')"
+  [[ -n $notes ]] || notes="- $(t "изменения — в истории коммитов" "see the commit history")"
+  local body
+  body="$notes
+
+### Install
+
+\`\`\`sh
+bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/v$v/install.sh)
+\`\`\`
+
+Already on yami: settings → updates → **update**, or \`yami update apply\`.
+
+Built from source on your machine (Arch, Fedora, Debian/Ubuntu, openSUSE, Void, Alpine, Gentoo, NixOS). The tag is signed; check it with
+\`git -c gpg.ssh.allowedSignersFile=keys/allowed_signers verify-tag v$v\`.
+
+Описание и установка по-русски: [README.ru.md](https://github.com/Trendorin/yami/blob/v$v/README.ru.md)."
+  # the newest version tag is «latest»; an older one republished stays below it
+  local newest latest=false
+  newest="$(git tag -l 'v[0-9]*' --sort=-v:refname | head -n1)"
+  [[ $newest == "v$v" ]] && latest=true
+  if gh release view "v$v" >/dev/null 2>&1; then
+    gh release edit "v$v" --title "yami $v" --notes "$body" --latest="$latest" >/dev/null
+  else
+    gh release create "v$v" --verify-tag --title "yami $v" --notes "$body" --latest="$latest" >/dev/null
+  fi
+  say "$(t "релиз на GitHub: yami $v" "GitHub release: yami $v")"
+}
+
+if [[ ${1:-} == --publish ]]; then
+  [[ ${2:-} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "$(t "как: tools/release.sh --publish X.Y.Z" "usage: tools/release.sh --publish X.Y.Z")"
+  publish "$2"
+  exit 0
+fi
 
 if [[ ${1:-} == --keygen ]]; then
   key="$HOME/.ssh/yami-release"
@@ -91,6 +136,7 @@ fi
 if ((push)); then
   git push -q origin main "v$ver"
   say "$(t "отправлено: у всех в настройках → обновления появится $ver" "pushed: $ver shows up in everyone's settings → updates")"
+  publish "$ver"
 else
   say "$(t "не отправлено: git push origin main v$ver" "not pushed: git push origin main v$ver")"
 fi
