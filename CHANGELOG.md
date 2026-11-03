@@ -6,6 +6,8 @@ subjects when that section is empty).
 
 ## Unreleased
 
+## 2.2.0
+
 - `audioNames`: your own names for sound devices in the sound popup
 - yami-files: `devices` hides drives and USB sticks from the sidebar
 - Recordings and streams no longer show black boxes where notifications and the curtain's «hidden» badge are: on yami-niri 26.04-yami.5 they are simply left out (`hide-from`). Settings → services → notifications in recordings shows them instead
