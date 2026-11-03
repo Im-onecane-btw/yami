@@ -203,7 +203,7 @@ pub fn status(y: &Sty) {
         line(y, &y.acc("▪"), &crate::tf!("игра", "game"), &crate::tf!("в фокусе — шелл не перезапускается", "has focus: the shell will not restart"));
     }
     let u = crate::update::installed();
-    let last = std::fs::read_to_string(crate::config::state_dir().join("update.json")).ok().map(|t| yami_px::paths::lenient_json::<crate::update::Info>(&t));
+    let last = crate::update::last();
     let upd = match last {
         Some(i) if !i.err.is_empty() => y.warn(&i.err),
         Some(i) if i.available => y.acc(&crate::tf!("доступно {} (yami update)", "{} available (yami update)", i.latest)),

@@ -78,13 +78,7 @@ pub struct Upd {
 
 impl Upd {
     pub fn load() -> Upd {
-        let stamp = installed();
-        let mut info = last();
-        // проверка была до установки: то, что она нашла, уже стоит
-        if let Some(i) = info.as_mut().filter(|i| i.target == stamp.commit) {
-            i.available = false;
-        }
-        Upd { stamp, info, rollback: prev_dir().join("yami-shell").exists(), ..Default::default() }
+        Upd { stamp: installed(), info: last(), rollback: prev_dir().join("yami-shell").exists(), ..Default::default() }
     }
     /// для `yami-shell shot settings:updates[-new|-busy]`
     pub fn mock(what: &str) -> Upd {
@@ -130,8 +124,13 @@ pub fn log_path() -> PathBuf {
 pub fn installed() -> Stamp {
     std::fs::read_to_string(stamp_path()).map(|t| yami_px::paths::lenient_json(&t)).unwrap_or_default()
 }
-fn last() -> Option<Info> {
-    std::fs::read_to_string(info_path()).ok().map(|t| yami_px::paths::lenient_json(&t))
+/// последняя проверка; то, что она нашла и что уже установлено, — не «доступно»
+pub fn last() -> Option<Info> {
+    let mut i: Info = std::fs::read_to_string(info_path()).ok().map(|t| yami_px::paths::lenient_json(&t))?;
+    if i.target == installed().commit {
+        i.available = false;
+    }
+    Some(i)
 }
 fn save_json<T: Serialize>(p: &Path, v: &T) {
     if let Ok(j) = serde_json::to_string_pretty(v) {

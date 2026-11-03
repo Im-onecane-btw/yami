@@ -409,6 +409,7 @@ C_ID=(core apps look login nvidia fork)
 C_ON=(1 1 1 "$LOGIN_ON" "$NVIDIA" "$FORK_FLAG")
 # what was installed (the shell's `update stamp`): an update repeats the same choice
 INSTALLED="$STATE/install.json"
+COMP=""
 if ((UPDATE)) && [[ -f $INSTALLED ]]; then
   COMP="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("components",""))' "$INSTALLED" 2>/dev/null)"
   if [[ -n $COMP ]]; then
@@ -950,6 +951,8 @@ sddm_stale() {
 do_stamp() {
   local c="" i
   for i in "${!C_ID[@]}"; do ((C_ON[i])) && c+="${C_ID[$i]} "; done
+  # update without sudo skips root components for this run, the choice itself stays
+  ((UPDATE)) && [[ -n ${COMP:-} ]] && c="$COMP "
   "$BIN/yami-shell" update stamp "$ROOT" --components "${c% }"
 }
 
