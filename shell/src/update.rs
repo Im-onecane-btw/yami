@@ -634,9 +634,9 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     let chan = if s.update_channel == "main" { "каждый коммит" } else { "выпуски" };
     opt_btn(ui, R::new(b.x, y, half, 26), "канал", chan, Act::SCycle("update_channel"));
     let ver_l = match s.update_verify.as_str() {
-        "require" => "только подписанные",
-        "off" => "не проверять",
-        _ => "если есть ключи",
+        "require" => "всегда",
+        "off" => "выкл",
+        _ => "по ключам",
     };
     opt_btn(ui, R::new(b.x + half + 20, y, half, 26), "проверка подписей", ver_l, Act::SCycle("update_verify"));
     y += 34;
