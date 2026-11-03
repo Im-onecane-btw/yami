@@ -71,6 +71,7 @@ yami-shell binds list | print | write     # keybindings
 | `wallKanji` | `true` | the 闇 glyph in the wallpaper corner |
 | `iconTheme` | `""` | icon theme for app icons; empty: auto |
 | `iconPixel` | `true` | app icons redrawn as 16×16 pixel art in the palette tones |
+| `fetchFull` | `false` | fastfetch with the hardware (kernel, packages, CPU, GPU, memory, disk, display); off: who, OS, wm, shell, terminal, uptime |
 | `lang` | `""` | `ru`, `en`, or empty for `$LANG` |
 
 ### Fonts

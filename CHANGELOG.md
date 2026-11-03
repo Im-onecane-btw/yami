@@ -6,6 +6,7 @@ subjects when that section is empty).
 
 ## Unreleased
 
+- fastfetch is short by default: who, OS, window manager, shell, terminal and uptime, no hardware. The installer asks (`--fetch mini|full`), settings → look switches it
 - Roll back without surprises: the button opens a choice of the previous build (instant) or any signed release, and only «install» starts it; `yami update list` and `yami update to X.Y.Z` do the same in a terminal
 - Settings a rolled-back version does not know are kept aside and come back with the next update
 - After any update or rollback the updater checks that the shell answers and starts it if not, even when the installed version's own installer did not

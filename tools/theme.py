@@ -667,23 +667,32 @@ def fastfetch(p):
     write(CFG / "fastfetch/yami-logo.txt", logo)
     swatch = "".join("\u001b[48;2;%d;%d;%dm   " % rgb(c) for c in
                      (p["bg"], p["panel"], p["border"], p["deep"], a, p["bright"], p["textDim"], t))
-    line = esc(d) + "─" * 44
+    # мини (по умолчанию): кто, система и окружение — без железа; расширенный (fetchFull): всё.
+    # подписи — английские, короткие, в одну колонку
+    full = bool(_settings().get("fetchFull", False))
+    line = esc(d) + "─" * (44 if full else 30)
     keys = [
         ("title", "host", {"format": "{user-name}@{host-name}"}),
-        ("os", "os", {"format": "{pretty-name} {arch}"}),
-        ("kernel", "kernel", {"format": "{release}"}),
-        ("uptime", "uptime", {}),
-        ("packages", "pkgs", {}),
+        ("os", "os", {"format": "{pretty-name} {arch}" if full else "{pretty-name}"}),
+    ]
+    if full:
+        keys += [("kernel", "kernel", {"format": "{release}"}), ("uptime", "uptime", {}), ("packages", "pkgs", {})]
+    keys += [
         ("wm", "wm", {"format": "{pretty-name}"}),
         ("shell", "shell", {"format": "{pretty-name}"}),
         ("terminal", "term", {"format": "{pretty-name}"}),
-        (None, None, None),
-        ("cpu", "cpu", {"format": "{name} x{cores-logical}"}),
-        ("gpu", "gpu", {"format": "{name}", "hideType": "integrated"}),
-        ("memory", "mem", {"format": "{percentage-bar} {used} / {total}"}),
-        ("disk", "disk", {"folders": "/", "format": "{size-percentage-bar} {size-used} / {size-total}"}),
-        ("display", "display", {"format": "{width}x{height} @ {refresh-rate} Hz"}),
     ]
+    if full:
+        keys += [
+            (None, None, None),
+            ("cpu", "cpu", {"format": "{name} x{cores-logical}"}),
+            ("gpu", "gpu", {"format": "{name}", "hideType": "integrated"}),
+            ("memory", "mem", {"format": "{percentage-bar} {used} / {total}"}),
+            ("disk", "disk", {"folders": "/", "format": "{size-percentage-bar} {size-used} / {size-total}"}),
+            ("display", "display", {"format": "{width}x{height} @ {refresh-rate} Hz"}),
+        ]
+    else:
+        keys += [("uptime", "uptime", {})]
     mods = [{"type": "custom", "format": f"{esc(a)}YAMI {esc(f)}// {esc(p['textDim'])}niri"}, {"type": "custom", "format": line}]
     for typ, key, extra in keys:
         if typ is None:
@@ -698,7 +707,7 @@ def fastfetch(p):
         "display": {
             "separator": "  ",
             "color": {"keys": e(a), "title": e(p["bright"]), "output": e(t), "separator": e(d)},
-            "key": {"width": 9},
+            "key": {"width": 9 if full else 8},
             "bar": {"char": {"elapsed": "■", "total": "·"}, "width": 12,
                     "border": {"left": "", "right": ""}},
             "percent": {"type": 3, "color": {"green": e(p["ok"]), "yellow": e(p["warn"]), "red": e(p["bright"])}},
@@ -1139,6 +1148,11 @@ def main():
         for step in (fonts, firefox):
             step(p)
         subprocess.run(["pkill", "-USR1", "-x", "kitty"], check=False)
+        return
+    if args[:1] == ["--fetch"]:
+        # шелл переключил вид fastfetch (настройки → вид): только его конфиг
+        path = HOME / ".local/state/yami/palette.json"
+        fastfetch(json.loads(path.read_text()) if path.exists() else derive("#c4161c"))
         return
     if args[:1] == ["--login"]:
         # шелл сменил обои: только экран входа (если тема SDDM открыта на запись)

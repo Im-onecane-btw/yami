@@ -171,6 +171,7 @@ in the finished desktop. Useful flags:
 | `--palette ID` | `blood` `ash` `sakura` `amber` `venom` `ice` `dusk` |
 | `--look ID` | panels: `matte` `glass` `light` `solid` |
 | `--font sans\|pixel` | app font: readable sans (default) or the pixel Tiny5 everywhere |
+| `--fetch mini\|full` | fastfetch: who, system and desktop (default) or with the hardware too |
 | `--no-fork` | keep the packaged niri instead of building yami-niri |
 | `--login`, `--no-login` | SDDM with the yami theme even if another login manager is set / leave it alone |
 | `--no-sudo` | home directory only: no packages, no system files |

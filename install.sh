@@ -12,6 +12,7 @@
 #   ./install.sh --palette ash    blood ash sakura amber venom ice dusk
 #   ./install.sh --look light     panel transparency: matte glass light solid
 #   ./install.sh --font sans      app font: sans (readable, default) or pixel (Tiny5 everywhere)
+#   ./install.sh --fetch mini     fastfetch: mini (who, system, desktop; default) or full (+ hardware)
 #   ./install.sh --no-fork        packaged niri instead of yami-niri (built from source, 5–25 min)
 #   ./install.sh --login          SDDM with the yami theme even if another login manager is set
 #   ./install.sh --no-login       leave the login manager alone
@@ -71,7 +72,7 @@ MONOCRAFT_URL="https://github.com/IdreesInc/Monocraft/releases/download/v4.2.1/M
 MONOCRAFT_SHA256="67f88ff9e7c6560f6cf60fb062fd353a72f62dc2654462950c65b63ed53d9754"
 [[ -d $HOME/.cargo/bin ]] && export PATH="$HOME/.cargo/bin:$PATH"
 
-YES=0 SUDO=1 FORK_FLAG=1 LOGIN_FLAG="" PALETTE="" LOOK_OPT="" LANG_OPT="" FONT_OPT="" ANIM=1 DRY=0 UNINSTALL=0 UPDATE=0
+YES=0 SUDO=1 FORK_FLAG=1 LOGIN_FLAG="" PALETTE="" LOOK_OPT="" LANG_OPT="" FONT_OPT="" FETCH_OPT="" ANIM=1 DRY=0 UNINSTALL=0 UPDATE=0
 while (($#)); do
   case "$1" in
     -y | --yes) YES=1 ;;
@@ -79,6 +80,7 @@ while (($#)); do
     --fork) FORK_FLAG=1 ;;
     --no-fork) FORK_FLAG=0 ;;
     --font) FONT_OPT="${2:-}"; shift ;;
+    --fetch) FETCH_OPT="${2:-}"; shift ;;
     --login) LOGIN_FLAG=1 ;;
     --no-login) LOGIN_FLAG=0 ;;
     --palette) PALETTE="${2:-}"; shift ;;
@@ -280,6 +282,22 @@ elif [[ -f "$SET_JSON" ]]; then
   # an older install without fontUi had the pixel font in apps
   [[ $cur == True ]] || python3 -I -c 'import json,sys; sys.exit("fontUi" in json.load(open(sys.argv[1])))' "$SET_JSON" 2>/dev/null && font=1
 fi
+# ── fastfetch: mini (default) or full with the hardware; an update keeps what is set ──
+FETCH_ID=(mini full)
+fetch=0 FETCH_SET=0
+if [[ -n $FETCH_OPT ]]; then
+  case $FETCH_OPT in mini) fetch=0 ;; full) fetch=1 ;; *) echo "--fetch: mini or full" >&2; exit 2 ;; esac
+  FETCH_SET=1
+elif [[ -f "$SET_JSON" ]]; then
+  python3 -I -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("fetchFull") else 1)' "$SET_JSON" 2>/dev/null && fetch=1
+fi
+fetch_name() { case ${FETCH_ID[$1]} in mini) t "короткий" "mini" ;; full) t "расширенный" "extended" ;; esac; }
+fetch_desc() {
+  case ${FETCH_ID[$1]} in
+    mini) t "кто, система, окружение — без железа" "who, system, desktop: no hardware" ;;
+    full) t "ещё ядро, пакеты, процессор, видеокарта, память, диск, экран" "also kernel, packages, CPU, GPU, memory, disk, display" ;;
+  esac
+}
 font_name() { case ${FONT_ID[$1]} in sans) t "обычный (Noto Sans)" "regular (Noto Sans)" ;; pixel) t "пиксельный (Tiny5)" "pixel (Tiny5)" ;; esac; }
 font_desc() {
   case ${FONT_ID[$1]} in
@@ -600,6 +618,24 @@ pick_font() {
   done
 }
 
+pick_fetch() {
+  local n=${#FETCH_ID[@]} i mark style
+  while :; do
+    screen
+    printf '  %s%s%s%s   %s%s%s\n\n' "$T" "$B" "fastfetch" "$R" "$F" \
+      "$(t "↑↓ выбор · enter — дальше · потом: настройки → вид" "↑↓ move · enter next · later: settings → look")" "$R"
+    for ((i = 0; i < n; i++)); do
+      if ((i == fetch)); then mark="$A▸$R" style="$T$B"; else mark=" " style="$D"; fi
+      printf '  %s %s%s%s %s%s%s\n' "$mark" "$style" "$(pad "$(fetch_name "$i")" 22)" "$R" "$F" "$(fetch_desc "$i")" "$R"
+    done
+    case "$(key)" in
+      up | k | down | j) fetch=$((1 - fetch)) ;;
+      enter) FETCH_SET=1; return 0 ;;
+      q | esc) bye ;;
+    esac
+  done
+}
+
 confirm() {
   screen
   printf '  %s%s%s%s\n\n' "$T" "$B" "$(t "сводка" "summary")" "$R"
@@ -612,6 +648,7 @@ confirm() {
   printf '  %s■%s %s%s: %s%s \e[48;2;%sm    %s\n' "$A" "$R" "$T" "$(t "палитра" "palette")" "$(pal_name "$pal")" "$R" "$(rgb "${PAL_HEX[$pal]}")" "$R"
   ((LOOK_SET)) && printf '  %s■%s %s%s: %s%s\n' "$A" "$R" "$T" "$(t "панели" "panels")" "$(look_name "$look")" "$R"
   printf '  %s■%s %s%s: %s%s\n' "$A" "$R" "$T" "$(t "шрифт программ" "app font")" "$(font_name "$font")" "$R"
+  printf '  %s■%s %sfastfetch: %s%s\n' "$A" "$R" "$T" "$(fetch_name "$fetch")" "$R"
   printf '  %s■%s %s%s%s\n\n' "$A" "$R" "$T" "$(t "язык: русский" "language: English")" "$R"
   [[ $FAM == nixos ]] && note "$(t "NixOS: пакеты добавь в configuration.nix — список будет в конце" "NixOS: add the packages to configuration.nix, the list is printed at the end")"
   ((ATOMIC)) && note "$(t "атомарная Fedora: пакеты ставятся слоем rpm-ostree, нужна перезагрузка" "atomic Fedora: packages are layered with rpm-ostree, a reboot is needed")"
@@ -900,7 +937,9 @@ do_dotfiles() {
   # shell settings: palette, language and, when chosen, the panel look
   local lk=""
   ((LOOK_SET)) && lk="${LOOK_GLASS[$look]} ${LOOK_LIFT[$look]} ${LOOK_INNER[$look]} ${LOOK_DIM[$look]}"
-  python3 -I - "$CFG/yami-shell.json" "${PAL_ID[$pal]}" "$L" "$lk" "${FONT_ID[$font]}" <<'PY' || return 1
+  local fe=""
+  ((FETCH_SET)) && fe="${FETCH_ID[$fetch]}"
+  python3 -I - "$CFG/yami-shell.json" "${PAL_ID[$pal]}" "$L" "$lk" "${FONT_ID[$font]}" "$fe" <<'PY' || return 1
 import json, sys
 from pathlib import Path
 p = Path(sys.argv[1])
@@ -910,6 +949,8 @@ except (OSError, ValueError):
     d = {}
 d["palette"], d["accent"], d["lang"] = sys.argv[2], "", sys.argv[3]
 d["fontUi"] = "" if sys.argv[5] == "pixel" else "sans"
+if sys.argv[6]:
+    d["fetchFull"] = sys.argv[6] == "full"
 if sys.argv[4]:
     for k, v in zip(("glass", "lift", "inner", "dim"), sys.argv[4].split()):
         d[k] = int(v) / 100
@@ -1225,6 +1266,7 @@ if ((!YES)); then
   pick_palette
   pick_look
   pick_font
+  pick_fetch
   confirm
 fi
 paint

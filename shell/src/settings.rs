@@ -433,6 +433,9 @@ fn tab_look(ui: &mut Ui, st: &State, b: R) {
     opt_btn(ui, R::new(b.x, y, b.w, 26), "значки программ", it, Act::SCycle("icon_theme"));
     y += 34;
     ui.toggle(R::new(b.x, y, b.w, 26), "пиксельные значки программ в цветах палитры", "", s.icon_pixel, Act::SBool("icon_pixel"));
+    y += 40;
+    y = title(ui, b.x, y, b.w, "терминал");
+    ui.toggle(R::new(b.x, y, b.w, 40), "расширенный fastfetch", "ещё ядро, пакеты, процессор, видеокарта, память, диск, экран", s.fetch_full, Act::SBool("fetch_full"));
 }
 
 fn tab_system(ui: &mut Ui, st: &State, b: R) {
@@ -784,6 +787,17 @@ impl App {
                     "game_dnd" => s.game_dnd = !s.game_dnd,
                     "game_profile" => s.game_profile = !s.game_profile,
                     "update_check" => s.update_check = !s.update_check,
+                    "fetch_full" => {
+                        // theme.py читает настройки с диска: сохранить, потом перерисовать fastfetch
+                        s.fetch_full = !s.fetch_full;
+                        self.settings_changed();
+                        self.save_now();
+                        std::thread::spawn(|| {
+                            let _ = std::process::Command::new("python3").arg("-I").arg(crate::app::theme_script()).arg("--fetch").stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
+                        });
+                        self.dirty(&SKind::Modal);
+                        return true;
+                    }
                     k if crate::agents::toggle(s, k) => {}
                     "browser_menus" | "browser_font" => {
                         if *k == "browser_menus" {

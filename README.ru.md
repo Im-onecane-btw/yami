@@ -176,6 +176,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
 | `--palette ID` | `blood` `ash` `sakura` `amber` `venom` `ice` `dusk` |
 | `--look ID` | панели: `matte` `glass` `light` `solid` |
 | `--font sans\|pixel` | шрифт программ: обычный читаемый (по умолчанию) или пиксельный Tiny5 везде |
+| `--fetch mini\|full` | fastfetch: кто, система и окружение (по умолчанию) или ещё и железо |
 | `--no-fork` | оставить niri из пакета, не собирать yami-niri |
 | `--login`, `--no-login` | SDDM с темой yami, даже если стоит другой менеджер входа / не трогать вход |
 | `--no-sudo` | только домашняя папка: без пакетов и системных файлов |
