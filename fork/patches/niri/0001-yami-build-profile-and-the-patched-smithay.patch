@@ -1,0 +1,56 @@
+From 3857760d37a0b6389ad0ef560c60d8e051f2f503 Mon Sep 17 00:00:00 2001
+From: yami <yami@localhost>
+Date: Tue, 3 Nov 2026 08:07:43 +0300
+Subject: [PATCH 1/4] yami: build profile and the patched smithay
+
+[profile.yami]: fat LTO, one codegen unit, no debuginfo; built with
+-C target-cpu=native by fork/yami-niri.sh. smithay comes from
+../yami-smithay (async page flips).
+---
+ Cargo.lock |  2 --
+ Cargo.toml | 15 +++++++++++++++
+ 2 files changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index b03ba15c..8fe0c4fc 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -3498,7 +3498,6 @@ checksum = "b7c388c1b5e93756d0c740965c41e8822f866621d41acbdf6336a6a168f8840c"
+ [[package]]
+ name = "smithay"
+ version = "0.7.0"
+-source = "git+https://github.com/Smithay/smithay.git?rev=ff5fa7df392cecfba049ffed55cdaa4e98a8e7ef#ff5fa7df392cecfba049ffed55cdaa4e98a8e7ef"
+ dependencies = [
+  "aliasable",
+  "appendlist",
+@@ -3573,7 +3572,6 @@ dependencies = [
+ [[package]]
+ name = "smithay-drm-extras"
+ version = "0.1.0"
+-source = "git+https://github.com/Smithay/smithay.git?rev=ff5fa7df392cecfba049ffed55cdaa4e98a8e7ef#ff5fa7df392cecfba049ffed55cdaa4e98a8e7ef"
+ dependencies = [
+  "drm",
+  "libdisplay-info",
+diff --git a/Cargo.toml b/Cargo.toml
+index fa7164e9..851c7bcf 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -188,3 +188,18 @@ assets = [
+     ["resources/niri.service", "/usr/lib/systemd/user/", "644"],
+     ["resources/niri-shutdown.target", "/usr/lib/systemd/user/", "644"],
+ ]
++
++# yami: smithay with async page flips (tearing for fullscreen games), next to this tree.
++[patch."https://github.com/Smithay/smithay.git"]
++smithay = { path = "../yami-smithay" }
++smithay-drm-extras = { path = "../yami-smithay/smithay-drm-extras" }
++
++# yami: the build for the machine it runs on — whole-program LTO, one codegen unit,
++# RUSTFLAGS="-C target-cpu=native" (fork/yami-niri.sh), no debuginfo. Overflow checks stay as upstream.
++[profile.yami]
++inherits = "release"
++lto = "fat"
++codegen-units = 1
++incremental = false
++debug = false
++strip = "debuginfo"

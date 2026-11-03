@@ -1,0 +1,275 @@
+// ┌──────────────────────────────────────────────────────────────────────────┐
+// │  YAMI // niri                                                             │
+// │  dark graphite and a single accent. crisp pixels, light on the GPU.       │
+// └──────────────────────────────────────────────────────────────────────────┘
+// Works on the packaged niri and on yami-niri (fork/); keys come from yami-binds.kdl, window
+// rules from yami-fx.kdl, both written by the shell. Personal tweaks go to user.kdl next to this
+// file: it is read after them and never overwritten.
+
+// ─── outputs ───────────────────────────────────────────────────────────────
+// niri picks the preferred mode itself; settings → screens writes yami-outputs.kdl (included last)
+
+// ─── input ─────────────────────────────────────────────────────────────────
+input {
+    keyboard {
+        xkb {
+            layout "us,ru"
+            options "grp:alt_shift_toggle"
+        }
+        repeat-delay 250
+        repeat-rate 45
+        numlock
+    }
+    mouse {
+        accel-profile "flat"
+    }
+    touchpad {
+        tap
+        natural-scroll
+    }
+    focus-follows-mouse max-scroll-amount="0%"
+    workspace-auto-back-and-forth
+}
+
+// ─── layout ────────────────────────────────────────────────────────────────
+layout {
+    gaps 8
+    center-focused-column "never"
+    always-center-single-column
+    background-color "transparent"   // the shell draws the wallpaper (background layer)
+
+    preset-column-widths {
+        proportion 0.33333
+        proportion 0.5
+        proportion 0.66667
+        proportion 1.0
+    }
+    default-column-width { proportion 0.5; }
+
+    // a 2 px accent border instead of a focus ring (colors: yami-colors.kdl)
+    focus-ring { off; }
+    border {
+        width 2
+        active-color   "#c4161c"
+        inactive-color "#4a1216"
+        urgent-color   "#ff3b2f"
+    }
+    shadow { off; }           // shadows cost an extra pass per window
+    tab-indicator {
+        width 4
+        gap 4
+        corner-radius 0
+        active-color   "#c4161c"
+        inactive-color "#4a1216"
+        urgent-color   "#ff3b2f"
+    }
+    insert-hint {
+        color "#c4161c60"
+    }
+    struts {}
+}
+
+// ─── animations: short, pixel-crisp, no blur ───────────────────────────────
+animations {
+    workspace-switch {
+        spring damping-ratio=1.0 stiffness=1100 epsilon=0.0001
+    }
+    horizontal-view-movement {
+        spring damping-ratio=1.0 stiffness=900 epsilon=0.0001
+    }
+    window-movement {
+        spring damping-ratio=1.0 stiffness=900 epsilon=0.0001
+    }
+    window-resize {
+        spring damping-ratio=1.0 stiffness=1000 epsilon=0.0001
+    }
+    overview-open-close {
+        spring damping-ratio=1.0 stiffness=1000 epsilon=0.0001
+    }
+    config-notification-open-close {
+        spring damping-ratio=0.8 stiffness=1000 epsilon=0.001
+    }
+    screenshot-ui-open {
+        duration-ms 120
+        curve "ease-out-quad"
+    }
+    // windows dissolve in on a 4 px Bayer grid, each cell flashes briefly
+    window-open {
+        duration-ms 140
+        curve "linear"
+        custom-shader r#"
+            float px_bayer2(vec2 c) { vec2 d = mod(c, 2.0); return 2.0 * d.x + 3.0 * d.y - 4.0 * d.x * d.y; }
+            float px_bayer(vec2 c) { return 16.0 * px_bayer2(c) + 4.0 * px_bayer2(floor(c / 2.0)) + px_bayer2(floor(c / 4.0)); }
+            vec4 open_color(vec3 coords_geo, vec3 size_geo) {
+                if (coords_geo.x < 0.0 || coords_geo.x > 1.0 || coords_geo.y < 0.0 || coords_geo.y > 1.0)
+                    return vec4(0.0);
+                float p = niri_clamped_progress;
+                vec2 cell = floor(coords_geo.xy * size_geo.xy / 4.0);
+                float t = (px_bayer(cell) + 0.5) / 64.0 * 0.85;
+                if (p < t)
+                    return vec4(0.0);
+                vec4 color = texture2D(niri_tex, (niri_geo_to_tex * coords_geo).st);
+                float fresh = 1.0 - clamp((p - t) / 0.12, 0.0, 1.0);
+                color.rgb = mix(color.rgb, vec3(1.0) * color.a, fresh * 0.35);
+                return color;
+            }
+        "#
+    }
+    // windows dissolve out cell by cell; remaining cells darken
+    window-close {
+        duration-ms 150
+        curve "linear"
+        custom-shader r#"
+            float px_bayer2(vec2 c) { vec2 d = mod(c, 2.0); return 2.0 * d.x + 3.0 * d.y - 4.0 * d.x * d.y; }
+            float px_bayer(vec2 c) { return 16.0 * px_bayer2(c) + 4.0 * px_bayer2(floor(c / 2.0)) + px_bayer2(floor(c / 4.0)); }
+            vec4 close_color(vec3 coords_geo, vec3 size_geo) {
+                if (coords_geo.x < 0.0 || coords_geo.x > 1.0 || coords_geo.y < 0.0 || coords_geo.y > 1.0)
+                    return vec4(0.0);
+                float p = niri_clamped_progress;
+                vec2 cell = floor(coords_geo.xy * size_geo.xy / 4.0);
+                float t = (px_bayer(cell) + 0.5) / 64.0 * 0.9;
+                if (p > t)
+                    return vec4(0.0);
+                vec2 sample_geo = (cell + 0.5) * 4.0 / size_geo.xy;
+                vec4 color = texture2D(niri_tex, (niri_geo_to_tex * vec3(sample_geo, 1.0)).st);
+                color.rgb *= 1.0 - p * 0.6;
+                return color;
+            }
+        "#
+    }
+}
+
+// ─── effects ───────────────────────────────────────────────────────────────
+// blur is enabled by the shell in yami-fx.kdl (included below); xray blurs the
+// wallpaper once and reuses it, so it is nearly free
+
+overview {
+    zoom 0.4
+    backdrop-color "#0a0506"
+    workspace-shadow { off; }
+}
+
+recent-windows {
+    debounce-ms 300
+    open-delay-ms 120
+    highlight {
+        active-color "#c4161cff"
+        urgent-color "#ff3b2fff"
+        padding 12
+        corner-radius 0
+    }
+    // Alt+Tab cycles all windows, Alt+` cycles windows of the same app (Mod+Tab is overview)
+    binds {
+        Alt+Tab         { next-window; }
+        Alt+Shift+Tab   { previous-window; }
+        Alt+grave       { next-window     filter="app-id"; }
+        Alt+Shift+grave { previous-window filter="app-id"; }
+    }
+}
+
+// ─── windows ───────────────────────────────────────────────────────────────
+prefer-no-csd
+
+window-rule {
+    geometry-corner-radius 0   // square pixel corners (stepped on the fork)
+    clip-to-geometry true
+    draw-border-with-background false
+}
+
+window-rule {
+    match is-active=false
+    opacity 0.97
+}
+
+// dialogs and small utilities open floating
+window-rule {
+    match app-id=r#"^org\.pulseaudio\.pavucontrol$"#
+    match app-id=r#"^nm-connection-editor$"#
+    match app-id=r#"^xdg-desktop-portal"#
+    match app-id=r#"^yami-files-pick$"#
+    match title=r#"^(Picture-in-Picture|Картинка в картинке)$"#
+    match title=r#"^(Open|Save|Открыть|Сохранить)( File| As| файл| как)?"#
+    open-floating true
+}
+
+// games: fullscreen, VRR, tearing and the shader cache come from the shell (settings → games,
+// yami-fx.kdl)
+
+// the wallpaper stays behind the overview (Mod+Tab), like a real desktop
+layer-rule {
+    match namespace="^yami-wall$"
+    place-within-backdrop true
+}
+// notifications are hidden from screen capture; remove this rule if you need them
+layer-rule {
+    match namespace="^yami-notif$"
+    block-out-from "screen-capture"
+}
+
+// ─── environment ───────────────────────────────────────────────────────────
+// GPU-specific variables (NVIDIA etc.) live in yami-local.kdl, written by install.sh
+environment {
+    // Wayland wherever possible
+    ELECTRON_OZONE_PLATFORM_HINT "auto"
+    QT_QPA_PLATFORM "wayland;xcb"
+    QT_QPA_PLATFORMTHEME "qt6ct"
+    QT_WAYLAND_DISABLE_WINDOWDECORATION "1"
+    SDL_VIDEODRIVER "wayland,x11"
+    MOZ_ENABLE_WAYLAND "1"
+    // file dialogs through the portal → yami-files (GTK 3/4, Firefox, KDE platform theme)
+    GTK_USE_PORTAL "1"
+    GDK_DEBUG "portals"
+    PLASMA_INTEGRATION_USE_PORTAL "1"
+    GDK_BACKEND "wayland,x11"
+    XDG_CURRENT_DESKTOP "niri"
+    XDG_SESSION_TYPE "wayland"
+}
+
+cursor {
+    // the pixel cursor in the palette comes from yami-cursor.kdl (tools/theme.py); this is the fallback
+    xcursor-theme "Adwaita"
+    xcursor-size 24
+    hide-when-typing
+    hide-after-inactive-ms 5000
+}
+
+screenshot-path "~/Pictures/Screenshots/%Y-%m-%d_%H-%M-%S.png"
+
+hotkey-overlay {
+    skip-at-startup
+}
+
+clipboard {
+    disable-primary
+}
+
+debug {
+    // let notifications and the shell activate windows
+    honor-xdg-activation-with-invalid-serial
+}
+
+// ─── autostart ─────────────────────────────────────────────────────────────
+// YAMI shell (Rust); restarted if it crashes, a second instance exits with code 0
+// the polkit password window is part of the shell (auth.rs)
+spawn-sh-at-startup "until yami-shell; do sleep 1; done"
+spawn-sh-at-startup "wl-paste --type text --watch cliphist store"
+spawn-sh-at-startup "wl-paste --type image --watch cliphist store"
+
+
+// Keybindings live in yami-binds.kdl: the shell writes it (settings → keys) from its table
+// and your changes. Your own binds go to user.kdl, which is included later and wins.
+
+// hardware-specific bits (GPU, cursor), written by install.sh
+include optional=true "yami-local.kdl"
+
+// palette colors and blur from the shell settings, written by the shell and hot-reloaded
+include optional=true "yami-colors.kdl"
+include optional=true "yami-fx.kdl"
+include optional=true "yami-cursor.kdl"
+
+include optional=true "yami-binds.kdl"
+include optional=true "user.kdl"
+
+// screens from the shell (settings → screens): mode, refresh rate, scale, position.
+// After user.kdl on purpose: what you set in the shell wins.
+include optional=true "yami-outputs.kdl"

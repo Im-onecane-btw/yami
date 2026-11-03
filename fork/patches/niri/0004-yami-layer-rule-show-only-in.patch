@@ -1,0 +1,145 @@
+From f5ba5c94524ed6ca19f463499412d1aded12eb18 Mon Sep 17 00:00:00 2001
+From: yami <yami@localhost>
+Date: Tue, 3 Nov 2026 15:57:45 +0300
+Subject: [PATCH 4/4] yami: layer rule show-only-in
+
+The opposite of block-out-from: a layer surface matched by
+show-only-in "screencast" (or "screen-capture") is drawn only to those
+render targets and never on the monitor. The shell uses it for a
+privacy curtain: viewers of a stream or a recording see a cover while
+the user keeps seeing the desktop. The look is drawn by the shell; the
+compositor only decides where the surface is shown.
+---
+ docs/wiki/Configuration:-Layer-Rules.md | 14 ++++++++++++++
+ niri-config/src/layer_rule.rs           |  2 ++
+ niri-config/src/lib.rs                  |  1 +
+ src/layer/mapped.rs                     | 13 +++++++++++--
+ src/layer/mod.rs                        |  6 ++++++
+ 5 files changed, 34 insertions(+), 2 deletions(-)
+
+diff --git a/docs/wiki/Configuration:-Layer-Rules.md b/docs/wiki/Configuration:-Layer-Rules.md
+index 0b2ccf34..7f044e54 100644
+--- a/docs/wiki/Configuration:-Layer-Rules.md
++++ b/docs/wiki/Configuration:-Layer-Rules.md
+@@ -20,6 +20,7 @@ layer-rule {
+     opacity 0.5
+     block-out-from "screencast"
+     // block-out-from "screen-capture"
++    show-only-in "screencast"
+ 
+     shadow {
+         on
+@@ -146,6 +147,19 @@ layer-rule {
+ }
+ ```
+ 
++#### `show-only-in`
++
++The opposite of `block-out-from`: the surface is drawn only to screencasts (`"screencast"`) or to all screen captures (`"screen-capture"`), never on the monitor itself.
++A shell can use it to cover the screen for viewers of a stream or a recording while you keep seeing your desktop.
++
++```kdl
++layer-rule {
++    match namespace="^privacy-curtain$"
++
++    show-only-in "screencast"
++}
++```
++
+ #### `shadow`
+ 
+ <sup>Since: 25.02</sup>
+diff --git a/niri-config/src/layer_rule.rs b/niri-config/src/layer_rule.rs
+index cf099b3a..7bd262e6 100644
+--- a/niri-config/src/layer_rule.rs
++++ b/niri-config/src/layer_rule.rs
+@@ -13,6 +13,8 @@ pub struct LayerRule {
+     pub opacity: Option<f32>,
+     #[knuffel(child, unwrap(argument))]
+     pub block_out_from: Option<BlockOutFrom>,
++    #[knuffel(child, unwrap(argument))]
++    pub show_only_in: Option<BlockOutFrom>,
+     #[knuffel(child, default)]
+     pub shadow: ShadowRule,
+     #[knuffel(child)]
+diff --git a/niri-config/src/lib.rs b/niri-config/src/lib.rs
+index 06fb1203..53ddd910 100644
+--- a/niri-config/src/lib.rs
++++ b/niri-config/src/lib.rs
+@@ -1911,6 +1911,7 @@ mod tests {
+                     block_out_from: Some(
+                         Screencast,
+                     ),
++                    show_only_in: None,
+                     shadow: ShadowRule {
+                         off: false,
+                         on: false,
+diff --git a/src/layer/mapped.rs b/src/layer/mapped.rs
+index fbaa6fc6..b6d1ae09 100644
+--- a/src/layer/mapped.rs
++++ b/src/layer/mapped.rs
+@@ -17,7 +17,7 @@ use crate::render_helpers::shadow::ShadowRenderElement;
+ use crate::render_helpers::solid_color::{SolidColorBuffer, SolidColorRenderElement};
+ use crate::render_helpers::surface::push_elements_from_surface_tree;
+ use crate::render_helpers::xray::XrayPos;
+-use crate::render_helpers::{background_effect, RenderCtx};
++use crate::render_helpers::{background_effect, RenderCtx, RenderTarget};
+ use crate::utils::{baba_is_float_offset, round_logical_in_physical};
+ 
+ #[derive(Debug)]
+@@ -134,6 +134,11 @@ impl MappedLayer {
+         &self.surface
+     }
+ 
++    /// `show-only-in`: not drawn to targets outside the given ones (e.g. the monitor).
++    pub fn hidden_for(&self, target: RenderTarget) -> bool {
++        self.rules.show_only_in.is_some() && !target.should_block_out(self.rules.show_only_in)
++    }
++
+     pub fn rules(&self) -> &ResolvedLayerRules {
+         &self.rules
+     }
+@@ -192,6 +197,10 @@ impl MappedLayer {
+         xray_pos: XrayPos,
+         push: &mut dyn FnMut(LayerSurfaceRenderElement<R>),
+     ) {
++        if self.hidden_for(ctx.target) {
++            return;
++        }
++
+         let scale = Scale::from(self.scale);
+         let alpha = self.rules.opacity.unwrap_or(1.).clamp(0., 1.);
+ 
+@@ -263,7 +272,7 @@ impl MappedLayer {
+         xray_pos: XrayPos,
+         push: &mut dyn FnMut(LayerSurfaceRenderElement<R>),
+     ) {
+-        if ctx.target.should_block_out(self.rules.block_out_from) {
++        if ctx.target.should_block_out(self.rules.block_out_from) || self.hidden_for(ctx.target) {
+             return;
+         }
+ 
+diff --git a/src/layer/mod.rs b/src/layer/mod.rs
+index 767a6b0e..f5abeba9 100644
+--- a/src/layer/mod.rs
++++ b/src/layer/mod.rs
+@@ -16,6 +16,9 @@ pub struct ResolvedLayerRules {
+     /// Whether to block out this layer surface from certain render targets.
+     pub block_out_from: Option<BlockOutFrom>,
+ 
++    /// Draw this layer surface only to these render targets (not on the monitor).
++    pub show_only_in: Option<BlockOutFrom>,
++
+     /// Shadow overrides.
+     pub shadow: ShadowRule,
+ 
+@@ -66,6 +69,9 @@ impl ResolvedLayerRules {
+             if let Some(x) = rule.block_out_from {
+                 resolved.block_out_from = Some(x);
+             }
++            if let Some(x) = rule.show_only_in {
++                resolved.show_only_in = Some(x);
++            }
+             if let Some(x) = rule.geometry_corner_radius {
+                 resolved.geometry_corner_radius = Some(x);
+             }

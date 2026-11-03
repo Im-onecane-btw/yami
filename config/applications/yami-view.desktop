@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=Images
+Name[ru]=Картинки
+GenericName=Image Viewer
+GenericName[ru]=Просмотр изображений
+Comment=Fast pixel-art image viewer and quick editor of the yami shell
+Comment[ru]=Быстрый пиксельный просмотрщик и правка картинок шелла yami
+Exec=yami-view %F
+Icon=image-viewer
+Terminal=false
+MimeType=image/png;image/jpeg;image/gif;image/webp;image/bmp;image/x-icon;image/vnd.microsoft.icon;image/x-tga;image/tiff;image/x-portable-pixmap;image/x-portable-anymap;image/qoi;
+Categories=Graphics;Viewer;2DGraphics;RasterGraphics;
+Keywords=photo;picture;gallery;gwenview;
+StartupWMClass=yami-view

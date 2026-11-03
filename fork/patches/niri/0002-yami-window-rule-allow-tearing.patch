@@ -1,0 +1,104 @@
+From 0f61a05a4a97cdf9830aad1264fa122bb60a6c1f Mon Sep 17 00:00:00 2001
+From: yami <yami@localhost>
+Date: Tue, 3 Nov 2026 08:07:43 +0300
+Subject: [PATCH 2/4] yami: window rule allow-tearing
+
+A fullscreen window on top of its output whose rules say
+allow-tearing true gets async page flips: its frames are shown at once
+instead of at the next vblank (less input lag, at the price of tearing).
+Only frames that change nothing but the primary plane's buffer flip
+async; the desktop never tears.
+---
+ niri-config/src/lib.rs         |  1 +
+ niri-config/src/window_rule.rs |  3 +++
+ src/backend/tty.rs             |  2 ++
+ src/niri.rs                    | 12 ++++++++++++
+ src/window/mod.rs              |  6 ++++++
+ 5 files changed, 24 insertions(+)
+
+diff --git a/niri-config/src/lib.rs b/niri-config/src/lib.rs
+index 329b7669..06fb1203 100644
+--- a/niri-config/src/lib.rs
++++ b/niri-config/src/lib.rs
+@@ -1856,6 +1856,7 @@ mod tests {
+                     baba_is_float: None,
+                     block_out_from: None,
+                     variable_refresh_rate: None,
++                    allow_tearing: None,
+                     default_column_display: Some(
+                         Tabbed,
+                     ),
+diff --git a/niri-config/src/window_rule.rs b/niri-config/src/window_rule.rs
+index f2bc2ad1..9eb2a911 100644
+--- a/niri-config/src/window_rule.rs
++++ b/niri-config/src/window_rule.rs
+@@ -67,6 +67,9 @@ pub struct WindowRule {
+     pub block_out_from: Option<BlockOutFrom>,
+     #[knuffel(child, unwrap(argument))]
+     pub variable_refresh_rate: Option<bool>,
++    // yami: async page flips while this window is fullscreen on top (games: less input lag)
++    #[knuffel(child, unwrap(argument))]
++    pub allow_tearing: Option<bool>,
+     #[knuffel(child, unwrap(argument, str))]
+     pub default_column_display: Option<ColumnDisplay>,
+     #[knuffel(child)]
+diff --git a/src/backend/tty.rs b/src/backend/tty.rs
+index 5368c7ec..43573254 100644
+--- a/src/backend/tty.rs
++++ b/src/backend/tty.rs
+@@ -1929,6 +1929,8 @@ impl Tty {
+ 
+         // Hand them over to the DRM.
+         let drm_compositor = &mut surface.compositor;
++        // yami: a fullscreen game that allows it flips at once instead of at the next vblank
++        drm_compositor.set_allow_tearing(niri.tearing_now(output));
+         match drm_compositor.render_frame::<_, _>(&mut renderer, &elements, [0.; 4], flags) {
+             Ok(res) => {
+                 let needs_sync = res.needs_sync()
+diff --git a/src/niri.rs b/src/niri.rs
+index ec40e01c..f10e0e6b 100644
+--- a/src/niri.rs
++++ b/src/niri.rs
+@@ -4735,6 +4735,18 @@ impl Niri {
+         backend.set_output_on_demand_vrr(self, output, current);
+     }
+ 
++    /// yami: whether `output`'s frames may tear now: a fullscreen window that allows it
++    /// (window rule `allow-tearing true`) is on top of it and the view is still.
++    pub fn tearing_now(&self, output: &Output) -> bool {
++        let Some(mon) = self.layout.monitor_for_output(output) else {
++            return false;
++        };
++        mon.render_above_top_layer()
++            && mon
++                .active_window()
++                .is_some_and(|mapped| mapped.rules().allow_tearing == Some(true))
++    }
++
+     pub fn update_primary_scanout_output(
+         &self,
+         output: &Output,
+diff --git a/src/window/mod.rs b/src/window/mod.rs
+index 14527cd2..4ad3feaf 100644
+--- a/src/window/mod.rs
++++ b/src/window/mod.rs
+@@ -114,6 +114,9 @@ pub struct ResolvedWindowRules {
+     /// Whether to enable VRR on this window's primary output if it is on-demand.
+     pub variable_refresh_rate: Option<bool>,
+ 
++    /// yami: whether this window may tear (async page flips) while fullscreen on top.
++    pub allow_tearing: Option<bool>,
++
+     /// Multiplier for all scroll events sent to this window.
+     pub scroll_factor: Option<f64>,
+ 
+@@ -296,6 +299,9 @@ impl ResolvedWindowRules {
+                 if let Some(x) = rule.variable_refresh_rate {
+                     resolved.variable_refresh_rate = Some(x);
+                 }
++                if let Some(x) = rule.allow_tearing {
++                    resolved.allow_tearing = Some(x);
++                }
+                 if let Some(x) = rule.scroll_factor {
+                     resolved.scroll_factor = Some(x.0);
+                 }

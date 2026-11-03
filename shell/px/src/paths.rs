@@ -1,0 +1,64 @@
+// Каталоги XDG и атомарная запись.
+
+use std::path::{Path, PathBuf};
+
+/// переменная XDG: пустая или относительная — как не заданная (так велит спецификация)
+fn xdg(var: &str) -> Option<PathBuf> {
+    std::env::var_os(var).map(PathBuf::from).filter(|p| p.is_absolute())
+}
+
+pub fn home() -> PathBuf {
+    std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/tmp"))
+}
+pub fn config_dir() -> PathBuf {
+    xdg("XDG_CONFIG_HOME").unwrap_or_else(|| home().join(".config"))
+}
+pub fn state_dir() -> PathBuf {
+    let d = xdg("XDG_STATE_HOME").unwrap_or_else(|| home().join(".local/state")).join("yami");
+    let _ = std::fs::create_dir_all(&d);
+    d
+}
+pub fn data_dir() -> PathBuf {
+    xdg("XDG_DATA_HOME").unwrap_or_else(|| home().join(".local/share"))
+}
+pub fn cache_dir() -> PathBuf {
+    xdg("XDG_CACHE_HOME").unwrap_or_else(|| home().join(".cache"))
+}
+/// настройки шелла: оттуда же приложения берут палитру, язык и анимации
+pub fn shell_settings() -> PathBuf {
+    config_dir().join("yami-shell.json")
+}
+
+/// запись через временный файл: читатель никогда не увидит половину
+pub fn write_atomic(path: &Path, text: &str) -> std::io::Result<()> {
+    if std::fs::read_to_string(path).map(|t| t == text).unwrap_or(false) {
+        return Ok(());
+    }
+    if let Some(p) = path.parent() {
+        std::fs::create_dir_all(p)?;
+    }
+    let tmp = path.with_extension("tmp~");
+    std::fs::write(&tmp, text)?;
+    std::fs::rename(&tmp, path)
+}
+
+/// Разбор JSON-настроек, прощающий ошибки: ключ с негодным значением берётся по умолчанию, а не
+/// весь файл (правят руками по ключу — одна опечатка не сбрасывает остальное). Неизвестные
+/// ключи пропускаются. Не JSON вовсе — значения по умолчанию.
+pub fn lenient_json<T: serde::de::DeserializeOwned + serde::Serialize + Default>(text: &str) -> T {
+    if let Ok(v) = serde_json::from_str::<T>(text) {
+        return v;
+    }
+    let Some(user) = serde_json::from_str::<serde_json::Value>(text).ok().and_then(|v| v.as_object().cloned()) else { return T::default() };
+    let mut base = serde_json::to_value(T::default()).unwrap_or_default();
+    for (k, x) in user {
+        let mut one = base.clone();
+        one[&k] = x.clone();
+        if serde_json::from_value::<T>(one).is_ok() {
+            base[&k] = x;
+        } else {
+            eprintln!("bad value for {k}, default used");
+        }
+    }
+    serde_json::from_value(base).unwrap_or_default()
+}

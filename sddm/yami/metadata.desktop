@@ -1,0 +1,13 @@
+[SddmGreeterTheme]
+Name=yami
+Description=Pixel-art login screen of the yami rice (matches the shell lock screen)
+Author=yami
+License=MIT
+Type=sddm-theme
+Version=1.0
+Website=https://github.com/Trendorin
+MainScript=Main.qml
+ConfigFile=theme.conf
+Theme-Id=yami
+Theme-API=2.0
+QtVersion=6

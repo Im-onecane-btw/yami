@@ -1,0 +1,446 @@
+// Обои: своя картинка или пиксельные из палитры (tools/theme.py пишет wallpaper.png). Своя
+// готовится в нити — декод, обрезка или вписывание под экран, клетки, окраска в палитру,
+// затемнение — и приходит в Msg::Wall уже готовой: экран рисует её без пересчёта. Тот же
+// результат идёт экрану входа (wallpaper-own.png → theme.py --login). Здесь же вкладка «обои».
+
+use crate::app::{App, Msg, SKind, State};
+use crate::config::{self, Settings};
+use crate::font::{self, PX};
+use crate::gfx::{BoxStyle, Img, C, R};
+use crate::settings::{opt_btn, title};
+use crate::theme::Theme;
+use crate::ui::{Act, Tone, Ui};
+use image::RgbaImage;
+use std::path::{Path, PathBuf};
+
+pub const FITS: &[(&str, &str)] = &[("fill", "заполнить"), ("fit", "вписать")];
+pub const TONES: &[(&str, &str)] = &[("", "как есть"), ("tint", "оттенок акцента"), ("palette", "тона палитры")];
+const BAYER4: [u8; 16] = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+
+/// размер клетки в пикселях экрана для wallPixel 1..8
+pub fn cell(p: i32) -> u32 {
+    [1, 2, 3, 4, 6, 8, 12, 16][(p.clamp(1, 8) - 1) as usize]
+}
+
+/// своя картинка (с раскрытым ~) или None — пиксельные из палитры
+pub fn own(s: &Settings) -> Option<PathBuf> {
+    let p = s.wallpaper.trim();
+    if p.is_empty() {
+        return None;
+    }
+    Some(p.strip_prefix("~/").map(|r| config::home().join(r)).unwrap_or_else(|| PathBuf::from(p)))
+}
+
+fn generated() -> PathBuf {
+    config::state_dir().join("wallpaper.png")
+}
+
+fn name_of(list: &[(&str, &'static str)], id: &str) -> &'static str {
+    list.iter().find(|x| x.0 == id).map(|x| x.1).unwrap_or(list[0].1)
+}
+
+fn next_of(list: &[(&'static str, &str)], id: &str) -> &'static str {
+    let i = list.iter().position(|x| x.0 == id).unwrap_or(0);
+    list[(i + 1) % list.len()].0
+}
+
+/// всё, от чего зависит готовая картинка; одинаковый ключ — пересчитывать нечего
+pub struct Job {
+    path: PathBuf,
+    own: bool,
+    w: u32,
+    h: u32,
+    cell: u32,
+    fit: bool,
+    tone: String,
+    dim: f32,
+    accent: bool,
+    /// тона палитры от фона к тексту
+    ramp: [u32; 6],
+}
+
+impl Job {
+    pub fn new(s: &Settings, t: &Theme, w: i32, h: i32) -> Job {
+        let own = own(s);
+        Job {
+            own: own.is_some(),
+            path: own.unwrap_or_else(generated),
+            w: w.max(1) as u32,
+            h: h.max(1) as u32,
+            cell: cell(s.wall_pixel),
+            fit: s.wall_fit == "fit",
+            tone: s.wall_tone.clone(),
+            dim: s.wall_dim.clamp(0.0, 0.8),
+            accent: s.wall_accent,
+            ramp: [t.bg.0, t.dim.0, t.blood.0, t.red.0, t.ember.0, t.text.0],
+        }
+    }
+
+    fn key(&self) -> String {
+        let m = std::fs::metadata(&self.path).and_then(|m| m.modified()).ok();
+        format!("{:?}|{m:?}|{}|{}x{}|{}|{}|{}|{}|{:x?}", self.path, self.own, self.w, self.h, self.cell, self.fit, self.tone, self.dim, self.ramp)
+    }
+}
+
+/// готовая картинка и (если просили) акцент из неё
+pub fn prepare(j: &Job) -> (Option<Img>, Option<u32>) {
+    let Ok(src) = image::open(&j.path) else { return (None, None) };
+    let bg = C(j.ramp[0]);
+    if !j.own {
+        // сгенерированные уже в палитре и в четверть экрана: только затемнение
+        let mut i = src.to_rgba8();
+        drop(src);
+        dim(&mut i, bg, j.dim);
+        return (Some(crate::icons::from_rgba(&i)), None);
+    }
+    let src = src.to_rgba8();
+    let accent = if j.accent { dominant(&image::imageops::thumbnail(&src, 64, 64)) } else { None };
+    let (sw, sh) = src.dimensions();
+    let (tw, th) = ((j.w / j.cell).max(1), (j.h / j.cell).max(1));
+    let filt = image::imageops::FilterType::Triangle;
+    let mut out = if j.fit {
+        let k = (tw as f32 / sw as f32).min(th as f32 / sh as f32);
+        let (rw, rh) = (((sw as f32 * k).round() as u32).clamp(1, tw), ((sh as f32 * k).round() as u32).clamp(1, th));
+        let mut pic = image::imageops::resize(&src, rw, rh, filt);
+        drop(src);
+        tone(&mut pic, j);
+        let (r, g, b) = bg.rgbf();
+        let mut o = RgbaImage::from_pixel(tw, th, image::Rgba([(r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8, 255]));
+        image::imageops::overlay(&mut o, &pic, ((tw - rw) / 2) as i64, ((th - rh) / 2) as i64);
+        o
+    } else {
+        // «как обложка»: вырезать из середины кусок с пропорциями экрана
+        let (cw, ch) = if sw as u64 * th as u64 > sh as u64 * tw as u64 { ((sh as u64 * tw as u64 / th as u64) as u32, sh) } else { (sw, (sw as u64 * th as u64 / tw as u64) as u32) };
+        let crop = image::imageops::crop_imm(&src, (sw - cw) / 2, (sh - ch) / 2, cw.max(1), ch.max(1));
+        let mut o = image::imageops::resize(&*crop, tw, th, filt);
+        drop(src);
+        tone(&mut o, j);
+        o
+    };
+    dim(&mut out, bg, j.dim);
+    // большой декод уже не нужен: вернуть память системе
+    unsafe { libc::malloc_trim(0) };
+    (Some(crate::icons::from_rgba(&out)), accent)
+}
+
+fn lum(p: &image::Rgba<u8>) -> f32 {
+    (0.299 * p.0[0] as f32 + 0.587 * p.0[1] as f32 + 0.114 * p.0[2] as f32) / 255.0
+}
+
+/// окраска: яркость картинки → тона палитры (растянутая между 2-м и 98-м процентилем)
+fn tone(i: &mut RgbaImage, j: &Job) {
+    if j.tone != "tint" && j.tone != "palette" {
+        return;
+    }
+    let mut hist = [0u32; 256];
+    for p in i.pixels() {
+        hist[(lum(p) * 255.0) as usize] += 1;
+    }
+    let n = i.width() * i.height();
+    let at = |q: f32| {
+        let (mut acc, lim) = (0, (n as f32 * q) as u32);
+        hist.iter().position(|c| {
+            acc += c;
+            acc > lim
+        })
+        .unwrap_or(0) as f32
+            / 255.0
+    };
+    let (lo, hi) = (at(0.02), at(0.98));
+    let span = (hi - lo).max(0.1);
+    let r = j.ramp.map(C);
+    let w = i.width();
+    for (k, p) in i.pixels_mut().enumerate() {
+        let l = ((lum(p) - lo) / span).clamp(0.0, 1.0);
+        let c = if j.tone == "palette" {
+            // клетка = пиксель картинки: байеровский дизеринг между соседними тонами
+            let (x, y) = (k as u32 % w, k as u32 / w);
+            let d = BAYER4[((y & 3) * 4 + (x & 3)) as usize] as f32 / 16.0 - 0.47;
+            r[(l * 5.0 + d).round().clamp(0.0, 5.0) as usize]
+        } else if l < 0.6 {
+            r[0].lerp(r[3], l / 0.6)
+        } else {
+            r[3].lerp(r[5], (l - 0.6) / 0.4)
+        };
+        let (cr, cg, cb) = c.rgbf();
+        p.0 = [(cr * 255.0) as u8, (cg * 255.0) as u8, (cb * 255.0) as u8, 255];
+    }
+}
+
+fn dim(i: &mut RgbaImage, bg: C, k: f32) {
+    if k <= 0.0 {
+        return;
+    }
+    let (r, g, b) = bg.rgbf();
+    let to = [r * 255.0, g * 255.0, b * 255.0];
+    for p in i.pixels_mut() {
+        for c in 0..3 {
+            p.0[c] = (p.0[c] as f32 + (to[c] - p.0[c] as f32) * k).round() as u8;
+        }
+    }
+}
+
+/// главный цвет картинки: самый весомый тон среди насыщенных и не тёмных пикселей,
+/// доведённый до яркости, на которой акцент читается на тёмных панелях
+fn dominant(i: &RgbaImage) -> Option<u32> {
+    let mut bins = [(0f32, [0f32; 3]); 24];
+    for p in i.pixels() {
+        let [r, g, b] = [p.0[0] as f32 / 255.0, p.0[1] as f32 / 255.0, p.0[2] as f32 / 255.0];
+        let (mx, mn) = (r.max(g).max(b), r.min(g).min(b));
+        let s = if mx > 0.0 { (mx - mn) / mx } else { 0.0 };
+        if mx < 0.15 || s < 0.2 {
+            continue;
+        }
+        let h = hue(r, g, b, mx, mn);
+        let wt = s * s * mx;
+        let bin = &mut bins[((h / 15.0) as usize).min(23)];
+        bin.0 += wt;
+        for (c, v) in bin.1.iter_mut().zip([r, g, b]) {
+            *c += v * wt;
+        }
+    }
+    let (wt, sum) = bins.iter().enumerate().map(|(k, _)| {
+        // соседние корзины вместе: тон на границе не делится пополам
+        let (a, b, c) = (bins[(k + 23) % 24], bins[k], bins[(k + 1) % 24]);
+        (a.0 * 0.5 + b.0 + c.0 * 0.5, b)
+    }).max_by(|a, b| a.0.total_cmp(&b.0))?;
+    let total: f32 = bins.iter().map(|b| b.0).sum();
+    if wt < 0.5 || total < 1.0 || sum.0 <= 0.0 {
+        return None;
+    }
+    let [r, g, b] = sum.1.map(|v| v / sum.0);
+    let (mx, mn) = (r.max(g).max(b), r.min(g).min(b));
+    let h = hue(r, g, b, mx, mn);
+    let s = ((mx - mn) / mx.max(1e-3)).clamp(0.55, 0.9);
+    let v = mx.clamp(0.7, 0.92);
+    Some(hsv(h, s, v))
+}
+
+fn hue(r: f32, g: f32, b: f32, mx: f32, mn: f32) -> f32 {
+    let d = (mx - mn).max(1e-6);
+    let h = if mx == r { (g - b) / d } else if mx == g { 2.0 + (b - r) / d } else { 4.0 + (r - g) / d };
+    (h * 60.0).rem_euclid(360.0)
+}
+
+fn hsv(h: f32, s: f32, v: f32) -> u32 {
+    let c = v * s;
+    let x = c * (1.0 - ((h / 60.0) % 2.0 - 1.0).abs());
+    let (r, g, b) = match (h / 60.0) as u32 {
+        0 => (c, x, 0.0),
+        1 => (x, c, 0.0),
+        2 => (0.0, c, x),
+        3 => (0.0, x, c),
+        4 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    C::from_f(r + v - c, g + v - c, b + v - c).0 & 0xffffff
+}
+
+/// экран входа: та же картинка (theme.py --login кладёт её рядом с темой SDDM). Пиксели
+/// снимаются до отправки картинки экрану, PNG и скрипт — уже после.
+fn login_rgb(img: &Img, own: bool, key: &str) -> Option<Option<Vec<u8>>> {
+    let kf = config::state_dir().join("wallpaper-own.key");
+    if std::fs::read_to_string(&kf).map(|k| k == key).unwrap_or(false) || !login_writable() {
+        return None;
+    }
+    Some(own.then(|| img.px.iter().flat_map(|p| [(p >> 16) as u8, (p >> 8) as u8, *p as u8]).collect()))
+}
+
+/// тема SDDM открыта нам на запись (установщик отдаёт theme.conf.user пользователю)
+fn login_writable() -> bool {
+    let d = Path::new("/usr/share/sddm/themes/yami");
+    let f = d.join("theme.conf.user");
+    let p = if f.exists() { f } else { d.to_path_buf() };
+    let Ok(c) = std::ffi::CString::new(p.to_string_lossy().as_bytes()) else { return false };
+    unsafe { libc::access(c.as_ptr(), libc::W_OK) == 0 }
+}
+
+fn to_login(w: i32, h: i32, raw: Option<Vec<u8>>, key: &str) {
+    let dir = config::state_dir();
+    if let Some(rgb) = raw.and_then(|r| image::RgbImage::from_raw(w as u32, h as u32, r)) {
+        let _ = rgb.save(dir.join("wallpaper-own.png"));
+    }
+    let _ = std::process::Command::new("python3").arg("-I").arg(crate::app::theme_script()).arg("--login").stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
+    let _ = config::write_atomic(&dir.join("wallpaper-own.key"), key);
+}
+
+/// обои на весь экран «как обложка» (картинка уже в пропорциях экрана — без обрезки)
+pub fn cover(ui: &mut Ui, img: &Img, w: i32, h: i32) {
+    let k = (w as f32 / img.w as f32).max(h as f32 / img.h as f32);
+    let (dw, dh) = ((img.w as f32 * k).ceil() as i32, (img.h as f32 * k).ceil() as i32);
+    ui.cv.image_scaled(img, R::new((w - dw) / 2, (h - dh) / 2, dw, dh), 1.0);
+}
+
+pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
+    let t = ui.t;
+    ui.cv.fill(R::new(0, 0, w, h), t.bg);
+    if let Some(img) = &st.wall {
+        cover(ui, img, w, h);
+    }
+    if st.set.wall_kanji {
+        let face = font::jp(32);
+        let kw = ui.w(face, "闇");
+        ui.text(face, w - 40 - kw, h - 32 - ui.f.line(face), "闇", t.red.fade(0.45));
+    }
+}
+
+// ── вкладка «обои» ──────────────────────────────────────────────────────────
+pub fn tab(ui: &mut Ui, st: &State, b: R) {
+    let s = &st.set;
+    let t = ui.t;
+    let half = (b.w - 20) / 2;
+    let mut y = title(ui, b.x, b.y, b.w, "картинка");
+    // превью в пропорциях экрана — то, что сейчас на рабочем столе
+    let pv = R::new(b.x, y, 256, 144);
+    ui.cv.pxbox(pv, &BoxStyle::new(t.code_bg, t.border));
+    let inner = pv.inset(3);
+    ui.cv.push_clip(inner);
+    ui.cv.fill(inner, t.bg);
+    if let Some(img) = &st.wall {
+        let k = (inner.w as f32 / img.w as f32).max(inner.h as f32 / img.h as f32);
+        let (dw, dh) = ((img.w as f32 * k).ceil() as i32, (img.h as f32 * k).ceil() as i32);
+        ui.cv.image_scaled(img, R::new(inner.x + (inner.w - dw) / 2, inner.y + (inner.h - dh) / 2, dw, dh), 1.0);
+    }
+    ui.cv.pop_clip();
+    let (rx, rw) = (pv.right() + 16, b.right() - pv.right() - 16);
+    let mut ry = y + 2;
+    match own(s) {
+        Some(p) => {
+            // имя файла — как есть, без перевода
+            let name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+            let f = &mut *ui.f;
+            ui.cv.push_clip(R::new(rx, ry, rw, 20));
+            ui.cv.text(f, PX, rx, ry, &name, t.text);
+            ui.cv.pop_clip();
+            ry += 20;
+            ui.text_in(PX, R::new(rx, ry, rw, 18), if p.is_file() { "своя картинка" } else { "файл не найден" }, if p.is_file() { t.text_faint } else { t.warn });
+        }
+        None => {
+            ui.text_in(PX, R::new(rx, ry, rw, 20), "пиксельные из палитры", t.text);
+            ry += 20;
+            ui.text_in(PX, R::new(rx, ry, rw, 18), "рисуются заново при смене цвета", t.text_faint);
+        }
+    }
+    ry += 30;
+    ui.button(R::new(rx, ry, rw, 28), "выбрать картинку…", "folder", Tone::Primary, false, true, Act::SWall("pick"));
+    ry += 34;
+    ui.button(R::new(rx, ry, rw, 28), "пиксельные из палитры", "image", Tone::Plain, false, own(s).is_some(), Act::SWall("reset"));
+    y = pv.bottom() + 10;
+    let focused = st.field_focus == Some("wall");
+    ui.field(R::new(b.x, y, b.w - 130, 30), &st.wall_field, "или путь к файлу", focused, false, Act::SField("wall"));
+    ui.button(R::new(b.right() - 120, y + 2, 120, 26), "применить", "check", Tone::Primary, false, true, Act::SCycle("wall_apply"));
+    y += 44;
+    y = title(ui, b.x, y, b.w, "как показывать");
+    opt_btn(ui, R::new(b.x, y, half, 26), "подгонка", name_of(FITS, &s.wall_fit), Act::SWall("fit"));
+    opt_btn(ui, R::new(b.x + half + 20, y, half, 26), "окраска", name_of(TONES, &s.wall_tone), Act::SWall("tone"));
+    y += 38;
+    let c = cell(s.wall_pixel);
+    let ct = if c == 1 { crate::i18n::tr("как есть").to_string() } else { format!("{c} px") };
+    ui.slider(R::new(b.x, y, half, 40), "пиксельные клетки", (s.wall_pixel as f32 - 1.0) / 7.0, &ct, 7, Act::SSlider("wall_pixel", 1.0, 8.0, 7));
+    ui.slider(R::new(b.x + half + 20, y, half, 40), "затемнение", s.wall_dim / 0.8, &format!("{:.0}%", s.wall_dim * 100.0), 16, Act::SSlider("wall_dim", 0.0, 0.8, 16));
+    y += 54;
+    y = title(ui, b.x, y, b.w, "цвета");
+    ui.toggle(R::new(b.x, y, b.w, 40), "палитра из обоев", "акцент берётся из картинки, за ним перекрашивается всё", s.wall_accent, Act::SWall("accent"));
+    y += 46;
+    ui.toggle(R::new(b.x, y, b.w, 40), "иероглиф на обоях", "в правом нижнем углу", s.wall_kanji, Act::SBool("wall_kanji"));
+}
+
+impl App {
+    /// пересчитать обои, если изменилось то, от чего они зависят (настройки, палитра, файл,
+    /// размер экрана). Пока тянут ползунок обоев — ждём, когда отпустят.
+    pub fn sync_wall(&mut self) {
+        if matches!(&self.press, Some(p) if matches!(p.act, Act::SSlider(k, ..) if k.starts_with("wall"))) {
+            return;
+        }
+        let (w, h) = self.output_size(&self.focus_out());
+        let job = Job::new(&self.st.set, &self.st.t, w, h);
+        let key = job.key();
+        if key == self.wall_key {
+            return;
+        }
+        self.wall_key = key.clone();
+        self.wall_job += 1;
+        let (n, tx) = (self.wall_job, self.tx.clone());
+        std::thread::spawn(move || {
+            let (img, accent) = prepare(&job);
+            let login = img.as_ref().and_then(|i| login_rgb(i, job.own, &key).map(|raw| (i.w, i.h, raw)));
+            let _ = tx.send(Msg::Wall(n, img, accent));
+            if let Some((w, h, raw)) = login {
+                to_login(w, h, raw, &key);
+            }
+        });
+    }
+
+    pub fn wall_ready(&mut self, n: u64, img: Option<Img>, accent: Option<u32>) {
+        if n != self.wall_job {
+            return;
+        }
+        self.st.wall = img.map(std::rc::Rc::new);
+        self.st.wall_stamp += 1;
+        for s in self.surfs.values_mut() {
+            if s.kind == SKind::Wall {
+                s.dirty = true;
+                s.frame_pending = false;
+            }
+        }
+        for l in self.lock_surfs.iter_mut() {
+            l.dirty = true;
+        }
+        self.dirty(&SKind::Modal);
+        let s = &mut self.st.set;
+        if let (Some(a), true, true) = (accent, s.wall_accent, own(s).is_some()) {
+            let hex = format!("#{a:06x}");
+            if hex != s.accent {
+                s.accent = hex.clone();
+                self.st.hex.set(&hex);
+                self.settings_changed();
+            }
+        }
+    }
+
+    /// новый путь (пусто — пиксельные из палитры): из настроек, IPC и диалога выбора
+    pub fn set_wall(&mut self, p: &str) {
+        let p = p.trim();
+        let p = p.strip_prefix("~/").map(|r| config::home().join(r).to_string_lossy().to_string()).unwrap_or_else(|| p.to_string());
+        self.st.set.wallpaper = p.clone();
+        self.st.wall_field.set(&p);
+        self.st.field_focus = None;
+        self.settings_changed();
+    }
+
+    pub fn wall_click(&mut self, a: &Act) -> bool {
+        let Act::SWall(k) = a else { return false };
+        let s = &mut self.st.set;
+        match *k {
+            "pick" => {
+                let tx = self.tx.clone();
+                let title = crate::i18n::tr("обои").to_string();
+                let dir = std::env::var("XDG_PICTURES_DIR").map(PathBuf::from).unwrap_or_else(|_| config::home().join("Pictures"));
+                let from = own(s).and_then(|p| p.parent().map(Path::to_path_buf)).filter(|d| d.is_dir()).unwrap_or(dir);
+                std::thread::spawn(move || {
+                    let o = std::process::Command::new("yami-files")
+                        .args(["--pick", "open", "--title", &title, "--folder"])
+                        .arg(&from)
+                        .args(["--filter", "Images|*.png;*.jpg;*.jpeg;*.webp|image/png;image/jpeg;image/webp"])
+                        .output();
+                    if let Ok(o) = o {
+                        if let Some(p) = String::from_utf8_lossy(&o.stdout).lines().next().filter(|_| o.status.success()) {
+                            let _ = tx.send(Msg::Ipc(format!("wallpaper {p}")));
+                        }
+                    }
+                });
+                return true;
+            }
+            "reset" => {
+                self.set_wall("");
+                return true;
+            }
+            "fit" => s.wall_fit = next_of(FITS, &s.wall_fit).into(),
+            "tone" => s.wall_tone = next_of(TONES, &s.wall_tone).into(),
+            "accent" => s.wall_accent = !s.wall_accent,
+            _ => return false,
+        }
+        self.settings_changed();
+        true
+    }
+}

@@ -1,0 +1,26 @@
+[Desktop Entry]
+Type=Application
+Name=Files
+Name[ru]=Файлы
+GenericName=File Manager
+GenericName[ru]=Файловый менеджер
+Comment=Pixel-art file manager of the yami shell
+Comment[ru]=Пиксельный файловый менеджер шелла yami
+Exec=yami-files %U
+Icon=system-file-manager
+Terminal=false
+MimeType=inode/directory;
+Categories=System;FileTools;FileManager;Utility;
+Keywords=folder;files;explorer;dolphin;
+StartupWMClass=yami-files
+Actions=new-window;trash;
+
+[Desktop Action new-window]
+Name=New window
+Name[ru]=Новое окно
+Exec=yami-files
+
+[Desktop Action trash]
+Name=Trash
+Name[ru]=Корзина
+Exec=yami-files trash:///

@@ -1,0 +1,21 @@
+[package]
+name = "yami-view"
+version = "1.0.0"
+edition = "2021"
+description = "Fast pixel-art image viewer and quick editor of the yami shell"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "yami-view"
+path = "src/main.rs"
+
+[dependencies]
+yami-px = { path = "../px" }
+smithay-client-toolkit = "0.20"
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client", "staging"] }
+calloop-wayland-source = "0.4"
+calloop = "0.14"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+libc = "0.2"

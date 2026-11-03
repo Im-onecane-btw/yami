@@ -1,0 +1,37 @@
+[package]
+name = "yami-shell"
+version = "2.0.0"
+edition = "2021"
+description = "A lightweight pixel-art Wayland shell for the niri compositor"
+readme = "../README.md"
+keywords = ["wayland", "niri", "shell", "layer-shell", "desktop"]
+categories = ["gui"]
+license = "MIT"
+
+[[bin]]
+name = "yami-shell"
+path = "src/main.rs"
+
+[dependencies]
+yami-px = { path = "px" }
+smithay-client-toolkit = "0.20"
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client", "staging", "unstable"] }
+calloop-wayland-source = "0.4"
+calloop = "0.14"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+async-channel = "2"
+zbus = { version = "5", default-features = false, features = ["blocking-api", "async-io"] }
+libc = "0.2"
+
+[workspace]
+members = ["px", "files", "view"]
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "unwind"

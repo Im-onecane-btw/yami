@@ -1,0 +1,120 @@
+From 5813a7ae8dbc2e90de38c3680e3e2cf9d537a9bd Mon Sep 17 00:00:00 2001
+From: yami <yami@localhost>
+Date: Tue, 3 Nov 2026 08:07:43 +0300
+Subject: [PATCH 3/4] yami: main thread at realtime priority
+
+SCHED_RR 1 with SCHED_RESET_ON_FORK when allowed (RLIMIT_RTPRIO or
+CAP_SYS_NICE), so a game loading every core doesn't make the desktop
+stutter. Capabilities are dropped right after. YAMI_NIRI_RT=0 turns it
+off.
+---
+ src/main.rs           |  3 ++
+ src/utils/mod.rs      |  1 +
+ src/utils/realtime.rs | 72 +++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 76 insertions(+)
+ create mode 100644 src/utils/realtime.rs
+
+diff --git a/src/main.rs b/src/main.rs
+index e80992ee..8378b98c 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -162,6 +162,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
+ 
+     store_and_increase_nofile_rlimit();
+ 
++    // yami: the main thread at realtime priority when the binary has CAP_SYS_NICE.
++    niri::utils::realtime::make_main_thread_realtime();
++
+     // Create the main event loop.
+     let mut event_loop = EventLoop::<State>::try_new().unwrap();
+ 
+diff --git a/src/utils/mod.rs b/src/utils/mod.rs
+index bbeac5bc..b9cd98f0 100644
+--- a/src/utils/mod.rs
++++ b/src/utils/mod.rs
+@@ -37,6 +37,7 @@ use crate::handlers::KdeDecorationsModeState;
+ use crate::niri::ClientState;
+ 
+ pub mod id;
++pub mod realtime;
+ pub mod region;
+ pub mod scale;
+ pub mod signals;
+diff --git a/src/utils/realtime.rs b/src/utils/realtime.rs
+new file mode 100644
+index 00000000..7922fd92
+--- /dev/null
++++ b/src/utils/realtime.rs
+@@ -0,0 +1,72 @@
++//! yami: the compositor's main thread at realtime priority, so a game pegging every core
++//! doesn't make the desktop stutter (KWin does the same).
++//!
++//! Needs CAP_SYS_NICE: `setcap cap_sys_nice=ep` on the binary (the yami installer does it).
++//! SCHED_RR at the lowest RT priority with SCHED_RESET_ON_FORK, so threads and spawned programs
++//! start with the normal policy. Every capability is dropped right after, and the process is made
++//! dumpable again. Without the capability nothing changes. `YAMI_NIRI_RT=0` turns it off.
++
++use std::io;
++
++const CAPABILITY_VERSION_3: u32 = 0x2008_0522;
++
++#[repr(C)]
++struct CapHeader {
++    version: u32,
++    pid: i32,
++}
++
++#[repr(C)]
++#[derive(Default, Clone, Copy)]
++struct CapData {
++    effective: u32,
++    permitted: u32,
++    inheritable: u32,
++}
++
++pub fn make_main_thread_realtime() {
++    if std::env::var("YAMI_NIRI_RT").is_ok_and(|v| v == "0") {
++        drop_capabilities();
++        return;
++    }
++
++    // SAFETY: plain syscalls on the calling thread with valid arguments.
++    let res = unsafe {
++        let param = libc::sched_param { sched_priority: 1 };
++        libc::sched_setscheduler(0, libc::SCHED_RR | libc::SCHED_RESET_ON_FORK, &param)
++    };
++    if res == 0 {
++        info!("main thread runs at realtime priority (SCHED_RR 1)");
++    } else {
++        debug!(
++            "no realtime priority (setcap cap_sys_nice=ep for it): {}",
++            io::Error::last_os_error()
++        );
++    }
++
++    drop_capabilities();
++}
++
++fn drop_capabilities() {
++    let mut header = CapHeader {
++        version: CAPABILITY_VERSION_3,
++        pid: 0,
++    };
++    let mut data = [CapData::default(); 2];
++    // SAFETY: capget/capset with a v3 header and two data structs, as the kernel expects.
++    unsafe {
++        if libc::syscall(libc::SYS_capget, &mut header, data.as_mut_ptr()) != 0 {
++            return;
++        }
++        if data.iter().all(|d| d.permitted == 0 && d.effective == 0) {
++            return;
++        }
++        let empty = [CapData::default(); 2];
++        if libc::syscall(libc::SYS_capset, &mut header, empty.as_ptr()) != 0 {
++            warn!("error dropping capabilities: {}", io::Error::last_os_error());
++            return;
++        }
++        // File capabilities made the process non-dumpable; with them gone this is safe again.
++        libc::prctl(libc::PR_SET_DUMPABLE, 1, 0, 0, 0);
++    }
++}

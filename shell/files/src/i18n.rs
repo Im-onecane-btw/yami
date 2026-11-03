@@ -1,0 +1,272 @@
+// Язык файлового менеджера — тот же механизм, что в шелле: надписи по-русски, английский по
+// таблице при отрисовке. Язык берётся из настроек шелла.
+//
+// Interface language: Russian (source) or English. UI strings are written in Russian and
+// swapped through the table below at draw time, so switching is instant.
+
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, OnceLock};
+
+static EN: AtomicBool = AtomicBool::new(false);
+/// `yami-shell shot`: собирать надписи, которые при английском остались русскими
+static AUDIT: AtomicBool = AtomicBool::new(false);
+static MISSED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// "" — по $LANG, "ru", "en"
+pub fn set(lang: &str) {
+    let en = match lang {
+        "en" => true,
+        "ru" => false,
+        _ => {
+            let l = std::env::var("LC_ALL").or_else(|_| std::env::var("LC_MESSAGES")).or_else(|_| std::env::var("LANG")).unwrap_or_default();
+            !l.starts_with("ru")
+        }
+    };
+    EN.store(en, Ordering::Relaxed);
+}
+
+pub fn en() -> bool {
+    EN.load(Ordering::Relaxed)
+}
+
+/// перевод целой надписи; нет в таблице — как есть
+pub fn tr(s: &str) -> &str {
+    if !en() {
+        return s;
+    }
+    let out = table().get(s).copied().unwrap_or(s);
+    if AUDIT.load(Ordering::Relaxed) && out.chars().any(|c| matches!(c, 'а'..='я' | 'А'..='Я' | 'ё' | 'Ё')) {
+        if let Ok(mut m) = MISSED.lock() {
+            if !m.iter().any(|x| x == out) {
+                m.push(out.to_string());
+            }
+        }
+    }
+    out
+}
+
+pub fn audit(on: bool) {
+    AUDIT.store(on, Ordering::Relaxed);
+}
+
+/// надписи без перевода с прошлого вызова
+pub fn take_missed() -> Vec<String> {
+    MISSED.lock().map(|mut m| std::mem::take(&mut *m)).unwrap_or_default()
+}
+
+/// строка с подстановками: русский и английский шаблоны рядом
+#[macro_export]
+macro_rules! tf {
+    ($ru:literal, $en:literal $(, $a:expr)* $(,)?) => {
+        if $crate::i18n::en() { format!($en $(, $a)*) } else { format!($ru $(, $a)*) }
+    };
+}
+
+fn table() -> &'static HashMap<&'static str, &'static str> {
+    static T: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
+    T.get_or_init(|| PAIRS.iter().copied().collect())
+}
+
+const MON: [&str; 12] = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+
+pub fn month_short(m: i32) -> &'static str {
+    tr(MON[((m - 1).clamp(0, 11)) as usize])
+}
+
+const PAIRS: &[(&str, &str)] = &[
+    ("янв", "Jan"),
+    ("фев", "Feb"),
+    ("мар", "Mar"),
+    ("апр", "Apr"),
+    ("мая", "May"),
+    ("июн", "Jun"),
+    ("июл", "Jul"),
+    ("авг", "Aug"),
+    ("сен", "Sep"),
+    ("окт", "Oct"),
+    ("ноя", "Nov"),
+    ("дек", "Dec"),
+    ("в буфере нет файлов", "no files in the clipboard"),
+    ("буфер обмена пуст", "clipboard is empty"),
+    ("открыть", "open"),
+    ("фильтр по имени", "filter by name"),
+    ("путь", "path"),
+    ("дом", "home"),
+    ("места", "places"),
+    ("корзина", "trash"),
+    ("устройства", "devices"),
+    ("не подключён", "not mounted"),
+    ("читаю", "reading"),
+    ("корзина пуста", "trash is empty"),
+    ("ничего не нашлось", "nothing found"),
+    ("папка пуста", "folder is empty"),
+    ("имя", "name"),
+    ("размер", "size"),
+    ("изменён", "modified"),
+    ("тип", "type"),
+    ("выбери файл", "pick a file"),
+    ("откуда", "from"),
+    ("удалён", "deleted"),
+    ("права", "permissions"),
+    ("ссылка на", "links to"),
+    ("копирую", "copying"),
+    ("переношу", "moving"),
+    ("в корзину", "move to trash"),
+    ("удаляю", "deleting"),
+    ("распаковываю", "extracting"),
+    ("сжимаю", "compressing"),
+    ("возвращаю", "restoring"),
+    ("ссылки", "linking"),
+    ("отмена", "cancel"),
+    ("имя файла", "file name"),
+    ("выбери папку (или открой её и нажми «выбрать»)", "pick a folder (or open it and press “select”)"),
+    ("выбери файл двойным щелчком или кнопкой", "double-click a file or use the button"),
+    ("новая папка", "new folder"),
+    ("новый файл", "new file"),
+    ("сжать в архив", "compress"),
+    ("создать", "create"),
+    ("такой файл уже есть", "this file already exists"),
+    ("новый", "new"),
+    ("уже есть", "existing"),
+    ("папка", "folder"),
+    ("для всех остальных", "for all the rest"),
+    ("пропустить", "skip"),
+    ("оставить оба", "keep both"),
+    ("заменить", "replace"),
+    ("не всё получилось", "not everything worked"),
+    ("понятно", "ok"),
+    ("открыть с помощью", "open with"),
+    ("найти программу", "find an app"),
+    ("остальные программы", "other apps"),
+    ("всегда открывать этот тип так", "always open this type with it"),
+    ("свойства", "properties"),
+    ("считаю…", "counting…"),
+    ("где", "location"),
+    ("владелец", "owner"),
+    ("на диске", "disk"),
+    ("чтение", "read"),
+    ("запись", "write"),
+    ("запуск", "run"),
+    ("группа", "group"),
+    ("остальные", "others"),
+    ("закрыть", "close"),
+    ("настройки файлов", "file manager settings"),
+    ("вид", "view"),
+    ("поведение", "behaviour"),
+    ("скрытые файлы", "hidden files"),
+    ("папки сверху", "folders first"),
+    ("миниатюры", "thumbnails"),
+    ("картинки и видео", "images and videos"),
+    ("места слева", "places on the left"),
+    ("сведения справа", "details on the right"),
+    ("открывать одним щелчком", "open with a single click"),
+    ("спрашивать перед корзиной", "ask before trashing"),
+    ("новое окно — две панели", "new window — two panes"),
+    ("по убыванию", "descending"),
+    ("список", "list"),
+    ("значки", "icons"),
+    ("по имени", "by name"),
+    ("по размеру", "by size"),
+    ("по дате", "by date"),
+    ("по типу", "by type"),
+    ("порядок", "order"),
+    ("размер значков", "icon size"),
+    ("цвета и язык — из настроек шелла (mod+s)", "colours and language come from the shell settings (mod+s)"),
+    ("терминал", "terminal"),
+    ("готово", "done"),
+    ("файлы", "files"),
+    ("сначала верни файл из корзины", "restore the file from the trash first"),
+    ("это программа: запусти её из меню → «запустить»", "this is a program: use menu → “run”"),
+    ("введи имя файла", "type a file name"),
+    ("удалить навсегда", "delete permanently"),
+    ("удалить", "delete"),
+    ("очистить корзину", "empty trash"),
+    ("очистить", "empty"),
+    ("новый файл.txt", "new file.txt"),
+    ("архив", "archive"),
+    ("путь скопирован", "path copied"),
+    ("добавлено в места", "added to places"),
+    ("скрытые файлы видны", "hidden files shown"),
+    ("скрытые файлы спрятаны", "hidden files hidden"),
+    ("обои поменяются через секунду", "the wallpaper changes in a second"),
+    ("нечего отменять", "nothing to undo"),
+    ("перенос отменён", "move undone"),
+    ("имя возвращено", "name restored"),
+    ("в имени не может быть «/»", "a name cannot contain “/”"),
+    ("имя пустое", "the name is empty"),
+    ("такое имя уже есть", "this name is taken"),
+    ("нет udisksctl (пакет udisks2)", "no udisksctl (package udisks2)"),
+    ("нет доступа", "permission denied"),
+    ("не найдено", "not found"),
+    ("уже существует", "already exists"),
+    ("это не папка", "not a folder"),
+    ("нет места на диске", "no space left on the disk"),
+    ("только для чтения", "read-only"),
+    ("сохранить файл", "save file"),
+    ("выбрать папку", "select folder"),
+    ("открыть файлы", "open files"),
+    ("открыть файл", "open file"),
+    ("сохранить", "save"),
+    ("выбрать", "select"),
+    ("крупнее", "bigger"),
+    ("мельче", "smaller"),
+    ("папку", "folder"),
+    ("пустой файл", "empty file"),
+    ("вернуть", "restore"),
+    ("в новой вкладке", "in a new tab"),
+    ("в соседней панели", "in the other pane"),
+    ("терминал здесь", "terminal here"),
+    ("другая программа…", "other app…"),
+    ("запустить", "run"),
+    ("вырезать", "cut"),
+    ("копировать", "copy"),
+    ("вставить сюда", "paste here"),
+    ("копировать путь", "copy path"),
+    ("переименовать", "rename"),
+    ("распаковать сюда", "extract here"),
+    ("сжать", "compress"),
+    ("создать ссылку", "create link"),
+    ("сделать обоями", "set as wallpaper"),
+    ("добавить в места", "add to places"),
+    ("вставить", "paste"),
+    ("отменить", "undo"),
+    ("выделить всё", "select all"),
+    ("обратить выделение", "invert selection"),
+    ("обновить", "reload"),
+    ("свойства папки", "folder properties"),
+    ("новое окно", "new window"),
+    ("новая вкладка", "new tab"),
+    ("разделить", "split"),
+    ("поиск", "search"),
+    ("настройки", "settings"),
+    ("убрать из мест", "remove from places"),
+    ("извлечь", "eject"),
+    ("отключить", "unmount"),
+    ("подключить", "mount"),
+    ("переместить сюда", "move here"),
+    ("копировать сюда", "copy here"),
+    ("ссылку сюда", "link here"),
+    ("изображение", "image"),
+    ("видео", "video"),
+    ("аудио", "audio"),
+    ("текст", "text"),
+    ("код", "code"),
+    ("документ", "document"),
+    ("программа", "program"),
+    ("шрифт", "font"),
+    ("образ диска", "disk image"),
+    ("пакет", "package"),
+    ("веб-страница", "web page"),
+    ("файл", "file"),
+    ("рабочий стол", "desktop"),
+    ("документы", "documents"),
+    ("загрузки", "downloads"),
+    ("музыка", "music"),
+    ("изображения", "pictures"),
+    ("система", "system"),
+    ("картинки", "images"),
+    ("все файлы", "all files"),
+    ("корзина недоступна", "trash is not available"),
+    ("неизвестно, откуда удалён", "unknown original location"),
+];
