@@ -219,6 +219,10 @@ pub struct Settings {
     pub binds: std::collections::BTreeMap<String, String>,
     /// свои команды на сочетания (spawn-sh)
     pub custom_binds: Vec<crate::keys::Custom>,
+    /// раскладки xkb через запятую («us,ru»); пусто — по языкам системы (keys::auto_layout)
+    pub kb_layout: String,
+    /// переключение раскладок: опция xkb (grp:alt_shift_toggle) или пусто — без сочетания
+    pub kb_switch: String,
 
     // игры (games.rs): правила игровых окон и игровой режим
     pub game_fullscreen: bool,
@@ -386,6 +390,8 @@ impl Default for Settings {
             ],
             binds: Default::default(),
             custom_binds: vec![],
+            kb_layout: String::new(),
+            kb_switch: "grp:alt_shift_toggle".into(),
             game_fullscreen: true,
             game_vrr: true,
             game_tearing: false,

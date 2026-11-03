@@ -12,10 +12,8 @@
 // ─── input ─────────────────────────────────────────────────────────────────
 input {
     keyboard {
-        xkb {
-            layout "us,ru"
-            options "grp:alt_shift_toggle"
-        }
+        // layouts and their switch come from the shell (settings → keys → layout, yami-binds.kdl):
+        // by default from the system languages, e.g. "us" for English, "us,ru" with Russian
         repeat-delay 250
         repeat-rate 45
         numlock

@@ -13,6 +13,7 @@ subjects when that section is empty).
 - The launcher's search hint no longer starts under the text cursor
 - yami-files scrolls with the wheel at the screen's frame rate instead of in steps
 - The notification countdown bar moves smoothly
+- Keyboard layouts are a setting (settings → keys → layout): by default they follow the system languages, so an English system gets `us` alone and a Russian one `us,ru`; the switch combination is a choice too (`kbLayout`, `kbSwitch`)
 - Settings → widgets names graph widgets in English in the English interface
 
 ## 2.1.0

@@ -173,6 +173,8 @@ go to `~/.local/lib/yami/prev` for `yami update rollback`.
 |---|---|---|
 | `binds` | `{}` | binding id → keys, e.g. `{"terminal": "Mod+Return", "launcher-2": ""}` (`""` turns it off). Ids: `yami-shell binds list` |
 | `customBinds` | `[]` | your commands: `[{"key": "Mod+Shift+B", "cmd": "kitty -e btop"}]` (run with `sh -c`) |
+| `kbLayout` | `""` | keyboard layouts, xkb codes separated by commas (`"us,ru"`, `"de"`); empty: from the system languages (LANG and LC_*: English gives `us`, every other language adds its layout, non-Latin ones after `us`) |
+| `kbSwitch` | `"grp:alt_shift_toggle"` | the xkb option that switches layouts (`grp:ctrl_shift_toggle`, `grp:caps_toggle`, `grp:alt_space_toggle`); empty: no switch |
 
 Keys are written as niri does: `Mod` (Super), `Ctrl`, `Alt`, `Shift`, then a key name (`Q`,
 `Slash`, `Page_Up`, `Print`, `XF86AudioMute`, `WheelScrollDown`). Anything the table cannot

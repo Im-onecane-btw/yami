@@ -75,7 +75,9 @@ Everything it does and its flags: [Installation](#installation).
   switches to «performance»; the shell stops redrawing what the game covers.
 - **Every key rebindable.** Settings → keys: all niri and shell bindings by category, press the
   new keys right there (even ones niri itself uses), conflicts are freed and named, add your own
-  commands. Written to `~/.config/niri/yami-binds.kdl`.
+  commands. Keyboard layouts too: by default they follow the system languages (an English system
+  gets `us`, a Russian one `us,ru`), any xkb codes and the switch combination are a choice. Written
+  to `~/.config/niri/yami-binds.kdl`.
 - **One palette everywhere.** Seven presets or any custom accent recolor the shell, wallpaper,
   niri borders, kitty, btop, fastfetch (闇 logo), Qt/KDE and GTK apps, the browser's menus (its
   own theme stays yours), the pixel cursor and the login screen at once. App icons in the launcher, dock and file manager are
@@ -255,6 +257,7 @@ no interpreter; windows are drawn into shared memory and only when something cha
 | `Mod+Shift+E`, `Ctrl+Alt+Del` | power menu |
 | `Mod+B` | hide the bar |
 | `Mod+Shift+/` | all key bindings |
+| `Alt+Shift` | next keyboard layout (settings → keys → layout) |
 
 These are the defaults: change any of them in settings → keys (`yami-shell binds list` prints the
 current set).

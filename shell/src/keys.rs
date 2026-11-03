@@ -42,9 +42,94 @@ pub const CATS: &[(&str, &str, &str)] = &[
     ("move", "перемещение", "moving"),
     ("ws", "столы", "workspaces"),
     ("shots", "скриншоты", "screenshots"),
-    ("media", "звук и система", "media, system"),
+    ("media", "система", "media, system"),
     ("custom", "свои", "custom"),
+    ("layout", "раскладка", "layout"),
 ];
+
+/// сочетания переключения раскладки (опции xkb); Super+Space занят меню программ
+pub const SWITCHES: &[(&str, &str)] = &[
+    ("grp:alt_shift_toggle", "Alt+Shift"),
+    ("grp:ctrl_shift_toggle", "Ctrl+Shift"),
+    ("grp:caps_toggle", "Caps Lock"),
+    ("grp:alt_space_toggle", "Alt+Space"),
+    ("", "нет"),
+];
+
+/// раскладки по языкам системы: LANG и все LC_* (из окружения и /etc/locale.conf). Английский —
+/// us (en_GB — gb), любой другой язык добавляет свою; нелатинские идут после us, чтобы сочетания
+/// и пароли набирались. Американец получит «us», русский — «us,ru», немец — «de»
+pub fn auto_layout() -> String {
+    let mut locs: Vec<String> = ["LC_ALL", "LANG", "LC_MESSAGES", "LC_TIME", "LC_ADDRESS", "LC_NAME", "LC_TELEPHONE", "LC_MONETARY", "LC_PAPER", "LC_MEASUREMENT", "LC_NUMERIC"]
+        .iter()
+        .filter_map(|k| std::env::var(k).ok())
+        .collect();
+    if let Ok(t) = std::fs::read_to_string("/etc/locale.conf") {
+        locs.extend(t.lines().filter_map(|l| l.split_once('=')).map(|(_, v)| v.trim().trim_matches('"').to_string()));
+    }
+    let mut out: Vec<&str> = vec![];
+    for l in &locs {
+        let base = l.split(['.', '@']).next().unwrap_or("");
+        let (lang, cc) = base.split_once('_').unwrap_or((base, ""));
+        let lay = match (lang, cc) {
+            ("" | "C" | "POSIX", _) => continue,
+            ("en", "GB") => "gb",
+            ("en", _) | ("nl", _) | ("zh", _) | ("vi", _) | ("id", _) | ("ms", _) => "us",
+            ("de", "CH") | ("fr", "CH") => "ch",
+            ("fr", "CA") => "ca",
+            ("fr", "BE") => "be",
+            ("pt", "BR") => "br",
+            ("es", "ES") | ("es", "") => "es",
+            ("es", _) => "latam",
+            ("uk", _) => "ua",
+            ("be", _) => "by",
+            ("kk", _) => "kz",
+            ("sr", _) => "rs",
+            ("el", _) => "gr",
+            ("he", _) => "il",
+            ("ar", _) => "ara",
+            ("fa", _) => "ir",
+            ("hi", _) => "in",
+            ("ka", _) => "ge",
+            ("hy", _) => "am",
+            ("cs", _) => "cz",
+            ("sl", _) => "si",
+            ("sv", _) => "se",
+            ("da", _) => "dk",
+            ("nb" | "nn" | "no", _) => "no",
+            ("et", _) => "ee",
+            ("ja", _) => "jp",
+            ("ko", _) => "kr",
+            ("ru" | "de" | "fr" | "it" | "pt" | "pl" | "sk" | "hr" | "hu" | "ro" | "fi" | "lv" | "lt" | "tr" | "bg" | "th", _) => lang,
+            _ => continue,
+        };
+        if !out.contains(&lay) {
+            out.push(lay);
+        }
+    }
+    const NON_LATIN: &[&str] = &["ru", "ua", "by", "kz", "bg", "rs", "gr", "il", "ara", "ir", "in", "th", "ge", "am", "jp", "kr"];
+    if out.iter().any(|l| NON_LATIN.contains(l)) && !out.iter().any(|l| !NON_LATIN.contains(l)) {
+        out.insert(0, "us");
+    }
+    // латинская раскладка — первой (по ней набираются пароли и сочетания)
+    out.sort_by_key(|l| NON_LATIN.contains(l));
+    if out.is_empty() {
+        "us".into()
+    } else {
+        out.join(",")
+    }
+}
+
+/// раскладки, которые уйдут в niri: своё значение (только буквы, цифры, _ - ( ) и запятые) или авто
+pub fn layouts(set: &crate::config::Settings) -> String {
+    let own: String = set.kb_layout.chars().filter(|c| c.is_ascii_alphanumeric() || "_-(),".contains(*c)).collect();
+    let own = own.split(',').filter(|s| !s.is_empty()).collect::<Vec<_>>().join(",");
+    if own.is_empty() {
+        auto_layout()
+    } else {
+        own
+    }
+}
 
 #[rustfmt::skip]
 pub const BINDS: &[Bind] = &[
@@ -171,6 +256,8 @@ pub struct KeysUi {
     pub note: String,
     pub new_key: String,
     pub cmd: crate::ui::Field,
+    /// поле раскладок (раздел «раскладка»)
+    pub lay: crate::ui::Field,
 }
 
 pub fn title_of(b: &Bind) -> &'static str {
@@ -193,7 +280,7 @@ fn kdl_str(s: &str) -> String {
 /// yami-binds.kdl целиком
 pub fn kdl(set: &crate::config::Settings) -> String {
     let mut l = vec![
-        "// yami: keybindings, written by the shell (settings → keys). Rewritten on every change:".to_string(),
+        "// yami: keybindings and keyboard layouts, written by the shell (settings → keys). Rewritten on every change:".to_string(),
         "// add your own in niri/user.kdl (included later, its keys win).".to_string(),
         "binds {".to_string(),
     ];
@@ -221,6 +308,18 @@ pub fn kdl(set: &crate::config::Settings) -> String {
         used.push(c.key.clone());
         l.push(format!("    {} hotkey-overlay-title={} {{ spawn-sh {}; }}", c.key, kdl_str(c.cmd.trim()), kdl_str(c.cmd.trim())));
     }
+    l.push("}".into());
+    // раскладки (settings → keys → layout); input сливается с config.kdl, user.kdl — позже и главнее
+    l.push(String::new());
+    l.push("input {".into());
+    l.push("    keyboard {".into());
+    l.push("        xkb {".into());
+    l.push(format!("            layout {}", kdl_str(&layouts(set))));
+    if !set.kb_switch.is_empty() {
+        l.push(format!("            options {}", kdl_str(&set.kb_switch)));
+    }
+    l.push("        }".into());
+    l.push("    }".into());
     l.push("}".into());
     l.join("\n") + "\n"
 }
@@ -304,12 +403,34 @@ pub fn combo(m: &Modifiers, key: &str) -> String {
 
 const ROW_H: i32 = 30;
 
+/// раздел «раскладка»: коды xkb и сочетание переключения
+fn layout_rows(ui: &mut Ui, st: &State, list: R, mut ry: i32) -> i32 {
+    let t = ui.t;
+    let s = &st.set;
+    let focused = st.field_focus == Some("kb_layout");
+    let ph = if s.kb_layout.trim().is_empty() {
+        crate::tf!("авто по языкам системы: {}", "automatic from the system languages: {}", auto_layout())
+    } else {
+        crate::tf!("свои: {}", "your own: {}", layouts(s))
+    };
+    ui.text_in(PX, R::new(list.x, ry, list.w, 20), "раскладки — коды xkb через запятую, первая по умолчанию", t.text_dim);
+    ry += 24;
+    ui.field(R::new(list.x, ry, list.w - 130, 26), &st.keys.lay, &ph, focused, false, Act::SField("kb_layout"));
+    ui.button(R::new(list.right() - 120, ry, 120, 26), "применить", "check", Tone::Plain, false, true, Act::SCycle("kb_apply"));
+    ry += 36;
+    let sw = SWITCHES.iter().find(|x| x.0 == s.kb_switch).map(|x| x.1).unwrap_or("свои");
+    crate::settings::opt_btn(ui, R::new(list.x, ry, list.w, 26), "переключать раскладку", sw, Act::SCycle("kb_switch"));
+    ry += 36;
+    ui.wrap(PX, R::new(list.x, ry, list.w, 60), "us, gb, de, fr, es, it, pl, ru, ua… Пустое поле — авто. Свой блок input в niri/user.kdl главнее.", t.text_faint, 3);
+    ry + 60
+}
+
 pub fn tab(ui: &mut Ui, st: &State, b: R) {
     let t = ui.t;
     let k = &st.keys;
     let cat = if k.cat.is_empty() { "shell" } else { k.cat };
     // категории: две строки кнопок
-    let per = 4;
+    let per = 5;
     let cw = (b.w - (per - 1) * 6) / per;
     for (i, (id, ru, en)) in CATS.iter().enumerate() {
         let r = R::new(b.x + (i as i32 % per) * (cw + 6), b.y + (i as i32 / per) * 32, cw, 26);
@@ -324,14 +445,18 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     } else {
         "щелчок по сочетанию — записать новое, стрелка справа — как было"
     };
-    ui.text_in(PX, R::new(b.x, y, b.w, 20), hint, if k.capture.is_some() { t.red } else { t.text_faint });
-    y += 28;
+    if cat != "layout" {
+        ui.text_in(PX, R::new(b.x, y, b.w, 20), hint, if k.capture.is_some() { t.red } else { t.text_faint });
+        y += 28;
+    }
     let list = R::new(b.x, y, b.w, b.bottom() - y);
     // колёсико над списком; строки — поверх (зоны рисуются позже)
     ui.zone(list, Act::KeyScroll, Cur::Default);
     let mut ry = list.y - k.scroll;
     if cat == "custom" {
         ry = custom_rows(ui, st, list, ry);
+    } else if cat == "layout" {
+        ry = layout_rows(ui, st, list, ry);
     } else {
         for bind in BINDS.iter().filter(|x| x.cat == cat) {
             let r = R::new(list.x, ry, list.w, ROW_H - 4);
