@@ -8,6 +8,7 @@ subjects when that section is empty).
 
 - `audioNames`: your own names for sound devices in the sound popup
 - yami-files: `devices` hides drives and USB sticks from the sidebar
+- The launcher's search hint no longer starts under the text cursor
 
 ## 2.1.0
 

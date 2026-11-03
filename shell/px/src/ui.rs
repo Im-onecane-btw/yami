@@ -277,7 +277,9 @@ impl<'a, 'b, A: Action> Ui<'a, 'b, A> {
         let shift = (bw - (inner.w - 10)).max(0);
         self.cv.push_clip(inner);
         if shown.is_empty() {
-            self.text_in(face, inner, placeholder, t.text_faint);
+            // в фокусе подсказка начинается за курсором, иначе он закрывает её первую букву
+            let off = if focused { 12 } else { 0 };
+            self.text_in(face, R::new(inner.x + off, inner.y, inner.w - off, inner.h), placeholder, t.text_faint);
         } else {
             let y = inner.y + (inner.h - self.f.line(face)) / 2;
             self.text(face, inner.x - shift, y, &shown, t.text);
