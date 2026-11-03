@@ -207,6 +207,7 @@ pub fn status(y: &Sty) {
     let upd = match last {
         Some(i) if !i.err.is_empty() => y.warn(&i.err),
         Some(i) if i.available => y.acc(&crate::tf!("доступно {} (yami update)", "{} available (yami update)", i.latest)),
+        Some(i) if i.reference.is_empty() => crate::tf!("выпусков ещё нет", "no releases yet"),
         Some(_) => crate::tf!("свежее", "up to date"),
         None => crate::tf!("не проверялось", "never checked"),
     };

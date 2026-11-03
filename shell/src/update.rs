@@ -222,7 +222,11 @@ fn check_into(set: &Settings, i: &mut Info) -> Result<(), String> {
     let reference = if main {
         "origin/main".to_string()
     } else {
-        git(&dir, &["tag", "-l", "v[0-9]*", "--sort=-v:refname"])?.lines().next().map(String::from).ok_or_else(|| crate::tf!("выпусков ещё нет (тегов vX.Y.Z); канал «каждый коммит» — в настройках", "no releases yet (vX.Y.Z tags); the «every commit» channel is in settings"))?
+        // выпусков ещё нет — не ошибка: ставить нечего (reference пустой)
+        match git(&dir, &["tag", "-l", "v[0-9]*", "--sort=-v:refname"])?.lines().next() {
+            Some(t) => t.to_string(),
+            None => return Ok(()),
+        }
     };
     i.target = git(&dir, &["rev-parse", &format!("{reference}^{{commit}}")])?;
     i.latest = if main { i.target.chars().take(8).collect() } else { reference.trim_start_matches('v').to_string() };
@@ -653,6 +657,8 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
             (crate::tf!("не вышло проверить: {}", "check failed: {}", i.err), t.warn)
         } else if i.available {
             (crate::tf!("доступно {}  ·  {}", "{} is available  ·  {}", i.latest, sig_text(&i.sig)), if i.sig_ok(&s.update_verify) { t.ok } else { t.warn })
+        } else if i.reference.is_empty() {
+            (crate::tf!("выпусков ещё нет  ·  проверено {}", "no releases yet  ·  checked {}", ago(i.at)), t.text_dim)
         } else {
             (crate::tf!("всё свежее  ·  проверено {}", "up to date  ·  checked {}", ago(i.at)), t.text_dim)
         }

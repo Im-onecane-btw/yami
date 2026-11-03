@@ -247,6 +247,10 @@ fn update(y: &Sty, args: &[&str]) -> i32 {
                 eprintln!(" {} {}", y.bad("✕"), i.err);
                 return 1;
             }
+            if i.reference.is_empty() {
+                println!(" {} {}", y.ok("✓"), crate::tf!("выпусков ещё нет; всё новое в main: yami config set updateChannel main", "no releases yet; everything new on main: yami config set updateChannel main"));
+                return 0;
+            }
             if !i.available {
                 println!(" {} {}", y.ok("✓"), crate::tf!("всё свежее ({})", "up to date ({})", i.latest));
                 return 0;
