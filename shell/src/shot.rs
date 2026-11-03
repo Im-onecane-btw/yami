@@ -1,7 +1,7 @@
 // Снимки панелей без Wayland: рисует в память и пишет PNG. Чтобы проверить вид и перевод,
 // не трогая экран пользователя (и не открывая ничего поверх его игры).
 //
-//   yami-shell shot [ЦЕЛЬ…] [--lang ru|en] [--defaults] [-o ПАПКА]
+//   yami-shell shot [ЦЕЛЬ…] [--lang ru|en] [--defaults] [--transparent] [-o ПАПКА]
 //
 // Без цели — все панели. При --lang en печатает надписи, оставшиеся русскими, и выходит с 1.
 // Окна, программы и уведомление — мок-овые (снимок не зависит от машины), датчики — настоящие.
@@ -72,6 +72,9 @@ const TARGETS: &[&str] = &[
 /// надписи, которые и в английском интерфейсе пишутся по-русски
 const NATIVE: &[&str] = &["Русский"]; // i18n-ok
 
+/// --transparent: без подложки, с честной альфой (картинки для README кладутся на обои)
+static CLEAR: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 pub fn run(args: &[String]) -> i32 {
     let mut lang = String::new();
     let mut out = PathBuf::from("shots");
@@ -83,8 +86,9 @@ pub fn run(args: &[String]) -> i32 {
             "--lang" => lang = it.next().cloned().unwrap_or_default(),
             "-o" | "--out" => out = it.next().map(PathBuf::from).unwrap_or(out),
             "--defaults" => defaults = true,
+            "--transparent" => CLEAR.store(true, std::sync::atomic::Ordering::Relaxed),
             "-h" | "--help" | "list" => {
-                println!("yami-shell shot [TARGET…] [--lang ru|en] [--defaults] [-o DIR]\ntargets: {}", TARGETS.join(" "));
+                println!("yami-shell shot [TARGET…] [--lang ru|en] [--defaults] [--transparent] [-o DIR]\ntargets: {}", TARGETS.join(" "));
                 return 0;
             }
             t if TARGETS.contains(&t) => targets.push(t.to_string()),
@@ -107,6 +111,7 @@ pub fn run(args: &[String]) -> i32 {
     let mut st = State::new(set, mock_niri());
     st.apps = mock_apps();
     st.sys.sample();
+    mock_sys(&mut st.sys);
     if std::fs::create_dir_all(&out).is_err() {
         eprintln!("shot: cannot create {}", out.display());
         return 2;
@@ -314,7 +319,9 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
             tr: crate::i18n::tr,
         };
         // подложка — «рабочий стол»: стекло панелей видно, но снимок непрозрачный
-        ui.cv.clear(C::hex(0x2a2626));
+        if !CLEAR.load(std::sync::atomic::Ordering::Relaxed) {
+            ui.cv.clear(C::hex(0x2a2626));
+        }
         let st = &*st;
         match kind {
             "bar" => {
@@ -345,7 +352,14 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
 fn save_png(buf: &[u32], w: i32, h: i32, path: &Path) {
     let mut rgba = Vec::with_capacity(buf.len() * 4);
     for &p in buf {
-        rgba.extend_from_slice(&[(p >> 16) as u8, (p >> 8) as u8, p as u8, 255]);
+        // холст — premultiplied ARGB; в PNG альфа прямая
+        let a = (p >> 24) as u32;
+        let un = |c: u32| if a == 0 { 0 } else { (c * 255 / a).min(255) as u8 };
+        if CLEAR.load(std::sync::atomic::Ordering::Relaxed) {
+            rgba.extend_from_slice(&[un((p >> 16) & 255), un((p >> 8) & 255), un(p & 255), a as u8]);
+        } else {
+            rgba.extend_from_slice(&[(p >> 16) as u8, (p >> 8) as u8, p as u8, 255]);
+        }
     }
     if let Err(e) = image::save_buffer(path, &rgba, w as u32, h as u32, image::ColorType::Rgba8) {
         eprintln!("shot: {}: {e}", path.display());
@@ -362,6 +376,23 @@ fn mock_niri() -> Niri {
     }
     n.kb_names = vec!["English (US)".into()];
     n
+}
+
+/// датчики образца, а не этой машины: снимки одинаковы везде и не выдают железо
+fn mock_sys(s: &mut crate::sys::Sys) {
+    let wave = |i: usize, k: f32, b: f32| (b + 0.18 * ((i as f32 * k).sin() + 0.5 * (i as f32 * k * 2.7).cos())).clamp(0.02, 0.98);
+    for i in 0..120 {
+        s.h_cpu.push(wave(i, 0.21, 0.32));
+        s.h_mem.push(wave(i, 0.05, 0.41));
+        s.h_temp.push(wave(i, 0.08, 0.48) * 100.0);
+        s.h_gpu.push(wave(i, 0.13, 0.41) * 100.0);
+        s.h_rx.push(wave(i, 0.37, 0.3) * 2.0e6);
+        s.h_tx.push(wave(i, 0.29, 0.15) * 4.0e5);
+    }
+    (s.cpu, s.mem, s.mem_used, s.mem_total, s.swap, s.temp, s.gpu_temp, s.disk) = (0.32, 0.41, 6.6, 16.0, 0.0, 48.0, 41.0, 0.37);
+    s.iface = "wlan0".into();
+    s.ip = "192.0.2.10".into();
+    (s.rx, s.tx) = (6.1e5, 1.2e5);
 }
 
 fn mock_apps() -> Vec<crate::icons::App> {
@@ -392,7 +423,8 @@ fn mock_note() -> crate::notif::Note {
         actions: vec![],
         critical: false,
         image: None,
-        born: Instant::now(),
+        // уже показано целиком (не в начале появления)
+        born: Instant::now() - std::time::Duration::from_secs(2),
         time: "12:00".into(),
         life: 7.0,
         left: 7.0,
