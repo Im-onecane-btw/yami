@@ -240,13 +240,28 @@ pub fn pixelate(src: &Img, ramp: &[u32; 5], size: i32) -> Img {
     Img { w: size, h: size, px }
 }
 
+/// потолки для картинок со стороны (значки уведомлений, обложки, значки трея): файл и память декодера
+pub const MAX_FILE: u64 = 16 << 20;
+pub const MAX_DECODE: u64 = 64 << 20;
+
+/// картинка из байтов с потолком памяти и размеров: «бомба» (100000×100000 в маленьком png) не
+/// раздует процесс, декодер просто откажется
+pub fn decode(data: &[u8], max_alloc: u64) -> Option<image::DynamicImage> {
+    let mut rd = image::ImageReader::new(std::io::Cursor::new(data)).with_guessed_format().ok()?;
+    let mut lim = image::Limits::default();
+    lim.max_alloc = Some(max_alloc);
+    lim.max_image_width = Some(8192);
+    lim.max_image_height = Some(8192);
+    rd.limits(lim);
+    rd.decode().ok()
+}
+
 pub fn load_file(p: &Path, size: i32) -> Option<Img> {
-    let data = std::fs::read(p).ok()?;
+    let data = crate::paths::read_capped(p, MAX_FILE)?;
     if p.extension().map(|e| e == "svg" || e == "svgz").unwrap_or(false) {
         return svg(&data, size);
     }
-    let img = image::load_from_memory(&data).ok()?.to_rgba8();
-    Some(fit(img, size))
+    Some(fit(decode(&data, MAX_DECODE)?.to_rgba8(), size))
 }
 
 pub fn svg(data: &[u8], size: i32) -> Option<Img> {
@@ -430,12 +445,13 @@ pub fn icon_for(apps: &[App], app_id: &str) -> String {
     }
 }
 
-/// команда из Exec без %-кодов
-pub fn exec_argv(exec: &str) -> Vec<String> {
-    let mut args = vec![];
+/// Exec из .desktop → слова: кавычки и \\-экранирование внутри них (спецификация Desktop Entry).
+/// Без оболочки: программа запускается напрямую, имена файлов не разбираются как команды.
+fn exec_words(exec: &str) -> Vec<String> {
+    let mut v = vec![];
     let mut cur = String::new();
     let mut q = false;
-    let mut chars = exec.chars().peekable();
+    let mut chars = exec.chars();
     while let Some(c) = chars.next() {
         match c {
             '"' => q = !q,
@@ -446,47 +462,27 @@ pub fn exec_argv(exec: &str) -> Vec<String> {
             }
             ' ' if !q => {
                 if !cur.is_empty() {
-                    args.push(std::mem::take(&mut cur));
+                    v.push(std::mem::take(&mut cur));
                 }
             }
             _ => cur.push(c),
         }
     }
     if !cur.is_empty() {
-        args.push(cur);
+        v.push(cur);
     }
-    args.into_iter().filter(|a| !(a.len() == 2 && a.starts_with('%'))).map(|a| a.replace("%%", "%")).collect()
+    v
+}
+
+/// команда из Exec без %-кодов
+pub fn exec_argv(exec: &str) -> Vec<String> {
+    exec_words(exec).into_iter().filter(|a| !(a.len() == 2 && a.starts_with('%'))).map(|a| a.replace("%%", "%")).collect()
 }
 
 /// команда из Exec с файлами: %f/%u — по одному (вернёт несколько команд), %F/%U — все разом;
 /// кодов нет — файлы в конец
 pub fn exec_with(exec: &str, files: &[PathBuf]) -> Vec<Vec<String>> {
-    let raw: Vec<String> = {
-        let mut v = vec![];
-        let mut cur = String::new();
-        let mut q = false;
-        let mut chars = exec.chars().peekable();
-        while let Some(c) = chars.next() {
-            match c {
-                '"' => q = !q,
-                '\\' if q => {
-                    if let Some(n) = chars.next() {
-                        cur.push(n);
-                    }
-                }
-                ' ' if !q => {
-                    if !cur.is_empty() {
-                        v.push(std::mem::take(&mut cur));
-                    }
-                }
-                _ => cur.push(c),
-            }
-        }
-        if !cur.is_empty() {
-            v.push(cur);
-        }
-        v
-    };
+    let raw = exec_words(exec);
     let uri = |p: &PathBuf| file_uri(p);
     let path = |p: &PathBuf| p.to_string_lossy().to_string();
     let multi = raw.iter().any(|a| a == "%F" || a == "%U");

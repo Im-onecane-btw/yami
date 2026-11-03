@@ -153,10 +153,15 @@ pub fn list() -> Vec<Entry> {
                 for l in txt.lines() {
                     if let Some(v) = l.strip_prefix("Path=") {
                         let p = dec(v);
-                        en.orig = Some(match &top {
-                            Some(top) if !v.starts_with('/') => top.join(p.strip_prefix("/").unwrap_or(&p)),
-                            _ => p,
-                        });
+                        // корзина на съёмном диске: путь относительно его корня и не выше его
+                        // («../../.bashrc» в чужом .trashinfo не вернёт файл в домашнюю папку)
+                        en.orig = match &top {
+                            Some(top) if !v.starts_with('/') => {
+                                let rel = p.strip_prefix("/").unwrap_or(&p);
+                                rel.components().all(|c| matches!(c, std::path::Component::Normal(_))).then(|| top.join(rel))
+                            }
+                            _ => Some(p),
+                        };
                     } else if let Some(v) = l.strip_prefix("DeletionDate=") {
                         en.deleted = parse_stamp(v);
                     }

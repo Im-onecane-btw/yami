@@ -29,6 +29,32 @@ pub fn shell_settings() -> PathBuf {
     config_dir().join("yami-shell.json")
 }
 
+/// свой бинарь: после обновления старый файл удалён («… (deleted)») — берём новый по тому же пути
+pub fn self_exe() -> PathBuf {
+    let Some(p) = std::fs::read_link("/proc/self/exe").ok().or_else(|| std::env::current_exe().ok()) else { return PathBuf::from("yami-shell") };
+    let s = p.to_string_lossy();
+    PathBuf::from(s.strip_suffix(" (deleted)").unwrap_or(&s))
+}
+
+/// файл, путь к которому дал чужой процесс (уведомление, плеер), читаем с потолком: /dev/zero,
+/// fifo или гигантский файл не съедят память и не подвесят нить. Не обычный файл — None.
+pub fn read_capped(p: &Path, max: u64) -> Option<Vec<u8>> {
+    use std::io::Read;
+    use std::os::unix::fs::OpenOptionsExt;
+    if !std::fs::metadata(p).ok()?.is_file() {
+        return None;
+    }
+    // O_NONBLOCK: если файл подменили на fifo между проверкой и открытием, open не повиснет
+    let f = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK).open(p).ok()?;
+    let m = f.metadata().ok()?;
+    if !m.is_file() || m.len() > max {
+        return None;
+    }
+    let mut v = Vec::with_capacity(m.len() as usize);
+    f.take(max).read_to_end(&mut v).ok()?;
+    Some(v)
+}
+
 /// запись через временный файл: читатель никогда не увидит половину
 pub fn write_atomic(path: &Path, text: &str) -> std::io::Result<()> {
     if std::fs::read_to_string(path).map(|t| t == text).unwrap_or(false) {

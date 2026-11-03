@@ -70,6 +70,22 @@ impl Pic {
     }
 }
 
+/// кадры анимации с потолком: не больше 600 и 1 ГБ вместе (GIF 4000×4000 на тысячу кадров
+/// иначе съел бы всю память раньше, чем мы их обрежем)
+fn capped(fr: image::Frames<'_>) -> Result<Vec<image::Frame>, image::ImageError> {
+    let mut out = vec![];
+    let mut total = 0u64;
+    for f in fr.take(600) {
+        let f = f?;
+        total += f.buffer().len() as u64;
+        if total > 1 << 30 {
+            break;
+        }
+        out.push(f);
+    }
+    Ok(out)
+}
+
 pub fn load(p: &Path) -> Result<Pic, String> {
     let bytes = std::fs::metadata(p).map(|m| m.len()).map_err(|e| e.to_string())?;
     let rd = image::ImageReader::open(p).map_err(|e| e.to_string())?.with_guessed_format().map_err(|e| e.to_string())?;
@@ -86,7 +102,7 @@ pub fn load(p: &Path) -> Result<Pic, String> {
     if fmt == Some(image::ImageFormat::Gif) {
         let f = std::io::BufReader::new(std::fs::File::open(p).map_err(|e| e.to_string())?);
         if let Ok(dec) = image::codecs::gif::GifDecoder::new(f) {
-            if let Ok(fr) = dec.into_frames().collect_frames() {
+            if let Ok(fr) = capped(dec.into_frames()) {
                 if !fr.is_empty() {
                     return Ok(Pic { path: p.into(), frames: anim(fr), bytes, format, edited: false });
                 }
@@ -97,7 +113,7 @@ pub fn load(p: &Path) -> Result<Pic, String> {
         let f = std::io::BufReader::new(std::fs::File::open(p).map_err(|e| e.to_string())?);
         if let Ok(dec) = image::codecs::webp::WebPDecoder::new(f) {
             if dec.has_animation() {
-                if let Ok(fr) = dec.into_frames().collect_frames() {
+                if let Ok(fr) = capped(dec.into_frames()) {
                     if !fr.is_empty() {
                         return Ok(Pic { path: p.into(), frames: anim(fr), bytes, format, edited: false });
                     }

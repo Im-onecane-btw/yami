@@ -18,9 +18,7 @@ struct FileManager;
 
 /// свой бинарь; после обновления старый файл удалён («… (deleted)») — берём новый по тому же пути
 pub fn exe() -> Option<std::path::PathBuf> {
-    let p = std::fs::read_link("/proc/self/exe").ok().or_else(|| std::env::current_exe().ok())?;
-    let s = p.to_string_lossy();
-    let p = std::path::PathBuf::from(s.strip_suffix(" (deleted)").unwrap_or(&s));
+    let p = yami_px::paths::self_exe();
     Some(if p.exists() { p } else { "yami-files".into() })
 }
 
@@ -30,7 +28,8 @@ fn open_window(args: Vec<String>) {
 }
 
 fn paths_of(uris: &[String]) -> Vec<String> {
-    uris.iter().filter_map(|u| crate::icons::uri_path(u).or_else(|| if u.starts_with('/') { Some(std::path::PathBuf::from(u)) } else { None })).map(|p| p.to_string_lossy().to_string()).collect()
+    // окно на каждую папку: потолок, чтобы вызов с тысячей ссылок не открыл тысячу вкладок
+    uris.iter().take(16).filter_map(|u| crate::icons::uri_path(u).or_else(|| if u.starts_with('/') { Some(std::path::PathBuf::from(u)) } else { None })).map(|p| p.to_string_lossy().to_string()).collect()
 }
 
 #[zbus::interface(name = "org.freedesktop.FileManager1")]
