@@ -164,12 +164,46 @@ def logo():
     return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" shape-rendering="crispEdges">{tile}{glyph}</svg>\n'
 
 
+SOCIAL = ("yami", "a pixel-art desktop for niri", "Rust Wayland shell in ~15 MB · own file manager · one accent for every app")
+
+
+def social():
+    """превью ссылки (GitHub → Settings → Social preview, 1280×640): обои палитры, 闇 как в
+    fastfetch и надписи Tiny5 — всё на сетке 2×2"""
+    W, H, cell = 640, 320, 6
+    im = theme.wallpaper_img(P, W, H).convert("RGBA")
+    d = ImageDraw.Draw(im)
+    k = theme.KANJI
+    bands = [P["bright"], theme.mix(P["bright"], P["accent"], 0.5), P["accent"], theme.mix(P["accent"], P["deep"], 0.5)]
+    shadow = theme.mix(P["deep"], P["bg"], 0.45)
+    on = lambda x, y: 0 <= y < len(k) and 0 <= x < len(k[0]) and k[y][x] == "#"
+    x0, y0 = 70, (H - len(k) * cell) // 2
+    for y in range(len(k) + 1):
+        for x in range(len(k[0]) + 1):
+            c = bands[min(y * 4 // len(k), 3)] if on(x, y) else shadow if on(x - 1, y - 1) else None
+            if c:
+                d.rectangle([x0 + x * cell, y0 + y * cell, x0 + (x + 1) * cell - 1, y0 + (y + 1) * cell - 1], fill=rgb_of(c))
+    tx = x0 + (len(k[0]) + 1) * cell + 40
+    name, tag, line = SOCIAL
+    text(d, (tx, 104), name, 48, rgb("text"))
+    d.rectangle([tx, 160, tx + 31, 163], fill=rgb("accent"))
+    text(d, (tx, 176), tag, 16, rgb("textDim"))
+    text(d, (tx, 204), line, 8, rgb("textFaint"))
+    return im.resize((W * 2, H * 2), Image.NEAREST).convert("RGB")
+
+
+def rgb_of(h):
+    h = h.lstrip("#")
+    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), 255)
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "logo.svg").write_text(logo())
     for lang in ("en", "ru"):
         features(lang).save(OUT / f"features-{lang}.png", optimize=True)
-    print(f"readme-art: logo and features-{{en,ru}}.png ({len(CARDS)} cards) in {OUT.relative_to(ROOT)}")
+    social().save(OUT / "social.png", optimize=True)
+    print(f"readme-art: logo, features-{{en,ru}}.png ({len(CARDS)} cards) and social.png in {OUT.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":
