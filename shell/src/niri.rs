@@ -93,6 +93,15 @@ pub fn request(req: &Value) -> Option<Value> {
     serde_json::from_str(&out).ok()
 }
 
+/// в фокусе игра или окно на весь экран: перезапуск шелла и панели подождут (для CLI и
+/// обновлений — у шелла есть свой GameMode)
+pub fn game_focused() -> bool {
+    let Some(v) = request(&json!("FocusedWindow")) else { return false };
+    let w = &v["Ok"]["FocusedWindow"];
+    let id = w["app_id"].as_str().unwrap_or("");
+    id.starts_with("steam_app_") || id == "gamescope" || id.ends_with(".exe") || w["is_fullscreen"].as_bool().unwrap_or(false)
+}
+
 /// нить: читает поток событий, при обрыве переподключается
 pub fn spawn_stream(send: impl Fn(Value) + Send + 'static) {
     std::thread::Builder::new()

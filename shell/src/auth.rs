@@ -20,8 +20,8 @@ use zbus::zvariant::{OwnedValue, Value};
 
 pub const SIZE: (i32, i32) = (446, 248);
 const PATH: &str = "/org/yami/PolkitAgent";
-const SOCKET: &str = "/run/polkit/agent-helper.socket";
-const HELPERS: &[&str] = &["/usr/lib/polkit-1/polkit-agent-helper-1", "/usr/libexec/polkit-agent-helper-1", "/usr/lib/policykit-1/polkit-agent-helper-1", "/usr/libexec/polkit-1/polkit-agent-helper-1"];
+pub const SOCKET: &str = "/run/polkit/agent-helper.socket";
+pub const HELPERS: &[&str] = &["/usr/lib/polkit-1/polkit-agent-helper-1", "/usr/libexec/polkit-agent-helper-1", "/usr/lib/policykit-1/polkit-agent-helper-1", "/usr/libexec/polkit-1/polkit-agent-helper-1"];
 const TRIES: u32 = 3;
 
 /// ответы окна нитям запросов: cookie → пароль (None — отмена)
@@ -216,8 +216,12 @@ fn session_id(c: &Connection) -> Option<String> {
     p.get_property::<(String, zbus::zvariant::OwnedObjectPath)>("Display").ok().map(|d| d.0).filter(|s| !s.is_empty())
 }
 
-/// зарегистрироваться агентом сеанса; если агент уже есть (чужой) — уступаем ему
-pub fn spawn(tx: Sender<Msg>) {
+/// зарегистрироваться агентом сеанса; если агент уже есть (чужой) — уступаем ему.
+/// Выключен в настройках (службы → пароли) — окна пароля рисует другой агент (polkit-gnome, KDE)
+pub fn spawn(tx: Sender<Msg>, on: bool) {
+    if !on {
+        return;
+    }
     std::thread::Builder::new()
         .name("polkit".into())
         .spawn(move || {

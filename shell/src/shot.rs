@@ -62,6 +62,10 @@ const TARGETS: &[&str] = &[
     "settings:fonts",
     "settings:keys-rec",
     "settings:keys-custom",
+    "settings:agents",
+    "settings:updates",
+    "settings:updates-new",
+    "settings:updates-busy",
     "dock",
 ];
 
@@ -154,6 +158,11 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
             }
             if arg == "screens" {
                 st.disp.outs = crate::displays::mock();
+            }
+            if arg.starts_with("updates") {
+                // образец, а не то, что стоит на этой машине
+                st.stab = "updates";
+                st.upd = crate::update::Upd::mock(arg);
             }
             if let Some(k) = arg.strip_prefix("keys-") {
                 // запись сочетания в разгаре; свои команды с одной записью

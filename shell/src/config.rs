@@ -230,6 +230,36 @@ pub struct Settings {
     pub game_profile: bool,
     /// свои app-id игр: через запятую, `name*` — по началу
     pub game_apps: String,
+
+    // службы (agents.rs): что из D-Bus делает сам шелл; выключенное отдаётся другим программам
+    /// сервер уведомлений org.freedesktop.Notifications
+    pub agent_notif: bool,
+    /// трей (StatusNotifierWatcher)
+    pub agent_tray: bool,
+    /// окно пароля polkit
+    pub agent_polkit: bool,
+    /// карточек на экране сразу и сколько хранит история
+    pub notif_max: u32,
+    pub notif_history: u32,
+    /// картинки в уведомлениях (значки, превью от программ)
+    pub notif_images: bool,
+    /// обложки музыки по ссылкам из сети (иначе — только локальные файлы)
+    pub media_art_net: bool,
+    /// порталы: диалог файлов yami-files и выбор экрана для трансляций (иначе GTK / GNOME)
+    pub portal_files: bool,
+    pub portal_cast: bool,
+
+    // обновления (update.rs)
+    /// проверять сама раз в updateEvery часов (0 — только по кнопке)
+    pub update_check: bool,
+    pub update_every: u32,
+    /// "release" — выпуски (теги vX.Y.Z), "main" — каждый коммит ветки
+    pub update_channel: String,
+    /// подписи выпусков: "auto" — проверять, если в установленной версии есть ключи,
+    /// "require" — неподписанное не ставить, "off" — не проверять
+    pub update_verify: String,
+    /// свой адрес репозитория ("" — откуда ставили; публичный и приватный — один и тот же)
+    pub update_repo: String,
 }
 
 /// группа модуля — только для переноса старых настроек (migrate_seps)
@@ -359,6 +389,20 @@ impl Default for Settings {
             game_dnd: true,
             game_profile: true,
             game_apps: String::new(),
+            agent_notif: true,
+            agent_tray: true,
+            agent_polkit: true,
+            notif_max: 4,
+            notif_history: 50,
+            notif_images: true,
+            media_art_net: true,
+            portal_files: true,
+            portal_cast: true,
+            update_check: true,
+            update_every: 24,
+            update_channel: "release".into(),
+            update_verify: "auto".into(),
+            update_repo: String::new(),
         }
     }
 }

@@ -85,16 +85,25 @@ pub fn spawn(tx: Sender<Msg>) {
 }
 
 /// обложка: файл или ссылка → 64×64 клетками по 2 px
-pub fn fetch_art(url: String, tx: Sender<Msg>) {
+/// net: обложки по сети разрешены (агенты → «обложки из сети»)
+pub fn fetch_art(url: String, net: bool, tx: Sender<Msg>) {
     std::thread::spawn(move || {
         let data = if let Some(p) = url.strip_prefix("file://") {
-            std::fs::read(p).ok()
-        } else if url.starts_with("http") {
-            Command::new("curl").args(["-sL", "--max-time", "8", &url]).output().ok().map(|o| o.stdout).filter(|d| !d.is_empty())
+            // путь даёт плеер: только обычный файл и не больше потолка (не /dev/zero)
+            crate::icons::uri_path(&url).or_else(|| Some(p.into())).and_then(|p| yami_px::paths::read_capped(&p, crate::icons::MAX_FILE))
+        } else if net && (url.starts_with("https://") || url.starts_with("http://")) {
+            // только http(s) и при переадресации, размер с потолком, без чужих конфигов curl (-q)
+            let max = crate::icons::MAX_FILE.to_string();
+            Command::new("curl")
+                .args(["-q", "-sfL", "--max-time", "8", "--max-redirs", "3", "--proto", "=http,https", "--proto-redir", "=https", "--max-filesize", &max, "--", &url])
+                .output()
+                .ok()
+                .map(|o| o.stdout)
+                .filter(|d| !d.is_empty() && d.len() as u64 <= crate::icons::MAX_FILE)
         } else {
             None
         };
-        let img = data.and_then(|d| image::load_from_memory(&d).ok()).map(|i| {
+        let img = data.and_then(|d| crate::icons::decode(&d, crate::icons::MAX_DECODE)).map(|i| {
             let small = image::imageops::resize(&i.to_rgba8(), 32, 32, image::imageops::FilterType::Triangle);
             let big = image::imageops::resize(&small, 64, 64, image::imageops::FilterType::Nearest);
             crate::icons::from_rgba(&big)

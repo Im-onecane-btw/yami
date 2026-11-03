@@ -58,19 +58,27 @@ fn image_data(v: &Value) -> Option<Img> {
             _ => 0,
         }
     };
-    let (w, h, stride) = (num(0), num(1), num(2));
+    let (w, h, stride) = (num(0) as i64, num(1) as i64, num(2) as i64);
     let alpha = matches!(f.get(3), Some(Value::Bool(true)));
-    let ch = num(5).max(3);
+    let ch = num(5) as i64;
+    // размеры от чужого процесса: без переполнений, строка не короче пикселей, не больше 1024²
+    // (иначе «картинка» 10⁵×10⁵ при stride 0 потребовала бы десятки гигабайт)
+    if !(3..=4).contains(&ch) || !(1..=1024).contains(&w) || !(1..=1024).contains(&h) || stride < w * ch {
+        return None;
+    }
     let Some(Value::Array(a)) = f.get(6) else { return None };
+    if (a.len() as i64) < stride * (h - 1) + w * ch {
+        return None;
+    }
     let bytes: Vec<u8> = a.inner().iter().filter_map(|x| if let Value::U8(b) = x { Some(*b) } else { None }).collect();
-    if w <= 0 || h <= 0 || bytes.len() < (stride * (h - 1) + w * ch) as usize {
+    if (bytes.len() as i64) < stride * (h - 1) + w * ch {
         return None;
     }
     let mut img = image::RgbaImage::new(w as u32, h as u32);
     for y in 0..h {
         for x in 0..w {
             let o = (y * stride + x * ch) as usize;
-            let a = if alpha && ch >= 4 { bytes[o + 3] } else { 255 };
+            let a = if alpha && ch == 4 { bytes[o + 3] } else { 255 };
             img.put_pixel(x as u32, y as u32, image::Rgba([bytes[o], bytes[o + 1], bytes[o + 2], a]));
         }
     }
@@ -186,6 +194,10 @@ impl Watcher {
         let key = format!("{bus}{path}");
         {
             let mut it = self.items.lock().unwrap();
+            // потолок: процесс, регистрирующий значки в цикле, не забьёт бар и память
+            if it.len() >= 64 && !it.contains(&key) {
+                return;
+            }
             if !it.contains(&key) {
                 it.push(key.clone());
             }
@@ -233,7 +245,8 @@ fn pixmap(v: Option<OwnedValue>) -> Option<Img> {
         }
     }
     let (w, h, d) = best?;
-    if w <= 0 || h <= 0 || d.len() < (w * h * 4) as usize {
+    // размеры от чужого процесса: не больше 1024² и без переполнения
+    if !(1..=1024).contains(&w) || !(1..=1024).contains(&h) || d.len() < (w * h * 4) as usize {
         return None;
     }
     let mut img = image::RgbaImage::new(w as u32, h as u32);
@@ -368,7 +381,9 @@ pub fn tray_menu_click(svc: &str, path: &str, id: i32) {
     });
 }
 
-pub fn spawn(tx: Sender<Msg>) {
+/// notif, tray: шелл — сервер уведомлений и хозяин трея (настройки → службы); выключенное
+/// отдаётся другим (mako, dunst, waybar)
+pub fn spawn(tx: Sender<Msg>, notif: bool, tray: bool) {
     std::thread::Builder::new()
         .name("dbus".into())
         .spawn(move || {
@@ -377,12 +392,18 @@ pub fn spawn(tx: Sender<Msg>) {
                 return;
             };
             let _ = CONN.set(c.clone());
-            let next = Arc::new(AtomicU32::new(1));
-            let _ = c.object_server().at("/org/freedesktop/Notifications", Notif { tx: tx.clone(), next });
             use zbus::fdo::RequestNameFlags;
-            let flags = RequestNameFlags::ReplaceExisting | RequestNameFlags::AllowReplacement;
-            if let Err(e) = c.request_name_with_flags("org.freedesktop.Notifications", flags) {
-                eprintln!("{}", crate::tf!("dbus: уведомления заняты другим сервером: {e}", "dbus: notifications are owned by another server: {e}"));
+            if notif {
+                let next = Arc::new(AtomicU32::new(1));
+                let _ = c.object_server().at("/org/freedesktop/Notifications", Notif { tx: tx.clone(), next });
+                let flags = RequestNameFlags::ReplaceExisting | RequestNameFlags::AllowReplacement;
+                if let Err(e) = c.request_name_with_flags("org.freedesktop.Notifications", flags) {
+                    eprintln!("{}", crate::tf!("dbus: уведомления заняты другим сервером: {e}", "dbus: notifications are owned by another server: {e}"));
+                }
+            }
+            if !tray {
+                // соединение живёт в CONN: меню трея и сигналы уведомлений ходят через него
+                return;
             }
             // трей: свой наблюдатель, а если он уже есть — подключаемся к нему хостом
             let items = Arc::new(Mutex::new(Vec::<String>::new()));

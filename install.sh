@@ -19,6 +19,8 @@
 #   ./install.sh --no-anim        no animations
 #   ./install.sh --dry-run        show the plan, change nothing
 #   ./install.sh --uninstall      remove the shell and dotfiles, restore backups
+#   ./install.sh --update         rebuild from this tree, keep every setting, no sudo (what
+#                                 `yami update apply` runs after checking the release)
 #
 # Supported families: Arch, Fedora (incl. atomic), Debian/Ubuntu, openSUSE, Void,
 # Alpine, Gentoo; NixOS gets the dotfiles and the shell, packages are listed for
@@ -39,7 +41,8 @@ if [[ ! -f $ROOT/shell/Cargo.toml || ! -f $ROOT/fork/yami-niri.sh ]]; then
     git -C "$SRC_DIR" pull --ff-only --quiet || echo "yami: could not update $SRC_DIR, using it as is" >&2
   else
     mkdir -p "${SRC_DIR%/*}"
-    git clone --depth 1 "$YAMI_REPO" "$SRC_DIR" || { echo "yami: git clone $YAMI_REPO failed" >&2; exit 1; }
+    # history without file contents: small like --depth 1, but updates can compare versions
+    git clone --filter=blob:none "$YAMI_REPO" "$SRC_DIR" || { echo "yami: git clone $YAMI_REPO failed" >&2; exit 1; }
   fi
   # curl … | bash: give the interactive installer the terminal back
   if [[ ! -t 0 ]] && { : </dev/tty; } 2>/dev/null; then exec bash "$SRC_DIR/install.sh" "$@" </dev/tty; fi
@@ -66,7 +69,7 @@ MONOCRAFT_URL="https://github.com/IdreesInc/Monocraft/releases/download/v4.2.1/M
 MONOCRAFT_SHA256="67f88ff9e7c6560f6cf60fb062fd353a72f62dc2654462950c65b63ed53d9754"
 [[ -d $HOME/.cargo/bin ]] && export PATH="$HOME/.cargo/bin:$PATH"
 
-YES=0 SUDO=1 FORK_FLAG=1 LOGIN_FLAG="" PALETTE="" LOOK_OPT="" LANG_OPT="" FONT_OPT="" ANIM=1 DRY=0 UNINSTALL=0
+YES=0 SUDO=1 FORK_FLAG=1 LOGIN_FLAG="" PALETTE="" LOOK_OPT="" LANG_OPT="" FONT_OPT="" ANIM=1 DRY=0 UNINSTALL=0 UPDATE=0
 while (($#)); do
   case "$1" in
     -y | --yes) YES=1 ;;
@@ -82,6 +85,7 @@ while (($#)); do
     --no-anim) ANIM=0 ;;
     --dry-run) DRY=1 ;;
     --uninstall) UNINSTALL=1 ;;
+    --update) UPDATE=1 YES=1 ANIM=0 SUDO=0 ;;
     -h | --help) sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]:-$0}" | sed -e '$d' -e 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown option: $1 (see --help)" >&2; exit 2 ;;
   esac
@@ -94,6 +98,10 @@ mkdir -p "$CACHE"
 
 # ── language ────────────────────────────────────────────────────────────────
 L="${LANG_OPT:-}"
+if [[ -z $L ]] && ((UPDATE)) && [[ -f $SET_JSON ]]; then
+  L="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("lang",""))' "$SET_JSON" 2>/dev/null)"
+  [[ $L == ru || $L == en ]] || L=""
+fi
 if [[ -z $L ]]; then
   case "${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}" in ru*) L=ru ;; *) L=en ;; esac
   LANG_ASK=1
@@ -399,6 +407,14 @@ screen() { printf '\e[H\e[J'; banner 0; }
 # ── components ──────────────────────────────────────────────────────────────
 C_ID=(core apps look login nvidia fork)
 C_ON=(1 1 1 "$LOGIN_ON" "$NVIDIA" "$FORK_FLAG")
+# what was installed (the shell's `update stamp`): an update repeats the same choice
+INSTALLED="$STATE/install.json"
+if ((UPDATE)) && [[ -f $INSTALLED ]]; then
+  COMP="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("components",""))' "$INSTALLED" 2>/dev/null)"
+  if [[ -n $COMP ]]; then
+    for i in "${!C_ID[@]}"; do [[ " $COMP " == *" ${C_ID[$i]} "* ]] && C_ON[i]=1 || C_ON[i]=0; done
+  fi
+fi
 c_name() {
   case $1 in
     core) t "niri и сеанс" "niri and session" ;;
@@ -737,6 +753,8 @@ do_build_shell() {
   install -Dm755 "$CACHE/target/release/yami-shell" "$BIN/yami-shell"
   install -Dm755 "$CACHE/target/release/yami-files" "$BIN/yami-files"
   install -Dm755 "$CACHE/target/release/yami-view" "$BIN/yami-view"
+  # `yami <command>`: the same binary, help instead of the shell when started without a command
+  ln -sfn yami-shell "$BIN/yami"
 }
 
 # ── files: yami-files as the folder handler, the portal file dialog ─────────
@@ -770,7 +788,12 @@ do_files() {
   done < <(python3 -I "$ROOT/tools/theme.py" --profiles 2>/dev/null)
   # a portal backend left from the previous build would spawn a deleted binary
   pgrep -f '^[^ ]*yami-files --pick' >/dev/null || pkill -f '^[^ ]*yami-files --portal' 2>/dev/null
-  if ((SYSTEMD)) && systemctl --user is-active -q xdg-desktop-portal 2>/dev/null; then
+  if ((UPDATE)); then
+    # update: only our backend comes back (new binary); restarting the portal frontend would cut
+    # a running screencast (OBS, Discord)
+    busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus StartServiceByName su \
+      org.freedesktop.impl.portal.desktop.yami 0 >/dev/null 2>&1
+  elif ((SYSTEMD)) && systemctl --user is-active -q xdg-desktop-portal 2>/dev/null; then
     busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig >/dev/null 2>&1
     systemctl --user restart xdg-desktop-portal
   fi
@@ -904,6 +927,32 @@ PY
 
 do_look() { "$ROOT/tools/apply-theme.sh"; }
 
+# update: everything generated from the palette again (new theme.py outputs), settings untouched
+do_refresh() {
+  python3 -I "$ROOT/tools/theme.py" || return 1
+  "$BIN/yami-shell" binds write || return 1
+  "$BIN/yami-shell" config kdl >"$CFG/niri/yami-fx.kdl"
+}
+# update: yami-niri only when the patch series moved (5–25 min), else the built one stays
+fork_stale() {
+  local want have
+  want="$(sed -n 's/^VERSION="\(.*\)"/\1/p' "$ROOT/fork/yami-niri.sh")"
+  have="$("$HOME/.local/lib/yami-niri/current/niri" --version 2>/dev/null | awk '{print $2}')"
+  [[ $want != "$have" ]]
+}
+# update: the installed login theme differs from this tree (its QML; fonts and colours are added on install)
+sddm_stale() {
+  local f
+  for f in "$ROOT"/sddm/yami/*.qml; do cmp -s "$f" "/usr/share/sddm/themes/yami/${f##*/}" || return 0; done
+  return 1
+}
+# what is installed and from where: `yami update` compares against it
+do_stamp() {
+  local c="" i
+  for i in "${!C_ID[@]}"; do ((C_ON[i])) && c+="${C_ID[$i]} "; done
+  "$BIN/yami-shell" update stamp "$ROOT" --components "${c% }"
+}
+
 # ── login screen: SDDM with the yami theme ──────────────────────────────────
 do_sddm() {
   local dst=/usr/share/sddm/themes/yami src="$CACHE/sddm-yami"
@@ -1010,7 +1059,17 @@ do_services() {
   return 0
 }
 
+# a game or any fullscreen window in focus: the restart would flash panels over it
+game_focused() {
+  local f
+  f="$(niri msg --json focused-window 2>/dev/null)" || return 1
+  grep -qiE '"app_id":"(steam_app_[0-9]+|gamescope|[^"]*\.exe)"' <<<"$f" || grep -q '"is_fullscreen":true' <<<"$f"
+}
 do_restart_shell() {
+  if game_focused; then
+    echo "a game has focus: the shell restarts at the next login (or: yami restart)"
+    return 99
+  fi
   pkill -x qs 2>/dev/null
   # the shell is the polkit agent now: a running Qt/GTK agent would keep the session's slot
   pkill -x polkit-kde-auth 2>/dev/null
@@ -1076,8 +1135,8 @@ uninstall() {
   ((DRY)) && { note "--dry-run"; return; }
   pgrep -x yami-shell >/dev/null && "$BIN/yami-shell" msg quit 2>/dev/null
   [[ -x $HOME/.local/lib/yami-niri/yami-niri.sh ]] && "$HOME/.local/lib/yami-niri/yami-niri.sh" off
-  rm -rf "$HOME/.local/lib/yami-niri"
-  rm -f "$BIN/yami-shell" "$CFG/environment.d/60-yami-path.conf" "$CFG/fontconfig/conf.d/50-yami-pixel.conf" \
+  rm -rf "$HOME/.local/lib/yami-niri" "$HOME/.local/lib/yami"
+  rm -f "$BIN/yami-shell" "$BIN/yami" "$STATE/install.json" "$STATE/update.json" "$STATE/update-keys" "$CFG/environment.d/60-yami-path.conf" "$CFG/fontconfig/conf.d/50-yami-pixel.conf" \
     "$CFG/niri/yami-binds.kdl" "$CFG/niri/yami-fx.kdl"
   local data="${XDG_DATA_HOME:-$HOME/.local/share}"
   pkill -f "$BIN/yami-files --portal" 2>/dev/null
@@ -1107,6 +1166,33 @@ uninstall() {
 
 # ── go ──────────────────────────────────────────────────────────────────────
 ((UNINSTALL)) && uninstall
+
+if ((UPDATE)); then
+  # rebuild from this tree with the choices of the first install; no packages, no sudo
+  say "$(t "обновление из" "update from") $ROOT"
+  add "$(t "шелл: сборка из исходников" "shell: build from source")" do_build_shell
+  add "$(t "файлы: yami-files и диалог выбора файлов" "files: yami-files and the file dialog")" do_files
+  add "$(t "шрифты" "fonts")" do_fonts
+  add "$(t "niri: конфиг" "niri: config")" do_niri_config
+  add "$(t "палитра: всё, что из неё выводится" "palette: everything derived from it")" do_refresh
+  add "$(t "запись об установке" "install record")" do_stamp
+  ((RUNNING_NIRI)) && add "$(t "перезапуск шелла" "restart the shell")" do_restart_shell
+  run_steps
+  if on fork && ((!DRY)) && fork_stale; then
+    say "$(t "yami-niri: новая серия патчей — сборка (5–25 минут)" "yami-niri: a new patch series, building (5–25 minutes)")"
+    need_rust && "$ROOT/fork/yami-niri.sh" build 2>&1 | tee -a "$LOG" || FAILED+=("yami-niri")
+  fi
+  if on login && [[ -d /usr/share/sddm/themes/yami ]] && sddm_stale; then
+    note "$(t "экран входа обновился — поставь его: $ROOT/tools/sddm-install.sh (нужен sudo)" "the login screen changed, install it: $ROOT/tools/sddm-install.sh (needs sudo)")"
+  fi
+  if ((${#FAILED[@]})); then
+    warn "$(t "не вышло:" "failed:") ${FAILED[*]}"
+    note "$(t "подробности:" "details:") $LOG"
+    exit 1
+  fi
+  say "$(t "обновлено" "updated")"
+  exit 0
+fi
 
 if ((!YES)); then
   printf '\e[H\e[J'
@@ -1169,6 +1255,7 @@ on look && add "$(t "тема программ: Qt, KDE, GTK" "app theme: Qt, KD
 on login && add "$(t "экран входа: тема yami для SDDM" "login screen: yami theme for SDDM")" do_sddm
 add "$(t "убрать старый форк dark-niri" "remove the old dark-niri fork")" do_drop_dark_niri
 old_install && add "$(t "убрать файлы под старым именем" "remove files under the old name")" do_drop_old
+add "$(t "запись об установке (для yami update)" "install record (for yami update)")" do_stamp
 ((RUNNING_NIRI)) && add "$(t "перезапуск шелла" "restart the shell")" do_restart_shell
 
 run_steps
@@ -1215,7 +1302,8 @@ k "Mod+S" "$(t "настройки, палитра" "settings, palette")" "Mod+S
 k "Mod+Escape" "$(t "блокировка" "lock")" "Mod+N" "$(t "свернуть окно" "minimize")"
 k "Mod+Shift+E" "$(t "питание" "power")" "Mod+Shift+/" "$(t "все клавиши" "all keys")"
 k "Mod+Shift+S" "$(t "скриншот" "screenshot")" "Mod+E" "$(t "файлы" "files")"
-printf '\n  %s%s%s\n' "$F" "$(t "клавиши меняются в настройках → клавиши; всё остальное: yami-shell config list" "rebind keys in settings → keys; everything else: yami-shell config list")" "$R"
+printf '\n  %s%s%s\n' "$F" "$(t "клавиши меняются в настройках → клавиши; всё остальное: yami help, yami config list" "rebind keys in settings → keys; everything else: yami help, yami config list")" "$R"
+printf '  %s%s%s\n' "$F" "$(t "обновления: настройки → обновления или yami update" "updates: settings → updates or yami update")" "$R"
 if on fork; then
   printf '  %s%s ~/.local/lib/yami-niri/yami-niri.sh status | off%s\n\n' "$F" "$(t "yami-niri:" "yami-niri:")" "$R"
 else

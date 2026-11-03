@@ -20,7 +20,7 @@ yami-shell binds [list | print | write]
   write           write ~/.config/niri/yami-binds.kdl now (the shell does it on start)
 Change one: yami-shell config set binds '{\"terminal\": \"Mod+Return\"}' (\"\" turns it off).";
 
-fn file_json() -> serde_json::Map<String, Value> {
+pub fn file_json() -> serde_json::Map<String, Value> {
     std::fs::read_to_string(settings_path()).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()).and_then(|v| v.as_object().cloned()).unwrap_or_default()
 }
 

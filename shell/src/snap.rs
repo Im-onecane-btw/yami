@@ -1110,6 +1110,9 @@ impl App {
         let id = 9_500_000 + (self.st.started.elapsed().as_millis() % 400_000) as u32;
         let actions = if path.is_some() { vec![("default".to_string(), crate::i18n::tr("открыть").to_string()), ("folder".to_string(), crate::i18n::tr("в папке").to_string())] } else { vec![] };
         if let Some(p) = path {
+            // действия есть только у карточек в истории (≤ 50): старые пути не храним
+            let live: Vec<u32> = self.st.notifs.history.iter().map(|n| n.id).collect();
+            self.st.shot_files.retain(|k, _| live.contains(k));
             self.st.shot_files.insert(id, p);
         }
         let n = crate::dbus::Incoming { id, app: "yami-screenshot".into(), icon: String::new(), summary: summary.into(), body, actions, urgency: 1, image: Some(thumb), timeout: -1 };

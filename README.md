@@ -100,6 +100,7 @@ in the finished desktop. Useful flags:
 | `--no-sudo` | home directory only: no packages, no system files |
 | `--dry-run` | print the plan, change nothing |
 | `--uninstall` | remove the shell, the fork and the dotfiles, restore the backups |
+| `--update` | rebuild from this tree keeping every setting, no sudo (what `yami update apply` runs) |
 | `--no-anim` | disable the installer animations |
 
 What it does:
@@ -187,6 +188,42 @@ current set).
 In the bar: left click on a task focuses, minimizes and restores it, middle click closes, right
 click opens the window menu; scroll over workspaces to switch, over the volume to change it.
 
+## The `yami` command
+
+One command for the whole desktop (`~/.local/bin/yami`, the same binary as `yami-shell`);
+`yami help` prints it in the palette's colours, `yami help <command>` explains one.
+
+```sh
+yami open settings:keys       # launcher clipboard settings[:tab] power lock screenshot cal sound net bt sys
+yami palette ash              # list palettes without an argument; or a colour: yami palette '#3a9fd0'
+yami wallpaper ~/x.png        # own wallpaper; no path: the palette's pixel art
+yami restart                  # restart the shell (waits while a game has focus)
+yami status                   # what runs: shell, portal, niri, the last update check
+yami doctor                   # which programs and D-Bus services are there, what is missing and what it costs
+yami version                  # every part, the installed commit, the update channel
+yami update                   # what is new; apply | rollback | status | log
+```
+
+## Updates
+
+Settings → updates (or `yami update`) checks the repository once a day and shows a card when a
+release is out; installing is always your click. The updater keeps its own clone in
+`~/.local/share/yami/src`, builds the new version from source with `install.sh --update`
+(settings kept, no sudo) and keeps the previous binaries for `yami update rollback`. Channels:
+**releases** (`vX.Y.Z` tags) or **every commit** of `main`.
+
+Releases are signed: once `keys/allowed_signers` holds the author's key, the installed version
+accepts only tags signed with it, so a pushed or rewritten tag without the key does not install.
+For maintainers:
+
+```sh
+tools/release.sh --keygen     # once: an ssh signing key, trusted in keys/allowed_signers (commit it)
+tools/release.sh 2.1.0        # CHANGELOG «Unreleased» → 2.1.0, versions, check.sh, signed tag, push
+```
+
+The repository URL is the same private or public: while it is private, git uses your credentials
+(`gh auth login`); making it public needs no change anywhere.
+
 ## Configuration
 
 Everything in settings (`Mod+S`) is also a key in `~/.config/yami-shell.json`, reloaded live when
@@ -201,14 +238,15 @@ yami-shell config check                # bad values and unknown keys
 yami-shell binds list                  # keybindings: id, keys, action
 ```
 
-- **Settings tabs**: color, bar (drag module chips and separators), widgets, look, fonts, screens,
-  dock, windows (floating rules, cursor), screenshots, games, keys, system.
+- **Settings tabs**: color, wallpaper, look, fonts, bar (drag module chips and separators), widgets,
+  dock, windows (floating rules, cursor), keys, games, screenshots, screens, system, services
+  (notifications, tray, polkit, portals, covers: each can be handed to another program), updates.
 - **niri**: the shell owns `yami-binds.kdl`, `yami-fx.kdl` (window rules, blur, games),
   `yami-colors.kdl`, `yami-cursor.kdl` and `yami-outputs.kdl`; `~/.config/niri/user.kdl` is
   included after them and never overwritten, so your binds, rules and outputs there win.
 - **IPC**: `yami-shell msg <command>`, where the command is one of `launcher`, `clipboard`,
   `power`, `settings`, `lock`, `bar`, `stacking`, `minimize`, `restore`, `edit`, `reload`,
-  `quit`, `profile` (next power profile), `popup cal|sound|net|bt|sys|profile`, `screenshot [area|window|screen]`,
+  `restart`, `quit`, `settings TAB`, `profile` (next power profile), `popup cal|sound|net|bt|sys|profile`, `screenshot [area|window|screen]`,
   `wallpaper [PATH]` (no path: the generated pixel wallpaper), `curtain [on|off]` (privacy curtain).
 - **yami-files**: `~/.config/yami-files.json` (also from its ≡ menu → settings). `yami-files
   --pick open|save|dir …` is the dialog the portal runs; `yami-files --portal` is the portal and
@@ -233,6 +271,8 @@ yami-shell binds list                  # keybindings: id, keys, action
 | `fonts/` | bundled pixel fonts (SIL OFL) |
 | `fork/` | yami-niri: patch series on upstream niri, build script, session wrapper |
 | `docs/` | configuration reference, security notes |
+| `keys/` | release signing keys (`allowed_signers`), read by `yami update` |
+| `VERSION`, `CHANGELOG.md` | the release version and what changed in each release |
 | `system/nvidia/` | driver profile against VRAM growth in the compositor; modeset options for early KMS (the installer also puts the driver into the initramfs, and on Pascal-era drivers adds obs-gstreamer: OBS 33 needs NVENC API 13.1, driver 610+) |
 
 ## yami-niri
@@ -259,6 +299,7 @@ log in, `~/.local/lib/yami-niri/yami-niri.sh off`. Details: [fork/README.md](for
 | `yami-shell shot [TARGET…] --lang en -o DIR` | render panels to PNG without a compositor; fails on untranslated text |
 | `yami-files shot`, `yami-view shot` | the same for the file manager and the viewer |
 | `tools/sddm-preview.sh OUT.png` | render the login screen offscreen with your palette (`--window` to try it) |
+| `tools/release.sh X.Y.Z` | cut a release: changelog, versions, check, signed tag, push (`--keygen` once for the key) |
 | `tools/deploy.sh` | build, install to `~/.local/bin` and restart the running shell (refuses while a game has focus); `--files-only` installs yami-files and yami-view only |
 
 ## License

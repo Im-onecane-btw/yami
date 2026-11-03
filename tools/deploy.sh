@@ -34,6 +34,9 @@ if [[ ${1:-} == --files-only || ${2:-} == --files-only ]]; then
   exit 0
 fi
 install -Dm755 "$ROOT/shell/target/release/yami-shell" "$BIN"
+ln -sfn yami-shell "$HOME/.local/bin/yami"
+# what runs now (`yami update` compares against it); a dirty tree is marked as such
+"$BIN" update stamp "$ROOT" || true
 if pgrep -x yami-shell >/dev/null; then
   "$BIN" msg quit || true
   sleep 1

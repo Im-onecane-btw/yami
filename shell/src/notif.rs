@@ -220,7 +220,7 @@ impl App {
             body: n.body,
             actions: n.actions,
             critical,
-            image: n.image.map(Rc::new),
+            image: n.image.filter(|_| self.st.set.notif_images).map(Rc::new),
             born: Instant::now(),
             time: format!("{:02}:{:02}", tm.hour, tm.min),
             life,
@@ -236,13 +236,13 @@ impl App {
             x.born = born;
         } else {
             ns.history.insert(0, note);
-            ns.history.truncate(50);
+            ns.history.truncate(self.st.set.notif_history.clamp(10, 500) as usize);
         }
         if (!quiet || critical) && !self.st.locked {
             ns.popups.retain(|x| *x != id);
             ns.popups.insert(0, id);
             // лишние уходят в историю
-            ns.popups.truncate(4);
+            ns.popups.truncate(self.st.set.notif_max.clamp(1, 8) as usize);
             ns.resume();
         }
         self.sync_notifs();

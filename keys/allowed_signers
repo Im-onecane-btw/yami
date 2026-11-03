@@ -1,0 +1,4 @@
+# yami: keys that sign releases (ssh allowed_signers format, see ssh-keygen(1) ALLOWED SIGNERS).
+# `yami update` reads this file from the version that is already installed and installs only
+# tags signed by one of these keys (settings → updates → signature check). Empty file: releases
+# are installed unsigned, as on the first install. Add a key with: tools/release.sh --keygen

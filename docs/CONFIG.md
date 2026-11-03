@@ -16,10 +16,25 @@ of the file is kept), unknown keys are ignored: `yami-shell config check` lists 
 | `~/.config/niri/yami-outputs.kdl` | the shell (settings → screens) | no, rewritten |
 | `~/.config/niri/yami-local.kdl` | the installer (GPU environment) | no |
 | `~/.local/state/yami/palette.json` | the shell: the derived palette other apps are coloured from | no |
+| `~/.config/xdg-desktop-portal/niri-portals.conf` | the shell (settings → services); kept as is once it no longer starts with `# yami:` | through the settings |
+| `~/.local/state/yami/install.json` | the installer and `tools/deploy.sh`: version, commit, source, components | no |
+| `~/.local/state/yami/update.json` | the last update check | no |
 
 ## The terminal
 
+`yami` is the same binary as `yami-shell` (a link in `~/.local/bin`): without a command it
+prints the help instead of starting the shell. `yami help <command>` explains one command.
+
 ```sh
+yami open settings:updates                # a panel: launcher clipboard settings[:tab] power lock screenshot cal sound net bt sys
+yami palette | yami palette ash | yami palette '#3a9fd0'
+yami wallpaper ~/Pictures/x.png           # no path: the palette's pixel wallpaper
+yami restart                              # restart the shell (refuses while a game has focus; --force)
+yami status                               # shell, portal, niri, last update check
+yami doctor                               # programs, D-Bus services, config: what is missing and what it costs
+yami version                              # every part with the installed commit
+yami update [check|apply|rollback|status|log]
+yami msg <command>                        # raw shell command (yami help msg)
 yami-shell config list                    # every key = value; * marks what differs from the default
 yami-shell config get dockPins
 yami-shell config set dockSide '"left"'   # VALUE is JSON; a bare word is taken as a string
@@ -118,6 +133,37 @@ yami-shell binds list | print | write     # keybindings
 | `gameDnd` | `true` | notifications wait in the history while a game or any fullscreen window has focus |
 | `gameProfile` | `true` | «performance» power profile while a game has focus, the previous one after |
 | `gameApps` | `""` | your games' app-ids, comma separated; `name*` matches the start |
+
+### Services
+
+What on D-Bus and in the portals yami does itself. Turned off, it is left to another program
+(mako or dunst, waybar's tray, polkit-gnome, the GTK/GNOME portals). Notifications, tray and
+polkit change after a shell restart (`yami restart`), portals from the next login.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `agentNotif` | `true` | the notification server (`org.freedesktop.Notifications`) |
+| `agentTray` | `true` | the tray (`org.kde.StatusNotifierWatcher`, at most 64 items) |
+| `agentPolkit` | `true` | the polkit password window |
+| `notifMax`, `notifHistory` | `4`, `50` | cards on screen at once; how many the history keeps |
+| `notifImages` | `true` | pictures in cards (icons and previews; at most 1024², files ≤ 16 MB) |
+| `mediaArtNet` | `true` | album covers from the player's web links (`curl`, https after redirects, ≤ 16 MB); off: only local files |
+| `portalFiles`, `portalCast` | `true`, `true` | file dialogs from yami-files, the screen-share picker from the shell (else GTK / GNOME) |
+
+### Updates
+
+`yami update` and settings → updates work on their own clone, `~/.local/share/yami/src` (your
+working copy is never touched). A release is the newest `vX.Y.Z` tag; with `updateChannel`
+`main` every commit of the branch is offered. Installing runs `install.sh --update` from the
+new tree: it rebuilds from source, keeps every setting and needs no sudo; the previous binaries
+go to `~/.local/lib/yami/prev` for `yami update rollback`.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `updateCheck`, `updateEvery` | `true`, `24` | check by itself every N hours (only a check and a card: installing is your click) |
+| `updateChannel` | `"release"` | `release` (tags) or `main` (every commit) |
+| `updateVerify` | `"auto"` | `auto`: once the installed version has keys in `keys/allowed_signers`, only tags signed by them install; `require`: never unsigned; `off`: no check |
+| `updateRepo` | `""` | another repository URL; empty: where the install came from |
 
 ### Keys
 

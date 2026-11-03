@@ -28,6 +28,8 @@ pub const TABS: &[(&str, &str, &str)] = &[
     ("shots", "скриншоты", "camera"),
     ("screens", "экраны", "screen"),
     ("system", "система", "gear"),
+    ("agents", "службы", "bell"),
+    ("updates", "обновления", "down"),
     ("about", "о шелле", "about"),
 ];
 
@@ -42,7 +44,7 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
     ui.cv.fill(side, t.panel.alpha(0.5));
     ui.cv.fill(R::new(side.right(), side.y, 1, side.h), t.border);
     for (i, (id, name, icon)) in TABS.iter().enumerate() {
-        let r = R::new(side.x + 8, side.y + 10 + i as i32 * 34, side.w - 16, 28);
+        let r = R::new(side.x + 8, side.y + 8 + i as i32 * 30, side.w - 16, 26);
         ui.button(r, name, icon, Tone::Ghost, st.stab == *id, true, Act::STab(id));
         if st.stab == *id {
             ui.cv.fill(R::new(r.x - 8, r.y, 3, r.h), t.red);
@@ -65,6 +67,8 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
         "keys" => crate::keys::tab(ui, st, body),
         "games" => crate::games::tab(ui, st, body),
         "fonts" => crate::fonttab::tab(ui, st, body),
+        "agents" => crate::agents::tab(ui, st, body),
+        "updates" => crate::update::tab(ui, st, body),
         _ => tab_about(ui, st, body),
     }
     ui.cv.pop_clip();
@@ -661,7 +665,7 @@ fn icon_themes() -> Vec<String> {
 }
 
 /// следующее значение из ряда (после последнего — первое)
-fn step_in(list: &[i32], cur: i32) -> i32 {
+pub fn step_in(list: &[i32], cur: i32) -> i32 {
     list.iter().copied().find(|v| *v > cur).unwrap_or(list[0])
 }
 
@@ -779,6 +783,8 @@ impl App {
                     "game_cache" => s.game_cache = !s.game_cache,
                     "game_dnd" => s.game_dnd = !s.game_dnd,
                     "game_profile" => s.game_profile = !s.game_profile,
+                    "update_check" => s.update_check = !s.update_check,
+                    k if crate::agents::toggle(s, k) => {}
                     "browser_menus" | "browser_font" => {
                         if *k == "browser_menus" {
                             s.browser_menus = !s.browser_menus;
@@ -944,6 +950,7 @@ impl App {
                     self.lock_now();
                 }
                 "reload" => self.ipc("reload"),
+                k if self.update_cycle(k) || self.agents_cycle(k) => {}
                 "open_config" => {
                     // на диске должно быть то, что сейчас в настройках
                     let j = self.st.set.to_json();

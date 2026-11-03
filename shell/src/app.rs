@@ -159,6 +159,8 @@ pub enum Msg {
     /// обои готовы (wall.rs): номер задания, картинка, акцент из неё
     Wall(u64, Option<crate::gfx::Img>, Option<u32>),
     Snap(HashMap<String, crate::gfx::Img>, Vec<(String, R, String)>, crate::snap::Mode),
+    /// проверка обновлений (update.rs)
+    Update(crate::update::Info),
     SnapDone { path: Option<std::path::PathBuf>, copied: bool, err: Option<String>, thumb: Option<crate::gfx::Img> },
 }
 
@@ -236,6 +238,7 @@ pub struct State {
     /// наведение в доке для анимации: (сейчас, до этого, когда сменилось)
     pub dock_hov: std::cell::Cell<(Option<usize>, Option<usize>, Instant)>,
     pub trash_full: bool,
+    pub upd: crate::update::Upd,
 }
 
 pub struct Press {
@@ -307,6 +310,8 @@ pub struct App {
     /// номер последнего включения шторки (поздний кадр от прошлого — мимо)
     pub curtain_wanted: u64,
     pub quit: bool,
+    /// выйти и запустить себя заново (тот же путь: после обновления — новый бинарь)
+    pub restart: bool,
     pub tray_anchor: Option<(String, i32)>,
     pub tdrag: Option<(u64, (f64, f64))>,
 }
@@ -374,6 +379,7 @@ impl State {
             dock_bounce: vec![],
             dock_hov: std::cell::Cell::new((None, None, Instant::now())),
             trash_full: false,
+            upd: crate::update::Upd::load(),
             set,
         }
     }
@@ -464,6 +470,7 @@ pub fn run() {
         wall_job: 0,
         curtain_wanted: 0,
         quit: false,
+        restart: false,
         tray_anchor: None,
         tdrag: None,
     };
@@ -476,8 +483,9 @@ pub fn run() {
         });
     }
     crate::ipc::serve(tx.clone());
-    dbus::spawn(tx.clone());
-    crate::auth::spawn(tx.clone());
+    dbus::spawn(tx.clone(), app.st.set.agent_notif, app.st.set.agent_tray);
+    crate::auth::spawn(tx.clone(), app.st.set.agent_polkit);
+    crate::agents::write_portals(&app.st.set);
     crate::profile::refresh(None, tx.clone());
     // копия theme.py рядом с состоянием — сразу свежая, а не после следующей смены палитры
     let _ = theme_script();
@@ -509,9 +517,19 @@ pub fn run() {
             break;
         }
         app.flush();
-        if app.quit {
+        if app.quit || app.restart {
             break;
         }
+    }
+    if app.restart {
+        app.save_now();
+        // exec вместо выхода: петля автозапуска niri после чистого выхода не перезапускает
+        use std::os::unix::process::CommandExt;
+        let args: Vec<String> = std::env::args().skip(1).collect();
+        drop(app);
+        let e = std::process::Command::new(yami_px::paths::self_exe()).args(args).exec();
+        eprintln!("restart: {e}");
+        std::process::exit(1);
     }
 }
 
@@ -1063,6 +1081,9 @@ impl App {
                 self.dirty(&SKind::Bar);
             }
             self.check_settings_file();
+            if self.st.started.elapsed().as_secs() % 60 == 0 {
+                self.update_tick();
+            }
             // профиль могли сменить снаружи (powerprofilesctl, другой апплет)
             if self.st.started.elapsed().as_secs() % 15 == 0 && self.bar_has("profile") {
                 crate::profile::refresh(None, self.tx.clone());
@@ -1113,12 +1134,22 @@ impl App {
         self.res.icons.set_pixel(s.icon_pixel.then(|| self.st.t.icon_ramp()));
         self.write_palette();
         self.write_fx();
+        crate::agents::write_portals(&self.st.set);
         self.sync_wall();
         crate::keys::write(&self.st.set);
         self.setup_idle();
         self.sync_widgets();
         self.sync_dock();
         self.dirty_all();
+    }
+
+    /// записать настройки сейчас (перед перезапуском), даже посреди перетаскивания
+    pub fn save_now(&mut self) {
+        let j = self.st.set.to_json();
+        if j != self.set_saved {
+            let _ = config::write_atomic(&config::settings_path(), &j);
+            self.set_saved = j;
+        }
     }
 
     fn save_settings_if_changed(&mut self) {
@@ -1252,8 +1283,13 @@ impl App {
             }
             Msg::Media(m) => {
                 if !m.art.is_empty() && !self.st.art.contains_key(&m.art) {
+                    // обложки прошлых треков не копим: за долгий вечер с плеером их были бы тысячи
+                    if self.st.art.len() >= 8 {
+                        let cur = self.st.media.art.clone();
+                        self.st.art.retain(|k, _| *k == cur);
+                    }
                     self.st.art.insert(m.art.clone(), None);
-                    media::fetch_art(m.art.clone(), self.tx.clone());
+                    media::fetch_art(m.art.clone(), self.st.set.media_art_net, self.tx.clone());
                 }
                 self.st.media = m;
                 media::viz_wanted(self.media_visible() && self.st.media.playing());
@@ -1264,6 +1300,7 @@ impl App {
                 self.dirty_where(|k| matches!(k, SKind::Popup | SKind::Widget(_)));
             }
             Msg::Notif(n) => self.on_notif(n),
+            Msg::Update(i) => self.on_update(i),
             Msg::Snap(imgs, wins, mode) => self.on_snap_ready(imgs, wins, mode),
             Msg::SnapDone { path, copied, err, thumb } => self.on_snap_done(path, copied, err, thumb),
             Msg::NotifClose(id) => {
@@ -1362,6 +1399,9 @@ impl App {
                 self.settings_changed();
             }
             "quit" => self.quit = true,
+            "restart" => self.restart = true,
+            c if self.update_ipc(c) => {}
+            c if c.starts_with("settings ") => self.open_settings_tab(c[9..].trim()),
             c if c == "screenshot" || c.starts_with("screenshot ") => {
                 let mode = match c.split_whitespace().nth(1) {
                     Some("window") => crate::snap::Mode::Window,
@@ -1395,6 +1435,16 @@ impl App {
             c if c == "curtain" || c.starts_with("curtain ") => self.curtain_cmd(&c["curtain".len()..]),
             _ => {}
         }
+    }
+
+    /// настройки на вкладке (`yami open settings:keys`, карточка обновления)
+    pub fn open_settings_tab(&mut self, tab: &str) {
+        let Some(t) = crate::settings::TABS.iter().find(|x| x.0 == tab).map(|x| x.0) else { return };
+        self.st.stab = t;
+        if self.st.modal != Some(Modal::Settings) {
+            self.toggle_modal(Modal::Settings, false);
+        }
+        self.dirty(&SKind::Modal);
     }
 
     pub fn close_all(&mut self) {
