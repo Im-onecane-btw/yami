@@ -53,6 +53,21 @@ fn pids(exe: &str, arg: &str) -> Vec<u32> {
         .collect()
 }
 
+/// сам шелл: yami-shell (или yami) без команды либо с `run`; `yami update apply` и прочие команды
+/// CLI — тоже процессы yami-shell, их за шелл не считаем
+fn shell_pids() -> Vec<u32> {
+    let Ok(rd) = std::fs::read_dir("/proc") else { return vec![] };
+    rd.flatten()
+        .filter_map(|e| e.file_name().to_str()?.parse::<u32>().ok())
+        .filter(|pid| {
+            let c = std::fs::read(format!("/proc/{pid}/cmdline")).unwrap_or_default();
+            let parts: Vec<String> = c.split(|b| *b == 0).filter(|s| !s.is_empty()).map(|s| String::from_utf8_lossy(s).to_string()).collect();
+            let exe = parts.first().map(|f| f.rsplit('/').next().unwrap_or("").to_string()).unwrap_or_default();
+            (exe == "yami-shell" || exe == "yami") && (parts.len() == 1 || (parts.len() == 2 && parts[1] == "run"))
+        })
+        .collect()
+}
+
 fn pss_mb(pid: u32) -> f32 {
     std::fs::read_to_string(format!("/proc/{pid}/smaps_rollup")).ok().and_then(|t| t.lines().find(|l| l.starts_with("Pss:"))?.split_whitespace().nth(1)?.parse::<f32>().ok()).map(|k| k / 1024.0).unwrap_or(0.0)
 }
@@ -184,7 +199,7 @@ pub fn run(y: &Sty) -> i32 {
 
 pub fn status(y: &Sty) {
     y.section(&crate::tf!("работает", "running"));
-    match pids("yami-shell", "").into_iter().find(|p| *p != std::process::id()) {
+    match shell_pids().into_iter().find(|p| *p != std::process::id()) {
         Some(pid) => line(y, &y.ok("✓"), "yami-shell", &crate::tf!("pid {}, {:.1} МБ", "pid {}, {:.1} MB", pid, pss_mb(pid))),
         None => line(y, &y.bad("✕"), "yami-shell", &crate::tf!("не запущен", "not running")),
     }

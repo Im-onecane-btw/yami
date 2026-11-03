@@ -37,17 +37,29 @@ install -Dm755 "$ROOT/shell/target/release/yami-shell" "$BIN"
 ln -sfn yami-shell "$HOME/.local/bin/yami"
 # what runs now (`yami update` compares against it); a dirty tree is marked as such
 "$BIN" update stamp "$ROOT" || true
-if pgrep -x yami-shell >/dev/null; then
-  "$BIN" msg quit || true
-  sleep 1
+# alive = answers on its socket (not pgrep: `yami update apply` is a yami-shell process too)
+up() {
+  local i
+  for i in $(seq 1 50); do
+    "$BIN" msg ping >/dev/null 2>&1 && return 0
+    sleep 0.1
+  done
+  return 1
+}
+started=0
+if "$BIN" msg ping >/dev/null 2>&1; then
+  # exec of the new binary in place: same process, niri's autostart loop stays
+  "$BIN" msg restart >/dev/null 2>&1 || true
+  sleep 0.5
+  up && started=1
 fi
-# niri's autostart loop restarts it only if the shell crashed; after a clean quit start a new loop
-if ! pgrep -x yami-shell >/dev/null && [[ -n ${NIRI_SOCKET:-} ]]; then
+if ((!started)) && [[ -n ${NIRI_SOCKET:-} ]]; then
   niri msg action spawn-sh -- "until $BIN; do sleep 1; done"
-  sleep 1
+  up && started=1
 fi
-pid="$(pgrep -x yami-shell | head -1 || true)"
-if [[ -n $pid ]]; then
+# the shell itself: yami-shell without arguments (CLI commands like `update apply` have them)
+pid="$(pgrep -ax yami-shell | awk 'NF == 2 { print $1; exit }' || true)"
+if ((started)) && [[ -n $pid ]]; then
   echo "deploy: yami-shell $("$BIN" --version | cut -d' ' -f2) running, pid $pid, $(($(awk '/VmRSS/{print $2}' "/proc/$pid/status") / 1024)) MB"
 else
   echo "deploy: installed to $BIN (no niri session, not started)"

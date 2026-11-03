@@ -1399,6 +1399,8 @@ impl App {
                 self.settings_changed();
             }
             "quit" => self.quit = true,
+            // «жив ли шелл» для install.sh и deploy.sh: ответ сокета, ничего не делает
+            "ping" => {}
             "restart" => self.restart = true,
             c if self.update_ipc(c) => {}
             c if c.starts_with("settings ") => self.open_settings_tab(c[9..].trim()),

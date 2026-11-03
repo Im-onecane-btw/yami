@@ -6,6 +6,7 @@ subjects when that section is empty).
 
 ## Unreleased
 
+- After an update the shell comes back by itself: the restart no longer took the updater for a running shell and left the desktop without a bar
 ## 2.2.0
 
 - `audioNames`: your own names for sound devices in the sound popup

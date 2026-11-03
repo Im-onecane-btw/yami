@@ -1079,13 +1079,26 @@ do_restart_shell() {
   # the shell is the polkit agent now: a running Qt/GTK agent would keep the session's slot
   pkill -x polkit-kde-auth 2>/dev/null
   pkill -x polkit-gnome-au 2>/dev/null
-  if pgrep -x yami-shell >/dev/null; then
-    "$BIN/yami-shell" msg quit
-    sleep 1
+  # alive = answers on its socket. Not pgrep: `yami update apply` runs as a process named
+  # yami-shell too, and the shell would look alive while it is already gone
+  if "$BIN/yami-shell" msg ping >/dev/null 2>&1; then
+    # exec of the new binary in place: same process, niri's autostart loop stays
+    "$BIN/yami-shell" msg restart >/dev/null 2>&1
+    shell_up && return 0
   fi
-  # the autostart loop restarts it; without one, start it ourselves
-  pgrep -x yami-shell >/dev/null ||
-    niri msg action spawn-sh -- "until $BIN/yami-shell; do sleep 1; done"
+  # no shell, or it did not come back: start one in niri's loop (a second copy exits by itself)
+  niri msg action spawn-sh -- "until $BIN/yami-shell; do sleep 1; done" >/dev/null || return 1
+  shell_up || { echo "the shell did not start: run yami run in a terminal to see why"; return 1; }
+}
+# the shell answers on its socket within ~5 s
+shell_up() {
+  local i
+  sleep 0.5
+  for i in $(seq 1 45); do
+    "$BIN/yami-shell" msg ping >/dev/null 2>&1 && return 0
+    sleep 0.1
+  done
+  return 1
 }
 
 # ── moving from the old name (DARK-4RMY) ────────────────────────────────────
