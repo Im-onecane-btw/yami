@@ -808,6 +808,7 @@ do_build_shell() {
   install -Dm755 "$CACHE/target/release/yami-shell" "$BIN/yami-shell"
   install -Dm755 "$CACHE/target/release/yami-files" "$BIN/yami-files"
   install -Dm755 "$CACHE/target/release/yami-view" "$BIN/yami-view"
+  install -Dm755 "$CACHE/target/release/yami-play" "$BIN/yami-play"
   # `yami <command>`: the same binary, help instead of the shell when started without a command
   ln -sfn yami-shell "$BIN/yami"
 }
@@ -819,10 +820,12 @@ do_files() {
   mkdir -p "$CFG" "$data/applications"
   install -Dm644 "$ROOT/config/applications/yami-files.desktop" "$data/applications/yami-files.desktop"
   install -Dm644 "$ROOT/config/applications/yami-view.desktop" "$data/applications/yami-view.desktop"
+  install -Dm644 "$ROOT/config/applications/yami-play.desktop" "$data/applications/yami-play.desktop"
   if command -v xdg-mime >/dev/null; then
     xdg-mime default yami-files.desktop inode/directory
-    # картинки — в yami-view
+    # картинки — в yami-view, видео и музыка — в yami-play
     xdg-mime default yami-view.desktop $(sed -n 's/^MimeType=//p' "$ROOT/config/applications/yami-view.desktop" | tr ';' ' ')
+    xdg-mime default yami-play.desktop $(sed -n 's/^MimeType=//p' "$ROOT/config/applications/yami-play.desktop" | tr ';' ' ')
   fi
   # xdg-desktop-portal: FileChooser → yami-files (browsers, Telegram, GTK/KDE apps)
   install -Dm644 "$ROOT/config/portal/yami.portal" "$data/xdg-desktop-portal/portals/yami.portal"
@@ -1218,7 +1221,7 @@ uninstall() {
     "$CFG/niri/yami-binds.kdl" "$CFG/niri/yami-fx.kdl"
   local data="${XDG_DATA_HOME:-$HOME/.local/share}"
   pkill -f "$BIN/yami-files --portal" 2>/dev/null
-  rm -f "$BIN/yami-files" "$BIN/yami-view" "$data/applications/yami-files.desktop" "$data/applications/yami-view.desktop" "$data/xdg-desktop-portal/portals/yami.portal" \
+  rm -f "$BIN/yami-files" "$BIN/yami-view" "$BIN/yami-play" "$data/applications/yami-files.desktop" "$data/applications/yami-view.desktop" "$data/applications/yami-play.desktop" "$data/xdg-desktop-portal/portals/yami.portal" \
     "$data/dbus-1/services/org.freedesktop.impl.portal.desktop.yami.service" "$data/dbus-1/services/org.freedesktop.FileManager1.service" \
     "$CFG/xdg-desktop-portal/niri-portals.conf" "$CFG/niri/yami-cursor.kdl" "$CFG/btop/themes/yami.theme"
   find "$data/icons" -maxdepth 1 -type d -regextype posix-extended -regex '.*/yami-[0-9a-f]{6}' -exec rm -rf {} + 2>/dev/null

@@ -48,6 +48,13 @@ if [[ -x $VIEW ]]; then
   "$VIEW" shot --lang en -o "$TMP/ven" | grep untranslated
   [[ ${PIPESTATUS[0]} -eq 0 ]] && ok "yami-view shot --lang en: no Russian left" || bad "yami-view shot --lang en"
 fi
+PLAY="$ROOT/shell/target/release/yami-play"
+if [[ -x $PLAY ]]; then
+  "$PLAY" shot --lang en -o "$TMP/pen" | grep untranslated
+  [[ ${PIPESTATUS[0]} -eq 0 ]] && ok "yami-play shot --lang en: no Russian left" || bad "yami-play shot --lang en"
+fi
+step "unit tests"
+cargo test --release --locked --workspace --quiet --manifest-path "$ROOT/shell/Cargo.toml" >"$TMP/test.log" 2>&1 && ok "cargo test" || { tail -20 "$TMP/test.log"; bad "cargo test"; }
 
 step "login screen (SDDM theme, offscreen)"
 QML="$(command -v qml6 || command -v qml || { [[ -x /usr/lib/qt6/bin/qml ]] && echo /usr/lib/qt6/bin/qml; } || true)"

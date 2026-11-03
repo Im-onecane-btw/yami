@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build yami-shell and swap it into the running session: ~/.local/bin/yami-shell, then restart.
 # Refuses while a game or any fullscreen window has focus (the restart flashes the bar and
-# panels); --force skips that guard. --files-only installs yami-files and leaves the shell running.
+# panels); --force skips that guard. --files-only installs yami-files, yami-view and yami-play and leaves the shell running.
 # Usage: tools/deploy.sh [--force] [--files-only]
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -19,8 +19,10 @@ fi
 cargo build --release --locked --workspace --manifest-path "$ROOT/shell/Cargo.toml"
 install -Dm755 "$ROOT/shell/target/release/yami-files" "$HOME/.local/bin/yami-files"
 install -Dm755 "$ROOT/shell/target/release/yami-view" "$HOME/.local/bin/yami-view"
+install -Dm755 "$ROOT/shell/target/release/yami-play" "$HOME/.local/bin/yami-play"
 install -Dm644 "$ROOT/config/applications/yami-files.desktop" "${XDG_DATA_HOME:-$HOME/.local/share}/applications/yami-files.desktop"
 install -Dm644 "$ROOT/config/applications/yami-view.desktop" "${XDG_DATA_HOME:-$HOME/.local/share}/applications/yami-view.desktop"
+install -Dm644 "$ROOT/config/applications/yami-play.desktop" "${XDG_DATA_HOME:-$HOME/.local/share}/applications/yami-play.desktop"
 # the portal backend runs from login: swap it for the new binary (not while a file dialog is
 # open) and start it again at once. xdg-desktop-portal reads ScreenCast's source types from the
 # running backend; while it is gone OBS and browsers see no screen to capture.
@@ -30,7 +32,7 @@ if ! pgrep -f '^[^ ]*yami-files --pick' >/dev/null && pkill -f '^[^ ]*yami-files
     org.freedesktop.impl.portal.desktop.yami 0 >/dev/null 2>&1 || true
 fi
 if [[ ${1:-} == --files-only || ${2:-} == --files-only ]]; then
-  echo "deploy: yami-files and yami-view installed"
+  echo "deploy: yami-files, yami-view and yami-play installed"
   exit 0
 fi
 install -Dm755 "$ROOT/shell/target/release/yami-shell" "$BIN"

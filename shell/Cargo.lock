@@ -1471,6 +1471,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "yami-play"
+version = "2.2.1"
+dependencies = [
+ "calloop",
+ "calloop-wayland-source",
+ "image",
+ "libc",
+ "smithay-client-toolkit",
+ "wayland-client",
+ "wayland-protocols",
+ "yami-px",
+]
+
+[[package]]
 name = "yami-px"
 version = "2.2.1"
 dependencies = [

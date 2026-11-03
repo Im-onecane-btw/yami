@@ -573,7 +573,7 @@ impl Settings {
             l.push("// photo and video viewers open as a floating window, not as a new column".into());
             l.push("window-rule {".into());
             l.push("    match app-id=r#\"(?i)(telegram|ayugram|64gram|kotatogram)\"# title=r#\"^(Media viewer|Просмотр медиа|Медиапросмотрщик)$\"#".into()); // i18n-ok
-            for id in ["yami-view", "imv", "feh", "nsxiv", "sxiv", "org\\.gnome\\.Loupe", "org\\.gnome\\.eog", "org\\.kde\\.gwenview", "qimgv", "swayimg", "mpv", "vlc", "org\\.gnome\\.Showtime"] {
+            for id in ["yami-view", "yami-play", "imv", "feh", "nsxiv", "sxiv", "org\\.gnome\\.Loupe", "org\\.gnome\\.eog", "org\\.kde\\.gwenview", "qimgv", "swayimg", "mpv", "vlc", "org\\.gnome\\.Showtime"] {
                 l.push(format!("    match app-id=r#\"^{id}$\"#"));
             }
             l.push("    open-floating true".into());

@@ -420,7 +420,7 @@ pub fn step_of(s: &str) -> (Option<(u32, u32)>, &str) {
 
 fn copy_bins(from: &Path, to: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(to)?;
-    for b in ["yami-shell", "yami-files", "yami-view"] {
+    for b in ["yami-shell", "yami-files", "yami-view", "yami-play"] {
         let src = from.join(b);
         if src.exists() {
             // через временное имя: работающий бинарь подменяется целиком (rename), не переписывается

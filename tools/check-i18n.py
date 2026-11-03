@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static i18n check for every crate (shell, files, view): every Russian string literal must be translatable.
+"""Static i18n check for every crate (shell, files, view, play): every Russian string literal must be translatable.
 
 A literal passes when it is a key of PAIRS in i18n.rs, the Russian half of tf!("…", "…"),
 or sits on a line marked `// i18n-ok` (text that is Russian on purpose). In a file marked
@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent / "shell"
-CRATES = [ROOT / "src", ROOT / "files" / "src", ROOT / "view" / "src"]
+CRATES = [ROOT / "src", ROOT / "files" / "src", ROOT / "view" / "src", ROOT / "play" / "src"]
 CYR = re.compile(r"[а-яА-ЯёЁ]")
 LIT = re.compile(r'"((?:[^"\\]|\\.)*)"')
 NATIVE = {"Русский"}

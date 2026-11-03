@@ -672,3 +672,33 @@ pub fn upscale(src: &[u32], w: i32, h: i32, dst: &mut [u32], pw: i32, ph: i32) {
         }
     }
 }
+
+/// Наложить логический холст src (w×h, предумноженный ARGB, прозрачное — 0) поверх физического
+/// буфера dst (pw×ph) с увеличением ближайшим соседом: интерфейс плеера поверх кадра видео,
+/// который уже нарисован в полном разрешении. Прозрачные клетки пропускаются целиком.
+pub fn overlay_up(src: &[u32], w: i32, h: i32, dst: &mut [u32], pw: i32, ph: i32) {
+    let (w, h, pw, ph) = (w as usize, h as usize, pw as usize, ph as usize);
+    if w == 0 || h == 0 || src.len() < w * h || dst.len() < pw * ph {
+        return;
+    }
+    let xs: Vec<usize> = (0..pw).map(|x| (x * w / pw).min(w - 1)).collect();
+    for y in 0..ph {
+        let row = &src[(y * h / ph).min(h - 1) * w..][..w];
+        if row.iter().all(|&p| p >> 24 == 0) {
+            continue;
+        }
+        let out = &mut dst[y * pw..y * pw + pw];
+        for (x, &sx) in xs.iter().enumerate() {
+            let s = row[sx];
+            let a = s >> 24;
+            if a == 255 {
+                out[x] = s;
+            } else if a > 0 {
+                let d = out[x];
+                let inv = 255 - a;
+                let ch = |sh: u32| (((s >> sh) & 255) + (((d >> sh) & 255) * inv + 127) / 255).min(255) << sh;
+                out[x] = 0xff00_0000 | ch(16) | ch(8) | ch(0);
+            }
+        }
+    }
+}

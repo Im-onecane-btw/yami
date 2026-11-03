@@ -27,7 +27,7 @@ zbus = { version = "5", default-features = false, features = ["blocking-api", "a
 libc = "0.2"
 
 [workspace]
-members = ["px", "files", "view"]
+members = ["px", "files", "view", "play"]
 
 [profile.release]
 opt-level = 3
