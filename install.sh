@@ -1083,21 +1083,25 @@ do_restart_shell() {
   # alive = answers on its socket. Not pgrep: `yami update apply` runs as a process named
   # yami-shell too, and the shell would look alive while it is already gone
   if "$BIN/yami-shell" msg ping >/dev/null 2>&1; then
-    # exec of the new binary in place: same process, niri's autostart loop stays
+    # exec of the new binary in place: same process, niri's autostart loop stays; the new one
+    # binds its socket anew, so wait for another inode before trusting a ping
+    local ino
+    ino="$(shell_sock_ino)"
     "$BIN/yami-shell" msg restart >/dev/null 2>&1
-    shell_up && return 0
+    shell_up "$ino" && return 0
   fi
   # no shell, or it did not come back: start one in niri's loop (a second copy exits by itself)
   niri msg action spawn-sh -- "until $BIN/yami-shell; do sleep 1; done" >/dev/null || return 1
   shell_up || { echo "the shell did not start: run yami run in a terminal to see why"; return 1; }
 }
-# the shell answers on its socket within ~5 s
+shell_sock_ino() { stat -c %i "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/yami-shell.sock" 2>/dev/null || echo none; }
+# the shell answers on its socket within ~8 s (with an inode: a socket other than that one)
 shell_up() {
-  local i
-  sleep 0.5
-  for i in $(seq 1 45); do
-    "$BIN/yami-shell" msg ping >/dev/null 2>&1 && return 0
+  local i old=${1:-}
+  for i in $(seq 1 80); do
     sleep 0.1
+    [[ -n $old && $(shell_sock_ino) == "$old" ]] && continue
+    "$BIN/yami-shell" msg ping >/dev/null 2>&1 && return 0
   done
   return 1
 }

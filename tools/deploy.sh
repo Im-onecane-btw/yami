@@ -38,20 +38,23 @@ ln -sfn yami-shell "$HOME/.local/bin/yami"
 # what runs now (`yami update` compares against it); a dirty tree is marked as such
 "$BIN" update stamp "$ROOT" || true
 # alive = answers on its socket (not pgrep: `yami update apply` is a yami-shell process too)
+# the new shell binds its socket anew: with an inode given, a ping counts only from another one
+ino() { stat -c %i "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/yami-shell.sock" 2>/dev/null || echo none; }
 up() {
-  local i
-  for i in $(seq 1 50); do
-    "$BIN" msg ping >/dev/null 2>&1 && return 0
+  local i old=${1:-}
+  for i in $(seq 1 80); do
     sleep 0.1
+    [[ -n $old && $(ino) == "$old" ]] && continue
+    "$BIN" msg ping >/dev/null 2>&1 && return 0
   done
   return 1
 }
 started=0
 if "$BIN" msg ping >/dev/null 2>&1; then
   # exec of the new binary in place: same process, niri's autostart loop stays
+  old="$(ino)"
   "$BIN" msg restart >/dev/null 2>&1 || true
-  sleep 0.5
-  up && started=1
+  up "$old" && started=1
 fi
 if ((!started)) && [[ -n ${NIRI_SOCKET:-} ]]; then
   niri msg action spawn-sh -- "until $BIN; do sleep 1; done"
