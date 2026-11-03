@@ -1,14 +1,45 @@
-# yami // niri
+<div align="center">
 
-**English** · [Русский](README.ru.md)
+<img src=".github/assets/logo.svg" width="88" alt="">
 
-**yami** (闇, "darkness") is a pixel-art desktop for the [niri](https://github.com/YaLTeR/niri) Wayland compositor: dark
-graphite, a single accent color, crisp unantialiased pixel fonts. The rice ships with
-**yami-shell**, a native Wayland shell written in Rust that provides the bar, launcher,
-notifications, lock screen, desktop widgets and settings in a single ~6 MB binary using
-**about 18 MB of RAM**.
+# yami
 
-## Highlights
+A pixel-art desktop for niri, drawn in whole pixels.
+
+[![Release](https://img.shields.io/github/v/release/Trendorin/yami?label=release&color=c4161c)](https://github.com/Trendorin/yami/releases/latest)
+[![License](https://img.shields.io/badge/license-MIT-c4161c)](LICENSE)
+![Rust](https://img.shields.io/badge/rust-1.89%2B-c4161c)
+![niri](https://img.shields.io/badge/niri-26.04-c4161c)
+![Platform](https://img.shields.io/badge/platform-Linux%20%C2%B7%20Wayland-c4161c)
+
+[Install](#installation) · [Screenshots](#screenshots) · [Settings](docs/CONFIG.md) · [Changelog](CHANGELOG.md) · [Русский](README.ru.md)
+
+</div>
+
+<img src=".github/assets/desktop-en.png" width="100%" alt="The yami desktop: the bar, a clock and a CPU graph on the pixel wallpaper, a notification, the launcher and the dock">
+
+**yami** (闇, "darkness") turns the [niri](https://github.com/YaLTeR/niri) Wayland compositor into a
+finished desktop: dark graphite, one accent colour, crisp unantialiased pixel fonts. Its own
+shell, **yami-shell**, draws the bar, launcher, dock, notifications, lock screen, widgets and
+settings itself, in Rust and shared memory, in one ~6 MB binary that uses **about 15 MB of RAM**.
+Files, images, the login screen and every other app follow the same palette.
+
+<table>
+<tr>
+<td><img src=".github/assets/card-ram-en.png" width="100%" alt="About 15 MB of memory for the whole shell"></td>
+<td><img src=".github/assets/card-drop-en.png" width="100%" alt="One accent recolours the desktop"></td>
+</tr>
+<tr>
+<td><img src=".github/assets/card-play-en.png" width="100%" alt="Made for games"></td>
+<td><img src=".github/assets/card-folder-en.png" width="100%" alt="A file manager and an image viewer"></td>
+</tr>
+<tr>
+<td><img src=".github/assets/card-down-en.png" width="100%" alt="Signed updates"></td>
+<td><img src=".github/assets/card-keys-en.png" width="100%" alt="Any distribution, built from source"></td>
+</tr>
+</table>
+
+## Features
 
 - **Native and lightweight.** Software rendering into shared memory through layer-shell; no
   GPU context, no toolkit, no JavaScript. Fonts are memory-mapped, and redraws only happen when
@@ -73,6 +104,19 @@ notifications, lock screen, desktop widgets and settings in a single ~6 MB binar
 - **Bilingual.** English and Russian interface, switchable live in settings.
 - **Portable installer.** One script for Arch, Fedora (including atomic), Debian/Ubuntu,
   openSUSE, Void, Alpine, Gentoo and NixOS.
+
+## Screenshots
+
+Every picture is drawn by the shell itself (`yami-shell shot --defaults`, regenerated with
+`tools/readme-art.py`); windows, apps and notifications in them are made up.
+
+| Settings → colour: seven palettes or your own accent | Settings → updates: releases, signatures, rollback |
+|---|---|
+| <img src=".github/assets/settings-color-en.png" alt="Settings → colour: seven palettes or your own accent"> | <img src=".github/assets/settings-updates-en.png" alt="Settings → updates: releases, signatures, rollback"> |
+| Settings → services: hand any of them to another program | Settings → keys: every binding, recorded live |
+| <img src=".github/assets/settings-agents-en.png" alt="Settings → services: hand any of them to another program"> | <img src=".github/assets/settings-keys-en.png" alt="Settings → keys: every binding, recorded live"> |
+| Screenshot overlay: area, loupe, marks | Sound popup: outputs, volume, apps |
+| <img src=".github/assets/screenshot-en.png" alt="Screenshot overlay: area, loupe, marks"> | <img src=".github/assets/popup-sound-en.png" alt="Sound popup: outputs, volume, apps"> |
 
 ## Installation
 
@@ -221,8 +265,7 @@ tools/release.sh --keygen     # once: an ssh signing key, trusted in keys/allowe
 tools/release.sh 2.1.0        # CHANGELOG «Unreleased» → 2.1.0, versions, check.sh, signed tag, push
 ```
 
-The repository URL is the same private or public: while it is private, git uses your credentials
-(`gh auth login`); making it public needs no change anywhere.
+Updates come from this repository over HTTPS; set `updateRepo` to follow a fork instead.
 
 ## Configuration
 
@@ -296,9 +339,10 @@ log in, `~/.local/lib/yami-niri/yami-niri.sh off`. Details: [fork/README.md](for
 |---|---|
 | `tools/check.sh` | build without warnings, i18n checks, script syntax, niri config, installer dry run (CI runs it too) |
 | `tools/map.sh [TEXT]` | every source file with its one-line description |
-| `yami-shell shot [TARGET…] --lang en -o DIR` | render panels to PNG without a compositor; fails on untranslated text |
+| `yami-shell shot [TARGET…] --lang en [--transparent] -o DIR` | render panels to PNG without a compositor; fails on untranslated text |
 | `yami-files shot`, `yami-view shot` | the same for the file manager and the viewer |
 | `tools/sddm-preview.sh OUT.png` | render the login screen offscreen with your palette (`--window` to try it) |
+| `tools/readme-art.py` | redraw the README pictures in `.github/assets` from the shell's own panels |
 | `tools/release.sh X.Y.Z` | cut a release: changelog, versions, check, signed tag, push (`--keygen` once for the key) |
 | `tools/deploy.sh` | build, install to `~/.local/bin` and restart the running shell (refuses while a game has focus); `--files-only` installs yami-files and yami-view only |
 

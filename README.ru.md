@@ -1,12 +1,43 @@
-# yami // niri
+<div align="center">
 
-[English](README.md) · **Русский**
+<img src=".github/assets/logo.svg" width="88" alt="">
 
-**yami** (闇, «тьма») — пиксельное оформление для Wayland-композитора [niri](https://github.com/YaLTeR/niri): тёмный
-графит, один акцентный цвет, чёткие пиксельные шрифты без сглаживания. В комплекте —
-**yami-shell**, нативный Wayland-шелл на Rust: бар, меню программ, уведомления, экран
-блокировки, виджеты рабочего стола и настройки в одном бинарнике на ~6 МБ, который занимает
-**около 18 МБ памяти**.
+# yami
+
+Пиксельный рабочий стол для niri — целыми пикселями.
+
+[![Release](https://img.shields.io/github/v/release/Trendorin/yami?label=release&color=c4161c)](https://github.com/Trendorin/yami/releases/latest)
+[![License](https://img.shields.io/badge/license-MIT-c4161c)](LICENSE)
+![Rust](https://img.shields.io/badge/rust-1.89%2B-c4161c)
+![niri](https://img.shields.io/badge/niri-26.04-c4161c)
+![Platform](https://img.shields.io/badge/platform-Linux%20%C2%B7%20Wayland-c4161c)
+
+[Установка](#установка) · [Скриншоты](#скриншоты) · [Настройки](docs/CONFIG.md) · [Изменения](CHANGELOG.md) · [English](README.md)
+
+</div>
+
+<img src=".github/assets/desktop-ru.png" width="100%" alt="Рабочий стол yami: бар, часы и график процессора на пиксельных обоях, уведомление, меню программ и док">
+
+**yami** (闇, «тьма») превращает Wayland-композитор [niri](https://github.com/YaLTeR/niri) в
+готовый рабочий стол: тёмный графит, один акцентный цвет, чёткие пиксельные шрифты без
+сглаживания. Свой шелл, **yami-shell**, сам рисует бар, меню программ, док, уведомления, экран
+блокировки, виджеты и настройки — на Rust, в общую память, одним бинарником на ~6 МБ, которому
+хватает **около 15 МБ памяти**. Файлы, картинки, экран входа и все остальные программы — в той же палитре.
+
+<table>
+<tr>
+<td><img src=".github/assets/card-ram-ru.png" width="100%" alt="Около 15 МБ памяти на весь шелл"></td>
+<td><img src=".github/assets/card-drop-ru.png" width="100%" alt="Один акцент перекрашивает весь стол"></td>
+</tr>
+<tr>
+<td><img src=".github/assets/card-play-ru.png" width="100%" alt="Сделано для игр"></td>
+<td><img src=".github/assets/card-folder-ru.png" width="100%" alt="Файловый менеджер и просмотрщик"></td>
+</tr>
+<tr>
+<td><img src=".github/assets/card-down-ru.png" width="100%" alt="Подписанные обновления"></td>
+<td><img src=".github/assets/card-keys-ru.png" width="100%" alt="Любой дистрибутив, сборка из исходников"></td>
+</tr>
+</table>
 
 ## Возможности
 
@@ -78,6 +109,19 @@
 - **Два языка.** Русский и английский интерфейс, переключается на лету в настройках.
 - **Переносимый установщик.** Один скрипт для Arch, Fedora (включая атомарные), Debian/Ubuntu,
   openSUSE, Void, Alpine, Gentoo и NixOS.
+
+## Скриншоты
+
+Все картинки рисует сам шелл (`yami-shell shot --defaults`, пересобираются
+`tools/readme-art.py`); окна, программы и уведомления на них выдуманы.
+
+| Настройки → цвет: семь палитр или свой акцент | Настройки → обновления: выпуски, подписи, откат |
+|---|---|
+| <img src=".github/assets/settings-color-ru.png" alt="Настройки → цвет: семь палитр или свой акцент"> | <img src=".github/assets/settings-updates-ru.png" alt="Настройки → обновления: выпуски, подписи, откат"> |
+| Настройки → службы: любую можно отдать другой программе | Настройки → клавиши: все сочетания, запись на лету |
+| <img src=".github/assets/settings-agents-ru.png" alt="Настройки → службы: любую можно отдать другой программе"> | <img src=".github/assets/settings-keys-ru.png" alt="Настройки → клавиши: все сочетания, запись на лету"> |
+| Скриншот: область, лупа, пометки | Звук: выходы, громкость, программы |
+| <img src=".github/assets/screenshot-ru.png" alt="Скриншот: область, лупа, пометки"> | <img src=".github/assets/popup-sound-ru.png" alt="Звук: выходы, громкость, программы"> |
 
 ## Установка
 
@@ -218,8 +262,7 @@ tools/release.sh --keygen     # один раз: ssh-ключ подписи, д
 tools/release.sh 2.1.0        # CHANGELOG «Unreleased» → 2.1.0, версии, check.sh, подписанный тег, push
 ```
 
-Адрес репозитория один и тот же, приватный он или публичный: пока приватный, git берёт твои
-учётные данные (`gh auth login`); сделать его публичным — ничего не надо менять нигде.
+Обновления приходят из этого репозитория по HTTPS; чтобы следить за своим форком — ключ `updateRepo`.
 
 ## Настройка
 
@@ -295,9 +338,10 @@ fork/yami-niri.sh off       # вернуться на niri из пакета
 |---|---|
 | `tools/check.sh` | сборка без предупреждений, проверки перевода, синтаксис скриптов, конфиг niri, пробный прогон установщика (то же гоняет CI) |
 | `tools/map.sh [ТЕКСТ]` | все исходники с описанием в одну строку |
-| `yami-shell shot [ЦЕЛЬ…] --lang en -o ПАПКА` | панели в PNG без композитора; падает на непереведённых надписях |
+| `yami-shell shot [ЦЕЛЬ…] --lang en [--transparent] -o ПАПКА` | панели в PNG без композитора; падает на непереведённых надписях |
 | `yami-files shot`, `yami-view shot` | то же для файлов и просмотрщика |
 | `tools/sddm-preview.sh OUT.png` | экран входа offscreen в твоей палитре (`--window` — окном) |
+| `tools/readme-art.py` | перерисовать картинки README в `.github/assets` из панелей самого шелла |
 | `tools/release.sh X.Y.Z` | выпуск: changelog, версии, проверка, подписанный тег, push (`--keygen` — один раз для ключа) |
 | `tools/deploy.sh` | собрать, поставить в `~/.local/bin` и перезапустить шелл (не трогает, пока в фокусе игра); `--files-only` — только yami-files и yami-view |
 
