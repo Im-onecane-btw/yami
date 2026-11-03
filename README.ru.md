@@ -16,7 +16,7 @@
 
 </div>
 
-<img src=".github/assets/demo.gif" width="100%" alt="yami в движении: меню программ, btop, yami-files, kitty с fastfetch, вкладки настроек и перекраска всего стола из одной палитры в другую">
+https://github.com/user-attachments/assets/1bdd1250-d04c-4993-b66f-0dc29b4512a5
 
 <img src=".github/assets/clean.png" width="100%" alt="Рабочий стол yami как есть: бар, часы, виджеты процессора и музыки на пиксельных обоях">
 

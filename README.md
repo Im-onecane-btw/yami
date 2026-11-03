@@ -16,7 +16,7 @@ A pixel-art desktop for niri, drawn in whole pixels.
 
 </div>
 
-<img src=".github/assets/demo.gif" width="100%" alt="yami in motion: the launcher, btop, yami-files, kitty with fastfetch, the settings tabs, and the whole desktop recoloured from one palette to the next">
+https://github.com/user-attachments/assets/1bdd1250-d04c-4993-b66f-0dc29b4512a5
 
 <img src=".github/assets/clean.png" width="100%" alt="The yami desktop as it is: the bar, the clock, CPU and music widgets on the pixel wallpaper">
 
