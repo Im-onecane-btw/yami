@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Real screenshots of a running yami session for the README (.github/assets): the desktop with the
-# launcher, settings tabs, yami-files on a demo folder (the seven palette wallpapers), yami-view on
-# one of them, the screenshot overlay (`yami-shell shot screenshot --frame`: the same drawing code
+# launcher, settings tabs, yami-files on a demo folder (闇 as in fastfetch on each palette's
+# wallpaper), yami-view on one of them, the screenshot overlay (`yami-shell shot screenshot --frame`: the same drawing code
 # with a selection and marks, over a real frame of the screen); in English and Russian. Runs on an empty workspace with do-not-disturb on (no live notification or
-# window gets into a picture), sound devices under plain names (audioNames) and drives hidden in
-# yami-files, and puts the workspace, language, do-not-disturb and names back after.
+# window gets into a picture), the generated pixel wallpaper instead of your own picture, sound
+# devices under plain names (audioNames) and drives hidden in yami-files, and puts the workspace,
+# language, do-not-disturb, wallpaper and names back after.
 # Refuses while a game or a fullscreen window has focus. Needs niri, grim, python3 with Pillow.
 # Usage: tools/readme-shots.sh
 set -euo pipefail
@@ -29,6 +30,7 @@ empty="$(ws "import json,sys; print(max(w['idx'] for w in json.load(sys.stdin) i
 lang0="$(yami config get lang)"
 dnd0="$(yami config get dnd)"
 names0="$(yami config get audioNames)"
+wall0="$(yami config get wallpaper)"
 pids=()
 # демо-папка с коротким путём для строки адреса; удаляется, только если её создали мы
 demo="${TMPDIR:-/tmp}/yami"
@@ -39,6 +41,7 @@ restore() {
   yami config set lang "$lang0" >/dev/null
   yami config set dnd "$dnd0" >/dev/null
   yami config set audioNames "$names0" >/dev/null
+  yami config set wallpaper "$wall0" >/dev/null
   niri msg action focus-workspace "$back" >/dev/null 2>&1 || true
   rm -rf "$TMP"
   ((made)) && rm -rf "$demo"
@@ -56,9 +59,22 @@ d, root = Path(sys.argv[1]), Path(sys.argv[2])
 sys.path.insert(0, str(root / "tools"))
 import theme  # noqa: E402
 from PIL import Image  # noqa: E402
+# 闇 как в fastfetch (theme.KANJI: полосы от светлого к акценту, тень в пиксель) на обоях палитры
+k = theme.KANJI
 for pid, hx in re.findall(r'Preset \{ id: "(\w+)", name: "[^"]*", accent: 0x([0-9a-f]{6})', (root / "shell/px/src/theme.rs").read_text()):
-    im = theme.wallpaper_img(theme.derive("#" + hx))
-    im.resize((im.width * 4, im.height * 4), Image.NEAREST).save(d / f"{pid}.png")
+    p = theme.derive("#" + hx)
+    im = theme.wallpaper_img(p)
+    bands = [p["bright"], theme.mix(p["bright"], p["accent"], 0.5), p["accent"], theme.mix(p["accent"], p["deep"], 0.5)]
+    shadow = theme.mix(p["deep"], p["bg"], 0.45)
+    on = lambda x, y: 0 <= y < len(k) and 0 <= x < len(k[0]) and k[y][x] == "#"
+    cell, (w, h) = 8, im.size
+    x0, y0 = (w - len(k[0]) * cell) // 2, (h - len(k) * cell) // 2
+    for y in range(len(k) + 1):
+        for x in range(len(k[0]) + 1):
+            c = bands[min(y * 4 // len(k), 3)] if on(x, y) else shadow if on(x - 1, y - 1) and not on(x, y) else None
+            if c:
+                im.paste(tuple(int(c.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)), (x0 + x * cell, y0 + y * cell, x0 + (x + 1) * cell, y0 + (y + 1) * cell))
+    im.resize((w * 4, h * 4), Image.NEAREST).save(d / f"{pid}.png")
 (d / "notes.md").write_text("# yami\n\nPixel-art desktop for niri.\n")
 (d / "todo.txt").write_text("ship 2.1.0\n")
 (d / "Projects/yami.tar.gz").write_bytes(b"\x1f\x8b" + bytes(4000))
@@ -114,8 +130,9 @@ PY
 }
 full() { python3 -I -c 'import sys; from PIL import Image; Image.open(sys.argv[1]).convert("RGB").save(sys.argv[2], optimize=True)' "$TMP/$1.png" "$2"; }
 
-say "$(t "пустой рабочий стол $empty, не беспокоить" "empty workspace $empty, do not disturb")"
+say "$(t "пустой рабочий стол $empty, не беспокоить, пиксельные обои" "empty workspace $empty, do not disturb, the pixel wallpaper")"
 yami config set dnd true >/dev/null
+yami config set wallpaper '""' >/dev/null
 niri msg action focus-workspace "$empty"
 for lang in en ru; do
   say "$(t "язык" "language"): $lang"
@@ -145,7 +162,7 @@ for lang in en ru; do
   full files "$OUT/files-$lang.png"
   # оверлей скриншота: выделение и метки (код снимка шелла) поверх настоящего кадра с файлами
   yami-shell shot screenshot --lang "$lang" --frame "$TMP/files.png" -o "$TMP/snap" >/dev/null
-  full ../snap/screenshot "$OUT/screenshot-$lang.png"
+  full snap/screenshot "$OUT/screenshot-$lang.png"
   kill "${pids[@]}" 2>/dev/null || true
   pids=()
   # просмотрщик — на обоях «сакуры»
