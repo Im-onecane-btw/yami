@@ -6,6 +6,8 @@ subjects when that section is empty).
 
 ## Unreleased
 
+## 2.3.0
+
 - yami-play: a video and music player in the shell's pixels. Every format ffmpeg knows (libmpv, loaded at run time), hardware decoding, subtitles and audio tracks, a cell timeline, the folder as a playlist, resume where you stopped, speed, frame step, saving a frame and a pixel scaling mode; the screen stays on while a video plays. Video and music open in it after the installer runs
 - yami-files: phones and cameras show up under devices (Android over MTP, cameras over PTP, iPhone), with a hint when the gvfs backend is missing
 - yami-files: a «network» section: mounted shares, «connect…» for smb, sftp, ftp, WebDAV and nfs with a password window, addresses remembered without passwords; kernel mounts (cifs, nfs, sshfs) are listed and can be unmounted

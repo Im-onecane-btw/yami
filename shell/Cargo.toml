@@ -1,6 +1,6 @@
 [package]
 name = "yami-shell"
-version = "2.2.1"
+version = "2.3.0"
 edition = "2021"
 description = "A lightweight pixel-art Wayland shell for the niri compositor"
 readme = "../README.md"
