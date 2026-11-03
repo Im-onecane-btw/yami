@@ -1960,8 +1960,8 @@ impl App {
                         return true;
                     }
                     if e.keysym == Keysym::v {
-                        if let Ok(o) = std::process::Command::new("wl-paste").arg("-n").output() {
-                            f.insert(&String::from_utf8_lossy(&o.stdout).replace('\n', " "));
+                        if let Some(t) = yami_px::ui::paste() {
+                            f.insert(&t);
                         }
                         return true;
                     }

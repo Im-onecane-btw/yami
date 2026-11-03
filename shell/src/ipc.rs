@@ -16,13 +16,18 @@ pub fn path() -> PathBuf {
     PathBuf::from(dir).join("yami-shell.sock")
 }
 
+/// команда шеллу; true — шелл её принял (ответил). Ответа ждём не дольше 5 с: зависший шелл
+/// не должен вешать установщик и `yami update`
 pub fn send(cmd: &str) -> bool {
     match UnixStream::connect(path()) {
         Ok(mut s) => {
-            let _ = writeln!(s, "{cmd}");
+            let _ = s.set_read_timeout(Some(std::time::Duration::from_secs(5)));
+            let _ = s.set_write_timeout(Some(std::time::Duration::from_secs(5)));
+            if writeln!(s, "{cmd}").is_err() {
+                return false;
+            }
             let mut r = String::new();
-            let _ = BufReader::new(s).read_line(&mut r);
-            true
+            BufReader::new(s).read_line(&mut r).map(|n| n > 0).unwrap_or(false)
         }
         Err(_) => false,
     }

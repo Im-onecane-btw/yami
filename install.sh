@@ -96,6 +96,8 @@ while (($#)); do
   shift
 done
 [[ -t 0 && -t 1 ]] || { YES=1; ANIM=0; }
+# git never asks for a login on the terminal: a moved or private repo fails instead of hanging
+export GIT_TERMINAL_PROMPT=0
 mkdir -p "$CACHE"
 : >"$LOG"
 : >"$MISSING_F"
@@ -353,6 +355,7 @@ nap() { ((ANIM)) && sleep "$1"; return 0; }
 cleanup() { printf '\e[?25h%s' "$R"; }
 trap cleanup EXIT
 trap 'cleanup; echo; exit 130' INT
+trap 'cleanup; exit 143' TERM
 # the terminal may die mid-install (kitty reloads fonts and themes): finish the steps anyway
 trap '' HUP
 
@@ -412,11 +415,15 @@ banner() { # 1 — animate
 
 # ── keys ────────────────────────────────────────────────────────────────────
 key() {
-  local k rest
-  IFS= read -rsn1 k
+  local k rest more
+  # терминал закрыт (ssh оборвался, TTY ушёл): не крутиться в меню, а выйти
+  IFS= read -rsn1 k || { echo eof; return; }
   if [[ $k == $'\e' ]]; then
-    read -rsn2 -t 0.02 rest
-    case "$rest" in "[A") echo up ;; "[B") echo down ;; "[C") echo right ;; "[D") echo left ;; *) echo esc ;; esac
+    # по ssh и на медленном TTY хвост последовательности приходит позже: ждём дольше и
+    # дочитываем всё (Home/End/F-клавиши длиннее двух байт), чтобы остаток не стал «клавишами»
+    read -rsn2 -t 0.15 rest
+    while IFS= read -rsn1 -t 0.01 more; do rest+=$more; done
+    case "$rest" in "[A" | "OA") echo up ;; "[B" | "OB") echo down ;; "[C" | "OC") echo right ;; "[D" | "OD") echo left ;; "") echo esc ;; *) echo other ;; esac
   elif [[ $k == "" ]]; then echo enter
   elif [[ $k == " " ]]; then echo space
   else echo "$k"; fi
@@ -477,7 +484,7 @@ pick_lang() {
     case "$(key)" in
       up | down | k | j | left | right) cur=$((1 - cur)) ;;
       enter) break ;;
-      q | esc) bye ;;
+      q | esc | eof) bye ;;
     esac
   done
   L=$([[ $cur == 0 ]] && echo ru || echo en)
@@ -507,7 +514,7 @@ pick_components() {
       space) can "${C_ID[$cur]}" && C_ON[cur]=$((1 - C_ON[cur])) ;;
       a) for ((i = 0; i < n; i++)); do can "${C_ID[$i]}" && C_ON[i]=1; done ;;
       enter) return 0 ;;
-      q | esc) bye ;;
+      q | esc | eof) bye ;;
     esac
   done
 }
@@ -539,7 +546,7 @@ pick_palette() {
       up | k) pal=$(((pal + n - 1) % n)) ;;
       down | j) pal=$(((pal + 1) % n)) ;;
       enter) return 0 ;;
-      q | esc) bye ;;
+      q | esc | eof) bye ;;
     esac
   done
 }
@@ -595,7 +602,7 @@ pick_look() {
       up | k) look=$(((look + n - 1) % n)) ;;
       down | j) look=$(((look + 1) % n)) ;;
       enter) LOOK_SET=1; return 0 ;;
-      q | esc) bye ;;
+      q | esc | eof) bye ;;
     esac
   done
 }
@@ -613,7 +620,7 @@ pick_font() {
     case "$(key)" in
       up | k | down | j) font=$((1 - font)) ;;
       enter) return 0 ;;
-      q | esc) bye ;;
+      q | esc | eof) bye ;;
     esac
   done
 }
@@ -631,7 +638,7 @@ pick_fetch() {
     case "$(key)" in
       up | k | down | j) fetch=$((1 - fetch)) ;;
       enter) FETCH_SET=1; return 0 ;;
-      q | esc) bye ;;
+      q | esc | eof) bye ;;
     esac
   done
 }
@@ -674,6 +681,11 @@ progress() { # done total frame
   done
   printf '  %s%s %s%d/%d%s' "$s" "$R" "$D" "$1" "$2" "$R"
 }
+# the step's function (or the package helpers) runs something as root
+uses_root() {
+  local f=${STEPS_F[$1]%% *}
+  [[ $f == pkgs || $f == pm_* ]] || declare -f "$f" 2>/dev/null | grep -q '\$SU'
+}
 elapsed() { local s=$1; ((s >= 60)) && printf '%dm%02ds' $((s / 60)) $((s % 60)) || printf '%ds' "$s"; }
 step() { # index
   local i=$1 title=${STEPS_T[$1]} n=${#STEPS_T[@]} t0=$SECONDS rc f=0
@@ -684,14 +696,16 @@ step() { # index
     printf '  %s·%s %s%s%s %s%s%s\n' "$A" "$R" "$T" "$title" "$R" "$F" "$cmd" "$R"
     return
   fi
-  if [[ ! -t 1 ]] || [[ $SU == doas && ${STEPS_F[$i]} == pkgs* ]]; then
+  if [[ ! -t 1 ]] || { [[ $SU == doas ]] && uses_root "$i"; }; then
     # no terminal, or doas that may ask for a password: run in the foreground
     # [k/n]: the shell's updates tab draws its progress from it
     printf '  %s▸%s %s[%d/%d] %s%s\n' "$A" "$R" "$T" $((i + 1)) "$n" "$title" "$R"
     eval "${STEPS_F[$i]}" 2>&1 | tee -a "$LOG" | sed 's/^/      /'
     rc=${PIPESTATUS[0]}
   else
-    (eval "${STEPS_F[$i]}") >>"$LOG" 2>&1 </dev/null &
+    # sudo reads the password from the terminal, not stdin: behind the spinner a prompt would be
+    # invisible and the step would hang. The ticket is kept alive; without it the step fails.
+    ([[ $SU == sudo ]] && SU="sudo -n"; eval "${STEPS_F[$i]}") >>"$LOG" 2>&1 </dev/null &
     local pid=$!
     printf '\e[?25l'
     while kill -0 "$pid" 2>/dev/null; do
@@ -735,7 +749,7 @@ pm_refresh() {
   case $PM in
     apt) $SU apt-get update ;;
     zypper) $SU zypper --non-interactive refresh ;;
-    xbps) $SU xbps-install -S ;;
+    xbps) $SU xbps-install -Sy ;;
     apk) $SU apk update ;;
     *) true ;;
   esac

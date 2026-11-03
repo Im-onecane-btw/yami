@@ -324,3 +324,21 @@ pub fn wipe(s: &mut String) {
     unsafe { std::ptr::write_bytes(s.as_mut_vec().as_mut_ptr(), 0, s.len()) };
     s.clear();
 }
+
+/// текст из буфера обмена для поля ввода: не дольше секунды и не больше 64 КБ — зависшая
+/// программа-владелец буфера не должна замораживать окно
+pub fn paste() -> Option<String> {
+    use std::io::Read;
+    let mut ch = std::process::Command::new("wl-paste").args(["-n", "-t", "text"]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::null()).spawn().ok()?;
+    let mut out = ch.stdout.take()?;
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut b = Vec::new();
+        let _ = (&mut out).take(64 * 1024).read_to_end(&mut b);
+        let _ = tx.send(b);
+    });
+    let r = rx.recv_timeout(std::time::Duration::from_secs(1)).ok();
+    let _ = ch.kill();
+    let _ = ch.wait();
+    r.map(|b| String::from_utf8_lossy(&b).replace(['\n', '\r'], " "))
+}

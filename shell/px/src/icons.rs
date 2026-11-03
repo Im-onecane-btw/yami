@@ -514,8 +514,10 @@ pub fn exec_with(exec: &str, files: &[PathBuf]) -> Vec<Vec<String>> {
 
 /// file:// с процентным кодированием
 pub fn file_uri(p: &Path) -> String {
+    use std::os::unix::ffi::OsStrExt;
     let mut s = String::from("file://");
-    for b in p.to_string_lossy().bytes() {
+    // байты пути как есть: имя не в UTF-8 не превращается в «�»
+    for &b in p.as_os_str().as_bytes() {
         if b.is_ascii_alphanumeric() || b"/-_.~".contains(&b) {
             s.push(b as char);
         } else {

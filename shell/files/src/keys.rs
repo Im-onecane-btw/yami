@@ -59,8 +59,8 @@ pub fn edit(f: &mut Field, k: &Key) -> bool {
                 match k.raw {
                     22 => f.clear(), // ctrl+u
                     K_V => {
-                        if let Ok(o) = std::process::Command::new("wl-paste").arg("-n").output() {
-                            f.insert(&String::from_utf8_lossy(&o.stdout).replace('\n', " "));
+                        if let Some(t) = crate::ui::paste() {
+                            f.insert(&t);
                         }
                     }
                     _ => return false,
