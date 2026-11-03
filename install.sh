@@ -649,7 +649,8 @@ step() { # index
   fi
   if [[ ! -t 1 ]] || [[ $SU == doas && ${STEPS_F[$i]} == pkgs* ]]; then
     # no terminal, or doas that may ask for a password: run in the foreground
-    printf '  %s▸%s %s%s%s\n' "$A" "$R" "$T" "$title" "$R"
+    # [k/n]: the shell's updates tab draws its progress from it
+    printf '  %s▸%s %s[%d/%d] %s%s\n' "$A" "$R" "$T" $((i + 1)) "$n" "$title" "$R"
     eval "${STEPS_F[$i]}" 2>&1 | tee -a "$LOG" | sed 's/^/      /'
     rc=${PIPESTATUS[0]}
   else

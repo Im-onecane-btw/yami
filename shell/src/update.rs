@@ -8,7 +8,7 @@
 
 use crate::app::{App, Msg, SKind, State};
 use crate::config::Settings;
-use crate::gfx::R;
+use crate::gfx::{BoxStyle, R};
 use crate::settings::{opt_btn, title};
 use crate::ui::{Act, Tone, Ui};
 use serde::{Deserialize, Serialize};
@@ -74,11 +74,15 @@ pub struct Upd {
     /// чем кончилась установка: (успех, текст)
     pub done: Option<(bool, String)>,
     pub rollback: bool,
+    /// хвост update.log для консоли вкладки и размер файла, по которому он прочитан
+    pub log: Vec<String>,
+    pub log_len: u64,
 }
 
 impl Upd {
     pub fn load() -> Upd {
-        Upd { stamp: installed(), info: last(), rollback: prev_dir().join("yami-shell").exists(), ..Default::default() }
+        let (log, log_len) = log_tail();
+        Upd { stamp: installed(), info: last(), rollback: prev_dir().join("yami-shell").exists(), log, log_len, ..Default::default() }
     }
     /// для `yami-shell shot settings:updates[-new|-busy]`
     pub fn mock(what: &str) -> Upd {
@@ -92,7 +96,11 @@ impl Upd {
             i.notes = vec!["yami: one command for the whole desktop".into(), "settings: updates and services tabs".into(), "shell: notification images are size-checked".into()];
         }
         if what == "updates-busy" {
-            u.busy = Some("shell: build from source".into());
+            u.busy = Some("[3/8] shell: build from source".into());
+            u.log = ["▪ checking what is new", "▪ switching to v2.1.0", "▪ build and install (a few minutes)", "▪ [1/8] update from ~/.local/share/yami/src", "✓ update from ~/.local/share/yami/src 0s", "▪ [2/8] packages", "✓ packages 3s", "▪ [3/8] shell: build from source", "Compiling yami-px v2.1.0", "Compiling yami-files v2.1.0", "Compiling yami-shell v2.1.0"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect();
         }
         u.info = Some(i);
         u
@@ -329,6 +337,34 @@ fn progress(s: &str) {
     let _ = crate::ipc::send(&format!("update-progress {s}"));
 }
 
+/// последние строки update.log (без цветов и пустых) и размер файла; читается только хвост
+pub fn log_tail() -> (Vec<String>, u64) {
+    use std::io::{Read, Seek, SeekFrom};
+    let Ok(mut f) = std::fs::File::open(log_path()) else { return (vec![], 0) };
+    let len = f.metadata().map(|m| m.len()).unwrap_or(0);
+    let from = len.saturating_sub(16 * 1024);
+    let mut buf = vec![];
+    if f.seek(SeekFrom::Start(from)).is_err() || f.take(16 * 1024).read_to_end(&mut buf).is_err() {
+        return (vec![], len);
+    }
+    let text = String::from_utf8_lossy(&buf);
+    let mut lines: Vec<String> = text.lines().skip(usize::from(from > 0)).map(|l| strip_ansi(l).trim().to_string()).filter(|l| !l.is_empty()).collect();
+    let keep = lines.len().saturating_sub(40);
+    lines.drain(..keep);
+    (lines, len)
+}
+
+/// «[3/8] шаг» → (3, 8) и текст без счётчика
+pub fn step_of(s: &str) -> (Option<(u32, u32)>, &str) {
+    let Some(rest) = s.strip_prefix('[') else { return (None, s) };
+    let Some((nums, text)) = rest.split_once(']') else { return (None, s) };
+    let Some((k, n)) = nums.split_once('/') else { return (None, s) };
+    match (k.trim().parse(), n.trim().parse()) {
+        (Ok(k), Ok(n)) if n > 0 => (Some((k, n)), text.trim()),
+        _ => (None, s),
+    }
+}
+
 fn copy_bins(from: &Path, to: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(to)?;
     for b in ["yami-shell", "yami-files", "yami-view"] {
@@ -520,6 +556,18 @@ impl App {
         true
     }
 
+    /// пока открыта вкладка «обновления»: перечитать хвост лога, если файл вырос
+    pub fn update_log_tick(&mut self) {
+        if self.st.modal != Some(crate::app::Modal::Settings) || self.st.stab != "updates" {
+            return;
+        }
+        let len = std::fs::metadata(log_path()).map(|m| m.len()).unwrap_or(0);
+        if len != self.st.upd.log_len {
+            (self.st.upd.log, self.st.upd.log_len) = log_tail();
+            self.dirty(&SKind::Modal);
+        }
+    }
+
     /// команды шеллу от процесса обновления; true — команда наша
     pub fn update_ipc(&mut self, c: &str) -> bool {
         if let Some(s) = c.strip_prefix("update-progress ") {
@@ -608,6 +656,41 @@ pub fn short_repo(u: &str) -> String {
     u.trim_start_matches("https://").trim_start_matches("git@").replace(':', "/").trim_end_matches(".git").to_string()
 }
 
+/// мини-консоль: хвост update.log, шаги акцентом, готовое зелёным, ошибки красным; пока идёт
+/// установка — мигающий блок-курсор в конце
+fn console(ui: &mut Ui, r: R, log: &[String], busy: bool) {
+    let t = ui.t;
+    let px = crate::font::PX;
+    ui.cv.pxbox(r, &BoxStyle::new(t.code_bg, t.border));
+    let head = R::new(r.x + 10, r.y + 4, r.w - 20, 18);
+    ui.cv.fill(R::new(head.x, head.y + 6, 6, 6), if busy { t.red } else { t.text_faint });
+    let name = log_path().display().to_string().replace(&std::env::var("HOME").unwrap_or_default(), "~");
+    ui.cv.text_in(ui.f, px, R::new(head.x + 12, head.y, head.w - 12, 18), &name, t.text_faint);
+    ui.cv.fill(R::new(r.x + 1, r.y + 24, r.w - 2, 1), t.border);
+    let rows = ((r.h - 34) / 18).max(1) as usize;
+    let skip = log.len().saturating_sub(rows);
+    let mut y = r.y + 28;
+    let n = log.len() - skip;
+    for (i, l) in log[skip..].iter().enumerate() {
+        let (c, mark) = if l.starts_with('✓') {
+            (t.ok, true)
+        } else if l.starts_with('✕') || l.starts_with('✗') || l.to_lowercase().contains("error") {
+            (t.warn, true)
+        } else if l.starts_with('▪') || l.starts_with('▸') {
+            (t.red, true)
+        } else {
+            (t.text_dim, false)
+        };
+        let x = r.x + 10 + if mark { 0 } else { 12 };
+        let line = ui.f.elide(px, l, r.right() - 10 - x - 14);
+        let w = ui.cv.text_in(ui.f, px, R::new(x, y, r.right() - 10 - x, 18), &line, c);
+        if busy && i + 1 == n && ui.blink {
+            ui.cv.fill(R::new(x + w + 4, y + 3, 7, 12), t.ember);
+        }
+        y += 18;
+    }
+}
+
 pub fn tab(ui: &mut Ui, st: &State, b: R) {
     let t = ui.t;
     let s = &st.set;
@@ -646,7 +729,7 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     y += 50;
     // состояние: идёт установка / проверка / итог
     let (line, col) = if let Some(p) = &u.busy {
-        (crate::tf!("ставлю: {}", "installing: {}", p), t.red)
+        (crate::tf!("ставлю: {}", "installing: {}", step_of(p).1), t.red)
     } else if let Some((ok, txt)) = &u.done {
         (txt.clone(), if *ok { t.ok } else { t.warn })
     } else if u.checking {
@@ -666,15 +749,33 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     };
     ui.cv.fill(R::new(b.x, y + 7, 6, 6), col);
     ui.text_in(px, R::new(b.x + 14, y, b.w - 14, 20), &line, col);
-    y += 26;
-    // что нового
-    if let Some(i) = u.info.as_ref().filter(|i| i.available && i.err.is_empty() && u.busy.is_none()) {
-        for n in i.notes.iter().take(6) {
-            ui.text_in(px, R::new(b.x + 14, y, b.w - 14, 20), &format!("· {n}"), t.text_dim);
-            y += 20;
-        }
-    }
+    y += 24;
     let by = b.bottom() - 62;
+    // прогресс по шагам установщика («[k/n]»); до них — первые деления
+    if let Some(p) = &u.busy {
+        let v = match step_of(p).0 {
+            Some((k, n)) => (k.saturating_sub(1) as f32 + 0.5) / n as f32,
+            None => 0.04,
+        };
+        ui.cv.gauge(R::new(b.x, y, b.w, 8), 40, v.clamp(0.0, 1.0), t.red, t.surface.lerp(t.border, 0.3), 2);
+        y += 16;
+    }
+    let notes = u.info.as_ref().filter(|i| i.available && i.err.is_empty() && u.busy.is_none() && u.done.is_none());
+    if let Some(i) = notes {
+        // что нового: строки CHANGELOG выпуска (английский текст репозитория — без перевода)
+        y = title(ui, b.x, y, b.w, &crate::tf!("что нового в {}", "what is new in {}", i.latest));
+        for n in &i.notes {
+            if y + 18 > by - 8 {
+                break;
+            }
+            ui.cv.fill(R::new(b.x + 2, y + 7, 4, 4), t.red);
+            let line = ui.f.elide(px, n, b.w - 14);
+            ui.cv.text_in(ui.f, px, R::new(b.x + 14, y, b.w - 14, 18), &line, t.text_dim);
+            y += 18;
+        }
+    } else if !u.log.is_empty() && by - y > 60 {
+        console(ui, R::new(b.x, y + 2, b.w, by - y - 12), &u.log, u.busy.is_some());
+    }
     let bw = (b.w - 12) / 3;
     let busy = u.busy.is_some() || u.checking;
     let can = u.info.as_ref().map(|i| i.available && i.err.is_empty() && i.sig_ok(&s.update_verify)).unwrap_or(false);

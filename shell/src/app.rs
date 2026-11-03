@@ -1046,7 +1046,7 @@ impl App {
     // ── тик: часы, датчики, файл настроек ───────────────────────────────────
     fn tick_interval(&self) -> Duration {
         let fast = !self.st.notifs.popups.is_empty() || self.st.osd.is_some() || self.st.field_focus.is_some() || self.st.locked || self.st.modal == Some(Modal::Launcher);
-        let fast = fast || self.st.snap.is_some() || self.st.snap_countdown.is_some() || self.st.dock_leave.is_some() || !self.st.dock_bounce.is_empty();
+        let fast = fast || self.st.upd.busy.is_some() || self.st.snap.is_some() || self.st.snap_countdown.is_some() || self.st.dock_leave.is_some() || !self.st.dock_bounce.is_empty();
         Duration::from_millis(if fast { 100 } else { 1000 })
     }
 
@@ -1090,6 +1090,7 @@ impl App {
             }
         }
         // уведомления и всплывашка громкости гаснут сами
+        self.update_log_tick();
         if self.notif_tick() {
             self.sync_notifs();
         }

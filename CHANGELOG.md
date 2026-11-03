@@ -7,6 +7,7 @@ subjects when that section is empty).
 ## Unreleased
 
 - After an update the shell comes back by itself: the restart no longer took the updater for a running shell and left the desktop without a bar
+- Settings → updates shows a small console with the update log, a progress bar by installer step and the release notes before you install
 ## 2.2.0
 
 - `audioNames`: your own names for sound devices in the sound popup
