@@ -10,8 +10,10 @@
 # Usage: tools/readme-shots.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT="$ROOT/.github/assets"
+DEST="$ROOT/.github/assets"
 TMP="$(mktemp -d)"
+OUT="$TMP/out"
+mkdir -p "$OUT"
 RU=0
 case "${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}" in ru*) RU=1 ;; esac
 t() { if ((RU)); then printf '%s' "$1"; else printf '%s' "$2"; fi; }
@@ -22,6 +24,12 @@ die() { printf '\e[31m✕ %s\e[0m\n' "$*" >&2; exit 1; }
 f="$(niri msg --json focused-window 2>/dev/null || true)"
 if grep -qiE '"app_id":"(steam_app_[0-9]+|gamescope|[^"]*\.exe)"' <<<"$f" || grep -q '"is_fullscreen":true' <<<"$f"; then
   die "$(t "в фокусе игра или окно на весь экран — не снимаю" "a game or a fullscreen window has focus: not shooting")"
+fi
+# README целиком в «пепле» (шапка рисуется readme-art.py '#a8a29c'): в другой палитре не снимаем
+acc="$(yami config get accent | tr -d '"')"
+pal="$(yami config get palette | tr -d '"')"
+if [[ $pal != ash || ( -n $acc && ${acc,,} != "#a8a29c" ) ]]; then
+  die "$(t "README снимается в палитре «пепел» (сейчас: $pal ${acc:-}) — переключи её в настройках" "README shots use the ash palette (now: $pal ${acc:-}): switch to it in settings")"
 fi
 ws() { niri msg --json workspaces | python3 -I -c "$1"; }
 out="$(niri msg --json focused-output | python3 -I -c 'import json,sys; print(json.load(sys.stdin)["name"])')"
@@ -115,7 +123,19 @@ for s in json.load(sys.stdin):
 print(json.dumps(names, ensure_ascii=False))' "$1"
 }
 
-shoot() { sleep "${2:-1.2}"; grim -o "$out" "$TMP/$1.png"; }
+# перед каждым кадром: мы всё ещё на пустом столе и на нём только наши окна (yami-files,
+# yami-view) — иначе в кадр попадёт чужое (ты переключил стол, открылось окно), бросаем всё
+guard() {
+  niri msg --json workspaces >"$TMP/ws.json" && niri msg --json windows >"$TMP/win.json" || die "niri"
+  python3 -I - "$TMP/ws.json" "$TMP/win.json" "$empty" "$out" <<'PY' || die "$(t "на пустом столе что-то изменилось — съёмка прервана, картинки не тронуты" "the empty workspace changed: shooting stopped, pictures untouched")"
+import json, sys
+ws, wins, idx, out = json.load(open(sys.argv[1])), json.load(open(sys.argv[2])), int(sys.argv[3]), sys.argv[4]
+w = next((w for w in ws if w["idx"] == idx and w["output"] == out), None)
+ok = w is not None and w["is_focused"] and all(x.get("app_id") in ("yami-files", "yami-view") for x in wins if x.get("workspace_id") == w["id"])
+sys.exit(0 if ok else 1)
+PY
+}
+shoot() { sleep "${2:-1.2}"; guard; grim -o "$out" "$TMP/$1.png"; guard; }
 # панель по центру экрана с полями (видно затемнённый стол вокруг)
 crop() { # name w h
   python3 -I - "$TMP/$1.png" "$2" "$3" "$4" <<'PY'
@@ -174,4 +194,5 @@ for lang in en ru; do
   pids=()
   sleep 1
 done
-say "$(t "готово:" "done:") $OUT"
+cp "$OUT"/*.png "$DEST/"
+say "$(t "готово:" "done:") $DEST"
