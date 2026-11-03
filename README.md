@@ -16,7 +16,7 @@ A pixel-art desktop for niri, drawn in whole pixels.
 
 </div>
 
-<img src=".github/assets/desktop-en.png" width="100%" alt="The yami desktop: the bar, clock and graph widgets on the pixel wallpaper, the launcher open">
+<img src=".github/assets/demo.gif" width="100%" alt="yami in motion: the launcher, btop, yami-files, kitty with fastfetch, the settings tabs, and the whole desktop recoloured from one palette to the next">
 
 **yami** (闇, "darkness") turns the [niri](https://github.com/YaLTeR/niri) Wayland compositor into a
 finished desktop: dark graphite, one accent colour, crisp unantialiased pixel fonts. Its own

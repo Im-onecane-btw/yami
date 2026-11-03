@@ -16,7 +16,7 @@
 
 </div>
 
-<img src=".github/assets/desktop-ru.png" width="100%" alt="Рабочий стол yami: бар, виджеты часов и графиков на пиксельных обоях, открыто меню программ">
+<img src=".github/assets/demo.gif" width="100%" alt="yami в движении: меню программ, btop, yami-files, kitty с fastfetch, вкладки настроек и перекраска всего стола из одной палитры в другую">
 
 **yami** (闇, «тьма») превращает Wayland-композитор [niri](https://github.com/YaLTeR/niri) в
 готовый рабочий стол: тёмный графит, один акцентный цвет, чёткие пиксельные шрифты без

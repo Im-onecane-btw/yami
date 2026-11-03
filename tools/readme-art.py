@@ -142,18 +142,26 @@ def features(lang):
 
 
 def logo():
-    """闇 из DotGothic16 (16 px, без сглаживания) на плашке акцента — SVG из квадратов"""
-    g = Image.new("1", (20, 20), 0)
-    d = ImageDraw.Draw(g)
-    d.fontmode = "1"
-    d.text((2, 1), "闇", font=ImageFont.truetype(DOT, 16), fill=1)
-    px = [(x, y) for y in range(20) for x in range(20) if g.getpixel((x, y))]
-    ac, br, bg = P["accent"], P["bright"], P["bg"]
-    tile = f'<path fill="{ac}" d="M2 0h16v1h1v1h1v16h-1v1h-1v1H2v-1H1v-1H0V2h1V1h1z"/>'
-    edge = f'<path fill="{br}" d="M2 0h16v1H2zM0 2h1v1H0z"/>'
-    dots = "".join(f'<rect x="{x}" y="{y}" width="1" height="1"/>' for x, y in px)
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" shape-rendering="crispEdges">{tile}{edge}'
-            f'<g fill="{bg}">{dots}</g></svg>\n')
+    """闇 как в fastfetch (theme.KANJI, полосы от светлого к акценту и тень в пиксель) на тёмной
+    плашке со срезанными углами — SVG из квадратов, читается и в светлой теме GitHub"""
+    k = theme.KANJI
+    gw, gh = len(k[0]), len(k)
+    pad = 3
+    W, H = gw + 1 + 2 * pad, gh + 2 * pad
+    bands = [P["bright"], theme.mix(P["bright"], P["accent"], 0.5), P["accent"], theme.mix(P["accent"], P["deep"], 0.5)]
+    shadow = theme.mix(P["deep"], P["bg"], 0.45)
+    on = lambda x, y: 0 <= y < gh and 0 <= x < gw and k[y][x] == "#"
+    cells = {}
+    for y in range(gh):
+        for x in range(gw + 1):
+            if on(x, y):
+                cells.setdefault(bands[min(y * len(bands) // gh, len(bands) - 1)], []).append((x, y))
+            elif on(x - 1, y - 1) and (x >= gw or y >= gh - 1):
+                cells.setdefault(shadow, []).append((x, y))
+    tile = (f'<path fill="{P["border"]}" d="M2 0h{W - 4}v1h1v1h1v{H - 4}h-1v1h-1v1H2v-1H1v-1H0V2h1V1h1z"/>'
+            f'<path fill="{P["bg"]}" d="M2 1h{W - 4}v1h1v{H - 4}h-1v1H2v-1H1V2h1z"/>')
+    glyph = "".join(f'<path fill="{c}" d="' + "".join(f"M{x + pad} {y + pad}h1v1h-1z" for x, y in pts) + '"/>' for c, pts in cells.items())
+    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" shape-rendering="crispEdges">{tile}{glyph}</svg>\n'
 
 
 def main():
