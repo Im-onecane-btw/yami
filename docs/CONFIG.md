@@ -204,10 +204,27 @@ mouse: settings → widgets, edit mode.
 | `sort`, `desc` | `"name"`, `false` | `name` `size` `time` `type` |
 | `thumbs`, `thumbMaxMb` | `true`, `40` | thumbnails, and the largest image to thumbnail, MB |
 | `sidebar`, `info` | `true`, `false` | places on the left, details on the right |
-| `devices` | `true` | drives and USB sticks in the sidebar |
+| `devices` | `true` | drives, USB sticks, phones and cameras in the sidebar |
+| `network` | `true` | the «network» section: mounted shares and «connect…» |
+| `servers` | `[]` | addresses you connected to (`smb://nas/media`, `sftp://me@host/`), never with a password; one click mounts them again |
 | `terminal` | `"kitty"` | «open terminal here» |
 | `confirmTrash`, `singleClick`, `split` | `false` | |
 | `width`, `height` | `1060`, `660` | window size at start |
 
+Phones, cameras and network shares go through gvfs (`gio mount`): the packages `gvfs-mtp`
+(Android), `gvfs-gphoto2` (cameras), `gvfs-afc` (iPhone) and `gvfs-smb` (Windows shares) add the
+backends; sftp, ftp and WebDAV are in gvfs itself. A password is asked in the window and handed
+to `gio` over a pipe; it is not stored. Kernel mounts (cifs, nfs, sshfs, rclone) show up too.
+
 Its shortcuts are the usual ones (Ctrl+C/X/V, F2, Delete, Ctrl+T, Ctrl+L, Ctrl+H …) and match by
 key position, so they work in any keyboard layout.
+
+## yami-play
+
+`yami-play [FILE|DIR|URL…]` plays every format ffmpeg knows through libmpv (the `mpv` package,
+loaded at run time). One file opens its folder as a playlist in natural order. The position is
+remembered in `~/.local/state/yami/play/` and frames are saved to the Pictures folder.
+Keys: space pause, ←/→ 5 s (Shift 1 s, Ctrl 30 s), ↑/↓ or the wheel volume, F fullscreen, M mute,
+N/P next/previous, [ ] speed, A audio track, S subtitles, L repeat, X pixel scaling, C save a
+frame, `,` `.` frame step, 1…9 jump to 10…90 %, I details, Q quit. `YAMI_PLAY_OPTS="hwdec=no,…"`
+passes extra mpv options. The look (palette, language, font) is the viewer's (`fontView`).

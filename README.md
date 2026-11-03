@@ -55,13 +55,18 @@ Everything it does and its flags: [Installation](#installation).
   loupe with a colour picker, pen, frame, arrow, marker, mosaic and numbered badges; copies and/or
   saves, the notification has a thumbnail and open / show-in-folder.
 - **yami-files.** A file manager in the same pixels: tabs, split view, icons and details, places,
-  devices (udisks2), freedesktop trash, copy/move with progress and conflicts, undo, drag and
+  devices (drives through udisks2, phones and cameras over MTP/PTP, iPhone), network shares
+  (smb, sftp, ftp, WebDAV, nfs: «connect to a server», addresses remembered without passwords), freedesktop trash, copy/move with progress and conflicts, undo, drag and
   drop, thumbnails, open with. It is also the **file dialog** of every app that uses the portal
   (Firefox, LibreWolf, Chromium, Telegram, Electron, GTK/KDE apps) and answers **show in folder**.
 - **Screen sharing.** OBS, Discord/Equibop and browsers get a pixel «what to share» window from the
   shell (monitors and windows); the stream itself comes from niri, through the yami portal.
 - **yami-view.** A fast image viewer and quick editor (rotate, flip, crop, save as, wallpaper),
   real pixels when zoomed, GIF/WebP animation. Photo viewers open as floating windows.
+- **yami-play.** A video and music player in the same pixels: every format ffmpeg knows,
+  hardware decoding, subtitles and audio tracks, a cell timeline, folder playlist in natural
+  order, resume where you stopped, speed, frame step, saving a frame, a «pixel» scaling mode.
+  libmpv is loaded at run time (the only dependency); the screen stays on while a video plays.
 - **Screens.** Settings → screens: drag monitors into place, pick resolution, refresh rate, scale,
   rotation and VRR; applied through `~/.config/niri/yami-outputs.kdl`, reverted after 15 s unless kept.
 - **Login screen.** An SDDM theme that matches the lock screen and follows the palette.
@@ -185,13 +190,13 @@ What it does:
 
 1. Detects the distribution from `/etc/os-release` and installs packages with its native package
    manager (niri, portals, polkit, PipeWire, NetworkManager, BlueZ, power-profiles-daemon, Noto
-   fonts, cliphist, grim/slurp, kitty, fastfetch, btop, udisks2, ffmpegthumbnailer, bsdtar, qt6ct,
+   fonts, cliphist, grim/slurp, kitty, fastfetch, btop, udisks2, ffmpegthumbnailer, bsdtar, mpv (libmpv), gvfs with the MTP/PTP/AFC/SMB backends, qt6ct,
    adw-gtk3, Papirus, SDDM). Names a repository does not carry are reported, not fatal. Enables
    Bluetooth and power profiles, and NetworkManager when nothing else manages the network.
 2. Builds the workspace with `cargo build --release --locked` (Rust ≥ 1.89; rustup is used
-   when the distribution's toolchain is older) and installs `yami-shell`, `yami-files` and
-   `yami-view` into `~/.local/bin`; registers yami-files for folders and as the portal file
-   dialog / FileManager1, yami-view for images, and the Firefox-family portal pref.
+   when the distribution's toolchain is older) and installs `yami-shell`, `yami-files`,
+   `yami-view` and `yami-play` into `~/.local/bin`; registers yami-files for folders and as the portal file
+   dialog / FileManager1, yami-view for images, yami-play for video and music, and the Firefox-family portal pref.
 3. Installs the pixel fonts (Tiny5, DotGothic16, Terminess, Monocraft — pinned and checksummed)
    with fontconfig rules and the pixel cursor in the palette.
 4. Writes the niri, kitty and fastfetch configuration, `yami-local.kdl` for this machine's GPU,
@@ -346,6 +351,7 @@ yami-shell binds list                  # keybindings: id, keys, action
 | `shell/px/` | yami-px: canvas, fonts, theme, icons and UI shared by every program |
 | `shell/files/` | yami-files: file manager, portal file dialog, FileManager1 |
 | `shell/view/` | yami-view: image viewer and quick editor |
+| `shell/play/` | yami-play: video and music player (libmpv) |
 | `sddm/yami/` | SDDM login theme (Qt 6 QML, dissolve shader) |
 | `config/portal/`, `config/applications/` | portal registration, D-Bus services, desktop entries |
 | `config/niri/` | niri configuration (keybindings come from the shell) |
@@ -381,11 +387,11 @@ log in, `~/.local/lib/yami-niri/yami-niri.sh off`. Details: [fork/README.md](for
 | `tools/check.sh` | build without warnings, i18n checks, script syntax, niri config, installer dry run (CI runs it too) |
 | `tools/map.sh [TEXT]` | every source file with its one-line description |
 | `yami-shell shot [TARGET…] --lang en [--transparent] [--frame PNG] -o DIR` | render panels to PNG without a compositor (`--frame`: a real screen under the screenshot overlay); fails on untranslated text |
-| `yami-files shot`, `yami-view shot` | the same for the file manager and the viewer |
+| `yami-files shot`, `yami-view shot`, `yami-play shot` | the same for the file manager, the viewer and the player |
 | `tools/sddm-preview.sh OUT.png` | render the login screen offscreen with your palette (`--window` to try it) |
 | `tools/readme-art.py`, `tools/readme-shots.sh` | the README's logo and cards; real screenshots of your session (empty workspace, plain device names, everything put back) |
 | `tools/release.sh X.Y.Z` | cut a release: changelog, versions, check, signed tag, push (`--keygen` once for the key) |
-| `tools/deploy.sh` | build, install to `~/.local/bin` and restart the running shell (refuses while a game has focus); `--files-only` installs yami-files and yami-view only |
+| `tools/deploy.sh` | build, install to `~/.local/bin` and restart the running shell (refuses while a game has focus); `--files-only` installs yami-files, yami-view and yami-play only |
 
 ## Made with Claude
 

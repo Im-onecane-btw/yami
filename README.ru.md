@@ -60,12 +60,17 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
   лупа с пипеткой, перо, рамка, стрелка, маркер, мозаика, номерки; в буфер и/или в папку,
   уведомление с миниатюрой и кнопками «открыть» / «в папке».
 - **yami-files.** Файловый менеджер в тех же пикселях: вкладки, две панели, значки и список,
-  места, устройства (udisks2), корзина freedesktop, копирование и перенос с прогрессом и
+  места, устройства (диски через udisks2, телефоны и камеры по MTP/PTP, iPhone), сеть (smb, sftp,
+  ftp, WebDAV, nfs: «подключиться к серверу», адреса запоминаются без паролей), корзина freedesktop, копирование и перенос с прогрессом и
   конфликтами, отмена, перетаскивание, миниатюры, «открыть с помощью». Он же — **диалог выбора
   файлов** для всего, что идёт через портал (Firefox, LibreWolf, Chromium, Telegram, GTK/KDE), и
   отвечает на **«показать в папке»**.
 - **yami-view.** Быстрый просмотрщик и правка картинок (поворот, отражение, кадр, сохранить как,
   обои), честные пиксели при увеличении, анимация GIF/WebP. Просмотр фото открывается плавающим окном.
+- **yami-play.** Плеер видео и музыки в тех же пикселях: все форматы, что знает ffmpeg, аппаратное
+  декодирование, субтитры и дорожки звука, шкала из клеток, плейлист по папке в естественном
+  порядке, продолжение с того места, скорость, покадрово, сохранить кадр, «пиксельный» масштаб.
+  libmpv подгружается при запуске (единственная зависимость); пока идёт видео, экран не гаснет.
 - **Экраны.** Настройки → экраны: мониторы расставляются мышкой, выбираются разрешение, частота,
   масштаб, поворот и VRR; пишется в `~/.config/niri/yami-outputs.kdl`, через 15 с без «оставить» — откат.
 - **Экран входа.** Тема SDDM как экран блокировки, в палитре райса.
@@ -190,14 +195,14 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
 
 1. Дистрибутив определяется по `/etc/os-release`, пакеты ставятся его родным менеджером (niri,
    порталы, polkit, PipeWire, NetworkManager, BlueZ, power-profiles-daemon, шрифты Noto,
-   cliphist, grim/slurp, kitty, fastfetch, btop, udisks2, ffmpegthumbnailer, bsdtar, qt6ct,
+   cliphist, grim/slurp, kitty, fastfetch, btop, udisks2, ffmpegthumbnailer, bsdtar, mpv (libmpv), gvfs с бэкендами MTP/PTP/AFC/SMB, qt6ct,
    adw-gtk3, Papirus, SDDM). Пакеты, которых нет в репозиториях, попадают в отчёт и не прерывают
    установку. Включаются Bluetooth и профили питания, NetworkManager — если сетью не управляет
    что-то другое.
 2. Весь workspace собирается через `cargo build --release --locked` (нужен Rust ≥ 1.89;
-   если в дистрибутиве он старее — ставится rustup); `yami-shell`, `yami-files` и `yami-view`
-   кладутся в `~/.local/bin`. yami-files становится программой для папок, диалогом выбора
-   файлов портала и FileManager1, yami-view — для картинок; браузерам семейства Firefox
+   если в дистрибутиве он старее — ставится rustup); `yami-shell`, `yami-files`, `yami-view` и
+   `yami-play` кладутся в `~/.local/bin`. yami-files становится программой для папок, диалогом выбора
+   файлов портала и FileManager1, yami-view — для картинок, yami-play — для видео и музыки; браузерам семейства Firefox
    включается диалог через портал.
 3. Ставятся пиксельные шрифты (Tiny5, DotGothic16, Terminess, Monocraft — версия закреплена,
    сверяется SHA-256) с правилами fontconfig и пиксельный курсор в палитре.
@@ -345,6 +350,7 @@ yami-shell binds list                  # клавиши: id, сочетание,
 | `shell/px/` | yami-px: холст, шрифты, тема, значки и UI — общие для всех программ |
 | `shell/files/` | yami-files: файлы, диалог портала, FileManager1 |
 | `shell/view/` | yami-view: просмотр и правка картинок |
+| `shell/play/` | yami-play: видео и музыка (libmpv) |
 | `sddm/yami/` | тема экрана входа SDDM (QML на Qt 6, шейдер проявления) |
 | `config/portal/`, `config/applications/` | регистрация портала, службы D-Bus, ярлыки |
 | `config/niri/` | конфиг niri (клавиши пишет шелл) |
@@ -380,11 +386,11 @@ fork/yami-niri.sh off       # вернуться на niri из пакета
 | `tools/check.sh` | сборка без предупреждений, проверки перевода, синтаксис скриптов, конфиг niri, пробный прогон установщика (то же гоняет CI) |
 | `tools/map.sh [ТЕКСТ]` | все исходники с описанием в одну строку |
 | `yami-shell shot [ЦЕЛЬ…] --lang en [--transparent] [--frame PNG] -o ПАПКА` | панели в PNG без композитора (`--frame` — настоящий экран под оверлеем скриншота); падает на непереведённых надписях |
-| `yami-files shot`, `yami-view shot` | то же для файлов и просмотрщика |
+| `yami-files shot`, `yami-view shot`, `yami-play shot` | то же для файлов, просмотрщика и плеера |
 | `tools/sddm-preview.sh OUT.png` | экран входа offscreen в твоей палитре (`--window` — окном) |
 | `tools/readme-art.py`, `tools/readme-shots.sh` | логотип и карточки README; настоящие скриншоты твоего сеанса (пустой стол, простые имена устройств, всё возвращается) |
 | `tools/release.sh X.Y.Z` | выпуск: changelog, версии, проверка, подписанный тег, push (`--keygen` — один раз для ключа) |
-| `tools/deploy.sh` | собрать, поставить в `~/.local/bin` и перезапустить шелл (не трогает, пока в фокусе игра); `--files-only` — только yami-files и yami-view |
+| `tools/deploy.sh` | собрать, поставить в `~/.local/bin` и перезапустить шелл (не трогает, пока в фокусе игра); `--files-only` — только yami-files, yami-view и yami-play |
 
 ## Сделано с Claude
 

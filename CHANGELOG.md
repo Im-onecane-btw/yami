@@ -6,6 +6,13 @@ subjects when that section is empty).
 
 ## Unreleased
 
+- yami-play: a video and music player in the shell's pixels. Every format ffmpeg knows (libmpv, loaded at run time), hardware decoding, subtitles and audio tracks, a cell timeline, the folder as a playlist, resume where you stopped, speed, frame step, saving a frame and a pixel scaling mode; the screen stays on while a video plays. Video and music open in it after the installer runs
+- yami-files: phones and cameras show up under devices (Android over MTP, cameras over PTP, iPhone), with a hint when the gvfs backend is missing
+- yami-files: a «network» section: mounted shares, «connect…» for smb, sftp, ftp, WebDAV and nfs with a password window, addresses remembered without passwords; kernel mounts (cifs, nfs, sshfs) are listed and can be unmounted
+- The installer adds mpv (libmpv) and the gvfs backends for phones, cameras and Windows shares
+- The installer no longer hangs: a closed terminal leaves the menus, arrow keys work over slow SSH and on the Linux console, sudo never waits for a password hidden behind the progress bar, git never asks for a login
+- Pasting into a text field no longer freezes the window when the clipboard owner hangs; a hung shell no longer blocks `yami` commands and updates
+
 ## 2.2.1
 
 - fastfetch is short by default: who, OS, window manager, shell, terminal and uptime, no hardware. The installer asks (`--fetch mini|full`), settings → look switches it
