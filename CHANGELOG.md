@@ -6,6 +6,8 @@ subjects when that section is empty).
 
 ## Unreleased
 
+## 2.1.0
+
 - `yami`: one command for the whole desktop (open, palette, wallpaper, restart, status, doctor, update)
 - updates from settings or `yami update`: releases or every commit, signed tags, rollback
 - releases are signed: from this version on, `yami update` installs only tags signed with the key in `keys/allowed_signers`
