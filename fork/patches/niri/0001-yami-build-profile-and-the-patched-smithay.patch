@@ -1,7 +1,7 @@
 From 3857760d37a0b6389ad0ef560c60d8e051f2f503 Mon Sep 17 00:00:00 2001
 From: yami <yami@localhost>
 Date: Tue, 3 Nov 2026 08:07:43 +0300
-Subject: [PATCH 1/4] yami: build profile and the patched smithay
+Subject: [PATCH 1/5] yami: build profile and the patched smithay
 
 [profile.yami]: fat LTO, one codegen unit, no debuginfo; built with
 -C target-cpu=native by fork/yami-niri.sh. smithay comes from

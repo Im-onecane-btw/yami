@@ -1,7 +1,7 @@
 From f5ba5c94524ed6ca19f463499412d1aded12eb18 Mon Sep 17 00:00:00 2001
 From: yami <yami@localhost>
 Date: Tue, 3 Nov 2026 15:57:45 +0300
-Subject: [PATCH 4/4] yami: layer rule show-only-in
+Subject: [PATCH 4/5] yami: layer rule show-only-in
 
 The opposite of block-out-from: a layer surface matched by
 show-only-in "screencast" (or "screen-capture") is drawn only to those

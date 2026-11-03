@@ -35,17 +35,24 @@ Installed layout: `~/.local/lib/yami-niri/<rev>/niri`, `current` → the live bu
    `show-only-in "screencast"` (or `"screen-capture"`) is drawn only to those targets, never on
    the monitor. The shell's privacy curtain (Mod+Shift+H) uses it: stream viewers see a cover,
    you see the desktop. The look is the shell's; the compositor only decides where it shows.
+5. **Layer rule `hide-from`, covers over window casts**: like `block-out-from`, but the surface
+   is not drawn to those targets at all instead of as a black box over its whole rectangle (shadow
+   margins included). The shell hides its notifications and the curtain's «hidden» badge from
+   recordings with it. A window screencast draws `show-only-in "screencast"` layers over the
+   window too, shifted to where the window is on the monitor, so the curtain also covers a single
+   shared window.
 
 `niri --version` says `26.04-yami.N (<rev>)`, where N is the series level (the number of patches).
 The shell detects the fork by `yami` and writes a fork-only key only when the running build's
-level has it (`show-only-in` from 4): right after a build the old binary runs until the next login.
+level has it (`show-only-in` from 4, `hide-from` from 5): right after a build the old binary runs until the next login.
 
 ## Rules
 
 - Keep the series small and upstream-shaped: every patch is one feature with a reason, and must
   apply to the pinned revs. No effects or eye candy in the compositor; the shell draws the look.
 - The config must stay valid for the packaged niri too, except for what the shell writes when it
-  sees the fork (`allow-tearing`, `show-only-in`); `session.sh` strips those before falling back.
+  sees the fork (`allow-tearing`, `show-only-in`, `hide-from`); `session.sh` strips or downgrades
+  them before falling back.
 - A patch that adds config the shell writes bumps the level in `VERSION`.
 - Updating: bump `NIRI_REV`/`SMITHAY_REV` in `yami-niri.sh`, rebase the series in
   `~/.cache/yami/niri-src`, re-export with

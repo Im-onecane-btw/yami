@@ -1,7 +1,7 @@
 From 5813a7ae8dbc2e90de38c3680e3e2cf9d537a9bd Mon Sep 17 00:00:00 2001
 From: yami <yami@localhost>
 Date: Tue, 3 Nov 2026 08:07:43 +0300
-Subject: [PATCH 3/4] yami: main thread at realtime priority
+Subject: [PATCH 3/5] yami: main thread at realtime priority
 
 SCHED_RR 1 with SCHED_RESET_ON_FORK when allowed (RLIMIT_RTPRIO or
 CAP_SYS_NICE), so a game loading every core doesn't make the desktop

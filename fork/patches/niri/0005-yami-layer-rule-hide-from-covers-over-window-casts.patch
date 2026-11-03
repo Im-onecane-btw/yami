@@ -1,0 +1,239 @@
+From 78cbb03a82234caf4094e19ec945ff742da4d104 Mon Sep 17 00:00:00 2001
+From: yami <yami@localhost>
+Date: Tue, 3 Nov 2026 19:35:54 +0300
+Subject: [PATCH 5/5] yami: layer rule hide-from, covers over window casts
+
+block-out-from draws a black box over the whole surface, shadow margins
+included, which looks broken for notifications and the shell's own
+badges in a stream. hide-from does not draw the surface to those
+targets at all.
+
+A window screencast drew only the window, so a show-only-in cover (the
+shell's privacy curtain) did not hide a window shared on its own. Such
+layers are now drawn over window casts too, shifted so the part of the
+cover where the window is on the monitor covers the window.
+---
+ docs/wiki/Configuration:-Layer-Rules.md | 16 ++++++
+ niri-config/src/layer_rule.rs           |  2 +
+ niri-config/src/lib.rs                  |  1 +
+ src/layer/mapped.rs                     | 11 +++-
+ src/layer/mod.rs                        |  6 +++
+ src/screencasting/mod.rs                | 70 ++++++++++++++++++++++++-
+ 6 files changed, 103 insertions(+), 3 deletions(-)
+
+diff --git a/docs/wiki/Configuration:-Layer-Rules.md b/docs/wiki/Configuration:-Layer-Rules.md
+index 7f044e54..5b7350bc 100644
+--- a/docs/wiki/Configuration:-Layer-Rules.md
++++ b/docs/wiki/Configuration:-Layer-Rules.md
+@@ -21,6 +21,7 @@ layer-rule {
+     block-out-from "screencast"
+     // block-out-from "screen-capture"
+     show-only-in "screencast"
++    hide-from "screencast"
+ 
+     shadow {
+         on
+@@ -160,6 +161,21 @@ layer-rule {
+ }
+ ```
+ 
++A window screencast draws such surfaces over the window too, shifted so that the part of the surface where the window is on the monitor covers the window.
++
++#### `hide-from`
++
++Like `block-out-from`, but the surface is not drawn to those targets at all instead of being drawn as a black box.
++Useful for notifications and other panels that should simply not appear in a stream or a recording.
++
++```kdl
++layer-rule {
++    match namespace="^notifications$"
++
++    hide-from "screen-capture"
++}
++```
++
+ #### `shadow`
+ 
+ <sup>Since: 25.02</sup>
+diff --git a/niri-config/src/layer_rule.rs b/niri-config/src/layer_rule.rs
+index 7bd262e6..c4a010db 100644
+--- a/niri-config/src/layer_rule.rs
++++ b/niri-config/src/layer_rule.rs
+@@ -15,6 +15,8 @@ pub struct LayerRule {
+     pub block_out_from: Option<BlockOutFrom>,
+     #[knuffel(child, unwrap(argument))]
+     pub show_only_in: Option<BlockOutFrom>,
++    #[knuffel(child, unwrap(argument))]
++    pub hide_from: Option<BlockOutFrom>,
+     #[knuffel(child, default)]
+     pub shadow: ShadowRule,
+     #[knuffel(child)]
+diff --git a/niri-config/src/lib.rs b/niri-config/src/lib.rs
+index 53ddd910..6e166bd7 100644
+--- a/niri-config/src/lib.rs
++++ b/niri-config/src/lib.rs
+@@ -1912,6 +1912,7 @@ mod tests {
+                         Screencast,
+                     ),
+                     show_only_in: None,
++                    hide_from: None,
+                     shadow: ShadowRule {
+                         off: false,
+                         on: false,
+diff --git a/src/layer/mapped.rs b/src/layer/mapped.rs
+index b6d1ae09..49c3f677 100644
+--- a/src/layer/mapped.rs
++++ b/src/layer/mapped.rs
+@@ -134,9 +134,16 @@ impl MappedLayer {
+         &self.surface
+     }
+ 
+-    /// `show-only-in`: not drawn to targets outside the given ones (e.g. the monitor).
++    /// `show-only-in`: not drawn to targets outside the given ones (e.g. the monitor);
++    /// `hide-from`: not drawn to the given ones.
+     pub fn hidden_for(&self, target: RenderTarget) -> bool {
+-        self.rules.show_only_in.is_some() && !target.should_block_out(self.rules.show_only_in)
++        (self.rules.show_only_in.is_some() && !target.should_block_out(self.rules.show_only_in))
++            || target.should_block_out(self.rules.hide_from)
++    }
++
++    /// Matched by `show-only-in` and drawn to this target: a cover for captures.
++    pub fn covers(&self, target: RenderTarget) -> bool {
++        self.rules.show_only_in.is_some() && !self.hidden_for(target)
+     }
+ 
+     pub fn rules(&self) -> &ResolvedLayerRules {
+diff --git a/src/layer/mod.rs b/src/layer/mod.rs
+index f5abeba9..2f81976f 100644
+--- a/src/layer/mod.rs
++++ b/src/layer/mod.rs
+@@ -19,6 +19,9 @@ pub struct ResolvedLayerRules {
+     /// Draw this layer surface only to these render targets (not on the monitor).
+     pub show_only_in: Option<BlockOutFrom>,
+ 
++    /// Do not draw this layer surface to these render targets (instead of a black box).
++    pub hide_from: Option<BlockOutFrom>,
++
+     /// Shadow overrides.
+     pub shadow: ShadowRule,
+ 
+@@ -72,6 +75,9 @@ impl ResolvedLayerRules {
+             if let Some(x) = rule.show_only_in {
+                 resolved.show_only_in = Some(x);
+             }
++            if let Some(x) = rule.hide_from {
++                resolved.hide_from = Some(x);
++            }
+             if let Some(x) = rule.geometry_corner_radius {
+                 resolved.geometry_corner_radius = Some(x);
+             }
+diff --git a/src/screencasting/mod.rs b/src/screencasting/mod.rs
+index 85b3180b..f9ddfeef 100644
+--- a/src/screencasting/mod.rs
++++ b/src/screencasting/mod.rs
+@@ -13,7 +13,8 @@ use smithay::backend::renderer::gles::GlesRenderer;
+ use smithay::desktop::Window;
+ use smithay::output::Output;
+ use smithay::reexports::gbm::Modifier;
+-use smithay::utils::{Physical, Point, Scale, Size};
++use smithay::desktop::layer_map_for_output;
++use smithay::utils::{Logical, Physical, Point, Scale, Size};
+ use zbus::object_server::SignalEmitter;
+ 
+ use crate::dbus::mutter_screen_cast::{self, CursorMode, ScreenCastToNiri, StreamTargetId};
+@@ -21,7 +22,9 @@ use crate::niri::{CastTarget, Niri, OutputRenderElements, PointerRenderElements,
+ use crate::niri_render_elements;
+ use crate::render_helpers::{RenderCtx, RenderTarget};
+ use crate::utils::{get_monotonic_time, CastSessionId, CastStreamId};
++use crate::render_helpers::xray::XrayPos;
+ use crate::window::mapped::{MappedId, WindowCastRenderElements};
++use crate::window::Mapped;
+ 
+ mod pw_utils;
+ use pw_utils::{Cast, CastSizeChange, CursorData, PipeWire, PwToNiri};
+@@ -226,6 +229,10 @@ impl State {
+                 }
+ 
+                 let main_start = elements.len();
++                self.niri
++                    .render_cover_for_window_cast(renderer, output, mapped, scale, &mut |elem| {
++                        elements.push(elem)
++                    });
+                 mapped.render_for_screen_cast(renderer, scale, &mut |elem| {
+                     elements.push(CastRenderElement::from(elem))
+                 });
+@@ -688,6 +695,9 @@ impl Niri {
+             }
+ 
+             let main_start = elements.len();
++            self.render_cover_for_window_cast(renderer, output, mapped, scale, &mut |elem| {
++                elements.push(elem)
++            });
+             mapped.render_for_screen_cast(renderer, scale, &mut |elem| {
+                 elements.push(CastRenderElement::from(elem))
+             });
+@@ -705,6 +715,64 @@ impl Niri {
+         }
+     }
+ 
++    /// Layer surfaces matched by `show-only-in "screencast"` cover monitor casts. A window cast
++    /// draws only the window, so draw them over it too, shifted so that the part of the cover
++    /// where the window is on the monitor lines up with the window.
++    fn render_cover_for_window_cast(
++        &self,
++        renderer: &mut GlesRenderer,
++        output: &Output,
++        mapped: &Mapped,
++        scale: Scale<f64>,
++        push: &mut dyn FnMut(CastRenderElement<GlesRenderer>),
++    ) {
++        let layer_map = layer_map_for_output(output);
++        let covers: Vec<_> = layer_map
++            .layers()
++            .filter_map(|surface| {
++                let layer = self.mapped_layer_surfaces.get(surface)?;
++                layer.covers(RenderTarget::Screencast).then_some(())?;
++                Some((layer, layer_map.layer_geometry(surface)?))
++            })
++            .collect();
++        if covers.is_empty() {
++            return;
++        }
++
++        // Where the window geometry is on the output (unknown when its workspace is not shown).
++        let mut pos = Point::<f64, Logical>::default();
++        self.layout.with_windows(|win, win_output, _, layout| {
++            if win.id() == mapped.id() && win_output == Some(output) {
++                if let Some((x, y)) = layout.tile_pos_in_workspace_view {
++                    let (dx, dy) = layout.window_offset_in_tile;
++                    pos = Point::from((x + dx, y + dy));
++                }
++            }
++        });
++        // The cast buffer starts at the window's bbox (popups included), see
++        // render_for_screen_cast().
++        let geo = mapped.window.geometry().loc.to_f64();
++        let bbox = mapped
++            .window
++            .bbox_with_popups()
++            .to_physical_precise_up(scale)
++            .to_logical(scale)
++            .loc;
++        let origin = pos - geo + bbox;
++
++        for (layer, layer_geo) in covers {
++            let ctx = RenderCtx {
++                renderer: &mut *renderer,
++                target: RenderTarget::Screencast,
++                xray: None,
++            };
++            let loc = layer_geo.loc.to_f64() - origin;
++            layer.render_normal(ctx, None, loc, XrayPos::default(), &mut |elem| {
++                push(CastRenderElement::from(OutputRenderElements::from(elem)))
++            });
++        }
++    }
++
+     pub fn stop_cast(&mut self, session_id: CastSessionId) {
+         let _span = tracy_client::span!("Niri::stop_cast");
+         let _span = debug_span!("stop_cast", %session_id).entered();

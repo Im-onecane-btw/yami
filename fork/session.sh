@@ -6,7 +6,7 @@ FORK="$HOME/.local/lib/yami-niri/current/niri"
 fallback() {
     # the packaged niri does not know the fork's window rules: drop them (the shell rewrites the file)
     fx="${XDG_CONFIG_HOME:-$HOME/.config}/niri/yami-fx.kdl"
-    [ -f "$fx" ] && sed -i '/allow-tearing/d; /show-only-in/d' "$fx"
+    [ -f "$fx" ] && sed -i '/allow-tearing/d; /show-only-in/d; s/hide-from /block-out-from /' "$fx"
     for n in /usr/bin/niri /usr/local/bin/niri; do
         [ -x "$n" ] && { echo "yami-niri: $1, starting $n" >&2; exec "$n" --session; }
     done

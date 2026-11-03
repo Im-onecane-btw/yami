@@ -1,7 +1,7 @@
 From 0f61a05a4a97cdf9830aad1264fa122bb60a6c1f Mon Sep 17 00:00:00 2001
 From: yami <yami@localhost>
 Date: Tue, 3 Nov 2026 08:07:43 +0300
-Subject: [PATCH 2/4] yami: window rule allow-tearing
+Subject: [PATCH 2/5] yami: window rule allow-tearing
 
 A fullscreen window on top of its output whose rules say
 allow-tearing true gets async page flips: its frames are shown at once
