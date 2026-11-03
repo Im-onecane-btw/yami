@@ -472,6 +472,25 @@ impl Fm {
                     err.clear();
                 }
             }
+            Dlg::Server { addr, user, pass, field, err, busy, .. } => {
+                if *busy {
+                    return;
+                }
+                match k.sym {
+                    Keysym::Tab | Keysym::Down => *field = (*field + 1) % 3,
+                    Keysym::ISO_Left_Tab | Keysym::Up => *field = (*field + 2) % 3,
+                    _ => {
+                        let f = match field {
+                            0 => addr,
+                            1 => user,
+                            _ => pass,
+                        };
+                        if edit(f, k) {
+                            err.clear();
+                        }
+                    }
+                }
+            }
             Dlg::OpenWith { f, sel, scroll, .. } => match k.sym {
                 Keysym::Down => *sel += 1,
                 Keysym::Up => *sel = sel.saturating_sub(1),

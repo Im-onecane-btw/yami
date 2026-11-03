@@ -296,7 +296,7 @@ impl App {
             self.dirty = true;
         }
         // мигание курсора в полях
-        let typing = self.fm.focus != Focus::Content || self.fm.dlg.as_ref().map(|d| matches!(d.0, Dlg::Name { .. } | Dlg::OpenWith { .. })).unwrap_or(false) || self.fm.v().rename.is_some() || self.fm.pick.as_ref().map(|p| p.name_focus).unwrap_or(false);
+        let typing = self.fm.focus != Focus::Content || self.fm.dlg.as_ref().map(|d| matches!(d.0, Dlg::Name { .. } | Dlg::OpenWith { .. } | Dlg::Server { .. })).unwrap_or(false) || self.fm.v().rename.is_some() || self.fm.pick.as_ref().map(|p| p.name_focus).unwrap_or(false);
         if typing && self.blink_at.elapsed().as_millis() > 530 {
             self.blink = !self.blink;
             self.blink_at = Instant::now();
@@ -348,6 +348,7 @@ impl App {
                         self.fm.devs = d;
                     }
                 }
+                Msg::Remote { uri, res, auth } => self.fm.on_remote(uri, res, auth),
                 Msg::Mounted { err, open } => {
                     if let Some(e) = err {
                         self.fm.toast(e);
@@ -1015,6 +1016,12 @@ impl App {
                 None => fm.run(Cmd::Mount(i)),
             },
             Act::Eject(i) => fm.run(Cmd::Unmount(i)),
+            Act::Connect => fm.run(Cmd::Connect(String::new())),
+            Act::DlgFocus(n) => {
+                if let Some((Dlg::Server { field, .. }, _)) = &mut fm.dlg {
+                    *field = n;
+                }
+            }
             Act::Item(p, i) => {
                 fm.set_active(p);
                 let single = fm.cfg.single_click && !self.mods.ctrl && !self.mods.shift;
@@ -1092,7 +1099,12 @@ impl App {
                     "confirmTrash" => c.confirm_trash = !c.confirm_trash,
                     "split" => c.split = !c.split,
                     "desc" => c.desc = !c.desc,
+                    "devices" => c.devices = !c.devices,
+                    "network" => c.network = !c.network,
                     _ => {}
+                }
+                if matches!(k, "devices" | "network") {
+                    fm.refresh_devices();
                 }
                 fm.refilter_all();
             }

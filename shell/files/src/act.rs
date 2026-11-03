@@ -17,6 +17,10 @@ pub enum Act {
     PlaceTrash,
     Dev(usize),
     Eject(usize),
+    /// «подключиться к серверу…» в разделе «сеть»
+    Connect,
+    /// поле окна подключения: 0 адрес, 1 логин, 2 пароль
+    DlgFocus(u8),
     Item(usize, usize),
     Bg(usize),
     Bar(usize),

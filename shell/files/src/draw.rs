@@ -9,6 +9,7 @@ use crate::fsx::{self, Sort};
 use crate::gfx::{BoxStyle, C, R};
 use crate::mime::{self, Kind};
 use crate::picons::{self, Special};
+use crate::places::DevKind;
 use crate::ui::{Cur, Tone};
 use std::time::Instant;
 
@@ -455,43 +456,77 @@ fn sidebar(ui: &mut Ui, fm: &Fm, r: R) {
         raw_center(ui, PX, br, &n, t.text_dim);
     }
     y += rh + 12;
-    if !fm.devs.is_empty() {
+    let local: Vec<usize> = (0..fm.devs.len()).filter(|&i| fm.devs[i].kind != DevKind::Net).collect();
+    if !local.is_empty() {
         section(ui, x, y, w, "устройства");
         y += 22;
-        for (i, d) in fm.devs.iter().enumerate() {
-            let rr = R::new(x, y, w, rh + 8);
-            let active = d.mount.as_ref().map(|m| !v.trash && v.dir.starts_with(m) && (m != std::path::Path::new("/") || !fm.devs.iter().any(|o| o.mount.as_ref().map(|om| om != m && v.dir.starts_with(om)).unwrap_or(false)) && !v.dir.starts_with(crate::paths::home()))).unwrap_or(false);
-            let hov = ui.hover(rr);
-            if active {
-                ui.cv.pxbox(rr, &BoxStyle::new(t.blood.alpha(0.85), C(0)));
-                ui.cv.fill(R::new(rr.x, rr.y + 3, 2, rr.h - 6), t.ember);
-            } else if hov {
-                ui.cv.pxbox(rr, &BoxStyle::new(t.surface_hi, C(0)));
-            }
-            let sp = if d.mount.as_deref() == Some(std::path::Path::new("/")) { Special::Root } else if d.removable { Special::Usb } else { Special::Drive };
-            picons::draw(&mut ui.cv, &t, Kind::Other, sp, rr.x + 8, rr.y + 4, 1, picons::Look { dim: d.mount.is_none(), link: false, selected: active });
-            let title = d.title();
-            let tc = if d.mount.is_none() { t.text_dim } else if active { C(0xffffffff) } else { t.text };
-            let eject = d.mount.is_some() && d.mount.as_deref() != Some(std::path::Path::new("/")) && (d.removable || hov);
-            raw(ui, PX, R::new(rr.x + 32, rr.y + 1, rr.w - 40 - if eject { 22 } else { 0 }, 18), &title, tc);
-            // заполненность — шкала из клеток
-            if let Some(m) = &d.mount {
-                if let Some((free, total)) = fsx::disk_free(m) {
-                    let used = 1.0 - free as f32 / total.max(1) as f32;
-                    let c = if used > 0.9 { t.warn } else { t.red };
-                    ui.cv.gauge(R::new(rr.x + 32, rr.y + 21, rr.w - 44, 6), 12, used, c, t.surface.lerp(t.border, 0.4), 1);
-                }
-            } else {
-                ui.text_in(PX, R::new(rr.x + 32, rr.y + 16, rr.w - 40, 16), "не подключён", t.text_faint);
-            }
-            ui.zone(rr, Act::Dev(i), Cur::Pointer);
-            if eject {
-                ui.button(R::new(rr.right() - 24, rr.y + 4, 20, 20), "", "up", Tone::Ghost, false, true, Act::Eject(i));
-            }
-            y += rh + 10;
+        for i in local {
+            y = dev_row(ui, fm, i, x, y, w, rh);
         }
     }
+    if fm.cfg.network {
+        y += 2;
+        section(ui, x, y, w, "сеть");
+        y += 22;
+        for i in (0..fm.devs.len()).filter(|&i| fm.devs[i].kind == DevKind::Net) {
+            y = dev_row(ui, fm, i, x, y, w, rh);
+        }
+        side_row(ui, fm, R::new(x, y, w, rh), "подключиться…", Special::Net, false, Act::Connect, true);
+    }
     ui.cv.pop_clip();
+}
+
+/// строка устройства: значок, имя, заполненность или «не подключён», кнопка «извлечь»
+fn dev_row(ui: &mut Ui, fm: &Fm, i: usize, x: i32, y: i32, w: i32, rh: i32) -> i32 {
+    let t = ui.t;
+    let v = fm.v();
+    let d = &fm.devs[i];
+    let rr = R::new(x, y, w, rh + 8);
+    let root = d.mount.as_deref() == Some(std::path::Path::new("/"));
+    let active = d.mount.as_ref().map(|m| !v.trash && v.dir.starts_with(m) && (m != std::path::Path::new("/") || !fm.devs.iter().any(|o| o.mount.as_ref().map(|om| om != m && v.dir.starts_with(om)).unwrap_or(false)) && !v.dir.starts_with(crate::paths::home()))).unwrap_or(false);
+    let hov = ui.hover(rr);
+    if active {
+        ui.cv.pxbox(rr, &BoxStyle::new(t.blood.alpha(0.85), C(0)));
+        ui.cv.fill(R::new(rr.x, rr.y + 3, 2, rr.h - 6), t.ember);
+    } else if hov {
+        ui.cv.pxbox(rr, &BoxStyle::new(t.surface_hi, C(0)));
+    }
+    let sp = match d.kind {
+        DevKind::Phone => Special::Phone,
+        DevKind::Camera => Special::Camera,
+        DevKind::Net => Special::Net,
+        DevKind::Disk if root => Special::Root,
+        DevKind::Disk if d.removable => Special::Usb,
+        DevKind::Disk => Special::Drive,
+    };
+    picons::draw(&mut ui.cv, &t, Kind::Other, sp, rr.x + 8, rr.y + 4, 1, picons::Look { dim: d.mount.is_none(), link: false, selected: active });
+    let title = d.title();
+    let tc = if d.mount.is_none() { t.text_dim } else if active { C(0xffffffff) } else { t.text };
+    let eject = d.mount.is_some() && !root && (d.removable || hov);
+    raw(ui, PX, R::new(rr.x + 32, rr.y + 1, rr.w - 40 - if eject { 22 } else { 0 }, 18), &title, tc);
+    match &d.mount {
+        // заполненность — шкала из клеток (у сети и телефонов её может не быть)
+        Some(m) => match fsx::disk_free(m).filter(|_| d.kind == DevKind::Disk || d.kind == DevKind::Phone) {
+            Some((free, total)) if total > 0 => {
+                let used = 1.0 - free as f32 / total as f32;
+                let c = if used > 0.9 { t.warn } else { t.red };
+                ui.cv.gauge(R::new(rr.x + 32, rr.y + 21, rr.w - 44, 6), 12, used, c, t.surface.lerp(t.border, 0.4), 1);
+            }
+            _ => {
+                let s = if d.kind == DevKind::Net { d.uri.split("://").next().filter(|s| !s.is_empty()).unwrap_or(&d.fstype).to_string() } else { String::new() };
+                raw(ui, PX, R::new(rr.x + 32, rr.y + 16, rr.w - 40, 16), &s, t.text_faint);
+            }
+        },
+        None => {
+            let s = if d.kind != DevKind::Disk && d.uri.is_empty() { "нужен gvfs-mtp" } else { "не подключён" };
+            ui.text_in(PX, R::new(rr.x + 32, rr.y + 16, rr.w - 40, 16), s, t.text_faint);
+        }
+    }
+    ui.zone(rr, Act::Dev(i), Cur::Pointer);
+    if eject {
+        ui.button(R::new(rr.right() - 24, rr.y + 4, 20, 20), "", "up", Tone::Ghost, false, true, Act::Eject(i));
+    }
+    y + rh + 10
 }
 
 // ── панель с файлами ────────────────────────────────────────────────────────
@@ -1212,6 +1247,37 @@ fn dialog(ui: &mut Ui, fm: &Fm, d: &Dlg, born: Instant, w: i32, h: i32) {
             buttons(ui, r, &[("отмена", "cancel", Tone::Plain), ("создать", "ok", Tone::Primary)]);
             dissolve_dlg(ui, fm, born, r);
         }
+        Dlg::Server { addr, user, pass, field, err, question, busy } => {
+            let dh = if question.is_some() { 330 } else { 280 };
+            let r = dlg_frame(ui, fm, born, w, h, 480, dh, "net", "подключиться к серверу");
+            let lx = r.x + 16;
+            let fx = r.x + 110;
+            let fw = r.right() - 16 - fx;
+            let mut y = r.y + 50;
+            let rows: [(&str, &str, &yami_px::ui::Field, bool); 3] = [("адрес", "smb://nas/share", addr, false), ("логин", "необязательно", user, false), ("пароль", "", pass, true)];
+            for (n, (label, ph, f, pw)) in rows.into_iter().enumerate() {
+                ui.text_in(PX, R::new(lx, y, 90, 32), label, t.text_dim);
+                let fr = R::new(fx, y, fw, 32);
+                ui.field(fr, f, ph, *field as usize == n && !busy, pw, Act::DlgFocus(n as u8));
+                y += 40;
+            }
+            ui.text_in(PX, R::new(lx, y, r.w - 32, 18), "smb · sftp · ftp · davs · nfs · домен — ДОМЕН\\логин", t.text_faint);
+            y += 24;
+            if let Some(q) = question {
+                ui.cv.fill(R::new(lx, y + 6, 6, 6), t.warn);
+                raw(ui, PX, R::new(lx + 14, y, r.w - 46, 18), q, t.warn);
+                ui.text_in(PX, R::new(lx + 14, y + 20, r.w - 46, 18), "сервер просит подтверждения: подключиться всё равно?", t.text_dim);
+            }
+            if *busy {
+                let dots = ".".repeat(1 + (born.elapsed().as_millis() / 300 % 3) as usize);
+                raw(ui, PX, R::new(lx, r.bottom() - 40, r.w / 2, 20), &format!("{}{dots}", crate::i18n::tr("подключаю")), t.text_dim);
+                ui.anim = true;
+            } else if !err.is_empty() {
+                raw(ui, PX, R::new(lx, r.bottom() - 70, r.w - 32, 20), err, t.warn);
+            }
+            buttons(ui, r, &[("отмена", "cancel", Tone::Plain), (if question.is_some() { "подключиться всё равно" } else { "подключить" }, "ok", Tone::Primary)]);
+            dissolve_dlg(ui, fm, born, r);
+        }
         Dlg::Confirm { title, text, ok, .. } => {
             let r = dlg_frame(ui, fm, born, w, h, 460, 160, "trash", title);
             let lines = label_lines(ui.f, PX, &crate::i18n::tr(text).to_string(), r.w - 32, 3);
@@ -1381,7 +1447,7 @@ fn props(ui: &mut Ui, fm: &Fm, born: Instant, w: i32, h: i32, paths: &[std::path
 
 fn settings(ui: &mut Ui, fm: &Fm, born: Instant, w: i32, h: i32) {
     let t = ui.t;
-    let r = dlg_frame(ui, fm, born, w, h, 560, 470, "gear", "настройки файлов");
+    let r = dlg_frame(ui, fm, born, w, h, 560, 520, "gear", "настройки файлов");
     let x = r.x + 18;
     let cw = (r.w - 52) / 2;
     let mut y = r.y + 50;
@@ -1397,11 +1463,13 @@ fn settings(ui: &mut Ui, fm: &Fm, born: Instant, w: i32, h: i32) {
         ("места слева", "", c.sidebar, "sidebar"),
         ("сведения справа", "f11", c.info, "info"),
     ];
-    let rows_r: [(&str, &str, bool, &str); 4] = [
+    let rows_r: [(&str, &str, bool, &str); 6] = [
         ("открывать одним щелчком", "", c.single_click, "singleClick"),
         ("спрашивать перед корзиной", "", c.confirm_trash, "confirmTrash"),
         ("новое окно — две панели", "f3", c.split, "split"),
         ("по убыванию", "", c.desc, "desc"),
+        ("устройства слева", "диски, телефоны", c.devices, "devices"),
+        ("сеть слева", "smb, sftp, ftp", c.network, "network"),
     ];
     let mut yl = y;
     for (label, hint, on, key) in rows_l {

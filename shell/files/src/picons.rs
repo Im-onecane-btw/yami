@@ -120,6 +120,63 @@ const USB: [&str; 16] = [
     "................",
 ];
 
+const PHONE: [&str; 16] = [
+    "....OOOOOOOO....",
+    "...OPPPPPPPPO...",
+    "...OPPOOOOPPO...",
+    "...OAAAAAAAAO...",
+    "...OAEEEEEEAO...",
+    "...OAEAAAAAAO...",
+    "...OAAAAAAAAO...",
+    "...OAAAAAAAAO...",
+    "...OAAAAAAAAO...",
+    "...OAAAAAAAAO...",
+    "...OAAAAAAAAO...",
+    "...ODDDDDDDDO...",
+    "...OPPPPPPPPO...",
+    "...OPPPOOPPPO...",
+    "....OOOOOOOO....",
+    "................",
+];
+
+const CAMERA: [&str; 16] = [
+    "................",
+    "................",
+    "................",
+    ".....OOOOO......",
+    "....OPPPPPO.....",
+    ".OOOOOOOOOOOOOO.",
+    "OPPPPPOOOOPPEEPO",
+    "OPPPPOAAAAOPPPPO",
+    "OPPPOAAEEAAOPPPO",
+    "OPPPOAAEAAAOPPPO",
+    "OPPPOAAAAAAOPPPO",
+    "OPPPPOAAAAOPPPPO",
+    "OFFFFFOOOOFFFFFO",
+    ".OOOOOOOOOOOOOO.",
+    "................",
+    "................",
+];
+
+const NET: [&str; 16] = [
+    "................",
+    "..OOOOOOOOOOOO..",
+    "..OPPPPPPPPPPO..",
+    "..OPAAAAAAAAPO..",
+    "..OPAEEAAAAAPO..",
+    "..OPAAAAAAAAPO..",
+    "..OPAAAAAAAAPO..",
+    "..OPPPPPPPPPPO..",
+    "..OOOOOOOOOOOO..",
+    ".......OO.......",
+    ".......OO.......",
+    "OOOOOOOOOOOOOOOO",
+    "OFFFO.......OFFO",
+    "OOOOO.......OOOO",
+    "................",
+    "................",
+];
+
 /// дополнительные глифы 7×7 для типов файлов
 fn glyph(name: &str) -> Option<&'static [&'static str; 7]> {
     Some(match name {
@@ -158,6 +215,9 @@ pub enum Special {
     Usb,
     Root,
     Star,
+    Phone,
+    Camera,
+    Net,
 }
 
 fn bitmap(cv: &mut Canvas, rows: &[&str; 16], x: i32, y: i32, u: i32, pal: &dyn Fn(u8) -> Option<C>) {
@@ -244,6 +304,9 @@ pub fn draw(cv: &mut Canvas, t: &Theme, kind: Kind, sp: Special, x: i32, y: i32,
         (_, Special::Drive) => (&DRIVE, "", dark),
         (_, Special::Root) => (&DRIVE, "", dark),
         (_, Special::Usb) => (&USB, "", dark),
+        (_, Special::Phone) => (&PHONE, "", dark),
+        (_, Special::Camera) => (&CAMERA, "", dark),
+        (_, Special::Net) => (&NET, "", dark),
         (Kind::Dir, s) => (
             &FOLDER,
             match s {

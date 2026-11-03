@@ -13,6 +13,7 @@ const DEPS: &[(&str, &str, &str, bool)] = &[
     ("grim", "скриншоты, шторка", "screenshots, the curtain", false),
     ("wl-copy", "буфер обмена", "clipboard", false),
     ("wl-paste", "буфер обмена", "clipboard", false),
+    ("gio", "телефоны и сеть в файлах (gvfs)", "phones and network in files (gvfs)", false),
     ("cliphist", "история буфера", "clipboard history", false),
     ("pactl", "звук", "sound", false),
     ("parec", "визуализатор музыки", "music visualizer", false),

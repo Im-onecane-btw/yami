@@ -172,10 +172,21 @@ pub fn for_dev(fm: &Fm, i: usize) -> Vec<MItem> {
         Some(p) => {
             m.push(MItem::new("открыть", "right", "", Cmd::Go(p.clone())));
             if p != std::path::Path::new("/") {
-                m.push(MItem::new(if d.removable { "извлечь" } else { "отключить" }, "up", "", Cmd::Unmount(i)));
+                let eject = d.removable && d.kind != crate::places::DevKind::Net;
+                m.push(MItem::new(if eject { "извлечь" } else { "отключить" }, "up", "", Cmd::Unmount(i)));
             }
         }
         None => m.push(MItem::new("подключить", "down", "", Cmd::Mount(i))),
+    }
+    // сеть: войти под другим логином и забыть адрес
+    if d.kind == crate::places::DevKind::Net && !d.uri.is_empty() {
+        let keep = crate::remote::strip_secret(&d.uri);
+        if d.mount.is_none() {
+            m.push(MItem::new("подключить как…", "user", "", Cmd::Connect(keep.clone())));
+        }
+        if fm.cfg.servers.contains(&keep) {
+            m.push(MItem::new("забыть адрес", "close", "", Cmd::Forget(keep)));
+        }
     }
     m
 }

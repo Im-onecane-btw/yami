@@ -18,8 +18,12 @@ pub struct Cfg {
     /// миниатюры для картинок не больше, МБ
     pub thumb_max_mb: u32,
     pub sidebar: bool,
-    /// диски и флешки в боковой панели
+    /// диски, флешки, телефоны и камеры в боковой панели
     pub devices: bool,
+    /// раздел «сеть»: сетевые ресурсы и «подключиться к серверу»
+    pub network: bool,
+    /// адреса серверов, к которым подключались (без паролей)
+    pub servers: Vec<String>,
     /// панель сведений справа
     pub info: bool,
     pub terminal: String,
@@ -44,6 +48,8 @@ impl Default for Cfg {
             thumb_max_mb: 40,
             sidebar: true,
             devices: true,
+            network: true,
+            servers: vec![],
             info: false,
             terminal: "kitty".into(),
             confirm_trash: false,

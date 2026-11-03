@@ -11,7 +11,7 @@ use crate::icons::Icons;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-const TARGETS: &[&str] = &["grid", "list", "split", "info", "menu", "menu-bg", "main-menu", "props", "settings", "new-folder", "conflict", "open-with", "pick-save", "pick-open", "trash", "rename", "empty", "icons"];
+const TARGETS: &[&str] = &["grid", "list", "split", "info", "menu", "menu-bg", "main-menu", "props", "settings", "new-folder", "conflict", "open-with", "pick-save", "pick-open", "trash", "rename", "empty", "icons", "server"];
 
 fn fixture(root: &Path) {
     let _ = std::fs::remove_dir_all(root);
@@ -99,7 +99,16 @@ pub fn run(args: &[String]) -> i32 {
         }
         let mut fm = Fm::new(look.clone(), cfg, vec![root.clone()], None);
         fm.born = Instant::now() - Duration::from_secs(5);
-        fm.devs = vec![crate::places::Dev { dev: "/dev/nvme0n1p2".into(), label: String::new(), size: 1_000_000_000_000, mount: Some("/".into()), removable: false, fstype: "btrfs".into() }, crate::places::Dev { dev: "/dev/sdb1".into(), label: "FLASH".into(), size: 32_000_000_000, mount: None, removable: true, fstype: "vfat".into() }];
+        {
+            use crate::places::{Dev, DevKind};
+            let d = |dev: &str, uri: &str, label: &str, size: u64, mount: Option<&str>, kind: DevKind| Dev { dev: dev.into(), uri: uri.into(), label: label.into(), size, mount: mount.map(Into::into), removable: kind != DevKind::Disk || dev == "/dev/sdb1", fstype: if kind == DevKind::Disk { "btrfs".into() } else { String::new() }, kind };
+            fm.devs = vec![
+                d("/dev/nvme0n1p2", "", "", 1_000_000_000_000, Some("/"), DevKind::Disk),
+                d("/dev/sdb1", "", "FLASH", 32_000_000_000, None, DevKind::Disk),
+                d("", "mtp://Google_Pixel_8/", "Pixel 8", 0, None, DevKind::Phone),
+                d("", "smb://nas/media/", "", 0, None, DevKind::Net),
+            ];
+        }
         let (w, h) = (1060, 660);
         fm.w = w;
         fm.h = h;
@@ -138,6 +147,12 @@ pub fn run(args: &[String]) -> i32 {
                 fm.run(crate::fm::Cmd::Props);
             }
             "settings" => fm.run(crate::fm::Cmd::Settings),
+            "server" => {
+                fm.server_dlg("sftp://me@nas.local/", String::new(), None);
+                if let Some((crate::fm::Dlg::Server { err, .. }, _)) = &mut fm.dlg {
+                    *err = crate::i18n::tr("неверный логин или пароль").to_string();
+                }
+            }
             "new-folder" => fm.run(crate::fm::Cmd::NewFolder),
             "conflict" => {
                 let (tx, _rx) = std::sync::mpsc::channel();

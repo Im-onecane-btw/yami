@@ -1,5 +1,5 @@
 // Боковая панель: места (дом и папки XDG), закладки (общие с GTK: ~/.config/gtk-3.0/bookmarks),
-// устройства (lsblk; подключение через udisksctl), корзина.
+// устройства (lsblk; подключение через udisksctl; телефоны и сеть — remote.rs через gvfs), корзина.
 
 use crate::picons::Special;
 use std::path::{Path, PathBuf};
@@ -111,18 +111,33 @@ pub fn standard() -> Vec<Place> {
 }
 
 // ── устройства ─────────────────────────────────────────────────────────────
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum DevKind {
+    Disk,
+    Phone,
+    Camera,
+    Net,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Dev {
+    /// блочное устройство (/dev/sdb1) или источник сетевого монтирования ядра
     pub dev: String,
+    /// адрес gvfs (mtp://…, smb://host/share/); пусто у дисков
+    pub uri: String,
     pub label: String,
     pub size: u64,
     pub mount: Option<PathBuf>,
     pub removable: bool,
     pub fstype: String,
+    pub kind: DevKind,
 }
 
 impl Dev {
     pub fn title(&self) -> String {
+        if self.kind != DevKind::Disk {
+            return if self.label.is_empty() { crate::remote::title_of(&self.uri) } else { self.label.clone() };
+        }
         if self.mount.as_deref() == Some(Path::new("/")) {
             return crate::i18n::tr("система").to_string();
         }
@@ -133,8 +148,30 @@ impl Dev {
     }
 }
 
+/// всё для боковой панели: диски (`disks`), телефоны и камеры, сеть (`net`) с сохранёнными адресами
+pub fn devices(disks: bool, net: bool, servers: &[String]) -> Vec<Dev> {
+    let mut out = if disks { drives() } else { vec![] };
+    let remote = crate::remote::gvfs_devices();
+    if disks {
+        out.extend(remote.iter().filter(|d| d.kind != DevKind::Net).cloned());
+    }
+    if net {
+        let mut n: Vec<Dev> = remote.into_iter().filter(|d| d.kind == DevKind::Net).collect();
+        n.extend(crate::remote::kernel_net());
+        // сохранённые адреса, которые сейчас не подключены
+        for s in servers {
+            let k = s.trim_end_matches('/');
+            if !n.iter().any(|d| !d.uri.is_empty() && crate::remote::strip_secret(&d.uri).trim_end_matches('/') == k) {
+                n.push(Dev { dev: String::new(), uri: s.clone(), label: crate::remote::title_of(s), size: 0, mount: None, removable: true, fstype: String::new(), kind: DevKind::Net });
+            }
+        }
+        out.extend(n);
+    }
+    out
+}
+
 /// разделы с файловыми системами: смонтированные и те, что можно смонтировать
-pub fn devices() -> Vec<Dev> {
+fn drives() -> Vec<Dev> {
     let Ok(o) = std::process::Command::new("lsblk").args(["-J", "-b", "-o", "PATH,LABEL,SIZE,MOUNTPOINTS,FSTYPE,HOTPLUG,RM,TYPE"]).output() else { return vec![] };
     let Ok(v) = serde_json::from_slice::<serde_json::Value>(&o.stdout) else { return vec![] };
     let mut out = vec![];
@@ -155,7 +192,7 @@ pub fn devices() -> Vec<Dev> {
             let shown = removable || mount.is_none() || mount.as_deref().map(|m| m == Path::new("/") || m.starts_with("/mnt") || m.starts_with("/media") || m.starts_with("/run/media") || m.starts_with("/home/")).unwrap_or(false);
             let mount_dup = mount.as_deref().map(|m| m.starts_with("/var") || m.starts_with("/home") && m.components().count() <= 2 || m == Path::new("/home") || m.starts_with("/.snapshots") || m.starts_with("/srv") || m.starts_with("/root") || m.starts_with("/var/cache")).unwrap_or(false);
             if shown && !mount_dup && !(mount.is_none() && !removable && fs == "vfat") {
-                out.push(Dev { dev: s("path"), label: s("label"), size, mount: mount.clone(), removable, fstype: fs });
+                out.push(Dev { dev: s("path"), uri: String::new(), label: s("label"), size, mount: mount.clone(), removable, fstype: fs, kind: DevKind::Disk });
             }
         }
         if let Some(ch) = n.get("children").and_then(|c| c.as_array()) {
