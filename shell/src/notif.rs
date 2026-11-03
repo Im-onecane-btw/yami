@@ -112,8 +112,15 @@ pub fn draw(ui: &mut Ui, st: &State, _w: i32, _h: i32) {
         ui.cv.pxbox(r, &BoxStyle::new(t.glass_panel(), if n.critical { t.ember } else if hov { t.red } else { t.border }).shadow(4));
         ui.cv.fill(R::new(r.x + 2, r.y + 2, 3, r.h - 4), if n.critical { t.ember } else { t.red });
         if !n.critical && n.life > 0.0 {
-            let lw = (((r.w - 9) as f32 * (n.left / n.life).clamp(0.0, 1.0)) / 2.0).round() as i32 * 2;
+            // остаток — по часам, а не по тику (100 мс): полоса идёт шагами по 2 px каждый кадр;
+            // под курсором время стоит, и перерисовывать нечего
+            let ticking = !st.notifs.hover;
+            let left = n.left - if ticking { st.notifs.last.map(|l| l.elapsed().as_secs_f32()).unwrap_or(0.0) } else { 0.0 };
+            let lw = (((r.w - 9) as f32 * (left / n.life).clamp(0.0, 1.0)) / 2.0).round() as i32 * 2;
             ui.cv.fill(R::new(r.x + 5, r.bottom() - 4, lw, 2), t.red.fade(0.6));
+            if ticking {
+                ui.anim = true;
+            }
         }
         ui.zone(r, Act::NotifClick(n.id), Cur::Pointer);
         draw_card(ui, n, R::new(r.x + 14, r.y + 8, r.w - 24, r.h - 16), true);
