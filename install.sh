@@ -38,6 +38,8 @@ if [[ ! -f $ROOT/shell/Cargo.toml || ! -f $ROOT/fork/yami-niri.sh ]]; then
   SRC_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/yami/src"
   command -v git >/dev/null || { echo "yami: git is needed to fetch the installer (install git first)" >&2; exit 1; }
   if [[ -d $SRC_DIR/.git ]]; then
+    # a clone of an older address follows the current one
+    [[ "$(git -C "$SRC_DIR" remote get-url origin 2>/dev/null)" == "$YAMI_REPO" ]] || git -C "$SRC_DIR" remote set-url origin "$YAMI_REPO"
     git -C "$SRC_DIR" pull --ff-only --quiet || echo "yami: could not update $SRC_DIR, using it as is" >&2
   else
     mkdir -p "${SRC_DIR%/*}"
