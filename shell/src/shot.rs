@@ -67,6 +67,7 @@ const TARGETS: &[&str] = &[
     "settings:updates",
     "settings:updates-new",
     "settings:updates-busy",
+    "settings:updates-pick",
     "dock",
 ];
 

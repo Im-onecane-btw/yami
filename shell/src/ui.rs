@@ -35,6 +35,8 @@ pub enum Act {
     SBool(&'static str),
     SSlider(&'static str, f32, f32, i32),
     SCycle(&'static str),
+    /// вкладка «обновления»: выбрать, куда откатиться («prev» — прошлая сборка, иначе версия)
+    UpdSel(String),
     /// шторка для трансляций: опустить / поднять
     Curtain,
     /// вкладка «обои» (wall.rs)

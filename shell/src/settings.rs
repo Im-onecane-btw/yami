@@ -1067,7 +1067,7 @@ impl App {
                     self.st.wall_field.set(&p);
                 }
             }
-            _ => return self.wall_click(a) || self.keys_click(a),
+            _ => return self.wall_click(a) || self.keys_click(a) || self.update_click(a),
         }
         self.dirty(&SKind::Modal);
         true

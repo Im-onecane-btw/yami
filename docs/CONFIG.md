@@ -33,7 +33,7 @@ yami restart                              # restart the shell (refuses while a g
 yami status                               # shell, portal, niri, last update check
 yami doctor                               # programs, D-Bus services, config: what is missing and what it costs
 yami version                              # every part with the installed commit
-yami update [check|apply|rollback|status|log]
+yami update [check|apply|list|to X.Y.Z|rollback|status|log]
 yami msg <command>                        # raw shell command (yami help msg)
 yami-shell config list                    # every key = value; * marks what differs from the default
 yami-shell config get dockPins
@@ -158,7 +158,12 @@ polkit change after a shell restart (`yami restart`), portals from the next logi
 working copy is never touched). A release is the newest `vX.Y.Z` tag; with `updateChannel`
 `main` every commit of the branch is offered. Installing runs `install.sh --update` from the
 new tree: it rebuilds from source, keeps every setting and needs no sudo; the previous binaries
-go to `~/.local/lib/yami/prev` for `yami update rollback`.
+go to `~/.local/lib/yami/prev` for `yami update rollback`. `yami update list` shows the last
+eight releases with their signatures, `yami update to X.Y.Z` builds and installs one of them (only
+what passes `updateVerify`). Before switching to an older version the settings are copied to
+`~/.local/state/yami/settings-newer.json`; keys the older version dropped come back from it on the
+next switch to a version at least as new. A switch to a whole version also rebuilds yami-niri at
+that version's level (from the next login).
 
 | Key | Default | Meaning |
 |---|---|---|

@@ -278,7 +278,7 @@ yami restart                  # restart the shell (waits while a game has focus)
 yami status                   # what runs: shell, portal, niri, the last update check
 yami doctor                   # which programs and D-Bus services are there, what is missing and what it costs
 yami version                  # every part, the installed commit, the update channel
-yami update                   # what is new; apply | rollback | status | log
+yami update                   # what is new; apply | list | to X.Y.Z | rollback | status | log
 ```
 
 ## Updates
@@ -287,7 +287,13 @@ Settings → updates (or `yami update`) checks the repository once a day and sho
 release is out; installing is always your click. The updater keeps its own clone in
 `~/.local/share/yami/src`, builds the new version from source with `install.sh --update`
 (settings kept, no sudo) and keeps the previous binaries for `yami update rollback`. Channels:
-**releases** (`vX.Y.Z` tags) or **every commit** of `main`.
+**releases** (`vX.Y.Z` tags) or **every commit** of `main`. The tab shows a small console with the
+update log and a progress bar while it runs.
+
+Going back is a choice, not a single click: **roll back** opens a list with the previous build
+(instant) and the signed releases (`yami update list`, `yami update to 2.1.0`), and only
+**install** starts it. Settings an older version does not know are kept aside and come back
+when you update again; after any switch the updater makes sure the shell is running.
 
 Releases are signed: once `keys/allowed_signers` holds the author's key, the installed version
 accepts only tags signed with it, so a pushed or rewritten tag without the key does not install.

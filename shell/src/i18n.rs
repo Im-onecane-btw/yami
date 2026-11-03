@@ -556,6 +556,7 @@ const PAIRS: &[(&str, &str)] = &[
     ("уведомления в записи и трансляциях", "notifications in recordings and streams"),
     ("раскладки — коды xkb через запятую, первая по умолчанию", "layouts: xkb codes separated by commas, the first is the default"),
     ("переключать раскладку", "switch layouts with"),
+    ("на какую версию перейти", "switch to which version"),
     ("свои", "your own"),
     ("us, gb, de, fr, es, it, pl, ru, ua… Пустое поле — авто. Свой блок input в niri/user.kdl главнее.", "us, gb, de, fr, es, it, pl, ru, ua… Empty: automatic. Your own input block in niri/user.kdl wins."),
     ("выкл — зрители и запись их не видят", "off: viewers and recordings never see them"),

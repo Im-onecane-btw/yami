@@ -129,7 +129,9 @@ fn help_update(y: &Sty) {
     y.section(&crate::tf!("обновления", "updates"));
     y.row("update [check]", &crate::tf!("git fetch своего клона (~/.local/share/yami/src), что нового", "git fetch of its own clone (~/.local/share/yami/src), what is new"));
     y.row("update apply [-y]", &crate::tf!("проверить подпись, собрать из исходников, поставить", "check the signature, build from source, install"));
-    y.row("update rollback", &crate::tf!("бинари, что стояли до последнего обновления", "the binaries from before the last update"));
+    y.row("update rollback", &crate::tf!("бинари, что стояли до последнего обновления (сразу)", "the binaries from before the last update (instant)"));
+    y.row("update list", &crate::tf!("выпуски, на которые можно перейти, и их подписи", "releases you can switch to and their signatures"));
+    y.row("update to X.Y.Z", &crate::tf!("собрать и поставить выбранный подписанный выпуск", "build and install the chosen signed release"));
     y.row("update status", &crate::tf!("версия, коммит, канал, источник", "version, commit, channel, source"));
     y.row("update log", &crate::tf!("лог последнего обновления", "the log of the last update"));
     println!("\n   {}", y.dim(&crate::tf!("канал, подписи, расписание: настройки → обновления или yami config set updateChannel main", "channel, signatures, schedule: settings → updates or yami config set updateChannel main")));
@@ -300,6 +302,48 @@ fn update(y: &Sty, args: &[&str]) -> i32 {
                 1
             }
         },
+        "list" => {
+            let i = crate::update::check(&set);
+            if !i.err.is_empty() {
+                eprintln!(" {} {}", y.bad("✕"), i.err);
+                return 1;
+            }
+            let cur = crate::update::installed().version;
+            y.section(&crate::tf!("выпуски", "releases"));
+            if let Some(p) = crate::update::prev_version() {
+                println!("   {} {}", y.acc(&format!("{:<10}", "previous")), y.dim(&crate::tf!("сборка до последнего обновления ({}) · yami update rollback", "the build before the last update ({}) · yami update rollback", p)));
+            }
+            for r in &i.releases {
+                let mark = if r.version == cur { y.ok(&crate::tf!("стоит", "installed")) } else if r.sig.starts_with("good:") || r.sig == "nokeys" || r.sig == "off" { y.dim(&format!("yami update to {}", r.version)) } else { y.bad(&crate::tf!("не ставится", "will not install")) };
+                println!("   {:<10} {}  {}", r.tag, crate::update::sig_text(&r.sig), mark);
+            }
+            if i.releases.is_empty() {
+                println!("   {}", y.dim(&crate::tf!("выпусков ещё нет", "no releases yet")));
+            }
+            println!();
+            0
+        }
+        "to" => {
+            let Some(want) = args.get(1) else {
+                eprintln!(" {} {}", y.bad("✕"), crate::tf!("какую версию? yami update list", "which version? yami update list"));
+                return 2;
+            };
+            let r = crate::update::install_tag(&set, want);
+            let (ok, text) = match &r {
+                Ok(t) => (true, t.clone()),
+                Err(e) => (false, e.clone()),
+            };
+            if notify {
+                let _ = crate::ipc::send(&format!("update-done {} {text}", if ok { "ok" } else { "fail" }));
+            }
+            if ok {
+                println!(" {} {text}", y.ok("✓"));
+                0
+            } else {
+                eprintln!(" {} {text}", y.bad("✕"));
+                1
+            }
+        }
         "status" => {
             let st = crate::update::installed();
             y.section(&crate::tf!("установлено", "installed"));

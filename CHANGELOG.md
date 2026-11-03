@@ -6,6 +6,9 @@ subjects when that section is empty).
 
 ## Unreleased
 
+- Roll back without surprises: the button opens a choice of the previous build (instant) or any signed release, and only «install» starts it; `yami update list` and `yami update to X.Y.Z` do the same in a terminal
+- Settings a rolled-back version does not know are kept aside and come back with the next update
+- After any update or rollback the updater checks that the shell answers and starts it if not, even when the installed version's own installer did not
 - After an update the shell comes back by itself: the restart no longer took the updater for a running shell and left the desktop without a bar
 - Settings → updates shows a small console with the update log, a progress bar by installer step and the release notes before you install
 ## 2.2.0

@@ -49,6 +49,18 @@ pub struct Info {
     pub sig: String,
     pub err: String,
     pub at: u64,
+    /// последние выпуски (новые первыми) — на что можно перейти из вкладки и `yami update to`
+    pub releases: Vec<Rel>,
+}
+
+/// выпуск: тег, версия, подпись (как Info::sig), дата тега
+#[derive(Serialize, Deserialize, Default, Clone, Debug, PartialEq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Rel {
+    pub tag: String,
+    pub version: String,
+    pub sig: String,
+    pub date: u64,
 }
 
 impl Info {
@@ -77,6 +89,10 @@ pub struct Upd {
     /// хвост update.log для консоли вкладки и размер файла, по которому он прочитан
     pub log: Vec<String>,
     pub log_len: u64,
+    /// открыт выбор версии для отката и что выбрано («prev» или X.Y.Z); ставится только кнопкой
+    /// «поставить», так что случайный щелчок по «откатить» ничего не меняет
+    pub pick: bool,
+    pub sel: String,
 }
 
 impl Upd {
@@ -101,6 +117,17 @@ impl Upd {
                 .iter()
                 .map(|s| s.to_string())
                 .collect();
+        }
+        if what == "updates-pick" {
+            // выбор версии: прошлой сборки в образце нет, три выпуска, один не подписан
+            u.pick = true;
+            u.sel = "2.1.0".into();
+            i.available = false;
+            i.releases = vec![
+                Rel { tag: "v2.1.0".into(), version: "2.1.0".into(), sig: "good:trendorin".into(), date: 1_793_721_454 },
+                Rel { tag: "v2.0.0".into(), version: "2.0.0".into(), sig: "good:trendorin".into(), date: 1_793_721_346 },
+                Rel { tag: "v1.9.0".into(), version: "1.9.0".into(), sig: "unsigned".into(), date: 1_793_600_000 },
+            ];
         }
         u.info = Some(i);
         u
@@ -251,7 +278,22 @@ fn check_into(set: &Settings, i: &mut Info) -> Result<(), String> {
     };
     i.notes = notes(&dir, &st, i, known, main);
     i.sig = signature(&dir, &st, i, known, main, &set.update_verify);
+    i.releases = releases(&dir, &st, known, &set.update_verify);
     Ok(())
+}
+
+/// последние восемь выпусков с подписями (их проверяют ключи установленной версии)
+fn releases(dir: &Path, st: &Stamp, known: bool, policy: &str) -> Vec<Rel> {
+    let Ok(tags) = git(dir, &["tag", "-l", "v[0-9]*", "--sort=-v:refname"]) else { return vec![] };
+    tags.lines()
+        .take(8)
+        .map(|t| Rel {
+            tag: t.to_string(),
+            version: t.trim_start_matches('v').to_string(),
+            sig: verify(dir, st, known, policy, "verify-tag", t),
+            date: git(dir, &["log", "-1", "--format=%ct", &format!("{t}^{{commit}}")]).ok().and_then(|d| d.parse().ok()).unwrap_or(0),
+        })
+        .collect()
 }
 
 /// что нового: раздел CHANGELOG.md выпуска, иначе заголовки коммитов
@@ -272,6 +314,12 @@ fn notes(dir: &Path, st: &Stamp, i: &Info, known: bool, main: bool) -> Vec<Strin
 /// подпись выпуска ключами из установленной версии (а если её коммита нет в клоне — из того,
 /// что клон ставил последним)
 fn signature(dir: &Path, st: &Stamp, i: &Info, known: bool, main: bool, policy: &str) -> String {
+    let (what, obj) = if main { ("verify-commit", i.target.as_str()) } else { ("verify-tag", i.reference.as_str()) };
+    verify(dir, st, known, policy, what, obj)
+}
+
+/// git verify-tag/verify-commit ключами установленной версии
+fn verify(dir: &Path, st: &Stamp, known: bool, policy: &str, what: &str, obj: &str) -> String {
     if policy == "off" {
         return "off".into();
     }
@@ -285,7 +333,6 @@ fn signature(dir: &Path, st: &Stamp, i: &Info, known: bool, main: bool, policy: 
         return "bad".into();
     }
     let kfs = kf.to_string_lossy().to_string();
-    let (what, obj) = if main { ("verify-commit", i.target.as_str()) } else { ("verify-tag", i.reference.as_str()) };
     let o = Command::new("git")
         .arg("-C")
         .arg(dir)
@@ -314,7 +361,13 @@ pub fn sig_text(sig: &str) -> String {
         "unsigned" => crate::tf!("не подписано", "not signed"),
         "bad" => crate::tf!("подпись НЕ сходится", "signature does NOT match"),
         "" => "—".into(),
-        s => crate::tf!("подписано: {}", "signed: {}", s.trim_start_matches("good:")),
+        s => {
+            // 193045225+Trendorin@users.noreply.github.com → Trendorin
+            let who = s.trim_start_matches("good:");
+            let who = who.split('@').next().unwrap_or(who);
+            let who = who.split_once('+').map(|(_, n)| n).unwrap_or(who);
+            crate::tf!("подписано: {}", "signed: {}", who)
+        }
     }
 }
 
@@ -393,16 +446,55 @@ pub fn apply(set: &Settings) -> Result<String, String> {
     if !i.sig_ok(&set.update_verify) {
         return Err(crate::tf!("{} — не ставлю (настройки → обновления → подписи)", "{}: not installing (settings → updates → signatures)", sig_text(&i.sig)));
     }
+    build_install(&i)?;
+    Ok(crate::tf!("установлено: {}", "installed: {}", i.latest))
+}
+
+/// перейти на выбранный выпуск (тег vX.Y.Z или X.Y.Z), старее или новее установленного.
+/// Ставится только то, что проходит правило подписей, как и обычное обновление
+pub fn install_tag(set: &Settings, want: &str) -> Result<String, String> {
+    let Some(_l) = lock() else { return Err(crate::tf!("обновление уже идёт", "an update is already running")) };
+    let tag = format!("v{}", want.trim().trim_start_matches('v'));
+    if ver(&tag).is_empty() || !tag[1..].chars().all(|c| c.is_ascii_digit() || c == '.') {
+        return Err(crate::tf!("нет такой версии: {}", "no such version: {}", want));
+    }
+    progress(&crate::tf!("ищу {}", "looking for {}", tag));
+    let st = installed();
+    let dir = ensure_clone(set, &st)?;
+    git(&dir, &["fetch", "-q", "--tags", "origin"]).map_err(explain)?;
+    let Ok(target) = git(&dir, &["rev-parse", "-q", "--verify", &format!("refs/tags/{tag}^{{commit}}")]) else {
+        return Err(crate::tf!("нет такой версии: {}", "no such version: {}", tag));
+    };
+    let known = has_commit(&dir, &st.commit);
+    let mut i = Info { latest: tag[1..].to_string(), reference: tag.clone(), target, available: true, at: now(), ..Default::default() };
+    i.sig = verify(&dir, &st, known, &set.update_verify, "verify-tag", &tag);
+    if !i.sig_ok(&set.update_verify) {
+        return Err(crate::tf!("{} — не ставлю (настройки → обновления → подписи)", "{}: not installing (settings → updates → signatures)", sig_text(&i.sig)));
+    }
+    if st.commit == i.target {
+        return Ok(crate::tf!("{} уже стоит", "{} is already installed", tag));
+    }
+    build_install(&i)?;
+    Ok(crate::tf!("установлено: {}", "installed: {}", i.latest))
+}
+
+/// сборка и установка коммита i.target из своего клона; прежние бинари — в откат
+fn build_install(i: &Info) -> Result<(), String> {
     let dir = clone_dir();
     if !git(&dir, &["status", "--porcelain", "--untracked-files=no"]).unwrap_or_default().is_empty() {
         return Err(crate::tf!("в {} есть правки — убери их, и обновлю", "{} has local edits: remove them and update again", dir.display()));
     }
+    let from = installed().version;
     progress(&crate::tf!("перехожу на {}", "switching to {}", i.reference));
     git(&dir, &["-c", "advice.detachedHead=false", "checkout", "-q", "--detach", &i.target]).map_err(explain)?;
     // прежние бинари и запись об установке — для отката
     let _ = std::fs::remove_dir_all(prev_dir());
     copy_bins(&bin_dir(), &prev_dir()).map_err(|e| e.to_string())?;
     let _ = std::fs::copy(stamp_path(), prev_dir().join("install.json"));
+    // старая версия не знает новых настроек и при сохранении их выкинет: снимок, вернутся при обновлении
+    if older(&i.latest, &from) {
+        snapshot_settings(&from);
+    }
     progress(&crate::tf!("сборка и установка (несколько минут)", "build and install (a few minutes)"));
     let mut ch = Command::new("bash")
         .arg(dir.join("install.sh"))
@@ -427,10 +519,86 @@ pub fn apply(set: &Settings) -> Result<String, String> {
         }
     }
     let ok = ch.wait().map(|s| s.success()).unwrap_or(false);
+    // установщик выбранной версии мог не поднять шелл (у старых был такой баг): поднимаем сами
+    ensure_shell();
     if !ok {
         return Err(crate::tf!("установка не удалась — подробности в {}", "install failed: details in {}", log_path().display()));
     }
-    Ok(crate::tf!("установлено: {}", "installed: {}", i.latest))
+    if !older(&i.latest, &from) {
+        restore_settings(&i.latest);
+    }
+    Ok(())
+}
+
+/// a старее b (по номерам версий; пустое — не старее)
+fn older(a: &str, b: &str) -> bool {
+    !a.is_empty() && !b.is_empty() && ver(a) < ver(b)
+}
+
+/// шелл отвечает на сокете; если нет за ~6 с — новый цикл автозапуска niri (второй экземпляр
+/// уходит сам). Игру не трогаем: при ней установщик шелл не перезапускал, он жив
+fn ensure_shell() {
+    let up = || (0..60).any(|_| crate::ipc::send("ping") || { std::thread::sleep(std::time::Duration::from_millis(100)); false });
+    if up() || std::env::var_os("NIRI_SOCKET").is_none() {
+        return;
+    }
+    let bin = bin_dir().join("yami-shell").to_string_lossy().replace('\'', "'\\''");
+    println!("  {}", crate::tf!("шелл не ответил — запускаю его снова", "the shell did not answer: starting it again"));
+    let _ = Command::new("niri").args(["msg", "action", "spawn-sh", "--", &format!("until '{bin}'; do sleep 1; done")]).stdin(Stdio::null()).stdout(Stdio::null()).status();
+    if !up() {
+        println!("  {}", crate::tf!("шелл так и не запустился: yami run в терминале покажет почему", "the shell did not start: yami run in a terminal shows why"));
+    }
+}
+
+fn snap_path() -> PathBuf {
+    crate::config::state_dir().join("settings-newer.json")
+}
+
+/// перед переходом на старую версию: настройки, как есть, с версией, из которой ушли
+fn snapshot_settings(from: &str) {
+    let Ok(text) = std::fs::read_to_string(crate::config::settings_path()) else { return };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else { return };
+    // снимок уже есть (откат через несколько версий) — первый, самый полный, не трогаем
+    if snap_path().exists() {
+        return;
+    }
+    let _ = crate::config::write_atomic(&snap_path(), &(serde_json::json!({ "version": from, "settings": v }).to_string() + "\n"));
+}
+
+/// вернулись на версию не старее снимка: ключи, которых нет в настройках, — из снимка
+fn restore_settings(now_ver: &str) {
+    let Ok(text) = std::fs::read_to_string(snap_path()) else { return };
+    let Ok(snap) = serde_json::from_str::<serde_json::Value>(&text) else {
+        let _ = std::fs::remove_file(snap_path());
+        return;
+    };
+    if older(now_ver, snap["version"].as_str().unwrap_or("")) {
+        return;
+    }
+    let p = crate::config::settings_path();
+    let mut cur = std::fs::read_to_string(&p).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()).and_then(|v| v.as_object().cloned()).unwrap_or_default();
+    let mut added = 0;
+    if let Some(old) = snap["settings"].as_object() {
+        for (k, v) in old {
+            if !cur.contains_key(k) {
+                cur.insert(k.clone(), v.clone());
+                added += 1;
+            }
+        }
+    }
+    if added > 0 {
+        let _ = crate::config::write_atomic(&p, &(serde_json::to_string_pretty(&serde_json::Value::Object(cur)).unwrap_or_default() + "\n"));
+    }
+    let _ = std::fs::remove_file(snap_path());
+}
+
+/// версия прошлой сборки (для мгновенного отката), если она есть
+pub fn prev_version() -> Option<String> {
+    if !prev_dir().join("yami-shell").exists() {
+        return None;
+    }
+    let s: Stamp = std::fs::read_to_string(prev_dir().join("install.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
+    Some(if s.version.is_empty() { "?".into() } else { s.version })
 }
 
 fn strip_ansi(s: &str) -> String {
@@ -455,22 +623,45 @@ pub fn rollback() -> Result<String, String> {
     if !p.join("yami-shell").exists() {
         return Err(crate::tf!("откатывать не на что: обновлений ещё не было", "nothing to roll back to: no update yet"));
     }
+    let from = installed().version;
+    let to = prev_version().unwrap_or_default();
+    if older(&to, &from) {
+        snapshot_settings(&from);
+    }
     copy_bins(&p, &bin_dir()).map_err(|e| e.to_string())?;
     if p.join("install.json").exists() {
         let _ = std::fs::copy(p.join("install.json"), stamp_path());
     }
     let _ = std::fs::remove_dir_all(&p);
+    if !older(&to, &from) {
+        restore_settings(&to);
+    }
     restart_shell();
     Ok(crate::tf!("вернул {}", "rolled back to {}", installed().version))
 }
 
 /// перезапуск шелла, если он работает и игра не в фокусе
+/// перезапустить шелл новым бинарём и дождаться именно нового: сокет создаётся заново (другой
+/// inode) и отвечает. Не дождались за ~8 с — ensure_shell. При игре не трогаем
 pub fn restart_shell() {
     if crate::niri::game_focused() {
         println!("{}", crate::tf!("  игра в фокусе — шелл перезапустится сам при следующем входе (или: yami restart)", "  a game has focus: the shell restarts at the next login (or: yami restart)"));
         return;
     }
-    let _ = crate::ipc::send("restart");
+    use std::os::unix::fs::MetadataExt;
+    let ino = || std::fs::metadata(crate::ipc::path()).map(|m| m.ino()).ok();
+    let before = ino();
+    if !crate::ipc::send("restart") {
+        ensure_shell();
+        return;
+    }
+    for _ in 0..80 {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        if ino() != before && crate::ipc::send("ping") {
+            return;
+        }
+    }
+    ensure_shell();
 }
 
 /// записать, что установлено (из дерева dir): установщик и tools/deploy.sh
@@ -556,6 +747,14 @@ impl App {
         true
     }
 
+    /// выбор версии в списке отката
+    pub fn update_click(&mut self, a: &Act) -> bool {
+        let Act::UpdSel(s) = a else { return false };
+        self.st.upd.sel = if self.st.upd.sel == *s { String::new() } else { s.clone() };
+        self.dirty(&SKind::Modal);
+        true
+    }
+
     /// пока открыта вкладка «обновления»: перечитать хвост лога, если файл вырос
     pub fn update_log_tick(&mut self) {
         if self.st.modal != Some(crate::app::Modal::Settings) || self.st.stab != "updates" {
@@ -609,15 +808,38 @@ impl App {
                 s.update_every = crate::settings::step_in(&[6, 12, 24, 72, 168], s.update_every as i32) as u32;
             }
             "update_now" => self.update_check(),
-            "update_apply" | "update_rollback" => {
+            "update_rollback" => {
+                // только открыть выбор; список выпусков — из последней проверки, нет его — проверить
+                let u = &mut self.st.upd;
+                u.pick = !u.pick;
+                u.sel.clear();
+                if u.pick && u.info.as_ref().map(|i| i.releases.is_empty()).unwrap_or(true) {
+                    self.update_check();
+                }
+            }
+            "update_pick_cancel" => {
+                self.st.upd.pick = false;
+                self.st.upd.sel.clear();
+            }
+            "update_apply" | "update_pick_go" => {
                 if self.st.upd.busy.is_some() {
                     return true;
                 }
+                let sel = std::mem::take(&mut self.st.upd.sel);
+                if k == "update_pick_go" && sel.is_empty() {
+                    return true;
+                }
+                self.st.upd.pick = false;
                 self.save_now();
                 self.st.upd.busy = Some(crate::tf!("запускаю", "starting"));
                 self.st.upd.done = None;
-                let what = if k == "update_apply" { "apply" } else { "rollback" };
-                spawn_detached(what);
+                if k == "update_apply" {
+                    spawn_detached(&["apply"]);
+                } else if sel == "prev" {
+                    spawn_detached(&["rollback"]);
+                } else {
+                    spawn_detached(&["to", &sel]);
+                }
             }
             _ => return false,
         }
@@ -627,14 +849,14 @@ impl App {
 }
 
 /// `yami-shell update apply --notify` отдельным процессом: живёт, даже когда шелл перезапустится
-fn spawn_detached(what: &str) {
+fn spawn_detached(what: &[&str]) {
     let log = log_path();
     if let Some(p) = log.parent() {
         let _ = std::fs::create_dir_all(p);
     }
     let Ok(f) = std::fs::File::create(&log) else { return };
     let Ok(f2) = f.try_clone() else { return };
-    let _ = Command::new("setsid").arg("-f").arg(yami_px::paths::self_exe()).args(["update", what, "--notify"]).stdin(Stdio::null()).stdout(f).stderr(f2).status();
+    let _ = Command::new("setsid").arg("-f").arg(yami_px::paths::self_exe()).arg("update").args(what).arg("--notify").stdin(Stdio::null()).stdout(f).stderr(f2).status();
 }
 
 fn ago(at: u64) -> String {
@@ -689,6 +911,87 @@ fn console(ui: &mut Ui, r: R, log: &[String], busy: bool) {
         }
         y += 18;
     }
+}
+
+/// выбор версии: прошлая сборка (сразу) и подписанные выпуски; ставится только кнопкой «поставить»
+fn picker(ui: &mut Ui, st: &State, r: R) {
+    let t = ui.t;
+    let u = &st.upd;
+    let px = crate::font::PX;
+    let cur = u.stamp.version.clone();
+    let mut y = title(ui, r.x, r.y, r.w, "на какую версию перейти");
+    let foot = r.bottom() - 28;
+    let mut rows: Vec<(String, String, String, bool)> = vec![];
+    if let Some(p) = prev_version() {
+        rows.push(("prev".into(), crate::tf!("прошлая сборка  {}", "previous build  {}", p), crate::tf!("сразу, без сборки", "instant, no build"), true));
+    }
+    if let Some(i) = &u.info {
+        for rel in &i.releases {
+            let ok = Info { sig: rel.sig.clone(), ..Default::default() }.sig_ok(&st.set.update_verify);
+            let here = rel.version == cur;
+            let note = if here {
+                crate::tf!("стоит сейчас", "installed now")
+            } else if !ok {
+                crate::tf!("{} — не ставится", "{}: will not install", sig_text(&rel.sig))
+            } else {
+                format!("{}  ·  {}", sig_text(&rel.sig), date_of(rel.date))
+            };
+            rows.push((rel.version.clone(), rel.tag.clone(), note, ok && !here));
+        }
+    }
+    if rows.is_empty() {
+        let msg = if u.checking { crate::tf!("загружаю список выпусков…", "loading the releases…") } else { crate::tf!("переходить некуда: выпусков и прошлой сборки нет", "nothing to switch to: no releases and no previous build") };
+        ui.text_in(px, R::new(r.x, y, r.w, 20), &msg, t.text_dim);
+    }
+    for (id, name, note, can) in &rows {
+        if y + 26 > foot - 6 {
+            break;
+        }
+        let rr = R::new(r.x, y, r.w, 24);
+        ui.button(rr, "", "", Tone::Ghost, u.sel == *id, *can, Act::UpdSel(id.clone()));
+        let c = if !can { t.text_faint.fade(0.6) } else { t.text };
+        ui.cv.fill(R::new(rr.x + 8, rr.cy() - 3, 6, 6), if u.sel == *id { t.red } else if *can { t.border } else { t.surface });
+        ui.cv.text_in(ui.f, px, R::new(rr.x + 22, rr.y, 170, rr.h), name, c);
+        let note = ui.f.elide(px, note, rr.w - 200);
+        ui.cv.text_in(ui.f, px, R::new(rr.x + 196, rr.y, rr.w - 204, rr.h), &note, if *can { t.text_dim } else { t.text_faint.fade(0.6) });
+        y += 28;
+    }
+    let half = (r.w - 6) / 2;
+    let go = if u.sel.is_empty() {
+        crate::tf!("выбери версию", "pick a version")
+    } else if u.sel == "prev" {
+        crate::tf!("вернуть прошлую сборку", "restore the previous build")
+    } else {
+        crate::tf!("поставить {}", "install {}", u.sel)
+    };
+    ui.button(R::new(r.x, foot, half, 28), &go, "check", Tone::Primary, false, !u.sel.is_empty(), Act::SCycle("update_pick_go"));
+    ui.button(R::new(r.x + half + 6, foot, half, 28), "отмена", "close", Tone::Plain, false, true, Act::SCycle("update_pick_cancel"));
+}
+
+/// дата тега: «3 ноя 2026»
+fn date_of(at: u64) -> String {
+    if at == 0 {
+        return String::new();
+    }
+    let days = (at / 86400) as i64;
+    let (y, m, d) = civil(days);
+    const RU: [&str; 12] = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]; // i18n-ok
+    const EN: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    let mon = if crate::i18n::en() { EN[(m - 1) as usize] } else { RU[(m - 1) as usize] };
+    format!("{d} {mon} {y}")
+}
+
+/// дни от 1970-01-01 → (год, месяц, день) (Howard Hinnant)
+fn civil(z: i64) -> (i64, u32, u32) {
+    let z = z + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    (era * 400 + yoe + i64::from(m <= 2), m, d)
 }
 
 pub fn tab(ui: &mut Ui, st: &State, b: R) {
@@ -761,7 +1064,9 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
         y += 16;
     }
     let notes = u.info.as_ref().filter(|i| i.available && i.err.is_empty() && u.busy.is_none() && u.done.is_none());
-    if let Some(i) = notes {
+    if u.pick && u.busy.is_none() {
+        picker(ui, st, R::new(b.x, y, b.w, by - y - 8));
+    } else if let Some(i) = notes {
         // что нового: строки CHANGELOG выпуска (английский текст репозитория — без перевода)
         y = title(ui, b.x, y, b.w, &crate::tf!("что нового в {}", "what is new in {}", i.latest));
         for n in &i.notes {
@@ -781,6 +1086,7 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     let can = u.info.as_ref().map(|i| i.available && i.err.is_empty() && i.sig_ok(&s.update_verify)).unwrap_or(false);
     ui.button(R::new(b.x, by, bw, 28), "проверить", "search", Tone::Plain, false, !busy, Act::SCycle("update_now"));
     ui.button(R::new(b.x + bw + 6, by, bw, 28), "обновить", "down", Tone::Primary, false, can && !busy, Act::SCycle("update_apply"));
-    ui.button(R::new(b.x + 2 * (bw + 6), by, bw, 28), "откатить", "redo", Tone::Plain, false, u.rollback && !busy, Act::SCycle("update_rollback"));
+    let any = u.rollback || u.info.as_ref().map(|i| !i.releases.is_empty()).unwrap_or(true);
+    ui.button(R::new(b.x + 2 * (bw + 6), by, bw, 28), "откатить", "redo", Tone::Plain, u.pick, any && !busy, Act::SCycle("update_rollback"));
     ui.text_in(px, R::new(b.x, by + 36, b.w, 20), "или в терминале: yami update", t.text_faint);
 }
