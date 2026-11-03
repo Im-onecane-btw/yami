@@ -55,3 +55,12 @@ What yami trusts, what it exposes, and what was checked (audit of 2026-11-03).
 - Clipboard history (cliphist) skips entries password managers mark as secret
   (`x-kde-passwordManagerHint`, wl-clipboard's `CLIPBOARD_STATE=sensitive`); anything else copied
   is stored until deleted (`Mod+V`, `Del`).
+
+## Install count
+
+yami sends nothing anywhere: no telemetry, no update pings beyond `git fetch` of the public
+repository. The «active installs» badge in the README is GitHub's own clone traffic: the number
+of unique cloners over the last 14 days (the installer clones, `yami update` fetches once a day),
+read daily by `.github/workflows/stats.yml` with a read-only token and written to the `stats`
+branch. It counts machines that checked for updates recently, not people, and turning update
+checks off (`updateCheck`) takes a machine out of it.

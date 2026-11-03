@@ -1,0 +1,55 @@
+# Active installs for the README badge: GitHub's unique cloners over the last 14 days (the
+# installer clones the repository, `yami update` fetches it once a day; this workflow's own bot
+# is subtracted). No telemetry in yami itself: only what GitHub already counts.
+# Writes badge.json (a shields.io endpoint) to the `stats` branch, so main gets no daily commits.
+# Needs the STATS_TOKEN secret: a fine-grained token for this repository with
+# «Administration: read-only» (the traffic API is not open to the workflow token).
+name: stats
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  badge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: count and write the badge
+        env:
+          STATS_TOKEN: ${{ secrets.STATS_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 -I - <<'PY'
+          import base64, json, os, sys, urllib.request, urllib.error
+          repo, gh, stats = os.environ["REPO"], os.environ["GH_TOKEN"], os.environ.get("STATS_TOKEN", "")
+          if not stats:
+              sys.exit("STATS_TOKEN is not set: Settings → Secrets and variables → Actions")
+          def api(path, token, method="GET", body=None):
+              req = urllib.request.Request(f"https://api.github.com/repos/{repo}{path}", method=method,
+                                           data=None if body is None else json.dumps(body).encode(),
+                                           headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"})
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as r:
+                      return json.load(r)
+              except urllib.error.HTTPError as e:
+                  if e.code == 404:
+                      return None
+                  raise
+          clones = api("/traffic/clones", stats)
+          active = max(0, int(clones.get("uniques", 0)) - 1)
+          badge = json.dumps({"schemaVersion": 1, "label": "active installs", "message": str(active), "color": "a8a29c"}) + "\n"
+          content = base64.b64encode(badge.encode()).decode()
+          # the stats branch: an orphan with one file, made on the first run
+          if api("/git/ref/heads/stats", gh) is None:
+              blob = api("/git/blobs", gh, "POST", {"content": content, "encoding": "base64"})
+              tree = api("/git/trees", gh, "POST", {"tree": [{"path": "badge.json", "mode": "100644", "type": "blob", "sha": blob["sha"]}]})
+              commit = api("/git/commits", gh, "POST", {"message": "stats: badge", "tree": tree["sha"], "parents": []})
+              api("/git/refs", gh, "POST", {"ref": "refs/heads/stats", "sha": commit["sha"]})
+          else:
+              cur = api("/contents/badge.json?ref=stats", gh)
+              if base64.b64decode(cur["content"]).decode() != badge:
+                  api("/contents/badge.json", gh, "PUT", {"message": f"stats: {active} active installs", "content": content, "sha": cur["sha"], "branch": "stats"})
+          print(f"active installs (14 days): {active}")
+          PY
