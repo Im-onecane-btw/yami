@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Real screenshots of a running yami session for the README (.github/assets): the desktop with the
-# launcher, settings tabs, yami-files on a demo folder, yami-view, the screenshot overlay; in
-# English and Russian. Runs on an empty workspace with do-not-disturb on (no live notification or
+# launcher, settings tabs, yami-files on a demo folder (the seven palette wallpapers), yami-view on
+# one of them, the screenshot overlay (`yami-shell shot screenshot --frame`: the same drawing code
+# with a selection and marks, over a real frame of the screen); in English and Russian. Runs on an empty workspace with do-not-disturb on (no live notification or
 # window gets into a picture), sound devices under plain names (audioNames) and drives hidden in
 # yami-files, and puts the workspace, language, do-not-disturb and names back after.
 # Refuses while a game or a fullscreen window has focus. Needs niri, grim, python3 with Pillow.
@@ -45,15 +46,19 @@ restore() {
 }
 trap restore EXIT
 
-# демо-папка: свои картинки проекта, ничего из домашней папки
+# демо-папка: свои картинки проекта (обои всех семи палитр), ничего из домашней папки
 made=1
 mkdir -p "$demo"/{Documents,Downloads,Music,Projects,Pictures}
-cp "$OUT"/card-*-en.png "$demo/" 2>/dev/null || true
-cp "${XDG_STATE_HOME:-$HOME/.local/state}/yami/wallpaper.png" "$demo/wallpaper.png" 2>/dev/null || true
-python3 -I - "$demo" <<'PY'
-import sys
+python3 -I - "$demo" "$ROOT" <<'PY'
+import re, sys
 from pathlib import Path
-d = Path(sys.argv[1])
+d, root = Path(sys.argv[1]), Path(sys.argv[2])
+sys.path.insert(0, str(root / "tools"))
+import theme  # noqa: E402
+from PIL import Image  # noqa: E402
+for pid, hx in re.findall(r'Preset \{ id: "(\w+)", name: "[^"]*", accent: 0x([0-9a-f]{6})', (root / "shell/px/src/theme.rs").read_text()):
+    im = theme.wallpaper_img(theme.derive("#" + hx))
+    im.resize((im.width * 4, im.height * 4), Image.NEAREST).save(d / f"{pid}.png")
 (d / "notes.md").write_text("# yami\n\nPixel-art desktop for niri.\n")
 (d / "todo.txt").write_text("ship 2.1.0\n")
 (d / "Projects/yami.tar.gz").write_bytes(b"\x1f\x8b" + bytes(4000))
@@ -138,21 +143,17 @@ for lang in en ru; do
   niri msg action maximize-column
   shoot "files" 2
   full files "$OUT/files-$lang.png"
-  yami msg "screenshot area"
-  shoot "screenshot" 1.5
-  yami msg "screenshot area"
-  full screenshot "$OUT/screenshot-$lang.png"
+  # оверлей скриншота: выделение и метки (код снимка шелла) поверх настоящего кадра с файлами
+  yami-shell shot screenshot --lang "$lang" --frame "$TMP/files.png" -o "$TMP/snap" >/dev/null
+  full ../snap/screenshot "$OUT/screenshot-$lang.png"
   kill "${pids[@]}" 2>/dev/null || true
   pids=()
-  # просмотрщик — на только что снятом столе
-  cp "$OUT/desktop-$lang.png" "$demo/desktop.png"
-  yami-view "$demo/desktop.png" >/dev/null 2>&1 &
+  # просмотрщик — на обоях «сакуры»
+  yami-view "$demo/sakura.png" >/dev/null 2>&1 &
   pids+=($!)
   shoot "view" 2
   full view "$OUT/view-$lang.png"
   kill "${pids[@]}" 2>/dev/null || true
-  pids=()
-  for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done
   pids=()
   sleep 1
 done

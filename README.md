@@ -24,20 +24,15 @@ shell, **yami-shell**, draws the bar, launcher, dock, notifications, lock screen
 settings itself, in Rust and shared memory, in one ~6 MB binary that uses **about 15 MB of RAM**.
 Files, images, the login screen and every other app follow the same palette.
 
-<table>
-<tr>
-<td><img src=".github/assets/card-ram-en.png" width="100%" alt="About 15 MB of memory for the whole shell"></td>
-<td><img src=".github/assets/card-drop-en.png" width="100%" alt="One accent recolours the desktop"></td>
-</tr>
-<tr>
-<td><img src=".github/assets/card-play-en.png" width="100%" alt="Made for games"></td>
-<td><img src=".github/assets/card-folder-en.png" width="100%" alt="A file manager and an image viewer"></td>
-</tr>
-<tr>
-<td><img src=".github/assets/card-down-en.png" width="100%" alt="Signed updates"></td>
-<td><img src=".github/assets/card-keys-en.png" width="100%" alt="Any distribution, built from source"></td>
-</tr>
-</table>
+<img src=".github/assets/features-en.png" width="100%" alt="What is inside: a ~15 MB shell, one accent for everything, made for games, files and viewer, screenshots, a curtain for streams, signed updates, any distribution">
+
+Install on any of eight distributions with one command, built from source:
+
+```sh
+bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.sh)
+```
+
+Everything it does and its flags: [Installation](#installation).
 
 ## Features
 
@@ -88,8 +83,9 @@ Files, images, the login screen and every other app follow the same palette.
   in yami-files through the portal, like GTK apps and browsers (Tor Browser included).
 - **A curtain for streams.** Mod+Shift+H: viewers of a stream, a Discord demo or an OBS recording
   see the frozen screen blurred (or in big pixels, or just the wallpaper), while you keep your
-  desktop and a small «hidden» badge. Settings → screenshots. Needs yami-niri
-  (`show-only-in`); on other niri the windows turn black in the stream instead.
+  desktop and a small «hidden» badge. A single shared window is covered too, and notifications
+  never reach a recording (settings → services). Settings → screenshots. Needs yami-niri
+  (`show-only-in`, `hide-from`); on other niri the windows turn black in the stream instead.
 - **Your wallpaper.** Settings → wallpaper: pick an image (or «set as wallpaper» in yami-files and
   yami-view), fill or fit, pixel cells, recolour it into the accent or the palette tones, darken
   it, or let the palette follow the image. The login screen gets the same picture.
@@ -107,17 +103,48 @@ Files, images, the login screen and every other app follow the same palette.
 
 ## Screenshots
 
-Screenshots of a real yami session (`tools/readme-shots.sh`), the palette is «ash».
+Real screenshots of a yami session (`tools/readme-shots.sh`).
 
-| Settings → colour: seven palettes or your own accent | Settings → updates: releases, signatures, rollback |
-|---|---|
-| <img src=".github/assets/settings-color-en.png" alt="Settings → colour: seven palettes or your own accent"> | <img src=".github/assets/settings-updates-en.png" alt="Settings → updates: releases, signatures, rollback"> |
-| yami-files: thumbnails, places, tabs and split view | yami-view: real pixels, quick edits |
-| <img src=".github/assets/files-en.png" alt="yami-files: thumbnails, places, tabs and split view"> | <img src=".github/assets/view-en.png" alt="yami-view: real pixels, quick edits"> |
-| Settings → services: hand any of them to another program | Settings → keys: every binding, recorded live |
-| <img src=".github/assets/settings-agents-en.png" alt="Settings → services: hand any of them to another program"> | <img src=".github/assets/settings-keys-en.png" alt="Settings → keys: every binding, recorded live"> |
-| Screenshot overlay: area, window or screen | Sound popup: outputs, volume, microphone |
-| <img src=".github/assets/screenshot-en.png" alt="Screenshot overlay: area, window or screen"> | <img src=".github/assets/popup-sound-en.png" alt="Sound popup: outputs, volume, microphone"> |
+**yami-files** · thumbnails, places, tabs and split view; the file dialog of every app
+
+<img src=".github/assets/files-en.png" width="100%" alt="yami-files: thumbnails, places, tabs and split view; the file dialog of every app">
+
+**Screenshots** · area, window or screen, then arrows, frames, marker, mosaic and badges
+
+<img src=".github/assets/screenshot-en.png" width="100%" alt="Screenshots: area, window or screen, then arrows, frames, marker, mosaic and badges">
+
+**Settings → colour** · seven palettes or your own accent, the whole desktop follows
+
+<img src=".github/assets/settings-color-en.png" width="100%" alt="Settings → colour: seven palettes or your own accent, the whole desktop follows">
+
+**Settings → keys** · every binding by category, recorded live
+
+<img src=".github/assets/settings-keys-en.png" width="100%" alt="Settings → keys: every binding by category, recorded live">
+
+**yami-view** · real pixels when zoomed, quick edits, set as wallpaper
+
+<img src=".github/assets/view-en.png" width="100%" alt="yami-view: real pixels when zoomed, quick edits, set as wallpaper">
+
+<details>
+<summary><b>More screenshots</b></summary>
+
+**Settings → updates** · releases, signatures, rollback
+
+<img src=".github/assets/settings-updates-en.png" width="100%" alt="Settings → updates: releases, signatures, rollback">
+
+**Settings → services** · hand any of them to another program
+
+<img src=".github/assets/settings-agents-en.png" width="100%" alt="Settings → services: hand any of them to another program">
+
+**Sound popup** · outputs, volume, microphone
+
+<img src=".github/assets/popup-sound-en.png" width="560" alt="Sound popup: outputs, volume, microphone">
+
+**The desktop** · bar, widgets and the launcher on the pixel wallpaper
+
+<img src=".github/assets/desktop-en.png" width="100%" alt="The desktop: bar, widgets and the launcher on the pixel wallpaper">
+
+</details>
 
 ## Installation
 
@@ -340,12 +367,18 @@ log in, `~/.local/lib/yami-niri/yami-niri.sh off`. Details: [fork/README.md](for
 |---|---|
 | `tools/check.sh` | build without warnings, i18n checks, script syntax, niri config, installer dry run (CI runs it too) |
 | `tools/map.sh [TEXT]` | every source file with its one-line description |
-| `yami-shell shot [TARGET…] --lang en [--transparent] -o DIR` | render panels to PNG without a compositor; fails on untranslated text |
+| `yami-shell shot [TARGET…] --lang en [--transparent] [--frame PNG] -o DIR` | render panels to PNG without a compositor (`--frame`: a real screen under the screenshot overlay); fails on untranslated text |
 | `yami-files shot`, `yami-view shot` | the same for the file manager and the viewer |
 | `tools/sddm-preview.sh OUT.png` | render the login screen offscreen with your palette (`--window` to try it) |
 | `tools/readme-art.py`, `tools/readme-shots.sh` | the README's logo and cards; real screenshots of your session (empty workspace, plain device names, everything put back) |
 | `tools/release.sh X.Y.Z` | cut a release: changelog, versions, check, signed tag, push (`--keygen` once for the key) |
 | `tools/deploy.sh` | build, install to `~/.local/bin` and restart the running shell (refuses while a game has focus); `--files-only` installs yami-files and yami-view only |
+
+## Made with Claude
+
+yami is written with the help of [Claude](https://claude.ai) by Anthropic, through Claude Code:
+much of the code, the yami-niri patches and the docs came out of those sessions. Every change is
+still built, checked (`tools/check.sh`) and used every day on a real machine before it ships.
 
 ## License
 

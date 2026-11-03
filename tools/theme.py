@@ -740,7 +740,7 @@ recent-windows {{
 
 
 # ── обои: свечение акцента дизерингом Байера клетками 4 px и редкая точечная сетка ─────
-def wallpaper(p, w=480, h=270):
+def wallpaper_img(p, w=480, h=270):
     """Картинка в четверть экрана — шелл растягивает её ×4 без сглаживания."""
     from PIL import Image
     bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
@@ -760,6 +760,11 @@ def wallpaper(p, w=480, h=270):
                 c = [c[i] + (dot[i] - c[i]) * 0.6 for i in range(3)]
             px.append(tuple(round(v) for v in c))
     img.putdata(px)
+    return img
+
+
+def wallpaper(p):
+    img = wallpaper_img(p)
     out = HOME / ".local/state/yami/wallpaper.png"
     out.parent.mkdir(parents=True, exist_ok=True)
     tmp = out.with_name("wallpaper.tmp.png")

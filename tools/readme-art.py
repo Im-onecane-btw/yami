@@ -1,5 +1,5 @@
-"""Drawn pictures for the README in .github/assets: the pixel logo and the feature cards, in both
-languages, from the project itself: colours by theme.py `derive`, icons from gfx.rs `icon7`, fonts
+"""Drawn pictures for the README in .github/assets: the pixel logo and the feature cards (one picture per
+language), from the project itself: colours by theme.py `derive`, icons from gfx.rs `icon7`, fonts
 from fonts/. Screenshots of a real session come from tools/readme-shots.sh.
 Needs Pillow (as theme.py).  Usage: tools/readme-art.py [#accent]  (default: the shell's palette)"""
 import re
@@ -50,14 +50,15 @@ def text(d, xy, s, size, col):
     d.text(xy, s, font=ImageFont.truetype(TINY, size), fill=col)
 
 
-def pxbox(d, x, y, w, h, fill, edge, shadow=True):
-    """прямоугольник со срезанными углами, рамка 1 px и жёсткая тень (как gfx.rs pxbox)"""
+def pxbox(d, x, y, w, h, fill, edge, shadow=(0, 0, 0, 160)):
+    """прямоугольник со срезанными углами, рамка 1 px и жёсткая тень (как gfx.rs pxbox); на непрозрачном
+    фоне тень — сплошной цвет: ImageDraw не смешивает альфу, а заменяет пиксель"""
     def notched(x, y, w, h, col):
         d.rectangle([x + 2, y, x + w - 3, y + h - 1], fill=col)
         d.rectangle([x, y + 2, x + w - 1, y + h - 3], fill=col)
         d.point([(x + 1, y + 1), (x + w - 2, y + 1), (x + 1, y + h - 2), (x + w - 2, y + h - 2)], fill=col)
     if shadow:
-        notched(x + 3, y + 3, w, h, (0, 0, 0, 160))
+        notched(x + 3, y + 3, w, h, shadow)
     notched(x, y, w, h, edge)
     notched(x + 1, y + 1, w - 2, h - 2, fill)
 
@@ -78,35 +79,65 @@ def dissolve(d, x, y, w, h, col):
 
 
 CARDS = [
-    ("ram", "~15 MB shell", "bar, launcher, dock, notifications and widgets:", "one Rust binary, no toolkit, own pixels",
-     "шелл на ~15 МБ", "бар, лаунчер, док, уведомления и виджеты:", "один бинарь на Rust, без тулкитов"),
-    ("drop", "one accent", "pick a colour: Qt, KDE, GTK, kitty, browsers,", "cursor and the login screen follow",
-     "один акцент", "выбери цвет: Qt, KDE, GTK, kitty, браузеры,", "курсор и экран входа перекрасятся"),
-    ("play", "made for games", "yami-niri: tearing, VRR in games; while you play", "notifications wait, power goes to performance",
-     "для игр", "yami-niri: tearing, VRR в играх; пока играешь,", "уведомления ждут, питание на максимум"),
-    ("folder", "files and viewer", "yami-files with the portal file dialog for every", "app, yami-view for pictures",
-     "файлы и картинки", "yami-files и диалог выбора файлов для всех", "программ, yami-view для картинок"),
-    ("down", "signed updates", "settings or yami update: built from source,", "tags checked by the author's key, rollback",
-     "подписанные обновления", "из настроек или yami update: сборка из исходников,", "проверка ключом автора, откат"),
-    ("keys", "any distro", "Arch, Fedora, Debian, openSUSE, Void, Alpine,", "Gentoo, NixOS: one installer, from source",
-     "любой дистрибутив", "Arch, Fedora, Debian, openSUSE, Void, Alpine,", "Gentoo, NixOS: один установщик, из исходников"),
+    ("ram", "~15 MB shell", "bar, launcher, dock, notifications, widgets:", "one Rust binary, no toolkit, no GPU context",
+     "шелл на 15 МБ", "бар, лаунчер, док, уведомления, виджеты:", "один бинарь на Rust, без тулкитов и GPU"),
+    ("drop", "one accent", "pick a colour: Qt, KDE, GTK, kitty, browser,", "the cursor and the login screen follow",
+     "один акцент", "выбери цвет: Qt, KDE, GTK, kitty, браузер,", "курсор и экран входа перекрасятся"),
+    ("play", "made for games", "tearing and VRR on yami-niri; while you play", "notifications wait, power goes to max",
+     "для игр", "tearing и VRR на yami-niri; пока играешь,", "уведомления ждут, питание на максимум"),
+    ("folder", "files and viewer", "yami-files: tabs, split view, trash and the", "file dialog of every app; yami-view",
+     "файлы и картинки", "yami-files: вкладки, корзина и диалог", "выбора файлов для всех; yami-view"),
+    ("camera", "screenshots", "area, window or screen; loupe, colour picker,", "pen, arrows, mosaic, numbered badges",
+     "скриншоты", "область, окно или экран; лупа, пипетка,", "перо, стрелки, мозаика, номерки"),
+    ("eye", "stream curtain", "viewers of a stream see a frozen, blurred", "screen while you keep working",
+     "шторка стрима", "зрители видят размытый стоп-кадр,", "а ты спокойно работаешь дальше"),
+    ("down", "signed updates", "one click or yami update, built from source,", "tags checked by the author's key, rollback",
+     "обновления", "в один клик или yami update, сборка", "из исходников, подпись автора, откат"),
+    ("screen", "any distro", "Arch, Fedora, Debian, openSUSE, Void, Alpine,", "Gentoo, NixOS: one installer, one command",
+     "8 дистрибутивов", "Arch, Fedora, Debian, openSUSE, Void, Alpine,", "Gentoo, NixOS: один установщик"),
 ]
+HEAD = {"en": ("yami", "a pixel desktop for niri"), "ru": ("yami", "пиксельный рабочий стол для niri")}
 
 
-def card(c, lang):
-    ic, *rest = c
-    title, l1, l2 = rest[:3] if lang == "en" else rest[3:]
-    W, H = 424, 92
+def width(s, size):
+    return ImageFont.truetype(TINY, size).getlength(s)
+
+
+def features(lang):
+    """все карточки в одном окне шелла: шапка, точечный фон, сетка 2×N — одна картинка, без таблицы GitHub"""
+    W, pad, gap, hh, ch = 452, 10, 8, 18, 60
+    cw = (W - 2 * pad - gap) // 2
+    rows = (len(CARDS) + 1) // 2
+    H = hh + pad + rows * ch + (rows - 1) * gap + pad
     im = Image.new("RGBA", (W + 4, H + 4), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
-    pxbox(d, 0, 0, W, H, rgb("panel"), rgb("border"))
-    dissolve(d, W - 120, 1, 118, 4, rgb("deep"))
-    pxbox(d, 12, 14, 31, 31, rgb("accent"), rgb("bright"), shadow=False)
-    icon(d, ic, 17, 19, 3, rgb("onAccent"))
-    text(d, (56, 12), title.upper(), 16, rgb("text"))
-    text(d, (56, 44), l1, 8, rgb("textDim"))
-    text(d, (56, 60), l2, 8, rgb("textDim"))
-    d.rectangle([56, 34, 56 + 22, 35], fill=rgb("accent"))
+    pxbox(d, 0, 0, W, H, rgb("bg"), rgb("border"))
+    for yy in range(hh + 6, H - 2, 8):  # точечная сетка, как на обоях
+        for xx in range(6, W - 2, 8):
+            d.point((xx, yy), fill=rgb("surface"))
+    d.rectangle([2, 1, W - 3, hh - 1], fill=rgb("panel"))
+    d.rectangle([1, 2, W - 2, hh - 1], fill=rgb("panel"))
+    d.line([1, hh, W - 2, hh], fill=rgb("border"))
+    d.rectangle([10, hh // 2 - 3, 15, hh // 2 + 2], fill=rgb("accent"))
+    title, sub = HEAD[lang]
+    text(d, (22, 4), title, 8, rgb("text"))
+    text(d, (24 + width(title, 8), 4), sub, 8, rgb("textFaint"))
+    dissolve(d, W - 130, 2, 120, hh - 3, rgb("surface"))
+    for k, c in enumerate(CARDS):
+        ic, *rest = c
+        t, l1, l2 = rest[:3] if lang == "en" else rest[3:]
+        x, y = pad + (k % 2) * (cw + gap), hh + pad + (k // 2) * (ch + gap)
+        tw = cw - 46 - 8
+        for s, size in ((t.upper(), 16), (l1, 8), (l2, 8)):
+            if width(s, size) > tw:
+                sys.exit(f"readme-art: «{s}» is {width(s, size):.0f} px wide, the card has {tw}")
+        pxbox(d, x, y, cw, ch, rgb("panel"), rgb("border"), shadow=rgb("codeBg"))
+        pxbox(d, x + 10, y + 10, 25, 25, rgb("accent"), rgb("bright"), shadow=None)
+        icon(d, ic, x + 12, y + 12, 3, rgb("onAccent"))
+        text(d, (x + 46, y + 6), t.upper(), 16, rgb("text"))
+        d.rectangle([x + 46, y + 27, x + 46 + 15, y + 28], fill=rgb("accent"))
+        text(d, (x + 46, y + 33), l1, 8, rgb("textDim"))
+        text(d, (x + 46, y + 44), l2, 8, rgb("textDim"))
     return im.resize((im.width * 2, im.height * 2), Image.NEAREST)
 
 
@@ -129,9 +160,8 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "logo.svg").write_text(logo())
     for lang in ("en", "ru"):
-        for c in CARDS:
-            card(c, lang).save(OUT / f"card-{c[0]}-{lang}.png", optimize=True)
-    print(f"readme-art: logo and {len(CARDS) * 2} cards in {OUT.relative_to(ROOT)}")
+        features(lang).save(OUT / f"features-{lang}.png", optimize=True)
+    print(f"readme-art: logo and features-{{en,ru}}.png ({len(CARDS)} cards) in {OUT.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

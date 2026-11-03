@@ -93,29 +93,36 @@ impl Snap {
 
 impl Snap {
     /// для `yami-shell shot`: «рабочий стол» из полос, выделение и пара меток
-    pub fn mock(w: i32, h: i32, edit: bool, t: &crate::theme::Theme) -> Snap {
-        let mut px = vec![0u32; (w * h) as usize];
-        for y in 0..h {
-            for x in 0..w {
-                let c = if y < 32 { t.panel } else if (x / 160 + y / 120) % 2 == 0 { t.surface_hi } else { t.bg.lerp(t.red, 0.12) };
-                px[(y * w + x) as usize] = c.0 | 0xff000000;
+    /// снимок для `shot`: шахматка с «окном» или настоящий кадр (`shot --frame`, картинки README);
+    /// разметка задана для 1280×720 и масштабируется под кадр
+    pub fn mock(w: i32, h: i32, edit: bool, t: &crate::theme::Theme, frame: Option<Vec<u32>>) -> Snap {
+        let px = frame.unwrap_or_else(|| {
+            let mut px = vec![0u32; (w * h) as usize];
+            for y in 0..h {
+                for x in 0..w {
+                    let c = if y < 32 { t.panel } else if (x / 160 + y / 120) % 2 == 0 { t.surface_hi } else { t.bg.lerp(t.red, 0.12) };
+                    px[(y * w + x) as usize] = c.0 | 0xff000000;
+                }
             }
-        }
-        for x in 200..1000 {
-            for y in 160..520 {
-                px[(y * w + x) as usize] = if y < 190 { t.blood.0 } else { (t.code_bg.0 & 0xffffff) | 0xff000000 } | 0xff000000;
+            for x in 200..1000 {
+                for y in 160..520 {
+                    px[(y * w + x) as usize] = if y < 190 { t.blood.0 } else { (t.code_bg.0 & 0xffffff) | 0xff000000 } | 0xff000000;
+                }
             }
-        }
+            px
+        });
+        let k = |v: i32| v * w / 1280;
+        let p = |x: i32, y: i32| (k(x), k(y));
         let mut imgs = HashMap::new();
         imgs.insert(String::new(), Rc::new(Img { w, h, px }));
         let colors = Snap::colors(t);
         let marks = if edit {
             vec![
-                Mark { tool: Tool::Rect, pts: vec![(330, 250), (620, 380)], color: colors[0], size: 4, n: 0 },
-                Mark { tool: Tool::Arrow, pts: vec![(820, 470), (640, 390)], color: colors[1], size: 4, n: 0 },
-                Mark { tool: Tool::Marker, pts: vec![(260, 420), (560, 440)], color: colors[4], size: 14, n: 0 },
-                Mark { tool: Tool::Count, pts: vec![(700, 260)], color: colors[0], size: 4, n: 1 },
-                Mark { tool: Tool::Mosaic, pts: vec![(760, 230), (900, 330)], color: colors[0], size: 4, n: 0 },
+                Mark { tool: Tool::Rect, pts: vec![p(330, 250), p(620, 380)], color: colors[0], size: 4, n: 0 },
+                Mark { tool: Tool::Arrow, pts: vec![p(820, 470), p(640, 390)], color: colors[1], size: 4, n: 0 },
+                Mark { tool: Tool::Marker, pts: vec![p(260, 420), p(560, 440)], color: colors[4], size: 14, n: 0 },
+                Mark { tool: Tool::Count, pts: vec![p(700, 260)], color: colors[0], size: 4, n: 1 },
+                Mark { tool: Tool::Mosaic, pts: vec![p(760, 230), p(900, 330)], color: colors[0], size: 4, n: 0 },
             ]
         } else {
             vec![]
@@ -123,14 +130,14 @@ impl Snap {
         Snap {
             imgs,
             mode: Mode::Area,
-            sel: if edit { Some((String::new(), R::new(200, 160, 800, 360))) } else { None },
+            sel: if edit { Some((String::new(), R::new(k(200), k(160), k(800), k(360)))) } else { None },
             drag: None,
             tool: if edit { Tool::Arrow } else { Tool::Select },
             color: 0,
             size: 4,
             marks,
             redo: vec![],
-            ptr: Some((String::new(), if edit { 1100 } else { 640 }, if edit { 600 } else { 400 })),
+            ptr: Some((String::new(), k(if edit { 1100 } else { 640 }), k(if edit { 600 } else { 400 }))),
             flash: None,
             wins: vec![],
             busy: false,

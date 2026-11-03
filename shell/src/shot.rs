@@ -1,7 +1,7 @@
 // Снимки панелей без Wayland: рисует в память и пишет PNG. Чтобы проверить вид и перевод,
 // не трогая экран пользователя (и не открывая ничего поверх его игры).
 //
-//   yami-shell shot [ЦЕЛЬ…] [--lang ru|en] [--defaults] [--transparent] [-o ПАПКА]
+//   yami-shell shot [ЦЕЛЬ…] [--lang ru|en] [--defaults] [--transparent] [--frame PNG] [-o ПАПКА]
 //
 // Без цели — все панели. При --lang en печатает надписи, оставшиеся русскими, и выходит с 1.
 // Окна, программы и уведомление — мок-овые (снимок не зависит от машины), датчики — настоящие.
@@ -74,6 +74,8 @@ const NATIVE: &[&str] = &["Русский"]; // i18n-ok
 
 /// --transparent: без подложки, с честной альфой (картинки для README кладутся на обои)
 static CLEAR: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// --frame FILE: настоящий кадр экрана под оверлеем скриншота (tools/readme-shots.sh)
+static FRAME: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
 pub fn run(args: &[String]) -> i32 {
     let mut lang = String::new();
@@ -87,8 +89,11 @@ pub fn run(args: &[String]) -> i32 {
             "-o" | "--out" => out = it.next().map(PathBuf::from).unwrap_or(out),
             "--defaults" => defaults = true,
             "--transparent" => CLEAR.store(true, std::sync::atomic::Ordering::Relaxed),
+            "--frame" => {
+                let _ = FRAME.set(it.next().map(PathBuf::from).unwrap_or_default());
+            }
             "-h" | "--help" | "list" => {
-                println!("yami-shell shot [TARGET…] [--lang ru|en] [--defaults] [--transparent] [-o DIR]\ntargets: {}", TARGETS.join(" "));
+                println!("yami-shell shot [TARGET…] [--lang ru|en] [--defaults] [--transparent] [--frame PNG] [-o DIR]\ntargets: {}", TARGETS.join(" "));
                 return 0;
             }
             t if TARGETS.contains(&t) => targets.push(t.to_string()),
@@ -299,8 +304,9 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
             crate::dock::size(st)
         }
         "screenshot" => {
-            st.snap = Some(crate::snap::Snap::mock(1280, 720, arg != "pick", &st.t));
-            (1280, 720)
+            let (w, h, px) = frame().unwrap_or((1280, 720, None));
+            st.snap = Some(crate::snap::Snap::mock(w, h, arg != "pick", &st.t, px));
+            (w, h)
         }
         _ => (300, 200),
     };
@@ -347,6 +353,13 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
         }
     }
     save_png(&buf, w, h, path);
+}
+
+/// кадр из --frame как непрозрачный ARGB; None — нет флага или файл не читается
+fn frame() -> Option<(i32, i32, Option<Vec<u32>>)> {
+    let img = image::open(FRAME.get()?).map_err(|e| eprintln!("shot: --frame: {e}")).ok()?.to_rgb8();
+    let px = img.pixels().map(|p| 0xff000000 | (p[0] as u32) << 16 | (p[1] as u32) << 8 | p[2] as u32).collect();
+    Some((img.width() as i32, img.height() as i32, Some(px)))
 }
 
 fn save_png(buf: &[u32], w: i32, h: i32, path: &Path) {
