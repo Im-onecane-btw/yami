@@ -3,7 +3,7 @@
 // места слева, одна или две панели с файлами, сведения справа, строка состояния.
 
 use crate::act::{Act, Ui};
-use crate::fm::{item_rect, Dlg, Fm, Geo, Menu, Mode, NameKind, Thumb, View};
+use crate::fm::{item_rect, Fm, Geo, Menu, Mode, Thumb, View};
 use crate::font::{Face, Fonts, PX};
 use crate::fsx::{self, Sort};
 use crate::gfx::{BoxStyle, C, R};
@@ -59,7 +59,7 @@ pub fn lay(fm: &Fm, w: i32, h: i32) -> Lay {
     Lay { tool, tabs, side, panes, info, status, pick }
 }
 
-fn ease(born: Instant, ms: f32, fm: &Fm) -> f32 {
+pub(crate) fn ease(born: Instant, ms: f32, fm: &Fm) -> f32 {
     let d = fm.look.dur(ms);
     if d <= 0.0 {
         return 1.0;
@@ -69,10 +69,10 @@ fn ease(born: Instant, ms: f32, fm: &Fm) -> f32 {
 }
 
 /// текст без перевода (имена файлов, пути)
-fn raw(ui: &mut Ui, face: Face, r: R, s: &str, c: C) -> i32 {
+pub(crate) fn raw(ui: &mut Ui, face: Face, r: R, s: &str, c: C) -> i32 {
     ui.cv.text_in(ui.f, face, r, s, c)
 }
-fn raw_center(ui: &mut Ui, face: Face, r: R, s: &str, c: C) -> i32 {
+pub(crate) fn raw_center(ui: &mut Ui, face: Face, r: R, s: &str, c: C) -> i32 {
     ui.cv.text_center(ui.f, face, r, s, c)
 }
 
@@ -164,7 +164,7 @@ pub fn draw(ui: &mut Ui, fm: &Fm, w: i32, h: i32) {
     }
     toast(ui, fm, w, l.status.y);
     if let Some((d, born)) = &fm.dlg {
-        dialog(ui, fm, d, *born, w, h);
+        crate::dialogs::dialog(ui, fm, d, *born, w, h);
     }
     if let Some(m) = &fm.menu {
         menu(ui, fm, m, w, h);
@@ -178,7 +178,7 @@ pub fn draw(ui: &mut Ui, fm: &Fm, w: i32, h: i32) {
 }
 
 // ── панель инструментов ─────────────────────────────────────────────────────
-fn toolbar(ui: &mut Ui, fm: &Fm, r: R) {
+pub(crate) fn toolbar(ui: &mut Ui, fm: &Fm, r: R) {
     let t = ui.t;
     ui.cv.fill(r, t.panel.alpha(0.94));
     ui.cv.fill(R::new(r.x, r.bottom() - 1, r.w, 1), t.border);
@@ -251,7 +251,7 @@ fn toolbar(ui: &mut Ui, fm: &Fm, r: R) {
     path_bar(ui, fm, pr);
 }
 
-fn field_text(ui: &mut Ui, inner: R, f: &crate::ui::Field, ph: &str, focused: bool) {
+pub(crate) fn field_text(ui: &mut Ui, inner: R, f: &crate::ui::Field, ph: &str, focused: bool) {
     let t = ui.t;
     let before: String = f.text.chars().take(f.cur).collect();
     let bw = ui.f.width(PX, &before);
@@ -274,7 +274,7 @@ fn field_text(ui: &mut Ui, inner: R, f: &crate::ui::Field, ph: &str, focused: bo
     ui.cv.pop_clip();
 }
 
-fn path_bar(ui: &mut Ui, fm: &Fm, r: R) {
+pub(crate) fn path_bar(ui: &mut Ui, fm: &Fm, r: R) {
     let t = ui.t;
     let v = fm.v();
     let editing = fm.focus == crate::fm::Focus::Path;
@@ -351,7 +351,7 @@ fn path_bar(ui: &mut Ui, fm: &Fm, r: R) {
     }
 }
 
-fn picons_glyph(ui: &mut Ui, x: i32, y: i32, c: C) {
+pub(crate) fn picons_glyph(ui: &mut Ui, x: i32, y: i32, c: C) {
     const H: [&str; 7] = ["...#...", "..###..", ".#####.", "#######", ".#...#.", ".#.#.#.", ".#.#.#."];
     ui.cv.fill(R::new(x, y, 14, 14), C(0));
     for (j, row) in H.iter().enumerate() {
@@ -364,7 +364,7 @@ fn picons_glyph(ui: &mut Ui, x: i32, y: i32, c: C) {
 }
 
 // ── вкладки ─────────────────────────────────────────────────────────────────
-fn tabs(ui: &mut Ui, fm: &Fm, r: R) {
+pub(crate) fn tabs(ui: &mut Ui, fm: &Fm, r: R) {
     let t = ui.t;
     ui.cv.fill(r, t.panel.alpha(0.9));
     ui.cv.fill(R::new(r.x, r.bottom() - 1, r.w, 1), t.border);
@@ -394,7 +394,7 @@ fn tabs(ui: &mut Ui, fm: &Fm, r: R) {
 }
 
 // ── места ───────────────────────────────────────────────────────────────────
-fn side_row(ui: &mut Ui, fm: &Fm, r: R, name: &str, sp: Special, active: bool, act: Act, translate: bool) {
+pub(crate) fn side_row(ui: &mut Ui, fm: &Fm, r: R, name: &str, sp: Special, active: bool, act: Act, translate: bool) {
     let t = ui.t;
     let hov = ui.hover(r);
     let drop = fm.drop_hint.is_some() && hov;
@@ -408,7 +408,7 @@ fn side_row(ui: &mut Ui, fm: &Fm, r: R, name: &str, sp: Special, active: bool, a
     }
     picons::draw(&mut ui.cv, &t, Kind::Dir, sp, r.x + 8, r.y + (r.h - 16) / 2, 1, picons::Look { dim: false, link: false, selected: active });
     let tr = R::new(r.x + 32, r.y, r.w - 40, r.h);
-    let c = if active { C(0xffffffff) } else { t.text };
+    let c = if active { t.text_hi } else { t.text };
     if translate {
         ui.text_in(PX, tr, name, c);
     } else {
@@ -417,13 +417,13 @@ fn side_row(ui: &mut Ui, fm: &Fm, r: R, name: &str, sp: Special, active: bool, a
     ui.zone(r, act, Cur::Pointer);
 }
 
-fn section(ui: &mut Ui, x: i32, y: i32, w: i32, s: &str) {
+pub(crate) fn section(ui: &mut Ui, x: i32, y: i32, w: i32, s: &str) {
     let t = ui.t;
     ui.cv.fill(R::new(x, y + 7, 4, 4), t.red);
     ui.text_in(PX, R::new(x + 10, y, w - 10, 18), s, t.text_faint);
 }
 
-fn sidebar(ui: &mut Ui, fm: &Fm, r: R) {
+pub(crate) fn sidebar(ui: &mut Ui, fm: &Fm, r: R) {
     let t = ui.t;
     ui.cv.fill(r, t.panel.alpha(0.6));
     ui.cv.fill(R::new(r.right() - 1, r.y, 1, r.h), t.border);
@@ -477,7 +477,7 @@ fn sidebar(ui: &mut Ui, fm: &Fm, r: R) {
 }
 
 /// строка устройства: значок, имя, заполненность или «не подключён», кнопка «извлечь»
-fn dev_row(ui: &mut Ui, fm: &Fm, i: usize, x: i32, y: i32, w: i32, rh: i32) -> i32 {
+pub(crate) fn dev_row(ui: &mut Ui, fm: &Fm, i: usize, x: i32, y: i32, w: i32, rh: i32) -> i32 {
     let t = ui.t;
     let v = fm.v();
     let d = &fm.devs[i];
@@ -501,7 +501,7 @@ fn dev_row(ui: &mut Ui, fm: &Fm, i: usize, x: i32, y: i32, w: i32, rh: i32) -> i
     };
     picons::draw(&mut ui.cv, &t, Kind::Other, sp, rr.x + 8, rr.y + 4, 1, picons::Look { dim: d.mount.is_none(), link: false, selected: active });
     let title = d.title();
-    let tc = if d.mount.is_none() { t.text_dim } else if active { C(0xffffffff) } else { t.text };
+    let tc = if d.mount.is_none() { t.text_dim } else if active { t.text_hi } else { t.text };
     let eject = d.mount.is_some() && !root && (d.removable || hov);
     raw(ui, PX, R::new(rr.x + 32, rr.y + 1, rr.w - 40 - if eject { 22 } else { 0 }, 18), &title, tc);
     match &d.mount {
@@ -530,7 +530,7 @@ fn dev_row(ui: &mut Ui, fm: &Fm, i: usize, x: i32, y: i32, w: i32, rh: i32) -> i
 }
 
 // ── панель с файлами ────────────────────────────────────────────────────────
-fn pane(ui: &mut Ui, fm: &Fm, pi: usize, r: R) {
+pub(crate) fn pane(ui: &mut Ui, fm: &Fm, pi: usize, r: R) {
     let t = ui.t;
     let v = &fm.tabv().panes[pi];
     let split = fm.tabv().panes.len() > 1;
@@ -656,7 +656,7 @@ fn pane(ui: &mut Ui, fm: &Fm, pi: usize, r: R) {
     ui.cv.pop_clip();
 }
 
-fn thumb_of(fm: &Fm, e: &fsx::Entry, size: i32) -> Option<std::rc::Rc<crate::gfx::Img>> {
+pub(crate) fn thumb_of(fm: &Fm, e: &fsx::Entry, size: i32) -> Option<std::rc::Rc<crate::gfx::Img>> {
     if !fm.cfg.thumbs || e.dir {
         return None;
     }
@@ -679,7 +679,7 @@ fn thumb_of(fm: &Fm, e: &fsx::Entry, size: i32) -> Option<std::rc::Rc<crate::gfx
 }
 
 #[allow(clippy::too_many_arguments)]
-fn grid_item(ui: &mut Ui, fm: &Fm, e: &fsx::Entry, r: R, sel: bool, cur: bool, hov: bool, cut: bool, drop: bool, rn: Option<&crate::fm::Rename>) {
+pub(crate) fn grid_item(ui: &mut Ui, fm: &Fm, e: &fsx::Entry, r: R, sel: bool, cur: bool, hov: bool, cut: bool, drop: bool, rn: Option<&crate::fm::Rename>) {
     let t = ui.t;
     let u = fm.cfg.icon_u();
     let icon = 16 * u;
@@ -719,13 +719,13 @@ fn grid_item(ui: &mut Ui, fm: &Fm, e: &fsx::Entry, r: R, sel: bool, cur: bool, h
     }
     let lh = ui.f.line(PX) + 1;
     let lines = label_lines(ui.f, PX, &e.name, lr.w, 2);
-    let c = if sel { C(0xffffffff) } else if dim { t.text_dim } else { t.text };
+    let c = if sel { t.text_hi } else if dim { t.text_dim } else { t.text };
     for (k, l) in lines.iter().enumerate() {
         raw_center(ui, PX, R::new(lr.x, lr.y + k as i32 * lh, lr.w, lh), l, c);
     }
 }
 
-fn rename_field(ui: &mut Ui, r: R, rn: &crate::fm::Rename) {
+pub(crate) fn rename_field(ui: &mut Ui, r: R, rn: &crate::fm::Rename) {
     let t = ui.t;
     ui.cv.pxbox(r, &BoxStyle::new(t.code_bg, t.red).shadow(2));
     let inner = R::new(r.x + 6, r.y, r.w - 12, r.h);
@@ -749,7 +749,7 @@ fn rename_field(ui: &mut Ui, r: R, rn: &crate::fm::Rename) {
     ui.zone(r, Act::Block, Cur::Text);
 }
 
-fn list_head(ui: &mut Ui, fm: &Fm, r: R) {
+pub(crate) fn list_head(ui: &mut Ui, fm: &Fm, r: R) {
     let t = ui.t;
     ui.cv.fill(r, t.panel.alpha(0.7));
     ui.cv.fill(R::new(r.x, r.bottom() - 1, r.w, 1), t.border);
@@ -789,7 +789,7 @@ pub fn list_cols(r: R) -> Cols {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn list_item(ui: &mut Ui, _fm: &Fm, e: &fsx::Entry, r: R, i: usize, sel: bool, cur: bool, hov: bool, cut: bool, drop: bool, rn: Option<&crate::fm::Rename>) {
+pub(crate) fn list_item(ui: &mut Ui, _fm: &Fm, e: &fsx::Entry, r: R, i: usize, sel: bool, cur: bool, hov: bool, cut: bool, drop: bool, rn: Option<&crate::fm::Rename>) {
     let t = ui.t;
     let row = R::new(r.x + 4, r.y + 1, r.w - 14, r.h - 2);
     if sel || drop {
@@ -806,7 +806,7 @@ fn list_item(ui: &mut Ui, _fm: &Fm, e: &fsx::Entry, r: R, i: usize, sel: bool, c
     let dim = e.hidden || cut || e.broken;
     let sp = if e.dir { crate::places::special_of(&e.path) } else { Special::None };
     picons::draw(&mut ui.cv, &t, mime::kind(e.mime), sp, cols.name.0 + 4, r.y + (r.h - 16) / 2, 1, picons::Look { dim, link: e.link, selected: sel });
-    let c = if sel { C(0xffffffff) } else if dim { t.text_dim } else { t.text };
+    let c = if sel { t.text_hi } else if dim { t.text_dim } else { t.text };
     let nr = R::new(cols.name.0 + 28, r.y, cols.name.1 - 32, r.h);
     if let Some(rn) = rn {
         rename_field(ui, R::new(nr.x - 6, r.y, nr.w + 6, r.h), rn);
@@ -839,7 +839,7 @@ fn list_item(ui: &mut Ui, _fm: &Fm, e: &fsx::Entry, r: R, i: usize, sel: bool, c
 }
 
 // ── сведения ────────────────────────────────────────────────────────────────
-fn info(ui: &mut Ui, fm: &Fm, r: R) {
+pub(crate) fn info(ui: &mut Ui, fm: &Fm, r: R) {
     let t = ui.t;
     ui.cv.fill(r, t.panel.alpha(0.6));
     ui.cv.fill(R::new(r.x, r.y, 1, r.h), t.border);
@@ -938,7 +938,7 @@ fn info(ui: &mut Ui, fm: &Fm, r: R) {
 }
 
 // ── строка состояния ────────────────────────────────────────────────────────
-fn status(ui: &mut Ui, fm: &Fm, r: R) {
+pub(crate) fn status(ui: &mut Ui, fm: &Fm, r: R) {
     let t = ui.t;
     ui.cv.fill(r, t.panel.alpha(0.94));
     ui.cv.fill(R::new(r.x, r.y, r.w, 1), t.border);
@@ -993,7 +993,7 @@ fn status(ui: &mut Ui, fm: &Fm, r: R) {
     }
 }
 
-fn toast(ui: &mut Ui, fm: &Fm, w: i32, bottom: i32) {
+pub(crate) fn toast(ui: &mut Ui, fm: &Fm, w: i32, bottom: i32) {
     let Some((s, born)) = &fm.toast else { return };
     let t = ui.t;
     let el = born.elapsed().as_millis() as f32;
@@ -1014,7 +1014,7 @@ fn toast(ui: &mut Ui, fm: &Fm, w: i32, bottom: i32) {
 }
 
 // ── выбор файлов: имя, фильтр, кнопки ───────────────────────────────────────
-fn pick_bar(ui: &mut Ui, fm: &Fm, r: R) {
+pub(crate) fn pick_bar(ui: &mut Ui, fm: &Fm, r: R) {
     let t = ui.t;
     let Some(p) = &fm.pick else { return };
     ui.cv.fill(r, t.panel.alpha(0.96));
@@ -1084,7 +1084,7 @@ pub fn menu_rect(m: &Menu, items: &[crate::fm::MItem], x: i32, y: i32, w: i32, h
 }
 
 /// ширина меню по самому длинному пункту
-fn menu_w(ui: &mut Ui, items: &[crate::fm::MItem]) -> i32 {
+pub(crate) fn menu_w(ui: &mut Ui, items: &[crate::fm::MItem]) -> i32 {
     let mut w = 0;
     for it in items.iter().filter(|i| !i.is_sep()) {
         let lw = ui.w(PX, &it.label);
@@ -1098,7 +1098,7 @@ pub fn menu_h(items: &[crate::fm::MItem]) -> i32 {
     items.iter().map(|i| if i.is_sep() { 9 } else { MROW }).sum::<i32>() + 8
 }
 
-fn menu_items(ui: &mut Ui, items: &[crate::fm::MItem], r: R, hover: Option<usize>, open_sub: Option<usize>, sub: bool) {
+pub(crate) fn menu_items(ui: &mut Ui, items: &[crate::fm::MItem], r: R, hover: Option<usize>, open_sub: Option<usize>, sub: bool) {
     let t = ui.t;
     let mut y = r.bottom() - menu_h(items) + 4;
     for (i, it) in items.iter().enumerate() {
@@ -1113,7 +1113,7 @@ fn menu_items(ui: &mut Ui, items: &[crate::fm::MItem], r: R, hover: Option<usize
             ui.cv.pxbox(row, &BoxStyle::new(t.blood, C(0)));
             ui.cv.fill(R::new(row.x, row.y + 3, 2, row.h - 6), t.ember);
         }
-        let fg = if !it.on { t.text_faint } else if hov { C(0xffffffff) } else { t.text };
+        let fg = if !it.on { t.text_faint } else if hov { t.text_hi } else { t.text };
         if let Some(c) = it.check {
             let b = R::new(row.x + 8, row.cy() - 5, 10, 10);
             ui.cv.outline(b, if hov { fg } else { t.border.lerp(t.red, 0.5) }, 1);
@@ -1137,7 +1137,7 @@ fn menu_items(ui: &mut Ui, items: &[crate::fm::MItem], r: R, hover: Option<usize
     }
 }
 
-fn menu(ui: &mut Ui, fm: &Fm, m: &Menu, w: i32, h: i32) {
+pub(crate) fn menu(ui: &mut Ui, fm: &Fm, m: &Menu, w: i32, h: i32) {
     let t = ui.t;
     ui.zone(R::new(0, 0, w, h), Act::MenuBg, Cur::Default);
     let mw = menu_w(ui, &m.items);
@@ -1185,320 +1185,4 @@ fn menu(ui: &mut Ui, fm: &Fm, m: &Menu, w: i32, h: i32) {
             ui.anim = true;
         }
     }
-}
-
-// ── окна-вопросы ────────────────────────────────────────────────────────────
-fn dlg_frame(ui: &mut Ui, fm: &Fm, born: Instant, w: i32, h: i32, dw: i32, dh: i32, icon: &str, title: &str) -> R {
-    let t = ui.t;
-    let k = ease(born, 220.0, fm);
-    ui.cv.fill(R::new(0, 0, w, h), t.bg.alpha(0.55 * k));
-    ui.zone(R::new(0, 0, w, h), Act::Dim, Cur::Default);
-    let rise = ((1.0 - k) * 12.0) as i32;
-    let r = R::new((w - dw) / 2, (h - dh) / 2 + rise, dw, dh);
-    ui.cv.pxbox(r, &BoxStyle::new(t.panel.alpha(0.99), t.border.lerp(t.red, 0.5)).shadow(6));
-    ui.zone(r, Act::Block, Cur::Default);
-    let hr = R::new(r.x + 1, r.y + 1, r.w - 2, 34);
-    ui.cv.fill(hr, t.surface);
-    ui.cv.fill(R::new(hr.x, hr.bottom(), hr.w, 1), t.border);
-    ui.cv.icon(icon, hr.x + 12, hr.cy() - 7, 2, t.red);
-    ui.text_in(PX, R::new(hr.x + 34, hr.y, hr.w - 80, hr.h), title, t.text);
-    ui.button(R::new(hr.right() - 30, hr.y + 5, 24, 24), "", "close", Tone::Ghost, false, true, Act::Dlg("cancel"));
-    if k < 1.0 {
-        ui.anim = true;
-    }
-    r
-}
-
-fn dissolve_dlg(ui: &mut Ui, fm: &Fm, born: Instant, r: R) {
-    let k = ease(born, 220.0, fm);
-    if k < 1.0 {
-        ui.cv.dissolve_rect(R::new(r.x, r.y, r.w + 6, r.h + 6), k, 2);
-    }
-}
-
-fn buttons(ui: &mut Ui, r: R, list: &[(&str, &'static str, Tone)]) {
-    let mut x = r.right() - 14;
-    for (label, act, tone) in list.iter().rev() {
-        let bw = ui.w(PX, label) + 32;
-        x -= bw;
-        ui.button(R::new(x, r.bottom() - 46, bw, 32), label, "", *tone, false, true, Act::Dlg(act));
-        x -= 8;
-    }
-}
-
-fn dialog(ui: &mut Ui, fm: &Fm, d: &Dlg, born: Instant, w: i32, h: i32) {
-    let t = ui.t;
-    match d {
-        Dlg::Name { kind, f, err } => {
-            let title = match kind {
-                NameKind::NewFolder => "новая папка",
-                NameKind::NewFile => "новый файл",
-                NameKind::Compress => "сжать в архив",
-            };
-            let r = dlg_frame(ui, fm, born, w, h, 440, 170, if matches!(kind, NameKind::Compress) { "copy" } else { "plus" }, title);
-            let fr = R::new(r.x + 16, r.y + 52, r.w - 32, 34);
-            ui.field(fr, f, "имя", true, false, Act::DlgField);
-            if !err.is_empty() {
-                ui.text_in(PX, R::new(r.x + 16, r.y + 92, r.w - 32, 20), err, t.warn);
-            }
-            buttons(ui, r, &[("отмена", "cancel", Tone::Plain), ("создать", "ok", Tone::Primary)]);
-            dissolve_dlg(ui, fm, born, r);
-        }
-        Dlg::Server { addr, user, pass, field, err, question, busy } => {
-            let dh = if question.is_some() { 330 } else { 280 };
-            let r = dlg_frame(ui, fm, born, w, h, 480, dh, "net", "подключиться к серверу");
-            let lx = r.x + 16;
-            let fx = r.x + 110;
-            let fw = r.right() - 16 - fx;
-            let mut y = r.y + 50;
-            let rows: [(&str, &str, &yami_px::ui::Field, bool); 3] = [("адрес", "smb://nas/share", addr, false), ("логин", "необязательно", user, false), ("пароль", "", pass, true)];
-            for (n, (label, ph, f, pw)) in rows.into_iter().enumerate() {
-                ui.text_in(PX, R::new(lx, y, 90, 32), label, t.text_dim);
-                let fr = R::new(fx, y, fw, 32);
-                ui.field(fr, f, ph, *field as usize == n && !busy, pw, Act::DlgFocus(n as u8));
-                y += 40;
-            }
-            ui.text_in(PX, R::new(lx, y, r.w - 32, 18), "smb · sftp · ftp · davs · nfs · домен — ДОМЕН\\логин", t.text_faint);
-            y += 24;
-            if let Some(q) = question {
-                ui.cv.fill(R::new(lx, y + 6, 6, 6), t.warn);
-                raw(ui, PX, R::new(lx + 14, y, r.w - 46, 18), q, t.warn);
-                ui.text_in(PX, R::new(lx + 14, y + 20, r.w - 46, 18), "сервер просит подтверждения: подключиться всё равно?", t.text_dim);
-            }
-            if *busy {
-                let dots = ".".repeat(1 + (born.elapsed().as_millis() / 300 % 3) as usize);
-                raw(ui, PX, R::new(lx, r.bottom() - 40, r.w / 2, 20), &format!("{}{dots}", crate::i18n::tr("подключаю")), t.text_dim);
-                ui.anim = true;
-            } else if !err.is_empty() {
-                raw(ui, PX, R::new(lx, r.bottom() - 70, r.w - 32, 20), err, t.warn);
-            }
-            buttons(ui, r, &[("отмена", "cancel", Tone::Plain), (if question.is_some() { "подключиться всё равно" } else { "подключить" }, "ok", Tone::Primary)]);
-            dissolve_dlg(ui, fm, born, r);
-        }
-        Dlg::Confirm { title, text, ok, .. } => {
-            let r = dlg_frame(ui, fm, born, w, h, 460, 160, "trash", title);
-            let lines = label_lines(ui.f, PX, &crate::i18n::tr(text).to_string(), r.w - 32, 3);
-            for (i, l) in lines.iter().enumerate() {
-                raw(ui, PX, R::new(r.x + 16, r.y + 50 + i as i32 * 20, r.w - 32, 20), l, t.text);
-            }
-            buttons(ui, r, &[("отмена", "cancel", Tone::Plain), (ok.as_str(), "ok", Tone::Danger)]);
-            dissolve_dlg(ui, fm, born, r);
-        }
-        Dlg::Conflict { src, dst, all, .. } => {
-            let r = dlg_frame(ui, fm, born, w, h, 540, 250, "copy", "такой файл уже есть");
-            let name = dst.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
-            raw(ui, PX, R::new(r.x + 16, r.y + 48, r.w - 32, 20), &name, t.text);
-            let (a, b) = (fsx::Entry::from_path(src), fsx::Entry::from_path(dst));
-            let mut y = r.y + 76;
-            for (label, e) in [("новый", a), ("уже есть", b)] {
-                ui.text_in(PX, R::new(r.x + 16, y, 100, 20), label, t.text_faint);
-                if let Some(e) = e {
-                    let s = format!("{} · {}", if e.dir { crate::i18n::tr("папка").to_string() } else { fsx::human(e.size) }, fsx::when(e.mtime));
-                    raw(ui, PX, R::new(r.x + 120, y, r.w - 136, 20), &s, t.text_dim);
-                }
-                y += 22;
-            }
-            ui.toggle(R::new(r.x + 16, r.y + 130, 300, 24), "для всех остальных", "", *all, Act::Dlg("all"));
-            buttons(ui, r, &[("отмена", "cancel", Tone::Plain), ("пропустить", "skip", Tone::Plain), ("оставить оба", "rename", Tone::Plain), ("заменить", "replace", Tone::Danger)]);
-            dissolve_dlg(ui, fm, born, r);
-        }
-        Dlg::Errors(errs) => {
-            let r = dlg_frame(ui, fm, born, w, h, 520, 120 + 20 * errs.len().min(8) as i32, "close", "не всё получилось");
-            for (i, e) in errs.iter().take(8).enumerate() {
-                raw(ui, PX, R::new(r.x + 16, r.y + 48 + i as i32 * 20, r.w - 32, 20), e, t.text_dim);
-            }
-            if errs.len() > 8 {
-                ui.text_in(PX, R::new(r.x + 16, r.y + 48 + 8 * 20, r.w - 32, 20), &crate::tf!("и ещё {}", "and {} more", errs.len() - 8), t.text_faint);
-            }
-            buttons(ui, r, &[("понятно", "cancel", Tone::Primary)]);
-            dissolve_dlg(ui, fm, born, r);
-        }
-        Dlg::Props { paths, du, .. } => props(ui, fm, born, w, h, paths, du),
-        Dlg::OpenWith { mime: m, f, sel, remember, scroll, files } => {
-            let r = dlg_frame(ui, fm, born, w, h, 480, (h - 80).min(520), "dots", "открыть с помощью");
-            let what = if files.len() == 1 { files[0].file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default() } else { crate::tf!("файлов: {}", "{} files", files.len()) };
-            raw(ui, PX, R::new(r.x + 16, r.y + 44, r.w - 32, 20), &format!("{what} · {}", mime::label(m, "")), t.text_dim);
-            ui.field(R::new(r.x + 16, r.y + 70, r.w - 32, 32), f, "найти программу", true, false, Act::DlgField);
-            let lr = R::new(r.x + 12, r.y + 110, r.w - 24, r.h - 110 - 92);
-            ui.cv.push_clip(lr);
-            let list = crate::draw::open_list_cache(fm);
-            let rh = 30;
-            let mut y = lr.y - *scroll;
-            let mut sep_drawn = false;
-            for (n, (idx, fits)) in list.iter().enumerate() {
-                if !fits && !sep_drawn && n > 0 {
-                    ui.text_in(PX, R::new(lr.x + 6, y + 6, lr.w, 18), "остальные программы", t.text_faint);
-                    y += 26;
-                    sep_drawn = true;
-                }
-                if y + rh >= lr.y && y <= lr.bottom() {
-                    if let Some(a) = fm.apps_ref().and_then(|ap| ap.all.get(*idx)) {
-                        let row = R::new(lr.x, y, lr.w, rh - 2);
-                        let hov = ui.hover(row);
-                        if n == *sel {
-                            ui.cv.pxbox(row, &BoxStyle::new(t.blood, C(0)));
-                        } else if hov {
-                            ui.cv.pxbox(row, &BoxStyle::new(t.surface_hi, C(0)));
-                        }
-                        ui.app_icon(&a.icon, row.x + 6, row.y + 3, 22, 1.0);
-                        raw(ui, PX, R::new(row.x + 36, row.y, row.w / 2, row.h), &a.name, if n == *sel { C(0xffffffff) } else { t.text });
-                        let gw = ui.f.width(PX, &a.name);
-                        raw(ui, PX, R::new(row.x + 46 + gw, row.y, row.w - gw - 56, row.h), &a.generic, if n == *sel { t.text_dim.lerp(C(0xffffffff), 0.4) } else { t.text_faint });
-                        ui.zone(row.inter(&lr), Act::DlgApp(n), Cur::Pointer);
-                    }
-                }
-                y += rh;
-            }
-            ui.cv.pop_clip();
-            ui.toggle(R::new(r.x + 16, r.bottom() - 82, 320, 24), "всегда открывать этот тип так", "", *remember, Act::Dlg("remember"));
-            buttons(ui, r, &[("отмена", "cancel", Tone::Plain), ("открыть", "ok", Tone::Primary)]);
-            dissolve_dlg(ui, fm, born, r);
-        }
-        Dlg::Settings => settings(ui, fm, born, w, h),
-    }
-}
-
-/// список программ для «открыть с помощью» считает Fm (нужна изменяемость); кадр берёт готовый
-pub fn open_list_cache(fm: &Fm) -> Vec<(usize, bool)> {
-    fm.open_list.borrow().clone()
-}
-
-fn props(ui: &mut Ui, fm: &Fm, born: Instant, w: i32, h: i32, paths: &[std::path::PathBuf], du: &Option<((u64, u64, u64), bool)>) {
-    let t = ui.t;
-    let r = dlg_frame(ui, fm, born, w, h, 480, 400, "about", "свойства");
-    let one = paths.len() == 1;
-    let e = if one { fsx::Entry::from_path(&paths[0]) } else { None };
-    let mut y = r.y + 50;
-    let x = r.x + 18;
-    if let Some(e) = &e {
-        let sp = if e.dir { crate::places::special_of(&e.path) } else { Special::None };
-        picons::draw(&mut ui.cv, &t, mime::kind(e.mime), sp, x, y, 3, picons::Look { dim: false, link: e.link, selected: false });
-        raw(ui, PX, R::new(x + 62, y + 4, r.w - 100, 20), &e.name, t.text);
-        ui.cv.text_in(ui.f, PX, R::new(x + 62, y + 26, r.w - 100, 18), &mime::label(e.mime, &e.name), t.text_dim);
-        y += 64;
-    } else {
-        ui.text_in(PX, R::new(x, y, r.w - 36, 20), &crate::tf!("выбрано объектов: {}", "{} items selected", paths.len()), t.text);
-        y += 30;
-    }
-    ui.cv.fill(R::new(x, y, r.w - 36, 1), t.border);
-    y += 10;
-    let mut kv = |ui: &mut Ui, k: &str, v: &str| {
-        ui.text_in(PX, R::new(x, y, 110, 20), k, t.text_faint);
-        raw(ui, PX, R::new(x + 112, y, r.w - 150, 20), v, t.text_dim);
-        y += 22;
-    };
-    let size = match du {
-        Some(((b, f, d), done)) => {
-            let s = if *d > 0 { crate::tf!("{} · файлов {} · папок {}", "{} · {} files · {} folders", fsx::human(*b), f, d) } else { fsx::human(*b) };
-            if *done {
-                s
-            } else {
-                s + " …"
-            }
-        }
-        None => crate::i18n::tr("считаю…").to_string(),
-    };
-    if du.map(|d| !d.1).unwrap_or(true) {
-        ui.anim = true;
-    }
-    kv(ui, "размер", &size);
-    if let Some(e) = &e {
-        kv(ui, "где", &e.path.parent().map(fsx::pretty).unwrap_or_default());
-        kv(ui, "изменён", &fsx::full_time(e.mtime));
-        kv(ui, "владелец", &format!("{} : {}", fsx::id_name("/etc/passwd", e.uid), fsx::id_name("/etc/group", e.gid)));
-        if e.link {
-            if let Ok(tg) = std::fs::read_link(&e.path) {
-                kv(ui, "ссылка на", &tg.display().to_string());
-            }
-        }
-        if let Some((free, total)) = fsx::disk_free(&e.path) {
-            kv(ui, "на диске", &crate::tf!("свободно {} из {}", "{} free of {}", fsx::human(free), fsx::human(total)));
-        }
-        // права: три строки по три флажка
-        y += 6;
-        ui.text_in(PX, R::new(x, y, 110, 20), "права", t.text_faint);
-        let cols = ["чтение", "запись", "запуск"];
-        for (ci, c) in cols.iter().enumerate() {
-            ui.text_in(PX, R::new(x + 112 + ci as i32 * 92, y, 90, 20), c, t.text_faint);
-        }
-        y += 22;
-        for (ri, who) in ["владелец", "группа", "остальные"].iter().enumerate() {
-            ui.text_in(PX, R::new(x, y, 110, 22), who, t.text_dim);
-            for ci in 0..3 {
-                let bit = 1u32 << ((2 - ri) * 3 + (2 - ci));
-                let on = e.mode & bit != 0;
-                let b = R::new(x + 112 + ci as i32 * 92, y + 3, 16, 16);
-                let hov = ui.hover(b.inset(-3));
-                ui.cv.pxbox(b, &BoxStyle::new(t.code_bg, if hov { t.red } else { t.border }));
-                if on {
-                    ui.cv.fill(R::new(b.x + 4, b.y + 4, 8, 8), t.ember);
-                }
-                ui.zone(R::new(b.x - 3, b.y - 3, 22, 22), Act::DlgBit(bit), Cur::Pointer);
-            }
-            y += 24;
-        }
-    }
-    buttons(ui, r, &[("закрыть", "cancel", Tone::Primary)]);
-    dissolve_dlg(ui, fm, born, r);
-}
-
-fn settings(ui: &mut Ui, fm: &Fm, born: Instant, w: i32, h: i32) {
-    let t = ui.t;
-    let r = dlg_frame(ui, fm, born, w, h, 560, 520, "gear", "настройки файлов");
-    let x = r.x + 18;
-    let cw = (r.w - 52) / 2;
-    let mut y = r.y + 50;
-    let c = &fm.cfg;
-    let col2 = x + cw + 16;
-    section(ui, x, y, cw, "вид");
-    section(ui, col2, y, cw, "поведение");
-    y += 24;
-    let rows_l: [(&str, &str, bool, &str); 5] = [
-        ("скрытые файлы", "ctrl+h", c.hidden, "hidden"),
-        ("папки сверху", "", c.folders_first, "foldersFirst"),
-        ("миниатюры", "картинки и видео", c.thumbs, "thumbs"),
-        ("места слева", "", c.sidebar, "sidebar"),
-        ("сведения справа", "f11", c.info, "info"),
-    ];
-    let rows_r: [(&str, &str, bool, &str); 6] = [
-        ("открывать одним щелчком", "", c.single_click, "singleClick"),
-        ("спрашивать перед корзиной", "", c.confirm_trash, "confirmTrash"),
-        ("новое окно — две панели", "f3", c.split, "split"),
-        ("по убыванию", "", c.desc, "desc"),
-        ("устройства слева", "диски, телефоны", c.devices, "devices"),
-        ("сеть слева", "smb, sftp, ftp", c.network, "network"),
-    ];
-    let mut yl = y;
-    for (label, hint, on, key) in rows_l {
-        ui.toggle(R::new(x, yl, cw, 40), label, hint, on, Act::SBool(key));
-        yl += 44;
-    }
-    let mut yr = y;
-    for (label, hint, on, key) in rows_r {
-        ui.toggle(R::new(col2, yr, cw, 40), label, hint, on, Act::SBool(key));
-        yr += 44;
-    }
-    // вид и сортировка — переключатели по кругу
-    let cyc = |ui: &mut Ui, r2: R, label: &str, val: &str, key: &'static str| {
-        ui.text_in(PX, R::new(r2.x, r2.y, 120, r2.h), label, t.text);
-        let br = R::new(r2.x + 130, r2.y, r2.w - 130, r2.h);
-        ui.button(br, val, "", Tone::Plain, false, true, Act::SCycle(key));
-    };
-    let mode = if fm.mode() == Mode::List { "список" } else { "значки" };
-    let sort = match Sort::from_id(&c.sort) {
-        Sort::Name => "по имени",
-        Sort::Size => "по размеру",
-        Sort::Time => "по дате",
-        Sort::Kind => "по типу",
-    };
-    yr += 4;
-    cyc(ui, R::new(col2, yr, cw, 28), "вид", mode, "view");
-    yr += 34;
-    cyc(ui, R::new(col2, yr, cw, 28), "порядок", sort, "sort");
-    let yb = yl.max(y) + 6;
-    ui.slider(R::new(x, yb, cw, 40), "размер значков", (c.zoom + 1) as f32 / 5.0, &format!("{}px", 16 * c.icon_u()), 5, Act::SZoom);
-    ui.text_in(PX, R::new(x, r.bottom() - 70, r.w - 36, 18), "цвета и язык — из настроек шелла (mod+s)", t.text_faint);
-    raw(ui, PX, R::new(x, r.bottom() - 50, r.w / 2, 18), &format!("{}: {}", crate::i18n::tr("терминал"), c.terminal), t.text_faint);
-    buttons(ui, r, &[("готово", "cancel", Tone::Primary)]);
-    dissolve_dlg(ui, fm, born, r);
 }

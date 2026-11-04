@@ -60,15 +60,17 @@ fn main() {
 fn shot(args: &[String]) -> i32 {
     let mut out = PathBuf::from("shots");
     let mut lang = String::new();
+    let mut mode: Option<bool> = None;
     let mut it = args.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
             "-o" => out = it.next().map(PathBuf::from).unwrap_or(out),
             "--lang" => lang = it.next().cloned().unwrap_or_default(),
+            "--theme" => mode = it.next().map(|m| m == "light"),
             _ => {}
         }
     }
-    let mut look = look::Look::load();
+    let mut look = look::Look::load_mode(mode);
     look.animations = false;
     if !lang.is_empty() {
         look.lang = lang.clone();

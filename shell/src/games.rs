@@ -60,12 +60,17 @@ pub fn kdl(set: &crate::config::Settings, yami: bool, l: &mut Vec<String>) {
         l.push("}".into());
         l.push(String::new());
     }
+    let mut env: Vec<String> = vec![];
     if set.game_cache {
         // кеш шейдеров побольше и без чистки: меньше фризов при первом запуске сцены
+        env.push("    __GL_SHADER_DISK_CACHE_SIZE \"12000000000\"".into());
+        env.push("    __GL_SHADER_DISK_CACHE_SKIP_CLEANUP \"1\"".into());
+        env.push("    MESA_SHADER_CACHE_MAX_SIZE \"12G\"".into());
+    }
+    crate::gameboost::env_kdl(set, &mut env);
+    if !env.is_empty() {
         l.push("environment {".into());
-        l.push("    __GL_SHADER_DISK_CACHE_SIZE \"12000000000\"".into());
-        l.push("    __GL_SHADER_DISK_CACHE_SKIP_CLEANUP \"1\"".into());
-        l.push("    MESA_SHADER_CACHE_MAX_SIZE \"12G\"".into());
+        l.append(&mut env);
         l.push("}".into());
         l.push(String::new());
     }
@@ -79,20 +84,24 @@ pub struct GameMode {
     pub fullscreen: bool,
     /// профиль до игры (чтобы вернуть)
     pub prof_before: Option<String>,
+    /// игра в фокусе у GameMode (gameboost.rs)
+    pub boost: crate::gameboost::Boost,
 }
 
 impl App {
     /// после событий niri: что в фокусе — игра, на весь экран?
     pub fn game_sync(&mut self) {
-        let (game, full) = match self.st.niri.focused_win() {
+        let (game, full, pid) = match self.st.niri.focused_win() {
             Some(w) => {
                 let out = w.ws.and_then(|i| self.st.niri.ws.iter().find(|x| x.id == i)).map(|x| x.output.clone()).unwrap_or_default();
                 let (ow, oh) = self.output_size(&out);
                 let full = w.layout.size.0 >= ow as f64 && w.layout.size.1 >= oh as f64;
-                (is_game(&self.st.set, &w.app_id), full)
+                let game = is_game(&self.st.set, &w.app_id);
+                (game, full, if game { w.pid } else { None })
             }
-            None => (false, false),
+            None => (false, false, None),
         };
+        crate::gameboost::focus(&self.st.set, &mut self.st.game.boost, pid);
         let was = std::mem::replace(&mut self.st.game.fullscreen, full);
         if was && !full {
             // вышли из полноэкранного: накопившееся под ним — нарисовать
@@ -125,24 +134,36 @@ impl App {
 pub fn tab(ui: &mut Ui, st: &State, b: R) {
     let s = &st.set;
     let t = ui.t;
+    let p = &st.game_probe;
     let half = (b.w - 20) / 2;
+    let (l, r) = (b.x, b.x + half + 20);
+    // окна игр: как их открывает niri
     let mut y = title(ui, b.x, b.y, b.w, "игровые окна");
-    ui.toggle(R::new(b.x, y, half, 40), "сразу на весь экран", "Steam, gamescope и свои ниже", s.game_fullscreen, Act::SBool("game_fullscreen"));
-    ui.toggle(R::new(b.x + half + 20, y, half, 40), "VRR в играх", "экраны → VRR «в играх»", s.game_vrr, Act::SBool("game_vrr"));
+    ui.toggle(R::new(l, y, half, 40), "сразу на весь экран", "Steam, gamescope и свои ниже", s.game_fullscreen, Act::SBool("game_fullscreen"));
+    ui.toggle(R::new(r, y, half, 40), "VRR в играх", "экраны → VRR «в играх»", s.game_vrr, Act::SBool("game_vrr"));
     y += 46;
-    let hint = if st.niri.yami { "кадр сразу, без ожидания vblank: меньше задержка" } else { "нужен yami-niri (наш форк)" };
-    ui.toggle(R::new(b.x, y, half, 40), "разрывы (tearing)", hint, s.game_tearing, Act::SBool("game_tearing"));
-    ui.toggle(R::new(b.x + half + 20, y, half, 40), "большой кеш шейдеров", "меньше фризов; со следующего входа", s.game_cache, Act::SBool("game_cache"));
-    y += 52;
-    y = title(ui, b.x, y, b.w, "пока играешь");
-    ui.toggle(R::new(b.x, y, half, 40), "не беспокоить", "уведомления — молча в историю", s.game_dnd, Act::SBool("game_dnd"));
-    let ph = if st.prof.present { "потом — как было" } else { "нет power-profiles-daemon" };
-    ui.toggle(R::new(b.x + half + 20, y, half, 40), "профиль «производительность»", ph, s.game_profile, Act::SBool("game_profile"));
-    y += 52;
-    y = title(ui, b.x, y, b.w, "свои игры");
+    let hint = if st.niri.yami { "меньше задержка, возможны разрывы" } else { "нужен yami-niri (наш форк)" };
+    ui.toggle(R::new(l, y, half, 40), "разрывы (tearing)", hint, s.game_tearing, Act::SBool("game_tearing"));
+    y += 46;
+    // свои игры: какие ещё окна считать играми
     let focused = st.field_focus == Some("game_apps");
-    ui.field(R::new(b.x, y, b.w - 130, 26), &st.game_field, "app-id через запятую: osu!, minecraft*", focused, false, Act::SField("game_apps"));
+    ui.field(R::new(b.x, y, b.w - 130, 26), &st.game_field, "свои игры: app-id через запятую, osu!, minecraft*", focused, false, Act::SField("game_apps"));
     ui.button(R::new(b.right() - 120, y, 120, 26), "применить", "check", crate::ui::Tone::Plain, false, true, Act::SCycle("game_apply"));
-    y += 34;
-    ui.wrap(crate::font::PX, R::new(b.x, y, b.w, 40), "app-id окна видно в «niri msg windows». * в конце — по началу имени.", t.text_faint, 2);
+    y += 30;
+    ui.text_in(crate::font::PX, R::new(b.x, y, b.w, 18), "app-id окна видно в «niri msg windows». * в конце — по началу имени.", t.text_faint);
+    y += 28;
+    // пока игра в фокусе — и обратно после
+    y = title(ui, b.x, y, b.w, "пока играешь");
+    ui.toggle(R::new(l, y, half, 40), "не беспокоить", "уведомления — молча в историю", s.game_dnd, Act::SBool("game_dnd"));
+    let ph = if st.prof.present { "потом — как было" } else { "нет power-profiles-daemon" };
+    ui.toggle(R::new(r, y, half, 40), "профиль «производительность»", ph, s.game_profile, Act::SBool("game_profile"));
+    y += 46;
+    let gm = if p.gamemode { "игра в фокусе — сама" } else { "нет gamemoded" };
+    ui.toggle(R::new(l, y, half, 40), "GameMode", gm, s.game_gamemode, Act::SBool("game_gamemode"));
+    y += 52;
+    // переменные окружения: действуют со следующего входа
+    y = title(ui, b.x, y, b.w, "Proton и драйвер (со следующего входа)");
+    let nt = if p.ntsync { "PROTON_USE_NTSYNC=1" } else { "нет /dev/ntsync" };
+    ui.toggle(R::new(l, y, half, 40), "ntsync для Proton", nt, s.game_ntsync, Act::SBool("game_ntsync"));
+    ui.toggle(R::new(r, y, half, 40), "большой кеш шейдеров", "меньше фризов в новых сценах", s.game_cache, Act::SBool("game_cache"));
 }

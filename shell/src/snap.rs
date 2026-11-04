@@ -6,10 +6,9 @@
 //
 //   yami-shell msg screenshot [area|window|screen]   (Print, Alt+Print, Ctrl+Print)
 
-use crate::app::{App, Msg, SKind, State};
-use crate::font::PX;
-use crate::gfx::{BoxStyle, Canvas, Img, C, R};
-use crate::ui::{Act, Cur, Tone, Ui};
+pub use crate::snapdraw::{draw, paint};
+use crate::app::{App, Msg, SKind};
+use crate::gfx::{Canvas, Img, C, R};
 use smithay_client_toolkit::seat::keyboard::{KeyEvent, Keysym};
 use smithay_client_toolkit::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer};
 use std::collections::HashMap;
@@ -33,6 +32,8 @@ pub enum Tool {
     Marker,
     Mosaic,
     Count,
+    /// пипетка: щелчок копирует цвет точки как #rrggbb
+    Pick,
 }
 
 pub const TOOLS: &[(Tool, &str, &str, &str)] = &[
@@ -43,8 +44,9 @@ pub const TOOLS: &[(Tool, &str, &str, &str)] = &[
     (Tool::Marker, "marker", "t:marker", "маркер"),
     (Tool::Mosaic, "mosaic", "t:mosaic", "мозаика"),
     (Tool::Count, "count", "t:count", "номерок"),
+    (Tool::Pick, "drop", "t:pick", "пипетка"),
 ];
-const COLOR_ACTS: [&str; 6] = ["c:0", "c:1", "c:2", "c:3", "c:4", "c:5"];
+pub(crate) const COLOR_ACTS: [&str; 6] = ["c:0", "c:1", "c:2", "c:3", "c:4", "c:5"];
 
 #[derive(Clone, Debug)]
 pub struct Mark {
@@ -56,7 +58,7 @@ pub struct Mark {
 }
 
 #[derive(Clone, Copy, Debug)]
-enum Drag {
+pub(crate) enum Drag {
     New(i32, i32),
     Move(i32, i32, R),
     /// ручка: 0..8 по часовой с левого верхнего угла, исходный прямоугольник
@@ -68,7 +70,7 @@ pub struct Snap {
     pub imgs: HashMap<String, Rc<Img>>,
     pub mode: Mode,
     pub sel: Option<(String, R)>,
-    drag: Option<Drag>,
+    pub(crate) drag: Option<Drag>,
     pub tool: Tool,
     pub color: usize,
     pub size: i32,
@@ -80,13 +82,16 @@ pub struct Snap {
     pub wins: Vec<(String, R, String)>,
     pub busy: bool,
     pub hint: Option<(String, Instant)>,
+    /// есть tesseract / zbarimg: кнопки «текст» и «QR» в панели
+    pub ocr: bool,
+    pub qr: bool,
 }
 
 impl Snap {
     pub fn colors(t: &crate::theme::Theme) -> [C; 6] {
         [t.red, C::hex(0xffffff), C::hex(0x0b0909), t.ok, t.warn, C::hex(0x3a9fd0)]
     }
-    fn cur_sel(&self, out: &str) -> Option<R> {
+    pub(crate) fn cur_sel(&self, out: &str) -> Option<R> {
         self.sel.as_ref().filter(|s| s.0 == out).map(|s| s.1)
     }
 }
@@ -142,12 +147,14 @@ impl Snap {
             wins: vec![],
             busy: false,
             hint: None,
+            ocr: true,
+            qr: true,
         }
     }
 }
 
 /// grim -t ppm: P6, ширина, высота, 255, RGB
-fn parse_ppm(b: &[u8]) -> Option<Img> {
+pub(crate) fn parse_ppm(b: &[u8]) -> Option<Img> {
     let mut fields = vec![];
     let mut i = 0;
     while fields.len() < 4 && i < b.len() {
@@ -186,7 +193,7 @@ pub fn grab(out: &str) -> Option<Img> {
 }
 
 /// окна видимых рабочих столов в координатах их мониторов
-fn niri_windows() -> Vec<(String, R, String)> {
+pub(crate) fn niri_windows() -> Vec<(String, R, String)> {
     let run = |what: &str| -> serde_json::Value {
         std::process::Command::new("niri").args(["msg", "-j", what]).output().ok().and_then(|o| serde_json::from_slice(&o.stdout).ok()).unwrap_or(serde_json::Value::Null)
     };
@@ -221,397 +228,15 @@ fn niri_windows() -> Vec<(String, R, String)> {
     v
 }
 
-fn norm(x0: i32, y0: i32, x1: i32, y1: i32) -> R {
+pub(crate) fn norm(x0: i32, y0: i32, x1: i32, y1: i32) -> R {
     R::new(x0.min(x1), y0.min(y1), (x1 - x0).abs() + 1, (y1 - y0).abs() + 1)
 }
 
-fn handles(r: R) -> [R; 8] {
+pub(crate) fn handles(r: R) -> [R; 8] {
     let s = 8;
     let (x0, x1, xm) = (r.x - s / 2, r.right() - s / 2, r.x + r.w / 2 - s / 2);
     let (y0, y1, ym) = (r.y - s / 2, r.bottom() - s / 2, r.y + r.h / 2 - s / 2);
     [R::new(x0, y0, s, s), R::new(xm, y0, s, s), R::new(x1, y0, s, s), R::new(x1, ym, s, s), R::new(x1, y1, s, s), R::new(xm, y1, s, s), R::new(x0, y1, s, s), R::new(x0, ym, s, s)]
-}
-
-// ── рисование меток (и на экране, и в файле) ───────────────────────────────
-/// квадратная кисть size по линии Брезенхэма
-fn line(cv: &mut Canvas, a: (i32, i32), b: (i32, i32), size: i32, c: C) {
-    let (mut x, mut y) = a;
-    let dx = (b.0 - x).abs();
-    let dy = -(b.1 - y).abs();
-    let sx = if x < b.0 { 1 } else { -1 };
-    let sy = if y < b.1 { 1 } else { -1 };
-    let mut err = dx + dy;
-    let h = size / 2;
-    loop {
-        cv.set(R::new(x - h, y - h, size, size), c);
-        if x == b.0 && y == b.1 {
-            break;
-        }
-        let e2 = 2 * err;
-        if e2 >= dy {
-            err += dy;
-            x += sx;
-        }
-        if e2 <= dx {
-            err += dx;
-            y += sy;
-        }
-    }
-}
-
-/// метка m; координаты экрана → буфер: (p - o) * k
-pub fn paint(cv: &mut Canvas, fonts: &mut crate::font::Fonts, m: &Mark, base: &Img, o: (i32, i32), k: i32, on_accent: C) {
-    let tr = |p: (i32, i32)| ((p.0 - o.0) * k, (p.1 - o.1) * k);
-    let size = (m.size * k).max(1);
-    match m.tool {
-        Tool::Pen => {
-            for w in m.pts.windows(2) {
-                line(cv, tr(w[0]), tr(w[1]), size, m.color);
-            }
-            if m.pts.len() == 1 {
-                line(cv, tr(m.pts[0]), tr(m.pts[0]), size, m.color);
-            }
-        }
-        Tool::Rect | Tool::Marker | Tool::Mosaic => {
-            let (Some(a), Some(b)) = (m.pts.first(), m.pts.last()) else { return };
-            let (a, b) = (tr(*a), tr(*b));
-            let r = norm(a.0, a.1, b.0, b.1);
-            match m.tool {
-                Tool::Rect => cv.outline(r, m.color, size),
-                Tool::Marker => cv.fill(r, m.color.alpha(0.38)),
-                _ => {
-                    // мозаика: средний цвет клетки исходника (база — в своём масштабе: экран × k)
-                    let cell = 10 * k;
-                    let mut y = r.y;
-                    while y < r.bottom() {
-                        let mut x = r.x;
-                        while x < r.right() {
-                            let cw = cell.min(r.right() - x);
-                            let ch = cell.min(r.bottom() - y);
-                            // точка исходника: буфер → экран·k → база
-                            let bx = (x + o.0 * k).clamp(0, base.w - 1);
-                            let by = (y + o.1 * k).clamp(0, base.h - 1);
-                            let (mut rs, mut gs, mut bs, mut n) = (0u32, 0u32, 0u32, 0u32);
-                            let mut yy = by;
-                            while yy < (by + ch).min(base.h) {
-                                let mut xx = bx;
-                                while xx < (bx + cw).min(base.w) {
-                                    let p = base.px[(yy * base.w + xx) as usize];
-                                    rs += (p >> 16) & 255;
-                                    gs += (p >> 8) & 255;
-                                    bs += p & 255;
-                                    n += 1;
-                                    xx += 2;
-                                }
-                                yy += 2;
-                            }
-                            let n = n.max(1);
-                            cv.set(R::new(x, y, cw, ch), C(0xff000000 | (rs / n) << 16 | (gs / n) << 8 | bs / n));
-                            x += cell;
-                        }
-                        y += cell;
-                    }
-                }
-            }
-        }
-        Tool::Arrow => {
-            let (Some(a), Some(b)) = (m.pts.first(), m.pts.last()) else { return };
-            let (a, b) = (tr(*a), tr(*b));
-            line(cv, a, b, size, m.color);
-            let ang = ((b.1 - a.1) as f32).atan2((b.0 - a.0) as f32);
-            let len = (size as f32 * 4.0 + 10.0 * k as f32).min((((b.0 - a.0).pow(2) + (b.1 - a.1).pow(2)) as f32).sqrt());
-            for d in [2.6f32, -2.6] {
-                let e = (b.0 + (len * (ang + d).cos()) as i32, b.1 + (len * (ang + d).sin()) as i32);
-                line(cv, b, e, size, m.color);
-            }
-        }
-        Tool::Count => {
-            let Some(p) = m.pts.first() else { return };
-            let p = tr(*p);
-            let s = 26 * k;
-            let r = R::new(p.0 - s / 2, p.1 - s / 2, s, s);
-            cv.pxbox(r, &BoxStyle::new(m.color, C::hex(0x0b0909)).shadow(2 * k));
-            let face = crate::font::px(16 * k as u16);
-            let txt = m.n.to_string();
-            let tc = if crate::theme::lightness(m.color) > 0.6 { C::hex(0x0b0909) } else { on_accent };
-            cv.text_center(fonts, face, r, &txt, tc);
-        }
-        Tool::Select => {}
-    }
-}
-
-// ── отрисовка оверлея ──────────────────────────────────────────────────────
-pub fn draw(ui: &mut Ui, st: &State, out: &str, w: i32, h: i32) {
-    let t = ui.t;
-    let Some(sn) = &st.snap else { return };
-    let Some(img) = sn.imgs.get(out) else { return };
-    if img.w == w && img.h == h {
-        ui.cv.blit(img, 0, 0);
-    } else {
-        ui.cv.image_scaled(img, R::new(0, 0, w, h), 1.0);
-    }
-    if let Some(f) = sn.flash {
-        // затвор: белая вспышка, гаснет клетками
-        let k = 1.0 - (f.elapsed().as_millis() as f32 / 260.0).min(1.0);
-        ui.cv.fill(R::new(0, 0, w, h), C(0xffffffff).alpha(0.85 * k));
-        ui.anim = true;
-        return;
-    }
-    let sel = sn.cur_sel(out);
-    let veil = t.bg.alpha(0.52);
-    match sel {
-        Some(r) => {
-            ui.cv.fill(R::new(0, 0, w, r.y), veil);
-            ui.cv.fill(R::new(0, r.bottom(), w, h - r.bottom()), veil);
-            ui.cv.fill(R::new(0, r.y, r.x, r.h), veil);
-            ui.cv.fill(R::new(r.right(), r.y, w - r.right(), r.h), veil);
-        }
-        None => ui.cv.fill(R::new(0, 0, w, h), veil),
-    }
-    // строки развёртки по вуали
-    for y in (0..h).step_by(4) {
-        match sel {
-            Some(r) if y >= r.y && y < r.bottom() => {
-                ui.cv.fill(R::new(0, y, r.x, 1), C(0xff000000).alpha(0.16));
-                ui.cv.fill(R::new(r.right(), y, w - r.right(), 1), C(0xff000000).alpha(0.16));
-            }
-            _ => ui.cv.fill(R::new(0, y, w, 1), C(0xff000000).alpha(0.16)),
-        }
-    }
-    let ph = (st.started.elapsed().as_millis() / 70) as i32;
-    // режим «окно»: окно под курсором
-    if sn.mode == Mode::Window && sn.drag.is_none() {
-        if let Some((_, px, py)) = sn.ptr.as_ref().filter(|p| p.0 == out) {
-            if let Some((_, r, title)) = sn.wins.iter().find(|(o, r, _)| o == out && r.contains(*px as f64, *py as f64)) {
-                if sel.map(|s| s != *r).unwrap_or(true) {
-                    ui.cv.fill(*r, t.red.alpha(0.12));
-                    ui.cv.ants(*r, t.ember, 4, ph);
-                    let tw = ui.f.width(PX, title).min(r.w - 20) + 20;
-                    let tr = R::new(r.x + 8, r.y + 8, tw, 24);
-                    ui.cv.pxbox(tr, &BoxStyle::new(t.panel.alpha(0.95), t.red).shadow(2));
-                    ui.cv.text_in(ui.f, PX, R::new(tr.x + 10, tr.y, tr.w - 14, tr.h), title, t.text);
-                }
-            }
-        }
-    }
-    // метки
-    if let Some(r) = sel {
-        ui.cv.push_clip(r);
-        for m in &sn.marks {
-            paint(&mut ui.cv, ui.f, m, img, (0, 0), 1, t.on_accent);
-        }
-        ui.cv.pop_clip();
-        ui.cv.ants(R::new(r.x - 1, r.y - 1, r.w + 2, r.h + 2), t.ember, 4, ph);
-        ui.anim = true;
-        if sn.tool == Tool::Select || sn.drag.is_some() {
-            for hr in handles(r) {
-                ui.cv.fill(hr, C::hex(0x0b0909));
-                ui.cv.fill(hr.inset(1), t.ember);
-            }
-        }
-        // размер
-        let s = format!("{} × {}", r.w, r.h);
-        let sw = ui.f.width(PX, &s) + 16;
-        let ly = if r.y > 30 { r.y - 28 } else { r.y + 6 };
-        let lr = R::new(r.x, ly, sw, 22);
-        ui.cv.pxbox(lr, &BoxStyle::new(t.panel.alpha(0.95), t.border));
-        ui.cv.text_center(ui.f, PX, lr, &s, t.text);
-        toolbar(ui, sn, r, w, h);
-    } else {
-        top_bar(ui, sn, w);
-    }
-    // перекрестье и лупа
-    if let Some((_, px, py)) = sn.ptr.as_ref().filter(|p| p.0 == out) {
-        let (px, py) = (*px, *py);
-        let on_bar = ui.zones.iter().any(|z| matches!(z.act, Act::SnapBtn(_)) && z.r.contains(px as f64, py as f64));
-        if sel.is_none() && sn.mode == Mode::Area {
-            for x in (0..w).step_by(6) {
-                ui.cv.fill(R::new(x, py, 3, 1), t.ember.alpha(0.55));
-            }
-            for y in (0..h).step_by(6) {
-                ui.cv.fill(R::new(px, y, 1, 3), t.ember.alpha(0.55));
-            }
-        }
-        if st.set.shot_loupe && !on_bar && sn.drag.map(|d| !matches!(d, Drag::Move(..) | Drag::Draw)).unwrap_or(true) {
-            loupe(ui, img, px, py, w, h);
-        }
-    }
-    if let Some((s, t0)) = &sn.hint {
-        if t0.elapsed().as_millis() < 1600 {
-            let sw = ui.w(PX, s) + 32;
-            let r = R::new((w - sw) / 2, h - 80, sw, 30);
-            ui.cv.pxbox(r, &BoxStyle::new(t.panel.alpha(0.96), t.red).shadow(3));
-            ui.text_center(PX, r, s, t.text);
-            ui.anim = true;
-        }
-    }
-    ui.zone(R::new(0, 0, w, h), Act::Block, Cur::Default);
-    // зоны кнопок должны быть поверх «фона»: переставим фон в начало
-    if let Some(bg) = ui.zones.pop() {
-        ui.zones.insert(0, bg);
-    }
-}
-
-fn loupe(ui: &mut Ui, img: &Img, px: i32, py: i32, w: i32, h: i32) {
-    let t = ui.t;
-    let n = 15; // клеток по стороне
-    let z = 8; // размер клетки
-    let side = n * z;
-    let mut x = px + 28;
-    let mut y = py + 28;
-    if x + side + 8 > w {
-        x = px - 28 - side;
-    }
-    if y + side + 56 > h {
-        y = py - 28 - side - 46;
-    }
-    let fr = R::new(x - 4, y - 4, side + 8, side + 52);
-    ui.cv.pxbox(fr, &BoxStyle::new(t.panel.alpha(0.98), t.red).shadow(4));
-    // масштаб снимка к экрану (HiDPI)
-    let k = img.w as f32 / w.max(1) as f32;
-    let (cx, cy) = ((px as f32 * k) as i32, (py as f32 * k) as i32);
-    for j in 0..n {
-        for i in 0..n {
-            let sx = cx + i - n / 2;
-            let sy = cy + j - n / 2;
-            let c = if sx >= 0 && sy >= 0 && sx < img.w && sy < img.h { C(img.px[(sy * img.w + sx) as usize] | 0xff000000) } else { C::hex(0x000000) };
-            ui.cv.set(R::new(x + i * z, y + j * z, z, z), c);
-        }
-    }
-    // сетка и центральная клетка
-    for i in 1..n {
-        ui.cv.fill(R::new(x + i * z, y, 1, side), C(0xff000000).alpha(0.22));
-        ui.cv.fill(R::new(x, y + i * z, side, 1), C(0xff000000).alpha(0.22));
-    }
-    let c0 = R::new(x + (n / 2) * z, y + (n / 2) * z, z, z);
-    ui.cv.outline(R::new(c0.x - 1, c0.y - 1, z + 2, z + 2), C::hex(0x0b0909), 1);
-    ui.cv.outline(c0, C(0xffffffff), 1);
-    let col = if cx >= 0 && cy >= 0 && cx < img.w && cy < img.h { img.px[(cy * img.w + cx) as usize] & 0xffffff } else { 0 };
-    ui.cv.fill(R::new(x, y + side + 8, 14, 14), C::hex(col));
-    ui.cv.outline(R::new(x, y + side + 8, 14, 14), t.border, 1);
-    ui.cv.text_in(ui.f, PX, R::new(x + 20, y + side + 4, side - 20, 22), &format!("#{col:06x}"), t.text);
-    ui.cv.text_in(ui.f, PX, R::new(x, y + side + 24, side, 20), &format!("{px}, {py}"), t.text_faint);
-}
-
-fn top_bar(ui: &mut Ui, sn: &Snap, w: i32) {
-    let t = ui.t;
-    let modes = [(Mode::Area, "область", "crop_", "m:area"), (Mode::Window, "окно", "window", "m:window"), (Mode::Screen, "экран", "screen", "m:screen")];
-    let bw = 112;
-    let tw = bw * 3 + 8 * 2 + 16 + 44;
-    let r = R::new((w - tw) / 2, 18, tw, 44);
-    ui.cv.pxbox(r, &BoxStyle::new(t.panel.alpha(0.96), t.border.lerp(t.red, 0.5)).shadow(4));
-    ui.zone(r, Act::SnapBtn("none"), Cur::Default);
-    for (i, (m, label, icon, act)) in modes.iter().enumerate() {
-        let br = R::new(r.x + 8 + i as i32 * (bw + 8), r.y + 7, bw, 30);
-        let icon = if *icon == "crop_" { "rect" } else { icon };
-        ui.button(br, label, icon, Tone::Ghost, sn.mode == *m, true, Act::SnapBtn(act));
-    }
-    ui.button(R::new(r.right() - 40, r.y + 7, 32, 30), "", "timer", Tone::Ghost, false, true, Act::SnapBtn("delay"));
-    let hint = match sn.mode {
-        Mode::Area => "тяни — выделить · enter — весь экран · esc — отмена",
-        Mode::Window => "щёлкни по окну · enter — окно под курсором · esc — отмена",
-        Mode::Screen => "щёлкни или enter — весь монитор · esc — отмена",
-    };
-    let hw = ui.w(PX, hint) + 24;
-    let hr = R::new((w - hw) / 2, r.bottom() + 8, hw, 24);
-    ui.cv.pxbox(hr, &BoxStyle::new(t.bg.alpha(0.85), C(0)));
-    ui.text_center(PX, hr, hint, t.text_dim);
-}
-
-fn toolbar(ui: &mut Ui, sn: &Snap, sel: R, w: i32, h: i32) {
-    let t = ui.t;
-    let bs = 30;
-    let colors = Snap::colors(&t);
-    let n_tools = TOOLS.len() as i32;
-    let tw = 8 + n_tools * (bs + 2) + 10 + 6 * 22 + 10 + 3 * (bs + 2) + 10 + 5 * (bs + 2) + 4;
-    let th = 44;
-    let mut x = sel.x + (sel.w - tw) / 2;
-    x = x.clamp(6, (w - tw - 6).max(6));
-    let mut y = sel.bottom() + 10;
-    if y + th > h - 6 {
-        y = sel.y - th - 34;
-        if y < 6 {
-            y = sel.bottom() - th - 10;
-        }
-    }
-    let r = R::new(x, y, tw, th);
-    ui.cv.pxbox(r, &BoxStyle::new(t.panel.alpha(0.97), t.border.lerp(t.red, 0.5)).shadow(4));
-    ui.zone(r, Act::SnapBtn("none"), Cur::Default);
-    let by = r.y + 7;
-    let mut bx = r.x + 8;
-    for (tool, icon, act, _) in TOOLS {
-        ui.button(R::new(bx, by, bs, bs), "", icon, Tone::Ghost, sn.tool == *tool, true, Act::SnapBtn(act));
-        bx += bs + 2;
-    }
-    bx += 4;
-    ui.cv.fill(R::new(bx, by + 4, 1, bs - 8), t.border);
-    bx += 6;
-    for (i, c) in colors.iter().enumerate() {
-        let cr = R::new(bx + 2, by + 6, 18, 18);
-        let hov = ui.hover(cr);
-        if sn.color == i {
-            ui.cv.outline(R::new(cr.x - 3, cr.y - 3, cr.w + 6, cr.h + 6), t.ember, 2);
-        } else if hov {
-            ui.cv.outline(R::new(cr.x - 2, cr.y - 2, cr.w + 4, cr.h + 4), t.border, 1);
-        }
-        ui.cv.fill(cr, *c);
-        ui.cv.outline(cr, C::hex(0x0b0909), 1);
-        ui.zone(R::new(cr.x - 2, cr.y - 4, 22, 26), Act::SnapBtn(COLOR_ACTS[i]), Cur::Pointer);
-        bx += 22;
-    }
-    bx += 4;
-    ui.cv.fill(R::new(bx, by + 4, 1, bs - 8), t.border);
-    bx += 6;
-    // толщина: три точки разного размера
-    for (k, sz) in [(0, 2), (1, 4), (2, 8)] {
-        let br = R::new(bx, by, bs, bs);
-        let on = sn.size == [2, 4, 8][k];
-        ui.button(br, "", "", Tone::Ghost, on, true, Act::SnapBtn(["s:2", "s:4", "s:8"][k]));
-        let d = sz.max(2);
-        ui.cv.fill(R::new(br.x + (bs - d) / 2, br.y + (bs - d) / 2, d, d), if on { C(0xffffffff) } else { t.text_dim });
-        bx += bs + 2;
-    }
-    bx += 4;
-    ui.cv.fill(R::new(bx, by + 4, 1, bs - 8), t.border);
-    bx += 6;
-    let acts: [(&str, &str, bool); 5] = [("left", "undo", !sn.marks.is_empty()), ("copy", "copy", true), ("down", "save", true), ("folder", "saveas", true), ("close", "close", true)];
-    for (icon, act, on) in acts {
-        let tone = if act == "save" { Tone::Primary } else { Tone::Ghost };
-        ui.button(R::new(bx, by, bs, bs), "", icon, tone, false, on && !sn.busy, Act::SnapBtn(act));
-        bx += bs + 2;
-    }
-    // подсказка к кнопке под курсором
-    if let Some((_, px, py)) = &sn.ptr {
-        let tip = ui.zones.iter().rev().find(|z| z.r.contains(*px as f64, *py as f64)).and_then(|z| match &z.act {
-            Act::SnapBtn(a) => tip_of(a),
-            _ => None,
-        });
-        if let Some(tip) = tip {
-            let tw2 = ui.w(PX, tip) + 18;
-            let tr = R::new((*px - tw2 / 2).clamp(4, w - tw2 - 4), if r.y > 40 { r.y - 28 } else { r.bottom() + 6 }, tw2, 22);
-            ui.cv.pxbox(tr, &BoxStyle::new(t.panel, t.red));
-            ui.text_center(PX, tr, tip, t.text);
-        }
-    }
-}
-
-fn tip_of(a: &str) -> Option<&'static str> {
-    Some(match a {
-        "t:select" => "выделение · 1",
-        "t:pen" => "перо · 2",
-        "t:rect" => "рамка · 3",
-        "t:arrow" => "стрелка · 4",
-        "t:marker" => "маркер · 5",
-        "t:mosaic" => "мозаика · 6",
-        "t:count" => "номерок · 7",
-        "undo" => "отменить · ctrl+z",
-        "copy" => "в буфер · ctrl+c",
-        "save" => "сохранить · enter",
-        "saveas" => "сохранить как… · ctrl+s",
-        "close" => "отмена · esc",
-        "s:2" | "s:4" | "s:8" => "толщина · колесо",
-        _ => return None,
-    })
 }
 
 // ── поведение ──────────────────────────────────────────────────────────────
@@ -632,7 +257,7 @@ pub fn shots_dir(set: &crate::config::Settings) -> PathBuf {
     pics.join("Screenshots")
 }
 
-fn copy_text(s: &str) {
+pub(crate) fn copy_text(s: &str) {
     use std::io::Write;
     if let Ok(mut ch) = std::process::Command::new("wl-copy").stdin(std::process::Stdio::piped()).spawn() {
         if let Some(i) = ch.stdin.as_mut() {
@@ -643,7 +268,7 @@ fn copy_text(s: &str) {
     }
 }
 
-fn file_name() -> String {
+pub(crate) fn file_name() -> String {
     let tm = crate::app::local_now();
     let mut now: libc::tm = unsafe { std::mem::zeroed() };
     let t = unsafe { libc::time(std::ptr::null_mut()) };
@@ -684,7 +309,7 @@ impl App {
             return;
         }
         let outs: Vec<String> = imgs.keys().cloned().collect();
-        let mut sn = Snap { imgs: imgs.into_iter().map(|(k, v)| (k, Rc::new(v))).collect(), mode, sel: None, drag: None, tool: Tool::Select, color: 0, size: 4, marks: vec![], redo: vec![], ptr: None, flash: None, wins, busy: false, hint: None };
+        let mut sn = Snap { imgs: imgs.into_iter().map(|(k, v)| (k, Rc::new(v))).collect(), mode, sel: None, drag: None, tool: Tool::Select, color: 0, size: 4, marks: vec![], redo: vec![], ptr: None, flash: None, wins, busy: false, hint: None, ocr: crate::doctor::which("tesseract"), qr: crate::doctor::which("zbarimg") };
         let focus = self.focus_out();
         if mode == Mode::Screen {
             let (w, h) = self.output_size(&focus);
@@ -786,6 +411,16 @@ impl App {
                     return true;
                 }
                 let sel = sn.cur_sel(&out);
+                if sn.tool == Tool::Pick {
+                    // цвет точки снимка (снимок в физических пикселях)
+                    if let Some(img) = sn.imgs.get(&out) {
+                        let k = (img.w / w.max(1)).max(1);
+                        let c = img.px[((yi * k).clamp(0, img.h - 1) * img.w + (xi * k).clamp(0, img.w - 1)) as usize] & 0xffffff;
+                        copy_text(&format!("#{c:06x}"));
+                        self.snap_hint(&crate::tf!("цвет #{:06x} скопирован", "colour #{:06x} copied", c));
+                    }
+                    return true;
+                }
                 if let Some(r) = sel {
                     if let Some(k) = handles(r).iter().position(|hr| hr.inset(-3).contains(x, y)) {
                         sn.drag = Some(Drag::Handle(k as u8, r));
@@ -892,6 +527,7 @@ impl App {
                     self.snap_finish(c, s || !c, false);
                 }
                 "saveas" => self.snap_finish(false, false, true),
+                "ocr" | "qr" => self.snap_read(a == "qr"),
                 "close" => self.snap_close(),
                 _ => {}
             }
@@ -1002,8 +638,8 @@ impl App {
                 _ => {}
             },
             _ => {
-                // 1–7: инструменты
-                if (2..=8).contains(&raw) {
+                // 1–8: инструменты
+                if (2..=(TOOLS.len() as u32 + 1)).contains(&raw) {
                     sn.tool = TOOLS[(raw - 2) as usize].0;
                 } else if raw == 33 && sn.sel.is_none() {
                     // f — весь монитор под курсором
@@ -1046,6 +682,52 @@ impl App {
         // миниатюра для уведомления
         let thumb = image::RgbaImage::from_raw(w as u32, h as u32, rgba).map(|i| crate::icons::fit_in(i, crate::notif::IMG_W, crate::notif::IMG_H));
         Some((png, thumb?))
+    }
+
+    /// распознать выделенное: текст (tesseract, русский и английский, если есть) или QR (zbarimg);
+    /// результат — в буфер обмена и уведомлением. Оверлей закрывается сразу, работа — в нити.
+    pub fn snap_read(&mut self, qr: bool) {
+        let Some((png, _)) = self.snap_render() else { return };
+        self.snap_close();
+        let tx = self.tx.clone();
+        std::thread::spawn(move || {
+            // снимок экрана — только в свой каталог 0700, не в общий /tmp
+            let Ok(dir) = yami_px::paths::private_tmp("yami-read") else {
+                let _ = tx.send(Msg::SnapText(qr, None));
+                return;
+            };
+            let tmp = dir.join("shot.png");
+            if std::fs::write(&tmp, &png).is_err() {
+                let _ = std::fs::remove_dir_all(&dir);
+                let _ = tx.send(Msg::SnapText(qr, None));
+                return;
+            }
+            let out = if qr {
+                std::process::Command::new("zbarimg").args(["--raw", "-q"]).arg(&tmp).output()
+            } else {
+                let langs = std::process::Command::new("tesseract").arg("--list-langs").output().map(|o| String::from_utf8_lossy(&o.stdout).to_string()).unwrap_or_default();
+                let l: Vec<&str> = ["eng", "rus"].into_iter().filter(|x| langs.lines().any(|y| y.trim() == *x)).collect();
+                let l = if l.is_empty() { "eng".to_string() } else { l.join("+") };
+                std::process::Command::new("tesseract").arg(&tmp).arg("stdout").args(["-l", &l]).output()
+            };
+            let _ = std::fs::remove_dir_all(&dir);
+            let text = out.ok().filter(|o| o.status.success()).map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).filter(|t| !t.is_empty());
+            if let Some(t) = &text {
+                copy_text(t);
+            }
+            let _ = tx.send(Msg::SnapText(qr, text));
+        });
+    }
+
+    pub fn on_snap_text(&mut self, qr: bool, text: Option<String>) {
+        let title = if qr { "QR-код" } else { "текст со снимка" };
+        match text {
+            Some(t) => {
+                let short: String = t.chars().take(160).collect();
+                self.toast_note(&crate::tf!("{} — в буфере", "{}: copied", crate::i18n::tr(title)), &short);
+            }
+            None => self.toast_note(title, if qr { "QR-код не найден" } else { "текст не распознан" }),
+        }
     }
 
     /// готово: copy — в буфер, save — в папку, ask — спросить место диалогом yami-files

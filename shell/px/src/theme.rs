@@ -38,9 +38,14 @@ pub struct Theme {
     pub text_dim: C,
     pub text_faint: C,
     pub on_accent: C,
+    /// самый контрастный текст (наведение, выбранное): белый в тёмной теме, почти чёрный в светлой
+    pub text_hi: C,
+    /// жёсткая пиксельная тень под панелями и кнопками
+    pub shade: C,
     pub ok: C,
     pub warn: C,
     pub glass: f32,
+    pub light: bool,
 }
 
 pub const WHITE: C = C(0xffffffff);
@@ -107,8 +112,11 @@ pub fn parse_hex(s: &str) -> Option<u32> {
 
 impl Theme {
     /// lift — насколько поднять тёмные фоны к светлому графиту; inner — плотность карточек и
-    /// графиков внутри панелей (0.2 — почти прозрачные, 1 — сплошные)
-    pub fn new(accent: u32, tint: f32, glass: f32, lift: f32, inner: f32) -> Theme {
+    /// графиков внутри панелей (0.2 — почти прозрачные, 1 — сплошные); light — светлая тема
+    pub fn new(accent: u32, tint: f32, glass: f32, lift: f32, inner: f32, light: bool) -> Theme {
+        if light {
+            return Theme::light(accent, tint, glass, lift, inner);
+        }
         let a = C::hex(accent);
         let light = C::hex(0x4a4242).lerp(a, 0.12 * tint);
         let lift = lift.clamp(0.0, 1.0) * 0.55;
@@ -133,10 +141,64 @@ impl Theme {
             text_dim: mix(0x8c8282, 0.12),
             text_faint: mix(0x5c5252, 0.1),
             on_accent: if lightness(a) > 0.6 { C::hex(0x0b0909) } else { WHITE },
+            text_hi: WHITE,
+            shade: C(0xb4000000),
             ok: C::hex(0x78c878),
             warn: C::hex(0xffaa28),
             glass,
+            light: false,
         }
+    }
+
+    /// светлая тема: бумага вместо графита. Акцент темнеет, пока не станет читаться на светлом
+    /// фоне (пепел, янтарь, лёд иначе сливаются), «ярче» здесь значит «глубже»: наведение
+    /// уводит цвет в темноту, а не в белое. lift — насколько приглушить белизну к серому.
+    fn light(accent: u32, tint: f32, glass: f32, lift: f32, inner: f32) -> Theme {
+        let src = C::hex(accent);
+        let mut a = src;
+        for _ in 0..12 {
+            if lightness(a) <= 0.46 {
+                break;
+            }
+            a = scale_v(a, 0.9);
+        }
+        let grey = C::hex(0xb9b2ae).lerp(src, 0.1 * tint);
+        let lift = lift.clamp(0.0, 1.0) * 0.45;
+        let mix = |base: u32, k: f32| C::hex(base).lerp(src, k).lerp(grey, lift);
+        let inner = inner.clamp(0.2, 1.0);
+        let bg = mix(0xf4f0ed, 0.04 * tint);
+        let panel = mix(0xebe6e2, 0.06 * tint);
+        let text = C::hex(0x1c1717).lerp(a, 0.06);
+        Theme {
+            bg,
+            panel,
+            surface: mix(0xddd6d1, 0.08 * tint).alpha(inner),
+            surface_hi: mix(0xd0c8c2, 0.12 * tint).alpha(inner.max(0.5)),
+            code_bg: mix(0xfbf9f7, 0.02 * tint).alpha(inner),
+            border: panel.lerp(a, 0.38),
+            dim: panel.lerp(a, 0.55),
+            red: a,
+            blood: scale_v(a, 1.0 / 1.35),
+            glow: scale_v(a, 1.0 / 1.1),
+            ember: scale_v(a, 0.82),
+            selection: bg.lerp(src, 0.3),
+            text,
+            text_dim: C::hex(0x5e5555).lerp(a, 0.1),
+            text_faint: C::hex(0x958c89).lerp(a, 0.08),
+            on_accent: if lightness(a) > 0.6 { C::hex(0x0b0909) } else { WHITE },
+            text_hi: C::hex(0x000000),
+            shade: text.alpha(0.32),
+            ok: C::hex(0x2e8b3a),
+            warn: C::hex(0xb86a00),
+            glass,
+            light: true,
+        }
+    }
+
+    /// сделать тему текущей для процесса: то, что холсты берут сами (тень)
+    pub fn apply(&self) -> Theme {
+        crate::gfx::set_shade(self.shade);
+        *self
     }
 
     /// фон панелей с матовостью
@@ -149,7 +211,12 @@ impl Theme {
 
     /// тона для пиксельных значков программ: обводка, затем от тёмного к светлому
     pub fn icon_ramp(&self) -> [u32; 5] {
-        [self.code_bg.0, self.blood.0, self.red.0, self.ember.0, self.text.0]
+        // значки одинаковы в обеих темах: тёмная обводка, светлый блик
+        if self.light {
+            [self.text.0 | 0xff000000, self.blood.0, self.red.0, scale_v(self.red, 1.3).0, self.code_bg.0 | 0xff000000]
+        } else {
+            [self.code_bg.0, self.blood.0, self.red.0, self.ember.0, self.text.0]
+        }
     }
 
     pub fn palette_json(&self) -> String {
@@ -170,10 +237,12 @@ impl Theme {
             ("textDim", self.text_dim),
             ("textFaint", self.text_faint),
             ("onAccent", self.on_accent),
+            ("textHi", self.text_hi),
             ("ok", self.ok),
             ("warn", self.warn),
         ];
-        let body: Vec<String> = pairs.iter().map(|(k, c)| format!("  \"{k}\": \"{}\"", c.hex_str())).collect();
+        let mut body: Vec<String> = pairs.iter().map(|(k, c)| format!("  \"{k}\": \"{}\"", c.hex_str())).collect();
+        body.push(format!("  \"mode\": \"{}\"", if self.light { "light" } else { "dark" }));
         format!("{{\n{}\n}}\n", body.join(",\n"))
     }
 }

@@ -398,9 +398,11 @@ impl App {
         let video = self.p.video && self.p.err.is_none();
         if video {
             self.mpv.render(out, pw, ph);
-            // поля вокруг кадра — цветом темы (mpv в программном режиме льёт чёрный)
+            // поля вокруг кадра — цветом темы (mpv в программном режиме льёт чёрный); в светлой
+            // теме — её самым тёмным тоном: светлые поля вокруг кино слепят
             let [mt, mb, ml, mr] = self.p.margins.map(|m| m.max(0.0) as i32);
-            let c = self.p.look.theme.bg.0 | 0xff00_0000;
+            let t = &self.p.look.theme;
+            let c = if t.light { t.text.0 } else { t.bg.0 } | 0xff00_0000;
             let mut cv = Canvas::new(out, pw, ph);
             for r in [yami_px::gfx::R::new(0, 0, pw, mt), yami_px::gfx::R::new(0, ph - mb, pw, mb), yami_px::gfx::R::new(0, mt, ml, ph - mt - mb), yami_px::gfx::R::new(pw - mr, mt, mr, ph - mt - mb)] {
                 if !r.empty() {

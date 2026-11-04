@@ -1,18 +1,24 @@
 // Меню программ и буфер обмена: шапка, поиск, список, строка подсказок.
 // Tab переключает режим. Частые программы — выше. В поиске ещё и действия системы
-// («сон», «заблокировать», «настройки»…). В буфере: закреплённое сверху (хранится копией,
-// переживает очистку и ротацию cliphist), Ctrl+P — закрепить, Del — удалить.
+// («сон», «заблокировать», «настройки»…), открытые окна, места в настройках («vrr» → экраны)
+// и калькулятор («2+2»). Префиксы: «=» считать, «>» команда в терминале, «/» файлы в домашней
+// папке, «?» только настройки. В буфере: закреплённое сверху (хранится копией, переживает
+// очистку и ротацию cliphist), Ctrl+P — закрепить, Del — удалить. Ctrl+A выделяет поиск,
+// Ctrl+C копирует выделенное (или ответ калькулятора).
 
 use crate::app::{App, Modal, Msg, SKind, State};
 use crate::config;
 use crate::font::PX;
 use crate::gfx::{BoxStyle, R};
 use crate::icons::{exec_argv, App as DApp};
-use crate::theme::WHITE;
+use crate::niri::Win;
 use crate::ui::{Act, Cur, Field, Tone, Ui};
 use calloop::channel::Sender;
 use smithay_client_toolkit::seat::keyboard::{KeyEvent, Keysym};
 use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Instant;
 
 pub const SIZE: (i32, i32) = (648, 478);
@@ -25,6 +31,15 @@ pub enum Kind {
     Clip(String),
     Pin(String),
     Sys(&'static str),
+    /// ответ калькулятора (текст, который копируется)
+    Calc(String),
+    /// открытое окно niri
+    Win(u64),
+    /// вкладка настроек
+    Setting(&'static str),
+    /// команда в терминале
+    Cmd(String),
+    File(PathBuf),
 }
 
 #[derive(Clone, Debug)]
@@ -56,6 +71,10 @@ pub struct LState {
     pub confirm_wipe: Option<Instant>,
     pub items: Vec<Item>,
     pub counts: HashMap<String, u32>,
+    /// найденные файлы для «/»: запрос, на который они найдены, и сами пути
+    pub files: (String, Vec<PathBuf>),
+    /// номер поиска файлов: старые нити видят, что их запрос устарел, и бросают обход
+    pub fgen: Arc<AtomicU64>,
 }
 
 const SYS: &[(&str, &str, &str)] = &[
@@ -104,7 +123,7 @@ fn score(hay: &str, q: &str) -> i32 {
 }
 
 impl LState {
-    pub fn open(&mut self, clip: bool, apps: &[DApp]) {
+    pub fn open(&mut self, clip: bool, apps: &[DApp], wins: &[Win]) {
         self.field.clear();
         self.cur = 0;
         self.scroll = 0;
@@ -112,13 +131,14 @@ impl LState {
         self.confirm_wipe = None;
         self.counts = std::fs::read_to_string(config::state_dir().join("launch.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
         self.load_pins();
-        self.refresh(apps);
+        self.files = (String::new(), vec![]);
+        self.refresh(apps, wins);
     }
-    pub fn set_mode(&mut self, clip: bool, apps: &[DApp]) {
+    pub fn set_mode(&mut self, clip: bool, apps: &[DApp], wins: &[Win]) {
         self.clip = clip;
         self.cur = 0;
         self.scroll = 0;
-        self.refresh(apps);
+        self.refresh(apps, wins);
     }
     /// выбранная строка всегда в видимой части списка
     pub fn keep_visible(&mut self) {
@@ -133,9 +153,16 @@ impl LState {
         self.pins = std::fs::read_to_string(clip_dir().join("index.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
     }
 
-    pub fn refresh(&mut self, apps: &[DApp]) {
+    pub fn refresh(&mut self, apps: &[DApp], wins: &[Win]) {
         let q = self.field.text.trim().to_lowercase();
         let mut out: Vec<Item> = vec![];
+        if !self.clip {
+            if let Some(items) = self.prefixed(&q) {
+                self.items = items;
+                self.cur = self.cur.min(self.items.len().saturating_sub(1));
+                return;
+            }
+        }
         if self.clip {
             for p in &self.pins {
                 if q.is_empty() || p.name.to_lowercase().contains(&q) {
@@ -169,8 +196,11 @@ impl LState {
             }
             scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal).then(apps[a.1].name.cmp(&apps[b.1].name)));
             if !q.is_empty() {
+                if crate::calc::looks_like(&q) {
+                    out.extend(calc_item(&q));
+                }
                 for (id, name, icon) in SYS {
-                    if score(name, &q) >= 60 {
+                    if score(name, &q) >= 60 || score(crate::i18n::tr(name), &q) >= 60 {
                         out.push(Item { kind: Kind::Sys(id), name: name.to_string(), sub: "система".into(), icon: icon.to_string() });
                     }
                 }
@@ -179,10 +209,131 @@ impl LState {
                 let a = &apps[i];
                 out.push(Item { kind: Kind::App(i), name: a.name.clone(), sub: if a.generic.is_empty() { a.comment.clone() } else { a.generic.clone() }, icon: a.icon.clone() });
             }
+            if !q.is_empty() {
+                // открытые окна — по заголовку и программе; после программ: запуск чаще
+                for w in wins.iter().filter(|w| score(&w.title, &q) >= 60 || score(&w.app_id, &q) >= 60).take(8) {
+                    out.push(Item { kind: Kind::Win(w.id), name: w.title.clone(), sub: crate::tf!("окно · {}", "window · {}", w.app_id), icon: w.app_id.clone() });
+                }
+                out.extend(settings_items(&q, 60).into_iter().take(3));
+            }
         }
         self.items = out;
         self.cur = self.cur.min(self.items.len().saturating_sub(1));
     }
+}
+
+impl LState {
+    /// строки для запроса с префиксом (= > / ?); None — префикса нет, обычный поиск
+    fn prefixed(&self, q: &str) -> Option<Vec<Item>> {
+        let mut c = q.chars();
+        let p = c.next()?;
+        let rest = c.as_str().trim();
+        Some(match p {
+            '=' => calc_item(q).into_iter().collect(),
+            '>' if !rest.is_empty() => {
+                // команду показываем как набрана (без нижнего регистра)
+                let cmd = self.field.text.trim().trim_start_matches('>').trim().to_string();
+                vec![Item { kind: Kind::Cmd(cmd.clone()), name: cmd, sub: "выполнить в терминале".into(), icon: "term".into() }]
+            }
+            '>' => vec![],
+            '?' => settings_items(rest, 20),
+            '/' => {
+                if self.files.0 != rest {
+                    return Some(vec![]);
+                }
+                let home = config::home();
+                self.files.1.iter().map(|f| {
+                    let shown = f.strip_prefix(&home).map(|r| format!("~/{}", r.display())).unwrap_or_else(|_| f.display().to_string());
+                    let name = f.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+                    Item { kind: Kind::File(f.clone()), name, sub: shown, icon: if f.is_dir() { "folder".into() } else { "copy".into() } }
+                }).collect()
+            }
+            _ => return None,
+        })
+    }
+}
+
+fn calc_item(q: &str) -> Option<Item> {
+    let v = crate::calc::eval(q)?;
+    let s = crate::calc::format(v);
+    Some(Item { kind: Kind::Calc(s.clone()), name: format!("= {s}"), sub: "Enter — скопировать".into(), icon: "calc".into() })
+}
+
+/// вкладки настроек, подходящие к запросу: по названию (на обоих языках) и словам вкладки
+fn settings_items(q: &str, min: i32) -> Vec<Item> {
+    let mut hits: Vec<(i32, Item)> = vec![];
+    for (id, name, icon) in crate::settings::TABS {
+        let words = crate::settings::FIND.iter().find(|f| f.0 == *id).map(|f| f.1).unwrap_or("");
+        let s = if q.is_empty() {
+            1
+        } else {
+            score(name, q).max(score(crate::i18n::tr(name), q)).max(words.split(' ').map(|w| score(w, q)).max().unwrap_or(0))
+        };
+        if s >= min {
+            hits.push((s, Item { kind: Kind::Setting(id), name: crate::tf!("настройки → {}", "settings → {}", crate::i18n::tr(name)), sub: String::new(), icon: icon.to_string() }));
+        }
+    }
+    hits.sort_by_key(|h| std::cmp::Reverse(h.0));
+    hits.into_iter().map(|h| h.1).collect()
+}
+
+/// поиск файлов по имени в домашней папке: обход без скрытых папок, не глубже 8 уровней и не
+/// больше 60 тысяч записей; результат — Msg::LFiles. Новый запрос гасит старый обход.
+pub fn find_files(tx: Sender<Msg>, gen: Arc<AtomicU64>, q: String) {
+    let my = gen.fetch_add(1, Ordering::Relaxed) + 1;
+    if q.is_empty() {
+        let _ = tx.send(Msg::LFiles(q, vec![]));
+        return;
+    }
+    std::thread::spawn(move || {
+        // чуть подождать: пока набирают слово, обходить диск незачем
+        std::thread::sleep(std::time::Duration::from_millis(120));
+        let ql = q.to_lowercase();
+        let mut found: Vec<(i32, PathBuf)> = vec![];
+        let mut stack = vec![(config::home(), 0u32)];
+        let mut seen = 0u32;
+        while let Some((dir, depth)) = stack.pop() {
+            if gen.load(Ordering::Relaxed) != my {
+                return;
+            }
+            let Ok(rd) = std::fs::read_dir(&dir) else { continue };
+            for e in rd.flatten() {
+                seen += 1;
+                let name = e.file_name().to_string_lossy().to_string();
+                if name.starts_with('.') {
+                    continue;
+                }
+                let s = score(&name, &ql);
+                if s >= 60 {
+                    found.push((s, e.path()));
+                }
+                // ссылки на папки не обходим: петли и чужие диски
+                if depth < 8 && e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                    stack.push((e.path(), depth + 1));
+                }
+            }
+            if seen > 60_000 || found.len() > 400 {
+                break;
+            }
+        }
+        found.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.as_os_str().len().cmp(&b.1.as_os_str().len())));
+        if gen.load(Ordering::Relaxed) == my {
+            let _ = tx.send(Msg::LFiles(q, found.into_iter().take(60).map(|f| f.1).collect()));
+        }
+    });
+}
+
+/// команда в терминале (Terminal=true в .desktop и «>» в поиске)
+pub fn in_term(argv: Vec<String>) -> Vec<String> {
+    let t = term();
+    let mut pre = vec![t.clone()];
+    match t.as_str() {
+        "kitty" => {}
+        "wezterm" => pre.extend(["start".into(), "--".into()]),
+        _ => pre.push("-e".into()),
+    }
+    pre.extend(argv);
+    pre
 }
 
 pub fn load_clip(tx: Sender<Msg>) {
@@ -232,7 +383,7 @@ fn wl_copy(data: Vec<u8>, mime: &str) {
 
 impl App {
     fn lrefresh(&mut self) {
-        self.st.launcher.refresh(&self.st.apps);
+        self.st.launcher.refresh(&self.st.apps, &self.st.niri.wins);
         self.dirty(&SKind::Modal);
     }
 
@@ -245,16 +396,7 @@ impl App {
                     let _ = config::write_atomic(&config::state_dir().join("launch.json"), &serde_json::to_string(&self.st.launcher.counts).unwrap_or_default());
                     let mut argv = exec_argv(&a.exec);
                     if a.terminal {
-                        // Terminal=true: обернуть в терминал
-                        let t = term();
-                        let mut pre = vec![t.clone()];
-                        match t.as_str() {
-                            "kitty" => {}
-                            "wezterm" => pre.extend(["start".into(), "--".into()]),
-                            _ => pre.push("-e".into()),
-                        }
-                        pre.extend(argv);
-                        argv = pre;
+                        argv = in_term(argv);
                     }
                     App::spawn(&argv);
                 }
@@ -281,6 +423,25 @@ impl App {
                 self.close_modal();
                 self.sys_action(a);
                 return;
+            }
+            Kind::Calc(s) => {
+                std::thread::spawn(move || wl_copy(s.into_bytes(), "text/plain;charset=utf-8"));
+            }
+            Kind::Win(id) => self.st.niri.act(serde_json::json!({"FocusWindow": {"id": id}})),
+            Kind::Setting(tab) => {
+                self.close_modal();
+                self.toggle_modal(Modal::Settings, false);
+                self.settings_click(&Act::STab(tab));
+                self.dirty(&SKind::Modal);
+                return;
+            }
+            Kind::Cmd(cmd) => {
+                // окно не закрывается само: ответ команды виден, Enter закрывает
+                let line = format!("{cmd}; printf '\\n[Enter]'; read _");
+                App::spawn(&in_term(vec!["sh".into(), "-c".into(), line]));
+            }
+            Kind::File(p) => {
+                App::spawn(&["xdg-open".into(), p.to_string_lossy().to_string()]);
             }
         }
         self.close_modal();
@@ -387,7 +548,7 @@ impl App {
             Keysym::Page_Up => l.cur = l.cur.saturating_sub(10),
             Keysym::Tab | Keysym::ISO_Left_Tab => {
                 let c = !l.clip;
-                l.set_mode(c, &self.st.apps);
+                l.set_mode(c, &self.st.apps, &self.st.niri.wins);
                 if c {
                     load_clip(self.tx.clone());
                 }
@@ -400,12 +561,29 @@ impl App {
                 let c = l.cur;
                 self.launcher_pin(c);
             }
+            // Ctrl+C: выделенный поиск или ответ калькулятора
+            Keysym::c if self.mods.ctrl => {
+                let text = l.field.selected().map(String::from).or_else(|| match l.items.get(l.cur).map(|i| &i.kind) {
+                    Some(Kind::Calc(s)) => Some(s.clone()),
+                    _ => None,
+                });
+                if let Some(t) = text {
+                    std::thread::spawn(move || wl_copy(t.into_bytes(), "text/plain;charset=utf-8"));
+                }
+            }
             _ => {
                 let mods = self.mods;
                 if App::edit_field(&mut self.st.launcher.field, e, &mods) {
                     self.st.launcher.cur = 0;
                     self.st.launcher.scroll = 0;
-                    self.st.launcher.refresh(&self.st.apps);
+                    let q = self.st.launcher.field.text.trim().to_string();
+                    if !self.st.launcher.clip && q.starts_with('/') {
+                        let rest = q[1..].trim().to_lowercase();
+                        if rest != self.st.launcher.files.0 {
+                            find_files(self.tx.clone(), self.st.launcher.fgen.clone(), rest);
+                        }
+                    }
+                    self.st.launcher.refresh(&self.st.apps, &self.st.niri.wins);
                 }
             }
         }
@@ -483,22 +661,35 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
                 ui.cv.icon("pin", x, cy - 7, 2, t.red);
                 x += 24;
             }
-            Kind::Sys(_) => {
+            Kind::Sys(_) | Kind::Calc(_) | Kind::Setting(_) | Kind::Cmd(_) | Kind::File(_) => {
                 ui.cv.icon(&it.icon, x, cy - 7, 2, t.red);
                 x += 26;
             }
-            Kind::App(_) => {
+            Kind::App(_) | Kind::Win(_) => {
                 ui.app_icon(&it.icon, x, cy - 8, 16, 1.0);
                 x += 26;
             }
             Kind::Clip(_) => {}
         }
         let maxw = if l.clip { list.w - (x - r.x) - 70 } else { list.w - 230 };
-        let nw = ui.w(PX, &it.name).min(maxw);
-        ui.text_in(PX, R::new(x, r.y, nw, r.h - 2), &it.name, if cur { WHITE } else { t.text });
+        // имена программ, окон, файлов и команды — как есть, без перевода интерфейса
+        let raw = !matches!(it.kind, Kind::Sys(_));
+        let nw = if raw { ui.f.width(PX, &it.name) } else { ui.w(PX, &it.name) }.min(maxw);
+        let nc = if cur { t.text_hi } else { t.text };
+        if raw {
+            ui.cv.text_in(ui.f, PX, R::new(x, r.y, nw, r.h - 2), &it.name, nc);
+        } else {
+            ui.text_in(PX, R::new(x, r.y, nw, r.h - 2), &it.name, nc);
+        }
         if !it.sub.is_empty() {
             let sx = x + nw + 10;
-            ui.text_in(PX, R::new(sx, r.y, r.right() - sx - 16, r.h - 2), &it.sub, if cur { t.text } else { t.text_faint });
+            let sr = R::new(sx, r.y, r.right() - sx - 16, r.h - 2);
+            let sc = if cur { t.text } else { t.text_faint };
+            if matches!(it.kind, Kind::App(_) | Kind::File(_)) {
+                ui.cv.text_in(ui.f, PX, sr, &it.sub, sc);
+            } else {
+                ui.text_in(PX, sr, &it.sub, sc);
+            }
         }
         // в буфере: закрепить и удалить на выбранной строке
         if l.clip && (cur || hov) {
@@ -509,10 +700,22 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
     }
     ui.cv.pop_clip();
     if l.items.is_empty() {
-        ui.text_center(PX, R::new(list.x, list.y + 20, list.w, 20), if l.clip { "буфер пуст" } else { "ничего не нашлось" }, t.text_faint);
+        let q = l.field.text.trim();
+        let msg = if l.clip {
+            "буфер пуст"
+        } else if q.starts_with('/') && q.len() > 1 && l.files.0 != q[1..].trim().to_lowercase() {
+            "ищу файлы…"
+        } else if q == "/" {
+            "/имя — файлы в домашней папке"
+        } else if q == ">" {
+            ">команда — выполнить в терминале"
+        } else {
+            "ничего не нашлось"
+        };
+        ui.text_center(PX, R::new(list.x, list.y + 20, list.w, 20), msg, t.text_faint);
     }
 
     // строка подсказок внизу
-    let hint = if l.clip { "Enter — скопировать · Ctrl+P — закрепить · Del — удалить · Tab — программы" } else { "Enter — запустить · ↑↓ — выбор · Tab — буфер · Esc — закрыть" };
+    let hint = if l.clip { "Enter — скопировать · Ctrl+P — закрепить · Del — удалить · Tab — программы" } else { "Enter — запустить · = считать · > команда · / файлы · ? настройки · Tab — буфер" };
     ui.text_in(PX, R::new(fx, fr.h - 30, fr.w - 28, 20), hint, t.text_faint);
 }

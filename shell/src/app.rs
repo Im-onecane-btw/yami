@@ -7,8 +7,8 @@ use crate::icons::{self, Icons};
 use crate::niri::{self, Niri};
 use crate::sys::Sys;
 use crate::theme::{Theme, CLEAR};
-use crate::ui::{Act, Cur, Field, Ui, Zone};
-use crate::{audio, dbus, font::Fonts, launcher, media, menu, net, notif, popups};
+use crate::ui::{Act, Field, Ui, Zone};
+use crate::{audio, dbus, font::Fonts, launcher, media, menu, net, notif};
 
 use calloop::{
     channel::{self, Sender},
@@ -17,30 +17,26 @@ use calloop::{
 };
 use calloop_wayland_source::WaylandSource;
 use smithay_client_toolkit::{
-    compositor::{CompositorHandler, CompositorState, Region},
-    delegate_compositor, delegate_keyboard, delegate_layer, delegate_output, delegate_pointer, delegate_registry, delegate_seat,
-    delegate_session_lock, delegate_shm,
-    output::{OutputHandler, OutputState},
-    registry::{ProvidesRegistryState, RegistryState},
-    registry_handlers,
+    compositor::{CompositorState, Region},
+    output::OutputState,
+    registry::RegistryState,
     seat::{
-        keyboard::{KeyEvent, KeyboardHandler, Keysym, Modifiers, RawModifiers},
-        pointer::{cursor_shape::CursorShapeManager, PointerEvent, PointerEventKind, PointerHandler},
-        Capability, SeatHandler, SeatState,
+        keyboard::Modifiers,
+        pointer::cursor_shape::CursorShapeManager, SeatState,
     },
-    session_lock::{SessionLock, SessionLockHandler, SessionLockState, SessionLockSurface, SessionLockSurfaceConfigure},
+    session_lock::{SessionLock, SessionLockState, SessionLockSurface},
     shell::{
-        wlr_layer::{Anchor, KeyboardInteractivity, Layer, LayerShell, LayerShellHandler, LayerSurface, LayerSurfaceConfigure},
+        wlr_layer::{Anchor, KeyboardInteractivity, Layer, LayerShell, LayerSurface},
         WaylandSurface,
     },
-    shm::{slot::SlotPool, Shm, ShmHandler},
+    shm::{slot::SlotPool, Shm},
 };
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use wayland_client::{
     globals::registry_queue_init,
-    protocol::{wl_keyboard, wl_output, wl_pointer, wl_seat, wl_shm, wl_surface},
-    Connection, Dispatch, QueueHandle,
+    protocol::{wl_keyboard, wl_output, wl_pointer, wl_shm},
+    Connection, QueueHandle,
 };
 use wayland_protocols::ext::background_effect::v1::client::{ext_background_effect_manager_v1, ext_background_effect_surface_v1};
 use wayland_protocols::ext::idle_notify::v1::client::{ext_idle_notification_v1, ext_idle_notifier_v1};
@@ -61,6 +57,8 @@ pub enum Modal {
     Auth,
     /// что показать при показе экрана (screen.rs)
     Screen,
+    /// ответ из уведомления (reply.rs)
+    Reply,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -154,6 +152,10 @@ pub enum Msg {
     /// портал спрашивает, что показать: типы источников и сокет для ответа
     ScreenPick(u32, std::os::unix::net::UnixStream),
     Clip(Vec<String>),
+    /// строка модуля-скрипта бара (plugins.rs)
+    Plugin(String, crate::plugins::Plug),
+    /// файлы для «/» в лаунчере: запрос и найденное
+    LFiles(String, Vec<std::path::PathBuf>),
     Art(String, Option<crate::gfx::Img>),
     Theme,
     /// кадры шторки готовы: номер включения, картинки по мониторам
@@ -161,6 +163,8 @@ pub enum Msg {
     /// обои готовы (wall.rs): номер задания, картинка, акцент из неё
     Wall(u64, Option<crate::gfx::Img>, Option<u32>),
     Snap(HashMap<String, crate::gfx::Img>, Vec<(String, R, String)>, crate::snap::Mode),
+    /// распознанное со снимка: QR или текст, None — ничего не нашлось
+    SnapText(bool, Option<String>),
     /// проверка обновлений (update.rs)
     Update(crate::update::Info),
     SnapDone { path: Option<std::path::PathBuf>, copied: bool, err: Option<String>, thumb: Option<crate::gfx::Img> },
@@ -230,7 +234,17 @@ pub struct State {
     pub wall_field: Field,
     pub keys: crate::keys::KeysUi,
     pub game: crate::games::GameMode,
+    /// что есть для игр (проверяется при открытии вкладки «игры»)
+    pub game_probe: crate::gameboost::Probe,
+    pub night: crate::night::Night,
+    /// модули бара из скриптов (~/.config/yami/modules)
+    pub plugins: crate::plugins::Plugins,
+    pub session: crate::session::Session,
     pub game_field: Field,
+    /// окно ответа из уведомления
+    pub reply: crate::reply::Reply,
+    /// координаты для ночного света
+    pub geo_field: Field,
     pub snap: Option<crate::snap::Snap>,
     pub snap_countdown: Option<(Instant, u32)>,
     pub shot_files: HashMap<u32, std::path::PathBuf>,
@@ -267,47 +281,47 @@ pub struct App {
     pub qh: QueueHandle<App>,
     pub handle: LoopHandle<'static, App>,
     pub tx: Sender<Msg>,
-    registry: RegistryState,
-    seat: SeatState,
+    pub(crate) registry: RegistryState,
+    pub(crate) seat: SeatState,
     pub outputs: OutputState,
-    compositor: CompositorState,
-    layer_shell: LayerShell,
-    shm: Shm,
-    cursor_mgr: Option<CursorShapeManager>,
-    cursor_dev: Option<WpCursorShapeDeviceV1>,
-    cursor_now: Option<Shape>,
-    viewporter: Option<wp_viewporter::WpViewporter>,
-    fx_mgr: Option<ext_background_effect_manager_v1::ExtBackgroundEffectManagerV1>,
+    pub(crate) compositor: CompositorState,
+    pub(crate) layer_shell: LayerShell,
+    pub(crate) shm: Shm,
+    pub(crate) cursor_mgr: Option<CursorShapeManager>,
+    pub(crate) cursor_dev: Option<WpCursorShapeDeviceV1>,
+    pub(crate) cursor_now: Option<Shape>,
+    pub(crate) viewporter: Option<wp_viewporter::WpViewporter>,
+    pub(crate) fx_mgr: Option<ext_background_effect_manager_v1::ExtBackgroundEffectManagerV1>,
     /// запись сочетаний во вкладке «клавиши»: niri отдаёт шеллу все клавиши
-    ksi_mgr: Option<ksi_mgr::ZwpKeyboardShortcutsInhibitManagerV1>,
-    ksi: Option<ksi::ZwpKeyboardShortcutsInhibitorV1>,
-    frac_mgr: Option<frac_mgr::WpFractionalScaleManagerV1>,
+    pub(crate) ksi_mgr: Option<ksi_mgr::ZwpKeyboardShortcutsInhibitManagerV1>,
+    pub(crate) ksi: Option<ksi::ZwpKeyboardShortcutsInhibitorV1>,
+    pub(crate) frac_mgr: Option<frac_mgr::WpFractionalScaleManagerV1>,
     /// логический холст перед увеличением (HiDPI); большой — освобождается сразу
-    scratch: Vec<u32>,
-    lock_state: SessionLockState,
+    pub(crate) scratch: Vec<u32>,
+    pub(crate) lock_state: SessionLockState,
     pub lock: Option<SessionLock>,
     pub lock_surfs: Vec<LockSurf>,
-    idle: Option<ext_idle_notifier_v1::ExtIdleNotifierV1>,
-    idle_notes: Vec<ext_idle_notification_v1::ExtIdleNotificationV1>,
-    idle_cfg: (u32, u32),
-    pointer: Option<wl_pointer::WlPointer>,
-    keyboard: Option<wl_keyboard::WlKeyboard>,
-    enter_serial: u32,
+    pub(crate) idle: Option<ext_idle_notifier_v1::ExtIdleNotifierV1>,
+    pub(crate) idle_notes: Vec<ext_idle_notification_v1::ExtIdleNotificationV1>,
+    pub(crate) idle_cfg: (u32, u32),
+    pub(crate) pointer: Option<wl_pointer::WlPointer>,
+    pub(crate) keyboard: Option<wl_keyboard::WlKeyboard>,
+    pub(crate) enter_serial: u32,
     pub surfs: HashMap<u32, Surf>,
-    next_id: u32,
+    pub(crate) next_id: u32,
     /// курсор: (поверхность, x, y); для экрана блокировки sid = u32::MAX - n
     pub ptr: Option<(u32, f64, f64)>,
     pub press: Option<Press>,
-    last_click: Option<(Act, Instant)>,
+    pub(crate) last_click: Option<(Act, Instant)>,
     pub kb_surf: Option<u32>,
     pub mods: Modifiers,
     pub res: Res,
     pub st: State,
     pub set_saved: String,
-    set_mtime: Option<std::time::SystemTime>,
-    last_sample: Instant,
-    last_min: u32,
-    palette_written: String,
+    pub(crate) set_mtime: Option<std::time::SystemTime>,
+    pub(crate) last_sample: Instant,
+    pub(crate) last_min: u32,
+    pub(crate) palette_written: String,
     /// обои: ключ того, из чего собрана текущая картинка, и номер последнего задания
     pub wall_key: String,
     pub wall_job: u64,
@@ -320,12 +334,13 @@ pub struct App {
     pub tdrag: Option<(u64, (f64, f64))>,
 }
 
-const LOCK_BASE: u32 = u32::MAX - 64;
+pub(crate) const LOCK_BASE: u32 = u32::MAX - 64;
 
 impl State {
     pub fn new(set: Settings, niri: Niri) -> State {
+        yami_px::gfx::set_reveal(yami_px::gfx::Reveal::from_id(&set.reveal), set.reveal_grain);
         State {
-            t: Theme::new(set.accent_rgb(), set.tint, set.glass, set.lift, set.inner),
+            t: Theme::new(set.accent_rgb(), set.tint, set.glass, set.lift, set.inner, set.light).apply(),
             niri,
             sys: Sys::new(),
             apps: icons::load_apps(),
@@ -373,7 +388,13 @@ impl State {
             wall_field: Field::default(),
             keys: Default::default(),
             game: Default::default(),
+            game_probe: Default::default(),
+            night: Default::default(),
+            plugins: Default::default(),
+            session: Default::default(),
             game_field: Field::default(),
+            reply: Default::default(),
+            geo_field: Field::default(),
             snap: None,
             snap_countdown: None,
             shot_files: HashMap::new(),
@@ -419,7 +440,7 @@ pub fn run() {
     let set = Settings::load();
     crate::i18n::set(&set.lang);
     let mut icons = Icons::new(&set.icon_theme);
-    icons.set_pixel(set.icon_pixel.then(|| Theme::new(set.accent_rgb(), set.tint, set.glass, set.lift, set.inner).icon_ramp()));
+    icons.set_pixel(set.icon_pixel.then(|| Theme::new(set.accent_rgb(), set.tint, set.glass, set.lift, set.inner, set.light).icon_ramp()));
     let set_saved = set.to_json();
     let set_font = set.font_shell.clone();
 
@@ -503,6 +524,7 @@ pub fn run() {
     app.write_fx();
     crate::keys::write(&app.st.set);
     app.setup_idle();
+    app.side_sync();
     // «стол» при входе включится, когда придёт список окон (см. on_msg)
 
     handle
@@ -668,7 +690,7 @@ impl App {
     }
     /// закрыть с анимацией (или сразу, если анимации выключены)
     pub fn close(&mut self, id: u32) {
-        let anim = self.st.set.animations;
+        let anim = self.st.set.animations && self.st.set.anim_close;
         if let Some(s) = self.surfs.get_mut(&id) {
             if !anim || !s.configured {
                 self.destroy(id);
@@ -746,7 +768,7 @@ impl App {
         let _ = self.conn.flush();
     }
 
-    fn draw(&mut self, id: u32) {
+    pub(crate) fn draw(&mut self, id: u32) {
         let Some(mut s) = self.surfs.remove(&id) else { return };
         s.dirty = false;
         if s.fresh {
@@ -853,6 +875,7 @@ impl App {
                     Some(Modal::Settings) => crate::settings::draw(&mut ui, st, w, h),
                     Some(Modal::Auth) => crate::auth::draw(&mut ui, st, w, h),
                     Some(Modal::Screen) => crate::screen::draw(&mut ui, st, w, h),
+                    Some(Modal::Reply) => crate::reply::draw(&mut ui, st, w, h),
                     None => {}
                 },
                 SKind::Popup => crate::popups::draw(&mut ui, st, w, h),
@@ -867,6 +890,10 @@ impl App {
                 SKind::DockEdge => {}
                 SKind::Curtain => crate::curtain::draw(&mut ui, st, &s.output, w, h),
                 SKind::CurtainBadge => crate::curtain::draw_badge(&mut ui, w, h),
+            }
+            // развёртка — только панели: не обои, не оверлей скриншота, не шторка
+            if st.set.scanlines && !matches!(s.kind, SKind::Dim | SKind::Catcher | SKind::Wall | SKind::Snap | SKind::Curtain | SKind::CurtainBadge | SKind::DockEdge | SKind::Title(_)) {
+                ui.cv.scanlines(if st.t.light { 0.06 } else { 0.22 });
             }
             if k < 1.0 && !matches!(s.kind, SKind::Dim | SKind::Catcher) {
                 ui.cv.dissolve(k, 2);
@@ -942,125 +969,15 @@ impl App {
         }
     }
 
-    // ── блокировка ──────────────────────────────────────────────────────────
-    pub fn lock_now(&mut self) {
-        if self.lock.is_some() || self.st.locked {
-            return;
-        }
-        self.close_all();
-        self.st.locked = true;
-        self.st.lock_field.wipe();
-        self.st.lock_status.clear();
-        match self.lock_state.lock(&self.qh) {
-            Ok(l) => {
-                self.lock = Some(l);
-                self.sync_lock_surfs();
-            }
-            Err(_) => self.st.locked = false,
-        }
-    }
-
-    /// экран блокировки на каждом мониторе, и на подключённом уже под блокировкой. Номера
-    /// поверхностей — индексы в lock_surfs, поэтому ушедшие мониторы не вынимаются до разблокировки
-    fn sync_lock_surfs(&mut self) {
-        let Some(l) = self.lock.as_ref() else { return };
-        for o in self.outputs.outputs().collect::<Vec<_>>() {
-            if self.lock_surfs.iter().any(|ls| ls.wl == o) || self.lock_surfs.len() >= 64 {
-                continue;
-            }
-            let name = self.outputs.info(&o).and_then(|i| i.name.clone()).unwrap_or_default();
-            let surface = self.compositor.create_surface(&self.qh);
-            let sid = LOCK_BASE + self.lock_surfs.len() as u32;
-            let frac = self.frac_mgr.as_ref().map(|m| m.get_fractional_scale(&surface, &self.qh, sid));
-            let vp = self.viewporter.as_ref().map(|v| v.get_viewport(&surface, &self.qh, ()));
-            let ls = l.create_lock_surface(surface, &o, &self.qh);
-            self.lock_surfs.push(LockSurf { s: ls, wl: o, output: name, w: 0, h: 0, pool: None, zones: vec![], dirty: false, scale: 1.0, frac, vp });
-        }
-    }
-    pub fn unlock(&mut self) {
-        if let Some(l) = self.lock.take() {
-            l.unlock();
-        }
-        self.drop_lock_surfs();
-        self.st.locked = false;
-        self.st.lock_field.wipe();
-        let _ = self.conn.roundtrip();
-        self.dirty_all();
-    }
-
-    /// поверхности блокировки — со своими масштабом и viewport
-    fn drop_lock_surfs(&mut self) {
-        for l in self.lock_surfs.drain(..) {
-            if let Some(f) = l.frac {
-                f.destroy();
-            }
-            if let Some(v) = l.vp {
-                v.destroy();
-            }
-        }
-    }
-
-    fn draw_lock(&mut self, i: usize) {
-        let main = self.lock_surfs[i].output == self.focus_out() || self.lock_surfs.len() == 1;
-        let ls = &mut self.lock_surfs[i];
-        ls.dirty = false;
-        let (w, h) = (ls.w, ls.h);
-        if w <= 0 || h <= 0 {
-            return;
-        }
-        let (pw, ph) = if ls.vp.is_none() || ls.scale == 1.0 { (w, h) } else { crate::gfx::phys(w, h, ls.scale) };
-        let up = (pw, ph) != (w, h);
-        let need = (pw * ph * 4) as usize;
-        if ls.pool.as_ref().map(|p| p.len() < need).unwrap_or(true) {
-            ls.pool = SlotPool::new(need * 2, &self.shm).ok();
-        }
-        let Some(pool) = ls.pool.as_mut() else { return };
-        let Ok((buffer, bytes)) = pool.create_buffer(pw, ph, pw * 4, wl_shm::Format::Argb8888) else { return };
-        let (out_ptr, out_len) = (bytes.as_mut_ptr() as *mut u32, bytes.len() / 4);
-        let mut scratch: Vec<u32> = if up { vec![0; (w * h) as usize] } else { vec![] };
-        let buf: &mut [u32] = if up { &mut scratch } else { unsafe { std::slice::from_raw_parts_mut(out_ptr, out_len) } };
-        let sid = LOCK_BASE + i as u32;
-        let ptr = self.ptr.filter(|p| p.0 == sid).map(|p| (p.1, p.2));
-        let mut ui = Ui {
-            cv: Canvas::new(buf, w, h),
-            f: &mut self.res.fonts,
-            ic: &mut self.res.icons,
-            t: self.st.t,
-            zones: vec![],
-            ptr,
-            down: false,
-            anim: false,
-            blink: self.st.blink,
-            tr: crate::i18n::tr,
-        };
-        crate::lock::draw(&mut ui, &self.st, w, h, main);
-        let anim = ui.anim;
-        ls.zones = std::mem::take(&mut ui.zones);
-        drop(ui);
-        if up {
-            crate::gfx::upscale(&scratch, w, h, unsafe { std::slice::from_raw_parts_mut(out_ptr, out_len) }, pw, ph);
-        }
-        let surf = ls.s.wl_surface().clone();
-        if let Some(vp) = &ls.vp {
-            vp.set_destination(w, h);
-        }
-        surf.damage_buffer(0, 0, pw, ph);
-        if anim {
-            surf.frame(&self.qh, surf.clone());
-        }
-        let _ = buffer.attach_to(&surf);
-        surf.commit();
-    }
-
     // ── тик: часы, датчики, файл настроек ───────────────────────────────────
-    fn tick_interval(&self) -> Duration {
+    pub(crate) fn tick_interval(&self) -> Duration {
         let fast = !self.st.notifs.popups.is_empty() || self.st.osd.is_some() || self.st.field_focus.is_some() || self.st.locked || self.st.modal == Some(Modal::Launcher);
         let fast = fast || self.st.upd.busy.is_some() || self.st.snap.is_some() || self.st.snap_countdown.is_some() || self.st.dock_leave.is_some() || !self.st.dock_bounce.is_empty();
         Duration::from_millis(if fast { 100 } else { 1000 })
     }
 
     /// батарея садится: одно уведомление на 10% и одно на 5%, пока не поставят на зарядку
-    fn bat_check(&mut self) {
+    pub(crate) fn bat_check(&mut self) {
         let Some(b) = self.st.sys.bat else { return };
         if b.charging || b.plugged {
             self.st.bat_warn = 0;
@@ -1074,7 +991,7 @@ impl App {
         }
     }
 
-    fn tick(&mut self) {
+    pub(crate) fn tick(&mut self) {
         let now = Instant::now();
         // мигание курсора ввода — раз в полсекунды
         let blink = (self.st.started.elapsed().as_millis() / 500) % 2 == 0;
@@ -1106,8 +1023,18 @@ impl App {
                 self.dirty(&SKind::Bar);
             }
             self.check_settings_file();
+            self.need_tick();
+            // ночной свет упал сам — значок в баре гаснет
+            let n = self.st.night.running();
+            if n != self.st.night.on {
+                self.st.night.on = n;
+                self.dirty(&SKind::Bar);
+            }
             if self.st.started.elapsed().as_secs() % 60 == 0 {
                 self.update_tick();
+            }
+            if self.st.started.elapsed().as_secs() % 5 == 0 {
+                self.session_tick();
             }
             // профиль могли сменить снаружи (powerprofilesctl, другой апплет)
             if self.st.started.elapsed().as_secs() % 15 == 0 && self.bar_has("profile") {
@@ -1143,113 +1070,13 @@ impl App {
         s.bar_left.iter().chain(&s.bar_center).chain(&s.bar_right).any(|x| x == m)
     }
 
-    fn uses(&self, src: &str) -> bool {
+    pub(crate) fn uses(&self, src: &str) -> bool {
         let s = &self.st.set;
         s.widgets.iter().any(|w| w.on && w.kind == "graph" && w.source == src) || (src == "gpu" && self.st.popup.as_ref().map(|p| p.kind == "sys").unwrap_or(false))
     }
 
-    // ── настройки ───────────────────────────────────────────────────────────
-    pub fn settings_changed(&mut self) {
-        let s = &self.st.set;
-        crate::i18n::set(&s.lang);
-        if s.font_shell != self.res.font {
-            self.res.font = s.font_shell.clone();
-            self.res.fonts = Fonts::with(&self.res.font);
-        }
-        self.st.t = Theme::new(s.accent_rgb(), s.tint, s.glass, s.lift, s.inner);
-        self.res.icons.set_pixel(s.icon_pixel.then(|| self.st.t.icon_ramp()));
-        self.write_palette();
-        self.write_fx();
-        crate::agents::write_portals(&self.st.set);
-        self.sync_wall();
-        crate::keys::write(&self.st.set);
-        self.setup_idle();
-        self.sync_widgets();
-        self.sync_dock();
-        self.dirty_all();
-    }
-
-    /// записать настройки сейчас (перед перезапуском), даже посреди перетаскивания
-    pub fn save_now(&mut self) {
-        let j = self.st.set.to_json();
-        if j != self.set_saved {
-            let _ = config::write_atomic(&config::settings_path(), &j);
-            self.set_saved = j;
-        }
-    }
-
-    fn save_settings_if_changed(&mut self) {
-        if self.press.is_some() {
-            return;
-        }
-        let j = self.st.set.to_json();
-        if j != self.set_saved {
-            let _ = config::write_atomic(&config::settings_path(), &j);
-            self.set_saved = j;
-            self.set_mtime = std::fs::metadata(config::settings_path()).and_then(|m| m.modified()).ok();
-        }
-    }
-
-    fn check_settings_file(&mut self) {
-        let m = std::fs::metadata(config::settings_path()).and_then(|m| m.modified()).ok();
-        if m != self.set_mtime {
-            self.set_mtime = m;
-            let s = Settings::load();
-            if s != self.st.set {
-                self.st.set = s;
-                self.set_saved = self.st.set.to_json();
-                self.settings_changed();
-            }
-        }
-    }
-
-    /// палитра для остальных программ; tools/theme.py перекрашивает их и рисует обои
-    pub fn write_palette(&mut self) {
-        let j = self.st.t.palette_json();
-        if j == self.palette_written {
-            return;
-        }
-        self.palette_written = j.clone();
-        let p = config::state_dir().join("palette.json");
-        let changed = std::fs::read_to_string(&p).map(|t| t != j).unwrap_or(true);
-        let _ = config::write_atomic(&p, &j);
-        if changed || !config::state_dir().join("wallpaper.png").exists() {
-            let tx = self.tx.clone();
-            std::thread::spawn(move || {
-                let script = crate::app::theme_script();
-                let _ = std::process::Command::new("python3").arg("-I").arg(&script).arg(&p).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-                let _ = tx.send(Msg::Theme);
-            });
-        }
-    }
-
-    /// курсор сменили в настройках: theme.py --cursor (niri перечитает свой конфиг сам)
-    pub fn apply_cursor(&mut self) {
-        // настройки должны быть на диске до запуска скрипта
-        let j = self.st.set.to_json();
-        let _ = config::write_atomic(&config::settings_path(), &j);
-        self.set_saved = j;
-        std::thread::spawn(|| {
-            let _ = std::process::Command::new("python3").arg("-I").arg(crate::app::theme_script()).arg("--cursor").stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-        });
-    }
-
-    /// размер шрифта программ сменили (или экраны): theme.py --fonts — GTK, Qt, kitty, браузер
-    pub fn apply_fonts(&mut self) {
-        let j = self.st.set.to_json();
-        let _ = config::write_atomic(&config::settings_path(), &j);
-        self.set_saved = j;
-        std::thread::spawn(|| {
-            let _ = std::process::Command::new("python3").arg("-I").arg(crate::app::theme_script()).arg("--fonts").stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-        });
-    }
-
-    pub fn write_fx(&mut self) {
-        let _ = config::write_atomic(&config::config_dir().join("niri/yami-fx.kdl"), &self.st.set.fx_kdl(self.st.niri.level, self.st.curtain.is_some()));
-    }
-
     // ── простой: замок и гашение экрана ─────────────────────────────────────
-    fn setup_idle(&mut self) {
+    pub(crate) fn setup_idle(&mut self) {
         let cfg = (self.st.set.lock_after, self.st.set.screen_off_after);
         if cfg == self.idle_cfg && !self.idle_notes.is_empty() {
             return;
@@ -1268,11 +1095,13 @@ impl App {
     }
 
     // ── сообщения нитей ─────────────────────────────────────────────────────
-    fn on_msg(&mut self, m: Msg) {
+    pub(crate) fn on_msg(&mut self, m: Msg) {
         match m {
             Msg::Niri(v) => {
                 let layout_only = v.get("WindowLayoutsChanged").is_some();
                 let had_windows = !self.st.niri.wins.is_empty();
+                // первый полный список окон: только теперь видно, что уже открыто
+                let full_list = v.get("WindowsChanged").is_some();
                 let evs = self.st.niri.handle(v);
                 for e in evs {
                     match e {
@@ -1280,6 +1109,12 @@ impl App {
                         niri::Ev::NewWindow(id) => self.on_new_window(id),
                         niri::Ev::Changed => {}
                     }
+                }
+                if !layout_only {
+                    self.st.session.dirty = true;
+                }
+                if full_list {
+                    self.session_restore();
                 }
                 // «стол» при входе: окна пришли — делаем их плавающими
                 if !had_windows && !self.st.niri.wins.is_empty() && self.st.niri.stacking {
@@ -1365,8 +1200,22 @@ impl App {
             Msg::ScreenPick(types, s) => self.screen_ask(types, s),
             Msg::Clip(lines) => {
                 self.st.launcher.clip_lines = lines;
-                self.st.launcher.refresh(&self.st.apps);
+                self.st.launcher.refresh(&self.st.apps, &self.st.niri.wins);
                 self.dirty(&SKind::Modal);
+            }
+            Msg::Plugin(id, p) => {
+                if self.st.plugins.shown.get(&id) != Some(&p) {
+                    self.st.plugins.shown.insert(id, p);
+                    self.dirty(&SKind::Bar);
+                }
+            }
+            Msg::SnapText(qr, text) => self.on_snap_text(qr, text),
+            Msg::LFiles(q, found) => {
+                self.st.launcher.files = (q, found);
+                if self.st.modal == Some(Modal::Launcher) {
+                    self.st.launcher.refresh(&self.st.apps, &self.st.niri.wins);
+                    self.dirty(&SKind::Modal);
+                }
             }
             Msg::Wall(n, img, accent) => self.wall_ready(n, img, accent),
             Msg::Curtain(n, imgs) => self.curtain_ready(n, imgs),
@@ -1383,9 +1232,10 @@ impl App {
             || self.st.set.bar_left.iter().chain(&self.st.set.bar_center).chain(&self.st.set.bar_right).any(|m| m == "media")
     }
 
-    fn on_new_window(&mut self, id: u64) {
+    pub(crate) fn on_new_window(&mut self, id: u64) {
         // в режиме «стол»: под заголовок нужно место сверху
         self.fit_title(id);
+        self.session_place(id);
     }
 
     pub fn show_osd(&mut self, kind: &'static str) {
@@ -1410,6 +1260,7 @@ impl App {
     pub fn ipc(&mut self, cmd: &str) {
         match cmd.trim() {
             "launcher" => self.toggle_modal(Modal::Launcher, false),
+            "night" => self.night_toggle(),
             "clipboard" => self.toggle_modal(Modal::Launcher, true),
             "power" => self.toggle_modal(Modal::Power, false),
             "settings" => self.toggle_modal(Modal::Settings, false),
@@ -1492,526 +1343,6 @@ impl App {
         self.close_modal();
         self.close_popup();
         self.close_menu();
-    }
-
-    // ── модальные панели: лаунчер, питание, настройки ───────────────────────
-    pub fn toggle_modal(&mut self, m: Modal, clip: bool) {
-        // окно пароля не уступает место другим панелям
-        if self.st.locked || matches!(self.st.modal, Some(Modal::Auth | Modal::Screen)) {
-            return;
-        }
-        let same = self.st.modal == Some(m) && (m != Modal::Launcher || self.st.launcher.clip == clip);
-        if self.st.modal.is_some() && !same && m == Modal::Launcher && self.st.modal == Some(Modal::Launcher) {
-            // переключение программы ↔ буфер без закрытия
-            self.st.launcher.set_mode(clip, &self.st.apps);
-            if clip {
-                launcher::load_clip(self.tx.clone());
-            }
-            self.dirty(&SKind::Modal);
-            return;
-        }
-        self.close_all();
-        if same {
-            return;
-        }
-        let out = self.focus_out();
-        let (w, h) = match m {
-            Modal::Launcher => launcher::SIZE,
-            Modal::Power => crate::power::SIZE,
-            Modal::Settings => crate::settings::SIZE,
-            Modal::Auth => crate::auth::SIZE,
-            Modal::Screen => (0, 0),
-        };
-        self.st.modal = Some(m);
-        match m {
-            Modal::Launcher => {
-                self.st.apps = icons::load_apps();
-                self.st.launcher.open(clip, &self.st.apps);
-                if clip {
-                    launcher::load_clip(self.tx.clone());
-                }
-            }
-            Modal::Power => self.st.power_cur = 0,
-            Modal::Auth | Modal::Screen => {}
-            Modal::Settings => {
-                self.st.hex.set(&self.st.set.accent.clone());
-                if self.st.sel_widget == 0 {
-                    self.st.sel_widget = self.st.set.widgets.first().map(|w| w.id).unwrap_or(0);
-                }
-            }
-        }
-        self.mk(SKind::Dim, &out, Layer::Overlay, "yami-dim", Anchor::all(), (0, 0), (0, 0, 0, 0), -1, KeyboardInteractivity::None);
-        self.mk(SKind::Modal, &out, Layer::Overlay, match m {
-            Modal::Launcher => "yami-launcher",
-            Modal::Power => "yami-power",
-            Modal::Settings => "yami-settings",
-            Modal::Auth => "yami-auth",
-            Modal::Screen => "yami-screen",
-        }, Anchor::empty(), (w, h + 12), (0, 0, 0, 0), -1, KeyboardInteractivity::Exclusive);
-    }
-
-    /// все клавиши — шеллу (запись сочетания): niri не ловит свои бинды, пока фокус у настроек
-    pub fn inhibit_shortcuts(&mut self, on: bool) {
-        if let Some(i) = self.ksi.take() {
-            i.destroy();
-        }
-        if !on {
-            return;
-        }
-        let surf = self.surfs.values().find(|s| s.kind == SKind::Modal).map(|s| s.layer.wl_surface().clone());
-        let seat = self.seat.seats().next();
-        if let (Some(mgr), Some(surf), Some(seat)) = (&self.ksi_mgr, surf, seat) {
-            self.ksi = Some(mgr.inhibit_shortcuts(&surf, &seat, &self.qh, ()));
-        }
-    }
-
-    pub fn close_modal(&mut self) {
-        if self.st.modal.is_none() {
-            return;
-        }
-        self.keys_capture(None);
-        if self.st.modal == Some(Modal::Auth) {
-            self.auth_cancel();
-        }
-        // окно выбора экрана закрыли мимо кнопок — порталу «отмена»
-        if self.st.modal == Some(Modal::Screen) {
-            if let Some(p) = self.st.screen_pick.take() {
-                use std::io::Write;
-                let _ = (&p.stream).write_all(b"cancel\n");
-            }
-        }
-        self.st.modal = None;
-        self.st.field_focus = None;
-        self.close_kind(&SKind::Modal);
-        self.close_kind(&SKind::Dim);
-    }
-
-    // ── всплывашки бара ─────────────────────────────────────────────────────
-    pub fn open_popup(&mut self, kind: &'static str, out: &str, ax: i32) {
-        let same = self.st.popup.as_ref().map(|p| p.kind == kind).unwrap_or(false);
-        self.close_popup();
-        self.close_menu();
-        if same {
-            return;
-        }
-        self.close_modal();
-        self.st.popup = Some(Popup { kind });
-        match kind {
-            "net" => net::refresh_wifi(self.tx.clone()),
-            "bt" => net::refresh_bt(self.tx.clone()),
-            "profile" => crate::profile::refresh(None, self.tx.clone()),
-            "cal" => self.st.cal_month = 0,
-            _ => {}
-        }
-        media::viz_wanted(self.media_visible() && self.st.media.playing());
-        let (w, h) = popups::size(kind, &self.st);
-        let (ow, _) = self.output_size(out);
-        let x = (ax - w / 2).clamp(6, (ow - w - 6).max(6));
-        self.mk_catcher(out);
-        self.mk(SKind::Popup, out, Layer::Top, "yami-popup", Anchor::TOP | Anchor::LEFT, (w, h + 12), (if self.st.bar_hidden { 6 } else { 4 }, 0, 0, x), -1, KeyboardInteractivity::OnDemand);
-    }
-
-    pub fn resize_popup(&mut self) {
-        let Some(p) = &self.st.popup else { return };
-        let (w, h) = popups::size(p.kind, &self.st);
-        for s in self.surfs.values_mut() {
-            if s.kind == SKind::Popup && !s.closing && (s.w != w || s.h != h + 12) {
-                s.layer.set_size(w as u32, (h + 12) as u32);
-                s.layer.commit();
-            }
-        }
-    }
-
-    pub fn close_popup(&mut self) {
-        if self.st.popup.take().is_some() {
-            self.st.field_focus = None;
-            self.close_kind(&SKind::Popup);
-            if self.st.menu.is_none() {
-                self.close_kind(&SKind::Catcher);
-            }
-            media::viz_wanted(self.media_visible() && self.st.media.playing());
-        }
-    }
-
-    /// прозрачный ловец кликов мимо всплывашки (бар остаётся живым)
-    pub fn mk_catcher(&mut self, out: &str) {
-        if self.find(&SKind::Catcher).is_empty() {
-            let id = self.mk(SKind::Catcher, out, Layer::Top, "yami-catch", Anchor::all(), (0, 0), (0, 0, 0, 0), -1, KeyboardInteractivity::None);
-            let (w, h) = self.output_size(out);
-            let top = if self.st.bar_hidden { 0 } else { BAR_H };
-            if let Some(s) = self.surfs.get_mut(&id) {
-                s.input = Some(vec![R::new(0, top, w, h - top)]);
-            }
-        }
-    }
-
-    // ── меню ────────────────────────────────────────────────────────────────
-    pub fn open_menu(&mut self, m: menu::MenuState) {
-        self.close_menu();
-        let out = m.output.clone();
-        let (w, h) = menu::size(&m, &mut self.res.fonts);
-        let (ow, oh) = self.output_size(&out);
-        let x = m.x.clamp(4, (ow - w - 8).max(4));
-        let y = m.y.clamp(4, (oh - h - 8).max(4));
-        self.st.menu = Some(m);
-        self.mk_catcher(&out);
-        self.mk(SKind::Menu, &out, Layer::Overlay, "yami-menu", Anchor::TOP | Anchor::LEFT, (w, h + 4), (y, 0, 0, x), -1, KeyboardInteractivity::OnDemand);
-    }
-    pub fn close_menu(&mut self) {
-        if self.st.menu.take().is_some() {
-            self.close_kind(&SKind::Menu);
-            if self.st.popup.is_none() {
-                self.close_kind(&SKind::Catcher);
-            }
-        }
-    }
-
-    // ── ввод ────────────────────────────────────────────────────────────────
-    fn zone_at(&self, sid: u32, x: f64, y: f64) -> Option<Zone> {
-        let zones = if sid >= LOCK_BASE {
-            self.lock_surfs.get((sid - LOCK_BASE) as usize).map(|l| &l.zones)
-        } else {
-            self.surfs.get(&sid).map(|s| &s.zones)
-        }?;
-        zones.iter().rev().find(|z| z.r.contains(x, y)).cloned()
-    }
-
-    fn set_cursor(&mut self, c: Cur) {
-        let shape = match c {
-            Cur::Default => Shape::Default,
-            Cur::Pointer => Shape::Pointer,
-            Cur::Grab => Shape::Grabbing,
-            Cur::Text => Shape::Text,
-        };
-        if self.cursor_now == Some(shape) {
-            return;
-        }
-        self.cursor_now = Some(shape);
-        if let Some(d) = &self.cursor_dev {
-            d.set_shape(self.enter_serial, shape);
-        }
-    }
-
-    fn surf_of(&self, s: &wl_surface::WlSurface) -> Option<u32> {
-        if let Some((i, _)) = self.surfs.iter().find(|(_, x)| x.layer.wl_surface() == s) {
-            return Some(*i);
-        }
-        self.lock_surfs.iter().position(|l| l.s.wl_surface() == s).map(|i| LOCK_BASE + i as u32)
-    }
-
-    fn mark(&mut self, sid: u32) {
-        if sid >= LOCK_BASE {
-            if let Some(l) = self.lock_surfs.get_mut((sid - LOCK_BASE) as usize) {
-                l.dirty = true;
-            }
-        } else if let Some(s) = self.surfs.get_mut(&sid) {
-            s.dirty = true;
-        }
-    }
-
-    pub fn surf_kind(&self, sid: u32) -> Option<SKind> {
-        self.surfs.get(&sid).map(|s| s.kind.clone())
-    }
-
-    fn on_pointer(&mut self, e: &PointerEvent) {
-        let Some(sid) = self.surf_of(&e.surface) else { return };
-        let (x, y) = e.position;
-        // скриншот: протяжка, рисование и лупа — мимо обычных зон
-        if self.surf_kind(sid) == Some(SKind::Snap) {
-            let on_btn = self.zone_at(sid, x, y).map(|z| matches!(z.act, Act::SnapBtn(_))).unwrap_or(false);
-            let took = match e.kind {
-                PointerEventKind::Motion { .. } => self.snap_pointer(sid, 0, x, y, 0, on_btn),
-                PointerEventKind::Press { button, .. } => self.snap_pointer(sid, 1, x, y, button, on_btn),
-                PointerEventKind::Release { button, .. } if self.press.is_none() => self.snap_pointer(sid, 2, x, y, button, on_btn),
-                PointerEventKind::Axis { vertical, .. } => {
-                    let d = if vertical.value120 != 0 { vertical.value120.signum() } else { vertical.discrete.signum() };
-                    if d != 0 {
-                        self.snap_wheel(d);
-                    }
-                    true
-                }
-                _ => false,
-            };
-            if took {
-                self.ptr = Some((sid, x, y));
-                return;
-            }
-        }
-        match e.kind {
-            PointerEventKind::Enter { serial } => {
-                if matches!(self.surf_kind(sid), Some(SKind::Dock | SKind::DockEdge)) {
-                    self.dock_hover(true);
-                }
-                self.enter_serial = serial;
-                self.cursor_now = None;
-                self.ptr = Some((sid, x, y));
-                let c = self.zone_at(sid, x, y).map(|z| z.cur).unwrap_or(Cur::Default);
-                self.set_cursor(c);
-                self.mark(sid);
-                if let Some(SKind::Notifs) = self.surf_kind(sid) {
-                    self.st.notifs.hover = true;
-                }
-            }
-            PointerEventKind::Leave { .. } => {
-                if self.surf_kind(sid) == Some(SKind::Dock) {
-                    self.dock_hover(false);
-                }
-                if self.ptr.map(|p| p.0) == Some(sid) {
-                    self.ptr = None;
-                }
-                self.mark(sid);
-                if let Some(SKind::Notifs) = self.surf_kind(sid) {
-                    self.st.notifs.hover = false;
-                    self.st.notifs.resume();
-                }
-            }
-            PointerEventKind::Motion { .. } => {
-                let before = self.ptr.and_then(|p| if p.0 == sid { self.zone_at(sid, p.1, p.2) } else { None });
-                self.ptr = Some((sid, x, y));
-                if self.press.is_some() {
-                    self.on_drag(x, y);
-                    return;
-                }
-                let after = self.zone_at(sid, x, y);
-                let c = after.as_ref().map(|z| z.cur).unwrap_or(Cur::Default);
-                self.set_cursor(c);
-                if before.as_ref().map(|z| (&z.act, z.r)) != after.as_ref().map(|z| (&z.act, z.r)) {
-                    self.mark(sid);
-                    if let Some(z) = &after {
-                        self.on_hover(&z.act);
-                    }
-                }
-            }
-            PointerEventKind::Press { button, .. } => {
-                self.ptr = Some((sid, x, y));
-                let z = self.zone_at(sid, x, y);
-                let (sx, sy) = self.surfs.get(&sid).map(|s| s.applied).unwrap_or((0, 0));
-                if let Some(z) = z {
-                    // тащим от того места, где поверхность реально стоит
-                    let start = (sx, sy);
-                    self.press = Some(Press { sid, act: z.act.clone(), button, x, y, zone: z.r, ax: x + sx as f64, ay: y + sy as f64, moved: false, start, origin: (sx, sy) });
-                    if z.act.is_drag() && button == 0x110 {
-                        self.on_drag(x, y);
-                    }
-                    if z.act.is_drag() {
-                        self.set_cursor(Cur::Grab);
-                    }
-                } else {
-                    // клик мимо панели — по затемнению или ловцу: закрыть
-                    match self.surf_kind(sid) {
-                        Some(SKind::Dim) => self.close_modal(),
-                        Some(SKind::Catcher) => {
-                            self.close_popup();
-                            self.close_menu();
-                        }
-                        _ => {}
-                    }
-                }
-                self.mark(sid);
-            }
-            PointerEventKind::Release { button, .. } => {
-                let p = self.press.take();
-                self.mark(sid);
-                if let Some(p) = p {
-                    if p.act.is_drag() {
-                        self.on_drag_end(&p);
-                        if p.moved {
-                            return;
-                        }
-                    }
-                    let z = self.zone_at(sid, x, y);
-                    if z.map(|z| z.act == p.act).unwrap_or(false) && p.button == button {
-                        let double = matches!(&self.last_click, Some((a, t)) if *a == p.act && t.elapsed() < Duration::from_millis(350));
-                        self.last_click = Some((p.act.clone(), Instant::now()));
-                        self.on_click(p.act, button, sid, p.zone, double);
-                    }
-                }
-            }
-            PointerEventKind::Axis { vertical, .. } => {
-                let d = if vertical.discrete != 0 { vertical.discrete as f64 } else if vertical.value120 != 0 { vertical.value120 as f64 / 120.0 } else { vertical.absolute / 15.0 };
-                if d.abs() < 0.01 {
-                    return;
-                }
-                if let Some(z) = self.zone_at(sid, x, y) {
-                    self.on_wheel(z.act, if d > 0.0 { 1 } else { -1 });
-                }
-            }
-        }
-    }
-
-    fn on_drag(&mut self, x: f64, y: f64) {
-        let Some(p) = self.press.as_mut() else { return };
-        if (x - p.x).abs() + (y - p.y).abs() > 3.0 {
-            p.moved = true;
-        }
-        let sid = p.sid;
-        let act = p.act.clone();
-        let zone = p.zone;
-        let (sx, sy) = p.origin;
-        let ax = x + sx as f64;
-        let ay = y + sy as f64;
-        let (dx, dy) = (ax - p.ax, ay - p.ay);
-        let start = p.start;
-        let frac = ((x - zone.x as f64) / zone.w.max(1) as f64).clamp(0.0, 1.0) as f32;
-        match act {
-            Act::SSlider(key, from, to, seg) => {
-                let f = (frac * seg as f32).ceil() / seg as f32;
-                settings_set_f32(&mut self.st.set, key, from + f * (to - from));
-                self.settings_changed();
-            }
-            Act::VolSlider => audio::set_volume(frac as f64 * 1.0),
-            Act::MicSlider => audio::set_mic(frac as f64),
-            Act::AppVol(i) => audio::set_stream(i, frac as f64),
-            Act::TDrag(win) => {
-                if p.moved {
-                    self.title_drag(win, sid, start, dx, dy);
-                }
-                return;
-            }
-            Act::SModDrag(..) | Act::SModNew(_) => {
-                if p.moved {
-                    let press = (p.x, p.y);
-                    self.bar_drag(&act, zone, press, x, y);
-                }
-                return;
-            }
-            Act::DispDrag(i) => {
-                if p.moved {
-                    self.disp_drag(i, dx, dy);
-                }
-                return;
-            }
-            Act::WDrag(id) => {
-                if p.moved {
-                    let snap = |v: f64| ((v / 2.0).round() * 2.0) as i32;
-                    let nx = snap(start.0 as f64 + dx);
-                    let ny = snap(start.1 as f64 + dy);
-                    let (ow, oh) = self.surfs.get(&sid).map(|s| self.output_size(&s.output)).unwrap_or((1920, 1080));
-                    let (ww, wh) = self.surfs.get(&sid).map(|s| (s.w, s.h)).unwrap_or((0, 0));
-                    let nx = nx.clamp(0, (ow - ww).max(0));
-                    let ny = ny.clamp(BAR_H, (oh - wh).max(BAR_H));
-                    if let Some(w) = self.st.set.widget_mut(id) {
-                        w.x = nx;
-                        w.y = ny;
-                    }
-                    // двигаем только эту поверхность, без перерисовки и без записи настроек
-                    self.move_surface(sid, nx, ny);
-                }
-                return;
-            }
-            _ => {}
-        }
-        self.mark(sid);
-    }
-
-    /// сдвинуть поверхность; положение считается применённым, когда композитор ответит на sync
-    pub fn move_surface(&mut self, sid: u32, x: i32, y: i32) {
-        let Some(s) = self.surfs.get_mut(&sid) else { return };
-        if s.margin == (x, y) {
-            return;
-        }
-        s.layer.set_margin(y, 0, 0, x);
-        s.margin = (x, y);
-        s.layer.commit();
-        self.conn.display().sync(&self.qh, (sid, x, y));
-    }
-
-    fn on_drag_end(&mut self, p: &Press) {
-        if let Act::TDrag(win) = p.act {
-            self.title_drag_end(win);
-        }
-        if let Act::DispDrag(_) = p.act {
-            self.disp_drag_end();
-        }
-        if matches!(p.act, Act::SModDrag(..) | Act::SModNew(_)) {
-            self.bar_drop();
-        }
-        if let Act::SSlider(..) = p.act {
-            // ползунок отпустили: теперь пересчитать обои (если это был их ползунок)
-            self.sync_wall();
-        }
-    }
-
-    fn on_hover(&mut self, a: &Act) {
-        match a {
-            Act::LRun(i) => {
-                if self.st.launcher.cur != *i {
-                    self.st.launcher.cur = *i;
-                }
-            }
-            Act::PowerDo(i) => self.st.power_cur = *i,
-            Act::Menu(i) => {
-                if let Some(m) = self.st.menu.as_mut() {
-                    m.cur = Some(*i);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    // ── клавиатура ──────────────────────────────────────────────────────────
-    fn on_key(&mut self, e: &KeyEvent) {
-        if self.st.locked {
-            self.lock_key(e);
-            return;
-        }
-        let Some(sid) = self.kb_surf else { return };
-        match self.surf_kind(sid) {
-            Some(SKind::Modal) => match self.st.modal {
-                Some(Modal::Launcher) => self.launcher_key(e),
-                Some(Modal::Power) => self.power_key(e),
-                Some(Modal::Settings) => self.settings_key(e),
-                Some(Modal::Auth) => self.auth_key(e),
-                Some(Modal::Screen) => self.screen_key(e),
-                None => {}
-            },
-            Some(SKind::Popup) => self.popup_key(e),
-            Some(SKind::Menu) => self.menu_key(e),
-            Some(SKind::Widget(_)) => self.widget_key(e),
-            Some(SKind::Snap) => {
-                self.snap_key(e);
-                return;
-            }
-            Some(SKind::EditBar) => {
-                if matches!(e.keysym, Keysym::Escape | Keysym::Return) {
-                    self.set_editing(false);
-                }
-            }
-            _ => {}
-        }
-        self.mark(sid);
-    }
-
-    /// общая правка поля: true — клавиша поглощена
-    pub fn edit_field(f: &mut Field, e: &KeyEvent, mods: &Modifiers) -> bool {
-        match e.keysym {
-            Keysym::BackSpace => f.backspace(mods.ctrl),
-            Keysym::Delete => f.delete(),
-            Keysym::Left => f.left(),
-            Keysym::Right => f.right(),
-            Keysym::Home => f.home(),
-            Keysym::End => f.end(),
-            _ => {
-                if mods.ctrl {
-                    if e.keysym == Keysym::u {
-                        f.clear();
-                        return true;
-                    }
-                    if e.keysym == Keysym::v {
-                        if let Some(t) = yami_px::ui::paste() {
-                            f.insert(&t);
-                        }
-                        return true;
-                    }
-                    return false;
-                }
-                match &e.utf8 {
-                    Some(s) if !s.is_empty() && !s.chars().any(|c| c.is_control()) => f.insert(s),
-                    _ => return false,
-                }
-            }
-        }
-        true
     }
 
     // ── запуск программ ─────────────────────────────────────────────────────
@@ -2125,253 +1456,3 @@ pub const RU_DAY: [&str; 7] = ["вс", "пн", "вт", "ср", "чт", "пт", "
 pub const RU_DAY_FULL: [&str; 7] = ["воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"];
 pub const RU_MON: [&str; 12] = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
 pub const RU_MON_NOM: [&str; 12] = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
-
-// ── обработчики Wayland ─────────────────────────────────────────────────────
-impl CompositorHandler for App {
-    fn scale_factor_changed(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_surface::WlSurface, _: i32) {}
-    fn transform_changed(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_surface::WlSurface, _: wl_output::Transform) {}
-    fn frame(&mut self, _: &Connection, _: &QueueHandle<Self>, surface: &wl_surface::WlSurface, _: u32) {
-        let Some(sid) = self.surf_of(surface) else { return };
-        if sid >= LOCK_BASE {
-            self.mark(sid);
-            return;
-        }
-        if let Some(s) = self.surfs.get_mut(&sid) {
-            s.frame_pending = false;
-            if s.release_pool {
-                // обои отрисованы и показаны — память буфера больше не нужна
-                s.release_pool = false;
-                s.pool = None;
-                return;
-            }
-            if s.anim {
-                s.dirty = true;
-            }
-        }
-    }
-    fn surface_enter(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_surface::WlSurface, _: &wl_output::WlOutput) {}
-    fn surface_leave(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_surface::WlSurface, _: &wl_output::WlOutput) {}
-}
-
-impl OutputHandler for App {
-    fn output_state(&mut self) -> &mut OutputState {
-        &mut self.outputs
-    }
-    fn new_output(&mut self, _: &Connection, _: &QueueHandle<Self>, _: wl_output::WlOutput) {
-        self.ensure_output_surfaces();
-    }
-    fn update_output(&mut self, _: &Connection, _: &QueueHandle<Self>, _: wl_output::WlOutput) {
-        self.ensure_output_surfaces();
-    }
-    fn output_destroyed(&mut self, _: &Connection, _: &QueueHandle<Self>, _: wl_output::WlOutput) {
-        self.ensure_output_surfaces();
-    }
-}
-
-impl LayerShellHandler for App {
-    fn closed(&mut self, _: &Connection, _: &QueueHandle<Self>, layer: &LayerSurface) {
-        let id = self.surfs.iter().find(|(_, s)| &s.layer == layer).map(|(i, _)| *i);
-        if let Some(id) = id {
-            self.destroy(id);
-        }
-    }
-    fn configure(&mut self, _: &Connection, _: &QueueHandle<Self>, layer: &LayerSurface, c: LayerSurfaceConfigure, _: u32) {
-        if let Some(s) = self.surfs.values_mut().find(|s| &s.layer == layer) {
-            let (w, h) = c.new_size;
-            if w > 0 {
-                s.w = w as i32;
-            }
-            if h > 0 {
-                s.h = h as i32;
-            }
-            s.configured = true;
-            s.dirty = true;
-            s.frame_pending = false;
-        }
-    }
-}
-
-impl SessionLockHandler for App {
-    fn locked(&mut self, _: &Connection, _: &QueueHandle<Self>, _: SessionLock) {}
-    fn finished(&mut self, _: &Connection, _: &QueueHandle<Self>, _: SessionLock) {
-        self.lock = None;
-        self.drop_lock_surfs();
-        self.st.locked = false;
-    }
-    fn configure(&mut self, _: &Connection, _: &QueueHandle<Self>, surface: SessionLockSurface, c: SessionLockSurfaceConfigure, _: u32) {
-        if let Some(l) = self.lock_surfs.iter_mut().find(|l| l.s.wl_surface() == surface.wl_surface()) {
-            l.w = c.new_size.0 as i32;
-            l.h = c.new_size.1 as i32;
-            l.dirty = true;
-        }
-    }
-}
-
-impl SeatHandler for App {
-    fn seat_state(&mut self) -> &mut SeatState {
-        &mut self.seat
-    }
-    fn new_seat(&mut self, _: &Connection, _: &QueueHandle<Self>, _: wl_seat::WlSeat) {
-        self.setup_idle();
-    }
-    fn new_capability(&mut self, _: &Connection, qh: &QueueHandle<Self>, seat: wl_seat::WlSeat, cap: Capability) {
-        if cap == Capability::Keyboard && self.keyboard.is_none() {
-            let h = self.handle.clone();
-            self.keyboard = self
-                .seat
-                .get_keyboard_with_repeat(qh, &seat, None, h, Box::new(|app: &mut App, _, e| app.on_key(&e)))
-                .ok();
-        }
-        if cap == Capability::Pointer && self.pointer.is_none() {
-            if let Ok(p) = self.seat.get_pointer(qh, &seat) {
-                if let Some(m) = &self.cursor_mgr {
-                    self.cursor_dev = Some(m.get_shape_device(&p, qh));
-                }
-                self.pointer = Some(p);
-            }
-        }
-    }
-    fn remove_capability(&mut self, _: &Connection, _: &QueueHandle<Self>, _: wl_seat::WlSeat, cap: Capability) {
-        if cap == Capability::Keyboard {
-            if let Some(k) = self.keyboard.take() {
-                k.release();
-            }
-        }
-        if cap == Capability::Pointer {
-            if let Some(p) = self.pointer.take() {
-                p.release();
-            }
-            self.cursor_dev = None;
-        }
-    }
-    fn remove_seat(&mut self, _: &Connection, _: &QueueHandle<Self>, _: wl_seat::WlSeat) {}
-}
-
-impl KeyboardHandler for App {
-    fn enter(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_keyboard::WlKeyboard, surface: &wl_surface::WlSurface, _: u32, _: &[u32], _: &[Keysym]) {
-        self.kb_surf = self.surf_of(surface);
-    }
-    fn leave(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_keyboard::WlKeyboard, surface: &wl_surface::WlSurface, _: u32) {
-        let sid = self.surf_of(surface);
-        if self.kb_surf == sid {
-            self.kb_surf = None;
-        }
-        if let Some(sid) = sid {
-            if let Some(SKind::Widget(_)) = self.surf_kind(sid) {
-                self.st.field_focus = None;
-                self.mark(sid);
-            }
-        }
-    }
-    fn press_key(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_keyboard::WlKeyboard, _: u32, e: KeyEvent) {
-        self.on_key(&e);
-    }
-    fn repeat_key(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_keyboard::WlKeyboard, _: u32, e: KeyEvent) {
-        self.on_key(&e);
-    }
-    fn release_key(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_keyboard::WlKeyboard, _: u32, _: KeyEvent) {}
-    fn update_modifiers(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_keyboard::WlKeyboard, _: u32, m: Modifiers, _: RawModifiers, _: u32) {
-        self.mods = m;
-    }
-}
-
-impl PointerHandler for App {
-    fn pointer_frame(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_pointer::WlPointer, events: &[PointerEvent]) {
-        for e in events {
-            self.on_pointer(e);
-        }
-    }
-}
-
-impl ShmHandler for App {
-    fn shm_state(&mut self) -> &mut Shm {
-        &mut self.shm
-    }
-}
-
-impl ProvidesRegistryState for App {
-    fn registry(&mut self) -> &mut RegistryState {
-        &mut self.registry
-    }
-    registry_handlers![OutputState, SeatState];
-}
-
-impl Dispatch<wayland_client::protocol::wl_callback::WlCallback, (u32, i32, i32)> for App {
-    fn event(app: &mut Self, _: &wayland_client::protocol::wl_callback::WlCallback, e: wayland_client::protocol::wl_callback::Event, d: &(u32, i32, i32), _: &Connection, _: &QueueHandle<Self>) {
-        if let wayland_client::protocol::wl_callback::Event::Done { .. } = e {
-            if let Some(s) = app.surfs.get_mut(&d.0) {
-                s.applied = (d.1, d.2);
-            }
-        }
-    }
-}
-
-impl Dispatch<ext_background_effect_manager_v1::ExtBackgroundEffectManagerV1, ()> for App {
-    fn event(_: &mut Self, _: &ext_background_effect_manager_v1::ExtBackgroundEffectManagerV1, _: ext_background_effect_manager_v1::Event, _: &(), _: &Connection, _: &QueueHandle<Self>) {}
-}
-
-impl Dispatch<ext_background_effect_surface_v1::ExtBackgroundEffectSurfaceV1, ()> for App {
-    fn event(_: &mut Self, _: &ext_background_effect_surface_v1::ExtBackgroundEffectSurfaceV1, _: ext_background_effect_surface_v1::Event, _: &(), _: &Connection, _: &QueueHandle<Self>) {}
-}
-
-impl Dispatch<frac_mgr::WpFractionalScaleManagerV1, ()> for App {
-    fn event(_: &mut Self, _: &frac_mgr::WpFractionalScaleManagerV1, _: frac_mgr::Event, _: &(), _: &Connection, _: &QueueHandle<Self>) {}
-}
-/// масштаб вывода под поверхностью: id поверхности (LOCK_BASE+i — экран блокировки)
-impl Dispatch<frac::WpFractionalScaleV1, u32> for App {
-    fn event(app: &mut Self, _: &frac::WpFractionalScaleV1, e: frac::Event, id: &u32, _: &Connection, _: &QueueHandle<Self>) {
-        let frac::Event::PreferredScale { scale } = e else { return };
-        let v = scale as f64 / 120.0;
-        if *id >= LOCK_BASE {
-            if let Some(l) = app.lock_surfs.get_mut((*id - LOCK_BASE) as usize) {
-                if l.scale != v {
-                    l.scale = v;
-                    l.dirty = true;
-                }
-            }
-        } else if let Some(s) = app.surfs.get_mut(id) {
-            if s.scale != v {
-                s.scale = v;
-                s.dirty = true;
-            }
-        }
-    }
-}
-
-impl Dispatch<ksi_mgr::ZwpKeyboardShortcutsInhibitManagerV1, ()> for App {
-    fn event(_: &mut Self, _: &ksi_mgr::ZwpKeyboardShortcutsInhibitManagerV1, _: ksi_mgr::Event, _: &(), _: &Connection, _: &QueueHandle<Self>) {}
-}
-impl Dispatch<ksi::ZwpKeyboardShortcutsInhibitorV1, ()> for App {
-    fn event(_: &mut Self, _: &ksi::ZwpKeyboardShortcutsInhibitorV1, _: ksi::Event, _: &(), _: &Connection, _: &QueueHandle<Self>) {}
-}
-
-impl Dispatch<wp_viewporter::WpViewporter, ()> for App {
-    fn event(_: &mut Self, _: &wp_viewporter::WpViewporter, _: wp_viewporter::Event, _: &(), _: &Connection, _: &QueueHandle<Self>) {}
-}
-impl Dispatch<wp_viewport::WpViewport, ()> for App {
-    fn event(_: &mut Self, _: &wp_viewport::WpViewport, _: wp_viewport::Event, _: &(), _: &Connection, _: &QueueHandle<Self>) {}
-}
-impl Dispatch<ext_idle_notifier_v1::ExtIdleNotifierV1, ()> for App {
-    fn event(_: &mut Self, _: &ext_idle_notifier_v1::ExtIdleNotifierV1, _: ext_idle_notifier_v1::Event, _: &(), _: &Connection, _: &QueueHandle<Self>) {}
-}
-impl Dispatch<ext_idle_notification_v1::ExtIdleNotificationV1, u8> for App {
-    fn event(app: &mut Self, _: &ext_idle_notification_v1::ExtIdleNotificationV1, e: ext_idle_notification_v1::Event, kind: &u8, _: &Connection, _: &QueueHandle<Self>) {
-        if let ext_idle_notification_v1::Event::Idled = e {
-            if *kind == 0 {
-                app.lock_now();
-            } else {
-                app.st.niri.act(serde_json::json!({"PowerOffMonitors": {}}));
-            }
-        }
-    }
-}
-
-delegate_compositor!(App);
-delegate_output!(App);
-delegate_shm!(App);
-delegate_seat!(App);
-delegate_keyboard!(App);
-delegate_pointer!(App);
-delegate_layer!(App);
-delegate_session_lock!(App);
-delegate_registry!(App);

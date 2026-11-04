@@ -29,6 +29,7 @@ pub struct Win {
     pub urgent: bool,
     pub ts: f64,
     pub layout: Layout,
+    pub pid: Option<u32>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -141,6 +142,7 @@ fn parse_win(v: &Value) -> Win {
         focused: v["is_focused"].as_bool().unwrap_or(false),
         urgent: v["is_urgent"].as_bool().unwrap_or(false),
         ts: ts_of(&v["focus_timestamp"]),
+        pid: v["pid"].as_u64().map(|p| p as u32),
         layout: Layout {
             pos: pair(&l["tile_pos_in_workspace_view"]),
             size: pair(&l["tile_size"]).unwrap_or((0.0, 0.0)),

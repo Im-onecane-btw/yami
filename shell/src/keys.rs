@@ -273,6 +273,13 @@ pub fn key_of(set: &crate::config::Settings, b: &Bind) -> String {
     set.binds.get(b.id).cloned().unwrap_or_else(|| b.key.to_string())
 }
 
+/// сочетание годится в KDL как есть: только буквы, цифры, «+» и «_» (Mod+Shift+Return,
+/// XF86AudioRaiseVolume). Из файла настроек или чужого импорта может прийти что угодно — с
+/// кавычками и скобками строка дописала бы в binds свои команды
+pub fn key_ok(k: &str) -> bool {
+    !k.is_empty() && k.len() <= 64 && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '_') && !k.starts_with('+') && !k.ends_with('+')
+}
+
 fn kdl_str(s: &str) -> String {
     format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
 }
@@ -287,7 +294,7 @@ pub fn kdl(set: &crate::config::Settings) -> String {
     let mut used: Vec<String> = vec![];
     for b in BINDS {
         let key = key_of(set, b);
-        if key.is_empty() || used.iter().any(|u| same_key(u, &key)) {
+        if !key_ok(&key) || used.iter().any(|u| same_key(u, &key)) {
             continue;
         }
         used.push(key.clone());
@@ -302,7 +309,7 @@ pub fn kdl(set: &crate::config::Settings) -> String {
         l.push(line);
     }
     for c in &set.custom_binds {
-        if c.key.is_empty() || c.cmd.trim().is_empty() || used.iter().any(|u| same_key(u, &c.key)) {
+        if !key_ok(&c.key) || c.cmd.trim().is_empty() || used.iter().any(|u| same_key(u, &c.key)) {
             continue;
         }
         used.push(c.key.clone());
@@ -667,5 +674,19 @@ impl App {
     /// settings_changed перепишет yami-binds.kdl
     pub fn binds_changed(&mut self) {
         self.settings_changed();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn keys_cannot_inject() {
+        assert!(super::key_ok("Mod+Shift+Return") && super::key_ok("XF86AudioRaiseVolume"));
+        assert!(!super::key_ok("Mod+T { spawn \"sh\"; }\nMod+Y") && !super::key_ok("") && !super::key_ok("Mod+"));
+        let mut s = crate::config::Settings::default();
+        s.binds.insert(super::BINDS[0].id.into(), "Mod+X { spawn \"evil\"; }".into());
+        s.custom_binds.push(super::Custom { key: "Mod+Q\"".into(), cmd: "evil".into() });
+        let k = super::kdl(&s);
+        assert!(!k.contains("evil"));
     }
 }

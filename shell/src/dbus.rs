@@ -129,7 +129,7 @@ impl Notif {
         let _ = self.tx.send(Msg::NotifClose(id));
     }
     fn get_capabilities(&self) -> Vec<String> {
-        ["actions", "body", "body-markup", "icon-static", "persistence"].iter().map(|s| s.to_string()).collect()
+        ["actions", "body", "body-markup", "icon-static", "persistence", "inline-reply"].iter().map(|s| s.to_string()).collect()
     }
     fn get_server_information(&self) -> (String, String, String, String) {
         ("yami-shell".into(), "YAMI".into(), env!("CARGO_PKG_VERSION").into(), "1.2".into())
@@ -140,6 +140,12 @@ impl Notif {
 pub fn notif_closed(id: u32, reason: u32) {
     if let Some(c) = CONN.get() {
         let _ = c.emit_signal(None::<&str>, "/org/freedesktop/Notifications", "org.freedesktop.Notifications", "NotificationClosed", &(id, reason));
+    }
+}
+/// ответ из окна ответа (inline-reply)
+pub fn notif_replied(id: u32, text: &str) {
+    if let Some(c) = CONN.get() {
+        let _ = c.emit_signal(None::<&str>, "/org/freedesktop/Notifications", "org.freedesktop.Notifications", "NotificationReplied", &(id, text));
     }
 }
 pub fn notif_action(id: u32, key: &str) {

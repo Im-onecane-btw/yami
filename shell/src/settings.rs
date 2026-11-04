@@ -2,18 +2,20 @@
 // и пишется в ~/.config/yami-shell.json (его можно править и руками — шелл подхватит).
 
 use crate::app::{App, Modal, SKind, State};
-use crate::config::{Widget, ALL_MODULES};
+use crate::config::Widget;
 use crate::font::{self, PX};
 use crate::gfx::{BoxStyle, C, R};
 use crate::theme::{parse_hex, PRESETS, WHITE};
 use crate::ui::{Act, Cur, Tone, Ui};
+pub use crate::bartab::{BDrag, BarEd};
+use crate::bartab::tab_bar;
 use crate::widgets::{self, name_of, ANIMS, COLORS, KINDS, SIZES, SOURCES, STYLES};
 use smithay_client_toolkit::seat::keyboard::{KeyEvent, Keysym};
 
 pub const SIZE: (i32, i32) = (780, 560);
 
-/// вкладки по смыслу: как выглядит (цвет, вид, шрифты), панели (бар, виджеты, док), как ведёт
-/// себя (окна, клавиши, игры, скриншоты), система (экраны, система, о шелле)
+/// вкладки по смыслу: как выглядит (цвет, обои, вид, шрифты), стол (бар, виджеты, док, окна,
+/// экраны), что делает (клавиши, игры, скриншоты), система (система, службы, обновления, о шелле)
 pub const TABS: &[(&str, &str, &str)] = &[
     ("color", "цвет", "drop"),
     ("wall", "обои", "image"),
@@ -23,14 +25,34 @@ pub const TABS: &[(&str, &str, &str)] = &[
     ("widgets", "виджеты", "grid"),
     ("dock", "док", "tile"),
     ("windows", "окна", "float"),
+    ("screens", "экраны", "screen"),
     ("keys", "клавиши", "keys"),
     ("games", "игры", "play"),
     ("shots", "скриншоты", "camera"),
-    ("screens", "экраны", "screen"),
     ("system", "система", "gear"),
     ("agents", "службы", "bell"),
     ("updates", "обновления", "down"),
     ("about", "о шелле", "about"),
+];
+
+/// слова для поиска настроек из лаунчера («vrr» → экраны): по-русски и по-английски
+pub const FIND: &[(&str, &str)] = &[
+    ("color", "палитра акцент цвет тема светлая тёмная стекло прозрачность palette accent colour color theme light dark glass"), // i18n-ok
+    ("wall", "обои картинка фон wallpaper background image"), // i18n-ok
+    ("look", "анимации эффекты появление развёртка размытие значки иконки курсор animation effects reveal scanlines blur icons cursor"), // i18n-ok
+    ("fonts", "шрифт размер терминал fastfetch браузер fonts size terminal browser"), // i18n-ok
+    ("bar", "бар модули часы разделитель bar modules clock separator"), // i18n-ok
+    ("widgets", "виджеты график часы заметка widgets graph clock note"), // i18n-ok
+    ("dock", "док закреплённые dock pinned"), // i18n-ok
+    ("windows", "окна отступы плавающие стол заголовки gaps floating stacking windows titlebars"), // i18n-ok
+    ("keys", "клавиши сочетания хоткеи раскладка keys shortcuts hotkeys layout keyboard"), // i18n-ok
+    ("games", "игры steam proton разрывы gamemode ntsync tearing games shader"), // i18n-ok
+    ("shots", "скриншоты снимок лупа screenshot loupe"), // i18n-ok
+    ("screens", "экраны монитор разрешение частота масштаб vrr hz герц поворот display monitor resolution refresh scale rotation"), // i18n-ok
+    ("system", "система язык сон блокировка ожидание system language idle sleep lock"), // i18n-ok
+    ("agents", "службы уведомления трей polkit порталы обложки services notifications tray portals"), // i18n-ok
+    ("updates", "обновления версия откат updates version rollback"), // i18n-ok
+    ("about", "о шелле версия память about version memory"), // i18n-ok
 ];
 
 pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
@@ -72,7 +94,6 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
         _ => tab_about(ui, st, body),
     }
     ui.cv.pop_clip();
-    let _ = WHITE;
 }
 
 pub fn title(ui: &mut Ui, x: i32, y: i32, w: i32, s: &str) -> i32 {
@@ -83,7 +104,7 @@ pub fn title(ui: &mut Ui, x: i32, y: i32, w: i32, s: &str) -> i32 {
     y + 34
 }
 
-fn tab_color(ui: &mut Ui, st: &State, b: R) {
+pub(crate) fn tab_color(ui: &mut Ui, st: &State, b: R) {
     let t = ui.t;
     let s = &st.set;
     let mut y = title(ui, b.x, b.y, b.w, "палитра — весь райс перекрашивается сразу");
@@ -96,7 +117,7 @@ fn tab_color(ui: &mut Ui, st: &State, b: R) {
         let sw = R::new(r.x + 8, r.y + 8, r.w - 16, 26);
         let c = C(0xff000000 | p.accent);
         ui.cv.pxbox(sw, &BoxStyle::new(c, c.lerp(WHITE, 0.3)).bevel(true));
-        ui.text_center(PX, R::new(r.x, r.y + 38, r.w, 22), p.name, if sel { WHITE } else { t.text_dim });
+        ui.text_center(PX, R::new(r.x, r.y + 38, r.w, 22), p.name, if sel { t.text_hi } else { t.text_dim });
         ui.zone(r, Act::SPreset(i), Cur::Pointer);
     }
     y += 80;
@@ -123,6 +144,11 @@ fn tab_color(ui: &mut Ui, st: &State, b: R) {
     ui.slider(R::new(rx, y, hw, 40), "карточки и графики", (s.inner - 0.2) / 0.8, &pct(s.inner), 12, Act::SSlider("inner", 0.2, 1.0, 16));
     y += 50;
     ui.slider(R::new(lx, y, hw, 40), "затемнение под меню", s.dim / 0.8, &pct(s.dim), 12, Act::SSlider("dim", 0.0, 0.8, 16));
+    // тема: тёмная или светлая — та же палитра, весь райс вместе с шеллом
+    ui.text_in(PX, R::new(rx, y, hw, 20), "тема", t.text);
+    let bw = (hw - 8) / 2;
+    ui.button(R::new(rx, y + 20, bw, 24), "тёмная", "moon", Tone::Plain, !s.light, true, Act::SCycle("theme_dark"));
+    ui.button(R::new(rx + bw + 8, y + 20, bw, 24), "светлая", "sun", Tone::Plain, s.light, true, Act::SCycle("theme_light"));
     y += 54;
     // образец
     let r = R::new(b.x, y, b.w, (b.bottom() - y).min(70));
@@ -136,202 +162,8 @@ fn tab_color(ui: &mut Ui, st: &State, b: R) {
     }
 }
 
-fn side_name(i: usize) -> &'static str {
-    ["слева", "по центру", "справа"][i]
-}
-
-/// перетаскивание модулей бара во вкладке «бар»
-#[derive(Default)]
-pub struct BarEd {
-    pub drag: Option<BDrag>,
-    /// места фишек без перетаскиваемой: (сторона, индекс, прямоугольник) — для попадания
-    pub rects: std::cell::RefCell<Vec<(usize, usize, R)>>,
-    /// ряды сторон (куда можно бросить)
-    pub areas: std::cell::Cell<[R; 3]>,
-}
-
-pub struct BDrag {
-    /// откуда: сторона и индекс, или новый модуль из «добавить»
-    pub from: Option<(usize, usize)>,
-    pub name: String,
-    pub x: i32,
-    pub y: i32,
-    /// где схватили фишку
-    pub off: (i32, i32),
-    pub target: Option<(usize, usize)>,
-    /// когда сменилось место — раскрываем щель
-    pub at: std::time::Instant,
-}
-
-fn mod_name(m: &str) -> &str {
-    ALL_MODULES.iter().find(|x| x.0 == m).map(|x| x.1).unwrap_or(m)
-}
-
-fn chip_w(ui: &mut Ui, m: &str) -> i32 {
-    // ручка 16 + содержимое + крестик 20
-    if m == "sep" {
-        16 + 12 + 20
-    } else {
-        16 + ui.w(PX, mod_name(m)) + 4 + 20
-    }
-}
-
-/// фишки строками в area (перенос по ширине); высота ряда 24, шаг 28
-fn flow(ws: &[i32], area: R) -> Vec<R> {
-    let (mut x, mut y) = (area.x + 4, area.y + 4);
-    ws.iter()
-        .map(|&w| {
-            if x + w > area.right() - 4 && x > area.x + 4 {
-                x = area.x + 4;
-                y += 28;
-            }
-            let r = R::new(x, y, w, 24);
-            x += w + 6;
-            r
-        })
-        .collect()
-}
-
-fn chip(ui: &mut Ui, r: R, m: &str, lifted: bool) {
-    let t = ui.t;
-    let hov = ui.hover(r) && !lifted;
-    let st = BoxStyle::new(if lifted { t.surface_hi } else if hov { t.surface_hi } else { t.surface }, if lifted { t.ember } else if hov { t.red } else { t.border }).bevel(true);
-    ui.cv.pxbox(r, &if lifted { st.shadow(4) } else { st });
-    // ручка: 2×3 точки
-    let gc = if hov || lifted { t.red } else { t.text_faint };
-    for i in 0..3 {
-        for j in 0..2 {
-            ui.cv.fill(R::new(r.x + 5 + j * 4, r.cy() - 5 + i * 4, 2, 2), gc);
-        }
-    }
-    if m == "sep" {
-        ui.cv.sep(r.x + 20, r.cy(), t.text_dim);
-    } else {
-        ui.text_in(PX, R::new(r.x + 16, r.y, r.w - 36, r.h), mod_name(m), t.text);
-    }
-}
-
-fn tab_bar(ui: &mut Ui, st: &State, b: R) {
-    let t = ui.t;
-    let s = &st.set;
-    let ed = &st.bar_ed;
-    let drag = ed.drag.as_ref();
-    let mut y = title(ui, b.x, b.y, b.w, "модули бара — тащи мышкой, × убрать");
-    let sides = [&s.bar_left, &s.bar_center, &s.bar_right];
-    let mut areas = [R::new(0, 0, 0, 0); 3];
-    let mut hit = vec![];
-    for (si, list) in sides.iter().enumerate() {
-        ui.text_in(PX, R::new(b.x, y + 4, 76, 20), side_name(si), t.red);
-        // без перетаскиваемой фишки
-        let items: Vec<(usize, &String)> = list.iter().enumerate().filter(|(i, _)| drag.and_then(|d| d.from) != Some((si, *i))).collect();
-        let ws: Vec<i32> = items.iter().map(|(_, m)| chip_w(ui, m)).collect();
-        let mut area = R::new(b.x + 80, y, b.w - 80, 32);
-        let base = flow(&ws, area);
-        // щель под фишку там, куда её несут: раскрывается ступенями по 2 px
-        let mut shown_ws = ws.clone();
-        let mut gap_at = None;
-        if let Some(d) = drag {
-            if let Some((ts, ti)) = d.target {
-                if ts == si {
-                    let full = chip_w(ui, &d.name);
-                    let dur = if s.animations { 110.0 * s.anim_speed.max(0.1) } else { 0.0 };
-                    let k = if dur <= 0.0 { 1.0 } else { (d.at.elapsed().as_millis() as f32 / dur).min(1.0) };
-                    if k < 1.0 {
-                        ui.anim = true;
-                    }
-                    let w = (((full as f32 * (1.0 - (1.0 - k) * (1.0 - k))) / 2.0).round() as i32 * 2).max(2);
-                    let ti = ti.min(shown_ws.len());
-                    shown_ws.insert(ti, w);
-                    gap_at = Some(ti);
-                }
-            }
-        }
-        let shown = flow(&shown_ws, area);
-        let rows_h = shown.iter().chain(base.iter()).map(|r| r.bottom()).max().unwrap_or(area.y + 28) - area.y + 4;
-        area.h = rows_h.max(32);
-        let target_here = drag.and_then(|d| d.target).map(|t| t.0 == si).unwrap_or(false);
-        ui.cv.pxbox(area, &BoxStyle::new(t.code_bg, if target_here { t.red } else { t.border }));
-        let mut k = 0;
-        for (j, r) in shown.iter().enumerate() {
-            if Some(j) == gap_at {
-                ui.cv.ants(*r, t.ember, 2, 0);
-                continue;
-            }
-            let (i, m) = items[k];
-            k += 1;
-            chip(ui, *r, m, false);
-            ui.zone(*r, Act::SModDrag(si, i), Cur::Grab);
-            if drag.is_none() {
-                ui.ghost(R::new(r.right() - 20, r.y + 2, 18, 20), "close", Act::SModDel(si, i));
-            }
-        }
-        for (j, r) in base.iter().enumerate() {
-            hit.push((si, j, *r));
-        }
-        areas[si] = area;
-        y += area.h + 6;
-    }
-    *ed.rects.borrow_mut() = hit;
-    ed.areas.set(areas);
-    // добавить: всё, чего нет в баре, и разделитель (их можно сколько угодно)
-    y += 4;
-    ui.text_in(PX, R::new(b.x, y, b.w, 20), "добавить — тащи в бар или кликни:", t.text_dim);
-    y += 22;
-    let all: Vec<&String> = s.bar_left.iter().chain(&s.bar_center).chain(&s.bar_right).collect();
-    let free: Vec<&str> = ALL_MODULES.iter().map(|m| m.0).filter(|id| *id == "sep" || !all.iter().any(|m| m == id)).collect();
-    let ws: Vec<i32> = free.iter().map(|m| chip_w(ui, m)).collect();
-    let rs = flow(&ws, R::new(b.x - 4, y - 4, b.w + 8, 0));
-    for (r, id) in rs.iter().zip(&free) {
-        chip(ui, *r, id, false);
-        ui.cv.icon("plus", r.right() - 17, r.cy() - 7, 2, t.text_faint);
-        ui.zone(*r, Act::SModNew(id), Cur::Grab);
-    }
-    y = rs.iter().map(|r| r.bottom()).max().unwrap_or(y) + 12;
-    // отступы, разделители, вид
-    y = title(ui, b.x, y, b.w, "отступы и вид");
-    let style = match s.bar_sep.as_str() {
-        "line" => "черта",
-        "blocks" => "клетки",
-        "gap" => "пусто",
-        _ => "точки",
-    };
-    let color = match s.bar_sep_color.as_str() {
-        "accent" => "акцент",
-        "dim" => "тусклый",
-        _ => "рамка",
-    };
-    let cpu = match s.cpu_style.as_str() {
-        "graph" => "график",
-        "number" => "число",
-        _ => "шкала",
-    };
-    // три столбца: разделитель, края и модули, окна; числа — стрелками или колесом
-    let cw = (b.w - 24) / 3;
-    let col = |i: i32| b.x + i * (cw + 12);
-    opt_btn(ui, R::new(col(0), y, cw, 26), "разделитель", style, Act::SCycle("bar_sep"));
-    opt_btn(ui, R::new(col(1), y, cw, 26), "цвет", color, Act::SCycle("bar_sep_color"));
-    num_btn(ui, R::new(col(2), y, cw, 26), "ширина", s.num("bar_sep_w"), "bar_sep_w");
-    y += 32;
-    for (i, (k, label)) in [("bar_pad_l", "край слева"), ("bar_pad_r", "край справа"), ("bar_gap", "промежуток")].into_iter().enumerate() {
-        num_btn(ui, R::new(col(i as i32), y, cw, 26), label, s.num(k), k);
-    }
-    y += 32;
-    for (i, (k, label)) in [("bar_mid", "до окон"), ("bar_task_gap", "зазор окон"), ("task_width", "кнопка окна")].into_iter().enumerate() {
-        num_btn(ui, R::new(col(i as i32), y, cw, 26), label, s.num(k), k);
-    }
-    y += 34;
-    opt_btn(ui, R::new(col(0), y, cw, 26), "цп/память", cpu, Act::SCycle("cpu_style"));
-    ui.toggle(R::new(col(1), y, cw, 26), "часы с секундами", "", s.clock_seconds, Act::SBool("clock_seconds"));
-    ui.toggle(R::new(col(2), y, cw, 26), "дата в часах", "", s.clock_date, Act::SBool("clock_date"));
-    // фишка в руке — поверх всего
-    if let Some(d) = drag {
-        let w = chip_w(ui, &d.name);
-        chip(ui, R::new(d.x - d.off.0, d.y - d.off.1 - 2, w, 24), &d.name, true);
-    }
-}
-
 /// число в пикселях: ‹ значение › — щелчок по стрелке или колесо меняют на шаг
-fn num_btn(ui: &mut Ui, r: R, label: &str, v: i32, key: &'static str) {
+pub fn num_btn(ui: &mut Ui, r: R, label: &str, v: i32, key: &'static str) {
     let t = ui.t;
     let hov = ui.hover(r);
     ui.cv.pxbox(r, &BoxStyle::new(if hov { t.surface_hi } else { t.surface }, if hov { t.red } else { t.border }).bevel(true));
@@ -351,14 +183,19 @@ pub fn opt_btn(ui: &mut Ui, r: R, label: &str, val: &str, act: Act) {
     let t = ui.t;
     let hov = ui.hover(r);
     ui.cv.pxbox(r, &BoxStyle::new(if hov { t.surface_hi } else { t.surface }, if hov { t.red } else { t.border }).bevel(true));
-    let vw = ui.f.width(PX, (ui.tr)(val));
-    ui.text_in(PX, R::new(r.x + 8, r.y, (r.w - 40 - vw).max(r.w / 3), r.h), label, t.text_dim);
-    ui.text_right(PX, R::new(r.x, r.y, r.w - 24, r.h), val, t.text);
+    // значение не наезжает на подпись: длинное — с многоточием, подписи — не меньше трети
+    let lw = ui.f.width(PX, (ui.tr)(label)).min(r.w / 3);
+    let room = r.w - 32 - lw - 12;
+    let tv = (ui.tr)(val).to_string();
+    let v = if ui.f.width(PX, &tv) > room { ui.f.elide(PX, &tv, room) } else { tv };
+    let vw = ui.f.width(PX, &v);
+    ui.text_in(PX, R::new(r.x + 8, r.y, r.w - 32 - vw - 12, r.h), label, t.text_dim);
+    ui.cv.text_right(ui.f, PX, R::new(r.x, r.y, r.w - 24, r.h), &v, t.text);
     ui.cv.icon("right", r.right() - 18, r.cy() - 7, 2, t.red);
     ui.zone(r, act, Cur::Pointer);
 }
 
-fn tab_widgets(ui: &mut Ui, st: &State, b: R) {
+pub(crate) fn tab_widgets(ui: &mut Ui, st: &State, b: R) {
     let t = ui.t;
     let s = &st.set;
     let y0 = title(ui, b.x, b.y, b.w, "виджеты рабочего стола");
@@ -372,7 +209,7 @@ fn tab_widgets(ui: &mut Ui, st: &State, b: R) {
         let c = if w.on { t.ok } else { t.text_faint };
         ui.cv.fill(R::new(r.x + 8, r.cy() - 3, 6, 6), c);
         let extra = if w.kind == "graph" { format!(" · {}", crate::i18n::tr(name_of(SOURCES, &w.source))) } else { String::new() };
-        ui.text_in(PX, R::new(r.x + 22, r.y, r.w - 26, r.h), &format!("{}{}", crate::i18n::tr(name_of(KINDS, &w.kind)), extra), if sel { WHITE } else if w.on { t.text } else { t.text_faint });
+        ui.text_in(PX, R::new(r.x + 22, r.y, r.w - 26, r.h), &format!("{}{}", crate::i18n::tr(name_of(KINDS, &w.kind)), extra), if sel { t.text_hi } else if w.on { t.text } else { t.text_faint });
         y += 30;
     }
     y += 8;
@@ -437,51 +274,84 @@ fn tab_widgets(ui: &mut Ui, st: &State, b: R) {
     ui.button(R::new(px + 2 * (bw + 6), y, bw, 28), "убрать", "trash", Tone::Danger, false, true, Act::SWidgetDel(id));
 }
 
-fn tab_look(ui: &mut Ui, st: &State, b: R) {
+pub(crate) fn tab_look(ui: &mut Ui, st: &State, b: R) {
     let s = &st.set;
     let half = (b.w - 20) / 2;
-    let mut y = title(ui, b.x, b.y, b.w, "анимации и окна");
+    let mut y = title(ui, b.x, b.y, b.w, "анимации");
     ui.toggle(R::new(b.x, y, half, 40), "анимации", "ступенчатое появление панелей", s.animations, Act::SBool("animations"));
-    ui.toggle(R::new(b.x + half + 20, y, half, 40), "режим «стол»", "окна плавают, заголовки как в DE", s.stacking, Act::SBool("stacking"));
-    y += 46;
-    ui.toggle(R::new(b.x, y, half, 40), "заголовки окон", "в режиме «стол»", s.titlebars, Act::SBool("titlebars"));
+    ui.toggle(R::new(b.x + half + 20, y, half, 40), "анимация закрытия", "иначе — исчезают сразу", s.anim_close, Act::SBool("anim_close"));
     y += 50;
     ui.slider(R::new(b.x, y, b.w, 40), "скорость анимаций (меньше — быстрее)", (s.anim_speed - 0.3) / 1.7, &format!("×{:.1}", s.anim_speed), 17, Act::SSlider("anim_speed", 0.3, 2.0, 17));
-    y += 52;
+    y += 50;
+    // узор проявления и крупность клеток — во всех программах yami; развёртка — только шелл
+    opt_btn(ui, R::new(b.x, y, half, 26), "появление", reveal_name(&s.reveal), Act::SCycle("reveal"));
+    num_btn(ui, R::new(b.x + half + 20, y, half, 26), "размер клеток", s.num("reveal_grain"), "reveal_grain");
+    y += 34;
+    ui.toggle(R::new(b.x, y, b.w, 26), "строки развёртки на панелях шелла (как на старом мониторе)", "", s.scanlines, Act::SBool("scanlines"));
+    y += 38;
     y = title(ui, b.x, y, b.w, "размытие (niri)");
     ui.toggle(R::new(b.x, y, half, 26), "под панелями шелла", "", s.blur_shell, Act::SBool("blur_shell"));
     ui.toggle(R::new(b.x + half + 20, y, half, 26), "под терминалами", "", s.blur_term, Act::SBool("blur_term"));
     y += 40;
     y = title(ui, b.x, y, b.w, "значки");
     let it = if s.icon_theme.is_empty() { "авто" } else { &s.icon_theme };
-    opt_btn(ui, R::new(b.x, y, b.w, 26), "значки программ", it, Act::SCycle("icon_theme"));
-    y += 34;
-    ui.toggle(R::new(b.x, y, b.w, 26), "пиксельные значки программ в цветах палитры", "", s.icon_pixel, Act::SBool("icon_pixel"));
+    opt_btn(ui, R::new(b.x, y, half, 26), "значки программ", it, Act::SCycle("icon_theme"));
+    ui.toggle(R::new(b.x + half + 20, y, half, 26), "пиксельные, в цветах палитры", "", s.icon_pixel, Act::SBool("icon_pixel"));
     y += 40;
-    y = title(ui, b.x, y, b.w, "терминал");
-    ui.toggle(R::new(b.x, y, b.w, 40), "расширенный fastfetch", "ещё ядро, пакеты, процессор, видеокарта, память, диск, экран", s.fetch_full, Act::SBool("fetch_full"));
+    y = title(ui, b.x, y, b.w, "курсор");
+    cursor_block(ui, st, R::new(b.x, y, b.w, 58));
 }
 
-fn tab_system(ui: &mut Ui, st: &State, b: R) {
+/// подпись узора проявления (gfx::Reveal)
+pub(crate) fn reveal_name(id: &str) -> &'static str {
+    match id {
+        "scan" => "развёртка",
+        "noise" => "шум",
+        "wipe" => "диагональ",
+        "blocks" => "блоки",
+        _ => "дизеринг",
+    }
+}
+
+pub(crate) fn tab_system(ui: &mut Ui, st: &State, b: R) {
     let s = &st.set;
+    let half = (b.w - 20) / 2;
+    let (lx, rx) = (b.x, b.x + half + 20);
     let mut y = title(ui, b.x, b.y, b.w, "простой");
     let mins = |m: u32| if m == 0 { "никогда".to_string() } else { crate::tf!("{m} мин", "{m} min") };
-    ui.slider(R::new(b.x, y, b.w, 40), "заблокировать через", s.lock_after as f32 / 60.0, &mins(s.lock_after), 20, Act::SSlider("lock_after", 0.0, 60.0, 20));
-    y += 50;
-    ui.slider(R::new(b.x, y, b.w, 40), "погасить экран через", s.screen_off_after as f32 / 60.0, &mins(s.screen_off_after), 20, Act::SSlider("screen_off_after", 0.0, 60.0, 20));
-    y += 56;
+    ui.slider(R::new(lx, y, half, 40), "заблокировать через", s.lock_after as f32 / 60.0, &mins(s.lock_after), 12, Act::SSlider("lock_after", 0.0, 60.0, 20));
+    ui.slider(R::new(rx, y, half, 40), "погасить экран через", s.screen_off_after as f32 / 60.0, &mins(s.screen_off_after), 12, Act::SSlider("screen_off_after", 0.0, 60.0, 20));
+    y += 52;
     y = title(ui, b.x, y, b.w, "уведомления");
-    ui.toggle(R::new(b.x, y, b.w, 40), "не беспокоить", "только срочные; остальное — в истории (клик по часам)", s.dnd, Act::SBool("dnd"));
-    y += 48;
-    ui.slider(R::new(b.x, y, b.w, 40), "сколько висит уведомление", (s.notif_timeout as f32 - 2.0) / 28.0, &crate::tf!("{} с", "{} s", s.notif_timeout), 14, Act::SSlider("notif_timeout", 2.0, 30.0, 14));
-    y += 56;
-    y = title(ui, b.x, y, b.w, "язык");
+    ui.toggle(R::new(lx, y, half, 40), "не беспокоить", "только срочные", s.dnd, Act::SBool("dnd"));
+    ui.slider(R::new(rx, y, half, 40), "сколько висит", (s.notif_timeout as f32 - 2.0) / 28.0, &crate::tf!("{} с", "{} s", s.notif_timeout), 12, Act::SSlider("notif_timeout", 2.0, 30.0, 14));
+    y += 52;
+    // ночной свет: wlsunset; по координатам — от заката до восхода, иначе по часам
+    y = title(ui, b.x, y, b.w, "ночной свет: по солнцу или по часам");
+    let has = crate::doctor::which("wlsunset");
+    ui.toggle(R::new(lx, y, half, 40), "теплее вечером", if has { "wlsunset" } else { "нужен wlsunset" }, s.night, Act::SBool("night"));
+    num_btn(ui, R::new(rx, y + 6, half, 26), "температура, K", s.num("night_temp"), "night_temp");
+    y += 46;
+    // координаты есть — по закату и восходу, часы тогда не нужны
+    let gf = st.field_focus == Some("night_geo");
+    let by_sun = crate::night::geo(&s.night_geo).is_some();
+    ui.field(R::new(lx, y, half, 26), &st.geo_field, if s.night_geo.is_empty() { "широта, долгота — по солнцу" } else { &s.night_geo }, gf, false, Act::SField("night_geo"));
+    if by_sun {
+        ui.text_in(PX, R::new(rx + 8, y, half - 8, 26), "по закату и восходу", ui.t.text_faint);
+    } else {
+        let qw = (half - 8) / 2;
+        num_btn(ui, R::new(rx, y, qw, 26), "с", s.num("night_on_h"), "night_on_h");
+        num_btn(ui, R::new(rx + qw + 8, y, qw, 26), "до", s.num("night_off_h"), "night_off_h");
+    }
+    y += 40;
+    y = title(ui, b.x, y, b.w, "язык и вход");
     let lang = match s.lang.as_str() {
         "ru" => "Русский", // i18n-ok: name of the language
         "en" => "English",
         _ => "авто",
     };
-    opt_btn(ui, R::new(b.x, y, b.w, 26), "язык", lang, Act::SCycle("lang"));
+    opt_btn(ui, R::new(lx, y, half, 26), "язык", lang, Act::SCycle("lang"));
+    ui.toggle(R::new(rx, y, half, 26), "вернуть программы при входе", "", s.session_restore, Act::SBool("session_restore"));
     y += 40;
     y = title(ui, b.x, y, b.w, "быстро");
     let bw = (b.w - 18) / 4;
@@ -494,7 +364,7 @@ fn tab_system(ui: &mut Ui, st: &State, b: R) {
     ui.text_in(PX, R::new(b.x + bw * 2 + 18, y, b.w - bw * 2 - 18, 28), "или: yami-shell config list", ui.t.text_faint);
 }
 
-fn tab_dock(ui: &mut Ui, st: &State, b: R) {
+pub(crate) fn tab_dock(ui: &mut Ui, st: &State, b: R) {
     let s = &st.set;
     let t = ui.t;
     let half = (b.w - 20) / 2;
@@ -550,7 +420,7 @@ fn tab_dock(ui: &mut Ui, st: &State, b: R) {
     ui.text_in(PX, R::new(b.x, y + 36, b.w, 18), "щелчок — убрать · порядок и закрепление — ПКМ по значку в доке", t.text_faint);
 }
 
-fn tab_windows(ui: &mut Ui, st: &State, b: R) {
+pub(crate) fn tab_windows(ui: &mut Ui, st: &State, b: R) {
     let s = &st.set;
     let half = (b.w - 20) / 2;
     // отступы окон: niri gaps/struts в yami-fx.kdl (применяются сразу)
@@ -578,7 +448,16 @@ fn tab_windows(ui: &mut Ui, st: &State, b: R) {
     let t = ui.t;
     ui.text_in(PX, R::new(b.x, y, b.w, 20), "app-id окна: niri msg windows · правила пишутся в niri/yami-fx.kdl", t.text_faint);
     y += 28;
-    y = title(ui, b.x, y, b.w, "курсор");
+    y = title(ui, b.x, y, b.w, "режим «стол»");
+    ui.toggle(R::new(b.x, y, half, 40), "окна плавают, как в DE", "Mod+Shift+Space — назад к ленте", s.stacking, Act::SBool("stacking"));
+    ui.toggle(R::new(b.x + half + 20, y, half, 40), "заголовки окон", "полоса с кнопками над окном", s.titlebars, Act::SBool("titlebars"));
+}
+
+/// курсор: тема и размер слева, предпросмотр справа (та же стрелка, что рисует tools/theme.py)
+fn cursor_block(ui: &mut Ui, st: &State, b: R) {
+    let s = &st.set;
+    let t = ui.t;
+    let y = b.y;
     let kind = match s.cursor.as_str() {
         "system" => "системный",
         _ => "пиксельный yami — в цвет палитры",
@@ -609,7 +488,7 @@ fn tab_windows(ui: &mut Ui, st: &State, b: R) {
     }
 }
 
-fn tab_shots(ui: &mut Ui, st: &State, b: R) {
+pub(crate) fn tab_shots(ui: &mut Ui, st: &State, b: R) {
     let s = &st.set;
     let half = (b.w - 20) / 2;
     let mut y = title(ui, b.x, b.y, b.w, "куда");
@@ -647,7 +526,7 @@ fn tab_shots(ui: &mut Ui, st: &State, b: R) {
     }
 }
 
-fn tab_about(ui: &mut Ui, st: &State, b: R) {
+pub(crate) fn tab_about(ui: &mut Ui, st: &State, b: R) {
     let t = ui.t;
     let mut y = b.y;
     let face = font::px(32);
@@ -676,7 +555,7 @@ fn tab_about(ui: &mut Ui, st: &State, b: R) {
 }
 
 /// установленные темы значков (с index.theme и не только курсоры)
-fn icon_themes() -> Vec<String> {
+pub(crate) fn icon_themes() -> Vec<String> {
     let mut v = vec![String::new()];
     let home = crate::config::home();
     for d in [home.join(".local/share/icons"), home.join(".icons"), "/usr/share/icons".into()] {
@@ -704,62 +583,12 @@ pub fn step_in(list: &[i32], cur: i32) -> i32 {
     list.iter().copied().find(|v| *v > cur).unwrap_or(list[0])
 }
 
-fn cycle<'a>(list: &[(&'a str, &'a str)], cur: &str) -> &'a str {
+pub(crate) fn cycle<'a>(list: &[(&'a str, &'a str)], cur: &str) -> &'a str {
     let i = list.iter().position(|x| x.0 == cur).map(|i| (i + 1) % list.len()).unwrap_or(0);
     list[i].0
 }
 
 impl App {
-    /// тащим фишку модуля: место считаем по рядам последнего кадра
-    pub fn bar_drag(&mut self, a: &Act, zone: R, press: (f64, f64), x: f64, y: f64) {
-        let (x, y) = (x as i32, y as i32);
-        if self.st.bar_ed.drag.is_none() {
-            let (from, name) = match a {
-                Act::SModDrag(si, i) => {
-                    let l = [&self.st.set.bar_left, &self.st.set.bar_center, &self.st.set.bar_right][*si];
-                    let Some(m) = l.get(*i) else { return };
-                    (Some((*si, *i)), m.clone())
-                }
-                Act::SModNew(id) => (None, id.to_string()),
-                _ => return,
-            };
-            let off = (press.0 as i32 - zone.x, press.1 as i32 - zone.y);
-            self.st.bar_ed.drag = Some(BDrag { from, name, x, y, off, target: None, at: std::time::Instant::now() });
-        }
-        let areas = self.st.bar_ed.areas.get();
-        let side = areas.iter().position(|r| R::new(r.x - 8, r.y - 8, r.w + 16, r.h + 16).contains(x as f64, y as f64));
-        let target = side.map(|si| {
-            let n = self.st.bar_ed.rects.borrow().iter().filter(|(s, _, r)| *s == si && (r.bottom() <= y || (r.y <= y + 2 && r.x + r.w / 2 < x))).count();
-            (si, n)
-        });
-        let d = self.st.bar_ed.drag.as_mut().unwrap();
-        (d.x, d.y) = (x, y);
-        if d.target != target {
-            d.target = target;
-            d.at = std::time::Instant::now();
-        }
-        self.dirty(&SKind::Modal);
-    }
-
-    /// отпустили: переставить (мимо рядов — фишка возвращается на место)
-    pub fn bar_drop(&mut self) {
-        let Some(d) = self.st.bar_ed.drag.take() else { return };
-        if let Some((ts, ti)) = d.target {
-            let s = &mut self.st.set;
-            if let Some((fs, fi)) = d.from {
-                let l = s.side_mut(fs);
-                if fi < l.len() {
-                    l.remove(fi);
-                }
-            }
-            let l = s.side_mut(ts);
-            let ti = ti.min(l.len());
-            l.insert(ti, d.name);
-            self.settings_changed();
-        }
-        self.dirty(&SKind::Modal);
-    }
-
     /// клики внутри настроек; true — обработано
     pub fn settings_click(&mut self, a: &Act) -> bool {
         let s = &mut self.st.set;
@@ -770,6 +599,9 @@ impl App {
                 self.keys_capture(None);
                 if *id == "screens" {
                     self.disp_open();
+                }
+                if *id == "games" {
+                    self.st.game_probe = crate::gameboost::probe();
                 }
             }
             Act::SPreset(i) => {
@@ -787,6 +619,8 @@ impl App {
             Act::SBool(k) => {
                 match *k {
                     "animations" => s.animations = !s.animations,
+                    "anim_close" => s.anim_close = !s.anim_close,
+                    "scanlines" => s.scanlines = !s.scanlines,
                     "icon_pixel" => s.icon_pixel = !s.icon_pixel,
                     "stacking" => {
                         s.stacking = !s.stacking;
@@ -822,6 +656,10 @@ impl App {
                     "game_cache" => s.game_cache = !s.game_cache,
                     "game_dnd" => s.game_dnd = !s.game_dnd,
                     "game_profile" => s.game_profile = !s.game_profile,
+                    "game_ntsync" => s.game_ntsync = !s.game_ntsync,
+                    "game_gamemode" => s.game_gamemode = !s.game_gamemode,
+                    "night" => s.night = !s.night,
+                    "session_restore" => s.session_restore = !s.session_restore,
                     "update_check" => s.update_check = !s.update_check,
                     "fetch_full" => {
                         // theme.py читает настройки с диска: сохранить, потом перерисовать fastfetch
@@ -875,6 +713,10 @@ impl App {
                     self.res.icons.set_pixel(self.st.set.icon_pixel.then(|| self.st.t.icon_ramp()));
                     self.settings_changed();
                 }
+                "reveal" => {
+                    s.reveal = cycle(&[("dither", ""), ("scan", ""), ("noise", ""), ("wipe", ""), ("blocks", "")], &s.reveal).into();
+                    self.settings_changed();
+                }
                 "dock_anim" => {
                     s.dock_anim = cycle(&[("grow", ""), ("wave", ""), ("lift", ""), ("none", "")], &s.dock_anim).into();
                     self.settings_changed();
@@ -890,6 +732,10 @@ impl App {
                     self.apply_fonts();
                 }
                 "hex_apply" => self.apply_hex(),
+                "theme_dark" | "theme_light" => {
+                    s.light = *k == "theme_light";
+                    self.settings_changed();
+                }
                 "lang" => {
                     s.lang = match s.lang.as_str() {
                         "" => "en",
@@ -976,6 +822,15 @@ impl App {
                     let i = sw.iter().position(|x| x.0 == self.st.set.kb_switch).map(|i| (i + 1) % sw.len()).unwrap_or(0);
                     self.st.set.kb_switch = sw[i].0.to_string();
                     self.settings_changed();
+                }
+                "geo_apply" => {
+                    let g = self.st.geo_field.text.trim().to_string();
+                    // пусто — по часам; иначе только верные координаты
+                    if g.is_empty() || crate::night::geo(&g).is_some() {
+                        self.st.set.night_geo = g;
+                        self.st.field_focus = None;
+                        self.settings_changed();
+                    }
                 }
                 "game_apply" => {
                     let p = self.st.game_field.text.trim().to_string();
@@ -1092,6 +947,10 @@ impl App {
                     let p = self.st.set.kb_layout.clone();
                     self.st.keys.lay.set(&p);
                 }
+                if *k == "night_geo" && self.st.geo_field.text.is_empty() {
+                    let p = self.st.set.night_geo.clone();
+                    self.st.geo_field.set(&p);
+                }
                 if *k == "game_apps" && self.st.game_field.text.is_empty() {
                     let p = self.st.set.game_apps.clone();
                     self.st.game_field.set(&p);
@@ -1140,6 +999,8 @@ impl App {
                         self.settings_click(&Act::SCycle("shot_dir_apply"));
                     } else if f == "game_apps" {
                         self.settings_click(&Act::SCycle("game_apply"));
+                    } else if f == "night_geo" {
+                        self.settings_click(&Act::SCycle("geo_apply"));
                     } else if f == "kb_layout" {
                         self.settings_click(&Act::SCycle("kb_apply"));
                     } else if f == "key_cmd" {
@@ -1156,6 +1017,7 @@ impl App {
                         "float_apps" => &mut self.st.float_field,
                         "key_cmd" => &mut self.st.keys.cmd,
                         "game_apps" => &mut self.st.game_field,
+                        "night_geo" => &mut self.st.geo_field,
                         "kb_layout" => &mut self.st.keys.lay,
                         _ => &mut self.st.wall_field,
                     };

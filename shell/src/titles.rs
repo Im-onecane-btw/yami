@@ -8,7 +8,7 @@ use crate::font::PX;
 use crate::gfx::{BoxStyle, R};
 use crate::icons;
 use crate::niri::Win;
-use crate::theme::{CLEAR, WHITE};
+use crate::theme::CLEAR;
 use crate::ui::{Act, Cur, Tone, Ui};
 use serde_json::json;
 use smithay_client_toolkit::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer};
@@ -80,14 +80,14 @@ pub fn draw(ui: &mut Ui, st: &State, id: u64, w: i32, h: i32) {
     let bw = 24;
     let btns = 3 * (bw + 2);
     let title = if win.title.is_empty() { win.app_id.clone() } else { win.title.clone() };
-    ui.text_in(PX, R::new(x, 0, w - x - btns - 10, h - 1), &title, if focused { WHITE } else { t.text_dim });
+    ui.text_in(PX, R::new(x, 0, w - x - btns - 10, h - 1), &title, if focused { t.text_hi } else { t.text_dim });
     let mut bx = w - btns - 2;
     for (icon, act, tone) in [("min", Act::TMin(id), Tone::Ghost), ("max", Act::TMax(id), Tone::Ghost), ("close", Act::TClose(id), Tone::Danger)] {
         let br = R::new(bx, 3, bw, h - 6);
         let hov = ui.hover(br);
         if tone == Tone::Danger && hov {
             ui.cv.pxbox(br, &BoxStyle::new(t.blood, t.ember).bevel(true));
-            ui.cv.icon_in(icon, br, 2, WHITE);
+            ui.cv.icon_in(icon, br, 2, t.text_hi);
             ui.zone(br, act, Cur::Pointer);
         } else {
             ui.button(br, "", icon, Tone::Ghost, false, true, act);

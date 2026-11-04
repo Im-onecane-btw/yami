@@ -24,6 +24,18 @@ pub fn data_dir() -> PathBuf {
 pub fn cache_dir() -> PathBuf {
     xdg("XDG_CACHE_HOME").unwrap_or_else(|| home().join(".cache"))
 }
+/// новый личный каталог для временных файлов: в $XDG_RUNTIME_DIR (он только наш) или в /tmp, с
+/// правами 0700 и всегда новый — заготовка другого пользователя в /tmp со ссылками внутри
+/// перенаправила бы наши записи в чужие файлы, а снимок экрана в /tmp иначе читали бы все
+pub fn private_tmp(name: &str) -> std::io::Result<PathBuf> {
+    use std::os::unix::fs::DirBuilderExt;
+    let base = xdg("XDG_RUNTIME_DIR").filter(|p| p.is_dir()).unwrap_or_else(std::env::temp_dir);
+    let n = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.subsec_nanos()).unwrap_or(0);
+    let d = base.join(format!("{name}-{}-{n:08x}", std::process::id()));
+    std::fs::DirBuilder::new().mode(0o700).create(&d)?;
+    Ok(d)
+}
+
 /// настройки шелла: оттуда же приложения берут палитру, язык и анимации
 pub fn shell_settings() -> PathBuf {
     config_dir().join("yami-shell.json")

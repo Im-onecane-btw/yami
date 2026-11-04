@@ -284,8 +284,12 @@ pub fn draw(cv: &mut Canvas, t: &Theme, kind: Kind, sp: Special, x: i32, y: i32,
     let k = if lk.dim { 0.55 } else { 1.0 };
     let dark = t.blood.lerp(C(0xff000000), 0.45);
     let accent = if lk.selected { t.ember } else { t.red };
-    let paper = t.text.lerp(t.surface_hi, 0.18);
-    let fold = t.text_dim.lerp(t.surface_hi, 0.2);
+    // бумага — светлая в обеих темах (в светлой текст тёмный, брать его нельзя)
+    let (paper, fold) = if t.light {
+        (t.code_bg.lerp(t.bg, 0.3).alpha(1.0), t.surface_hi.lerp(t.text_faint, 0.25).alpha(1.0))
+    } else {
+        (t.text.lerp(t.surface_hi, 0.18), t.text_dim.lerp(t.surface_hi, 0.2))
+    };
     let pal = |ch: u8| -> Option<C> {
         let c = match ch {
             b'O' => dark,

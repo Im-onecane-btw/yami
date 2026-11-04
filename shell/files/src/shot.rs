@@ -56,13 +56,15 @@ pub fn run(args: &[String]) -> i32 {
     let mut lang = String::new();
     let mut out = PathBuf::from("shots");
     let mut targets: Vec<String> = vec![];
+    let mut mode: Option<bool> = None;
     let mut it = args.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
             "--lang" => lang = it.next().cloned().unwrap_or_default(),
             "-o" | "--out" => out = it.next().map(PathBuf::from).unwrap_or(out),
+            "--theme" => mode = it.next().map(|m| m == "light"),
             "-h" | "--help" | "list" => {
-                println!("yami-files shot [TARGET…] [--lang ru|en] [-o DIR]\ntargets: {}", TARGETS.join(" "));
+                println!("yami-files shot [TARGET…] [--lang ru|en] [--theme dark|light] [-o DIR]\ntargets: {}", TARGETS.join(" "));
                 return 0;
             }
             t if TARGETS.contains(&t) => targets.push(t.to_string()),
@@ -75,7 +77,7 @@ pub fn run(args: &[String]) -> i32 {
     if targets.is_empty() {
         targets = TARGETS.iter().map(|s| s.to_string()).collect();
     }
-    let mut look = crate::look::Look::load();
+    let mut look = crate::look::Look::load_mode(mode);
     if !lang.is_empty() {
         look.lang = lang.clone();
     }

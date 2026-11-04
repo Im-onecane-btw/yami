@@ -108,48 +108,175 @@ pub struct Canvas<'a> {
     pub opacity: f32,
     /// где под поверхностью размывать фон: только сами стеклянные панели, без полей под тенью
     pub blur: Vec<R>,
+    /// цвет жёсткой тени (из темы, set_shade)
+    pub shade: C,
+}
+
+/// цвет тени для всех новых холстов процесса: тема одна на процесс, а холстов много
+static SHADE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0xb4000000);
+
+pub fn set_shade(c: C) {
+    SHADE.store(c.0, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// узор проявления панелей (настройки → вид → эффекты)
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Reveal {
+    /// матрица Байера 4×4 — исходный вид
+    Dither,
+    /// строки через одну, как развёртка старого экрана
+    Scan,
+    /// случайные клетки
+    Noise,
+    /// диагональ из угла со ступенчатым краем
+    Wipe,
+    /// Байер, но клетки вдвое крупнее
+    Blocks,
+}
+
+impl Reveal {
+    pub const ALL: [(&'static str, Reveal); 5] = [("dither", Reveal::Dither), ("scan", Reveal::Scan), ("noise", Reveal::Noise), ("wipe", Reveal::Wipe), ("blocks", Reveal::Blocks)];
+    pub fn from_id(s: &str) -> Reveal {
+        Reveal::ALL.iter().find(|(id, _)| *id == s).map(|x| x.1).unwrap_or(Reveal::Dither)
+    }
+}
+
+static REVEAL: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+static GRAIN: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(1);
+
+/// узор и крупность клеток проявления для всего процесса; grain — множитель клетки (1–4)
+pub fn set_reveal(r: Reveal, grain: i32) {
+    let i = Reveal::ALL.iter().position(|x| x.1 == r).unwrap_or(0) as u8;
+    REVEAL.store(i, std::sync::atomic::Ordering::Relaxed);
+    GRAIN.store(grain.clamp(1, 4) as u8, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn reveal() -> (Reveal, i32) {
+    let i = REVEAL.load(std::sync::atomic::Ordering::Relaxed) as usize;
+    let r = Reveal::ALL.get(i).map(|x| x.1).unwrap_or(Reveal::Dither);
+    let g = GRAIN.load(std::sync::atomic::Ordering::Relaxed) as i32 * if r == Reveal::Blocks { 2 } else { 1 };
+    (r, g)
+}
+
+const BAYER: [[u8; 4]; 4] = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+/// порядок строк при развёртке: через одну, потом в промежутки (как чересстрочный кадр)
+const SCAN: [u8; 16] = [0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15];
+
+/// дешёвый хеш клетки: шум без генератора случайных чисел, одинаковый в каждом кадре
+#[inline]
+fn hash(x: i32, y: i32) -> u32 {
+    let mut h = (x as u32).wrapping_mul(0x9e37_79b1) ^ (y as u32).wrapping_mul(0x85eb_ca77);
+    h ^= h >> 15;
+    h = h.wrapping_mul(0x2c1b_3c6d);
+    h ^ (h >> 12)
 }
 
 impl<'a> Canvas<'a> {
     pub fn new(buf: &'a mut [u32], w: i32, h: i32) -> Canvas<'a> {
-        Canvas { buf, w, h, ox: 0, oy: 0, clip: R::new(0, 0, w, h), clips: vec![], opacity: 1.0, blur: vec![] }
+        Canvas { buf, w, h, ox: 0, oy: 0, clip: R::new(0, 0, w, h), clips: vec![], opacity: 1.0, blur: vec![], shade: C(SHADE.load(std::sync::atomic::Ordering::Relaxed)) }
     }
 
-    /// проявление клетками по матрице Байера 4×4: при k клетка видна, если её порог ниже k
+    /// проявление панели: при k клетка видна, если её порог ниже k. Узор — из настроек
+    /// (set_reveal): Байер, строки, шум, диагональ или крупные блоки
     pub fn dissolve(&mut self, k: f32, cell: i32) {
-        const B: [[u8; 4]; 4] = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
-        if k >= 1.0 {
-            return;
-        }
-        let lvl = (k * 16.0).floor() as i32;
-        let cell = cell.max(1);
-        for y in 0..self.h {
-            let by = ((y / cell) & 3) as usize;
-            let row = (y * self.w) as usize;
-            for x in 0..self.w {
-                if B[by][((x / cell) & 3) as usize] as i32 >= lvl {
-                    self.buf[row + x as usize] = 0;
-                }
-            }
-        }
+        let r = R::new(-self.ox, -self.oy, self.w, self.h);
+        self.dissolve_rect(r, k, cell);
     }
 
     /// то же проявление, но только внутри r (появление отдельных значков, меню внутри окна)
     pub fn dissolve_rect(&mut self, r: R, k: f32, cell: i32) {
-        const B: [[u8; 4]; 4] = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
         if k >= 1.0 {
             return;
         }
         let r = R::new(r.x + self.ox, r.y + self.oy, r.w, r.h).inter(&R::new(0, 0, self.w, self.h));
-        let lvl = (k * 16.0).floor() as i32;
-        let cell = cell.max(1);
-        for y in r.y..r.bottom() {
-            let by = ((y / cell) & 3) as usize;
-            let row = (y * self.w) as usize;
-            for x in r.x..r.right() {
-                if B[by][((x / cell) & 3) as usize] as i32 >= lvl {
-                    self.buf[row + x as usize] = 0;
+        if r.empty() {
+            return;
+        }
+        let (style, grain) = reveal();
+        let cell = (cell * grain).max(1);
+        // порог клетки в 0..256; клетка видна, если порог < lvl
+        let lvl = (k.clamp(0.0, 1.0) * 256.0) as i32;
+        // три способа, по замерам самый быстрый для своего узора (tools: шелл ~0.2–0.3 мс на
+        // панель 780×560): Байер — поштучно по таблице, строки и диагональ — отрезками нулей
+        // (сплошные куски), шум — маской без ветвлений
+        if matches!(style, Reveal::Dither | Reveal::Blocks) {
+            // четыре строки узора на всю ширину — заранее, чтобы в цикле не делить на клетку
+            let l = lvl / 16;
+            let pat: Vec<Vec<bool>> = (0..4).map(|by| (0..r.w).map(|i| BAYER[by][((i / cell) & 3) as usize] as i32 >= l).collect()).collect();
+            let w = self.w;
+            for y in r.y..r.bottom() {
+                let hide = &pat[(((y - r.y) / cell) & 3) as usize];
+                let row = (y * w + r.x) as usize;
+                for (p, &h) in self.buf[row..row + r.w as usize].iter_mut().zip(hide) {
+                    if h {
+                        *p = 0;
+                    }
                 }
+            }
+            return;
+        }
+        let (cols, rows) = ((r.w + cell - 1) / cell, (r.h + cell - 1) / cell);
+        let span = (cols + rows).max(1);
+        let th = |cx: i32, cy: i32| match style {
+            Reveal::Scan => SCAN[(cy & 15) as usize] as i32 * 16,
+            Reveal::Noise => (hash(cx, cy) & 255) as i32,
+            // диагональ сверху-слева, край — ступенями Байера
+            _ => ((cx + cy) * 200 / span) + BAYER[(cy & 3) as usize][(cx & 3) as usize] as i32 * 3,
+        };
+        if style == Reveal::Noise {
+            let mut keep = vec![0u32; r.w as usize];
+            for y in r.y..r.bottom() {
+                let ly = y - r.y;
+                if ly % cell == 0 {
+                    for cx in 0..cols {
+                        let m = if th(cx, ly / cell) >= lvl { 0 } else { u32::MAX };
+                        keep[(cx * cell) as usize..((cx + 1) * cell).min(r.w) as usize].fill(m);
+                    }
+                }
+                let row = (y * self.w + r.x) as usize;
+                for (p, &m) in self.buf[row..row + r.w as usize].iter_mut().zip(&keep) {
+                    *p &= m;
+                }
+            }
+            return;
+        }
+        let mut runs: Vec<(usize, usize)> = Vec::with_capacity(cols as usize);
+        for y in r.y..r.bottom() {
+            let ly = y - r.y;
+            if ly % cell == 0 {
+                runs.clear();
+                for cx in 0..cols {
+                    if th(cx, ly / cell) >= lvl {
+                        let (a, b) = ((cx * cell) as usize, ((cx + 1) * cell).min(r.w) as usize);
+                        match runs.last_mut() {
+                            Some(last) if last.1 == a => last.1 = b,
+                            _ => runs.push((a, b)),
+                        }
+                    }
+                }
+            }
+            let row = (y * self.w + r.x) as usize;
+            let line = &mut self.buf[row..row + r.w as usize];
+            for &(a, b) in &runs {
+                line[a..b].fill(0);
+            }
+        }
+    }
+
+    /// строки развёртки: каждая вторая строка темнее на долю k (только где что-то нарисовано;
+    /// предумноженный цвет — множим каналы, альфу не трогаем)
+    pub fn scanlines(&mut self, k: f32) {
+        let m = ((1.0 - k.clamp(0.0, 1.0)) * 256.0) as u32;
+        for y in (1..self.h).step_by(2) {
+            let row = (y * self.w) as usize;
+            for p in &mut self.buf[row..row + self.w as usize] {
+                let v = *p;
+                if v >> 24 == 0 {
+                    continue;
+                }
+                let rb = (((v & 0x00ff_00ff) * m) >> 8) & 0x00ff_00ff;
+                let g = (((v & 0x0000_ff00) * m) >> 8) & 0x0000_ff00;
+                *p = (v & 0xff00_0000) | rb | g;
             }
         }
     }
@@ -307,7 +434,7 @@ impl<'a> Canvas<'a> {
             self.blur_rect(r, n);
         }
         if st.shadow > 0 && !st.pressed {
-            self.notched(R::new(r.x + st.shadow, r.y + st.shadow, r.w, r.h), n, C(0xb4000000));
+            self.notched(R::new(r.x + st.shadow, r.y + st.shadow, r.w, r.h), n, self.shade);
         }
         self.notched(r, n, st.fill);
         if st.bevel {
@@ -579,6 +706,10 @@ pub fn icon7(name: &str) -> Option<&'static [&'static str; 7]> {
         "float" => &["####...", "#..#...", "#.#####", "###...#", "..#...#", "..#...#", "..#####"],
         "tile" => &["###.###", "#.#.#.#", "#.#.#.#", "#.#.#.#", "#.#.#.#", "#.#.#.#", "###.###"],
         "moon" => &["..###..", ".##....", "##.....", "##.....", "##.....", ".##...#", "..####."],
+        "sun" => &["...#...", ".#...#.", "..###..", "#.###.#", "..###..", ".#...#.", "...#..."],
+        "calc" => &["#######", "#.....#", "#######", "#.#.#.#", "#######", "#.#.#.#", "#######"],
+        "qr" => &["###.###", "#.#.#.#", "###.###", ".......", "###.#.#", "#.#..#.", "###.#.#"],
+        "term" => &[".......", "#......", ".#.....", "..#....", ".#.....", "#..###.", "......."],
         "reboot" => &["..####.", ".#...##", "#...###", "#......", "#.....#", ".#...#.", "..###.."],
         "exit" => &["####...", "#......", "#...#..", "#.#####", "#...#..", "#......", "####..."],
         "top" => &["#######", ".......", "...#...", "..###..", ".#.#.#.", "...#...", "...#..."],

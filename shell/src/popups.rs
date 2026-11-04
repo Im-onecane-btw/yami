@@ -5,7 +5,6 @@
 use crate::app::{App, SKind, State};
 use crate::font::{self, PX};
 use crate::gfx::{BoxStyle, R};
-use crate::theme::WHITE;
 use crate::ui::{Act, Cur, Tone, Ui};
 use crate::widgets;
 use smithay_client_toolkit::seat::keyboard::{KeyEvent, Keysym};
@@ -136,7 +135,7 @@ fn sound(ui: &mut Ui, st: &State, b: R) {
             let r = R::new(b.x, y, b.w, 24);
             ui.button(r, "", "", Tone::Ghost, on, true, Act::Sink(s.name.clone()));
             ui.cv.fill(R::new(r.x + 8, r.cy() - 3, 6, 6), if on { t.ember } else { t.border });
-            ui.text_in(PX, R::new(r.x + 22, r.y, r.w - 26, r.h), &crate::audio::label(&st.set, s), if on { WHITE } else { t.text });
+            ui.text_in(PX, R::new(r.x + 22, r.y, r.w - 26, r.h), &crate::audio::label(&st.set, s), if on { t.text_hi } else { t.text });
             y += 26;
         }
         y += 6;
@@ -219,7 +218,7 @@ fn net(ui: &mut Ui, st: &State, b: R) {
                     let on = n.signal as i32 > k * 25;
                     ui.cv.fill(R::new(r.x + 6 + k * 4, r.y + 18 - k * 3, 3, 3 + k * 3), if on { if n.active { t.ember } else { t.red } } else { t.border });
                 }
-                ui.text_in(PX, R::new(r.x + 30, r.y, r.w - 90, r.h), &n.ssid, if n.active { WHITE } else { t.text });
+                ui.text_in(PX, R::new(r.x + 30, r.y, r.w - 90, r.h), &n.ssid, if n.active { t.text_hi } else { t.text });
                 if n.secure {
                     ui.cv.icon("lock", r.right() - 40, r.cy() - 7, 2, if n.known { t.text_dim } else { t.text_faint });
                 }
@@ -273,7 +272,7 @@ fn bt(ui: &mut Ui, st: &State, b: R) {
                 _ => "bt",
             };
             ui.cv.icon(icon, r.x + 8, r.cy() - 7, 2, if d.connected { t.ember } else { t.text_dim });
-            ui.text_in(PX, R::new(r.x + 30, r.y, r.w - 130, r.h), &d.name, if d.connected { WHITE } else { t.text });
+            ui.text_in(PX, R::new(r.x + 30, r.y, r.w - 130, r.h), &d.name, if d.connected { t.text_hi } else { t.text });
             let st_txt = if s.busy == d.path { "подождите…".to_string() } else if d.connected { "подключено".to_string() } else if d.paired { "сопряжено".to_string() } else { "новое".to_string() };
             let st_txt = match d.battery {
                 Some(p) => format!("{p}% · {}", crate::i18n::tr(&st_txt)),

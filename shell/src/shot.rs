@@ -1,7 +1,7 @@
 // Снимки панелей без Wayland: рисует в память и пишет PNG. Чтобы проверить вид и перевод,
 // не трогая экран пользователя (и не открывая ничего поверх его игры).
 //
-//   yami-shell shot [ЦЕЛЬ…] [--lang ru|en] [--defaults] [--transparent] [--frame PNG] [-o ПАПКА]
+//   yami-shell shot [ЦЕЛЬ…] [--lang ru|en] [--theme dark|light] [--defaults] [--transparent] [--frame PNG] [-o ПАПКА]
 //
 // Без цели — все панели. При --lang en печатает надписи, оставшиеся русскими, и выходит с 1.
 // Окна, программы и уведомление — мок-овые (снимок не зависит от машины), датчики — настоящие.
@@ -27,6 +27,12 @@ const TARGETS: &[&str] = &[
     "settings:system",
     "settings:about",
     "launcher",
+    "launcher:calc",
+    "launcher:find",
+    "launcher:win",
+    "launcher:cmd",
+    "launcher:all",
+    "reply",
     "clipboard",
     "power",
     "popup:cal",
@@ -69,6 +75,7 @@ const TARGETS: &[&str] = &[
     "settings:updates-new",
     "settings:updates-busy",
     "settings:updates-pick",
+    "settings:updates-need",
     "dock",
 ];
 
@@ -84,6 +91,7 @@ pub fn run(args: &[String]) -> i32 {
     let mut lang = String::new();
     let mut out = PathBuf::from("shots");
     let mut defaults = false;
+    let mut mode: Option<bool> = None;
     let mut targets: Vec<String> = vec![];
     let mut it = args.iter();
     while let Some(a) = it.next() {
@@ -91,6 +99,7 @@ pub fn run(args: &[String]) -> i32 {
             "--lang" => lang = it.next().cloned().unwrap_or_default(),
             "-o" | "--out" => out = it.next().map(PathBuf::from).unwrap_or(out),
             "--defaults" => defaults = true,
+            "--theme" => mode = it.next().map(|m| m == "light"),
             "--transparent" => CLEAR.store(true, std::sync::atomic::Ordering::Relaxed),
             "--frame" => {
                 let _ = FRAME.set(it.next().map(PathBuf::from).unwrap_or_default());
@@ -113,9 +122,12 @@ pub fn run(args: &[String]) -> i32 {
     if !lang.is_empty() {
         set.lang = lang;
     }
+    if let Some(l) = mode {
+        set.light = l;
+    }
     crate::i18n::set(&set.lang);
     let mut res = Res { icons: Icons::new(&set.icon_theme), fonts: Fonts::with(&set.font_shell), font: set.font_shell.clone() };
-    res.icons.set_pixel(set.icon_pixel.then(|| crate::theme::Theme::new(set.accent_rgb(), set.tint, set.glass, set.lift, set.inner).icon_ramp()));
+    res.icons.set_pixel(set.icon_pixel.then(|| crate::theme::Theme::new(set.accent_rgb(), set.tint, set.glass, set.lift, set.inner, set.light).icon_ramp()));
     let mut st = State::new(set, mock_niri());
     st.apps = mock_apps();
     st.sys.sample();
@@ -206,8 +218,30 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
         }
         "launcher" | "clipboard" => {
             st.modal = Some(Modal::Launcher);
-            st.launcher.open(kind == "clipboard", &st.apps);
+            st.launcher.open(kind == "clipboard", &st.apps, &st.niri.wins);
+            // launcher:calc, :find (окна и настройки), :cmd, :all (Ctrl+A)
+            let q = match arg {
+                "calc" => "2+2*3",
+                "find" => "vrr",
+                "win" => "wiki",
+                "cmd" => "> btop",
+                "all" => "firefox",
+                _ => "",
+            };
+            if !q.is_empty() {
+                st.launcher.field.set(q);
+                if arg == "all" {
+                    st.launcher.field.select_all();
+                }
+                st.launcher.refresh(&st.apps, &st.niri.wins);
+            }
             crate::launcher::SIZE
+        }
+        "reply" => {
+            st.modal = Some(Modal::Reply);
+            st.reply = crate::reply::Reply { id: 1, app: "Telegram".into(), summary: "Ann: are we still on for tonight?".into(), field: Default::default() };
+            st.reply.field.set("yes, at 8");
+            crate::reply::SIZE
         }
         "power" => {
             st.modal = Some(Modal::Power);
@@ -317,7 +351,7 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
                 info: String::new(),
                 fails: 1,
                 busy: false,
-                field: crate::ui::Field { text: "hunter2".into(), cur: 7 },
+                field: crate::ui::Field { text: "hunter2".into(), cur: 7, all: false },
                 shake: None,
             }];
             crate::auth::SIZE
@@ -349,7 +383,7 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
         };
         // подложка — «рабочий стол»: стекло панелей видно, но снимок непрозрачный
         if !CLEAR.load(std::sync::atomic::Ordering::Relaxed) {
-            ui.cv.clear(C::hex(0x2a2626));
+            ui.cv.clear(if st.t.light { C::hex(0xc4bdb8) } else { C::hex(0x2a2626) });
         }
         let st = &*st;
         match kind {
@@ -359,6 +393,7 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
             }
             "settings" => crate::settings::draw(&mut ui, st, w, h),
             "launcher" | "clipboard" => crate::launcher::draw(&mut ui, st, w, h),
+            "reply" => crate::reply::draw(&mut ui, st, w, h),
             "power" => crate::power::draw(&mut ui, st, w, h),
             "popup" => crate::popups::draw(&mut ui, st, w, h),
             "menu" => crate::menu::draw(&mut ui, st, w, h),

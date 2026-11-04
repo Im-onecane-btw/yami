@@ -7,7 +7,7 @@ use crate::config::Widget;
 use crate::font::{self, PX};
 use crate::gfx::{BoxStyle, C, R};
 use crate::menu::{MAct, MItem, MenuState};
-use crate::theme::{Theme, CLEAR, WHITE};
+use crate::theme::{Theme, WHITE};
 use crate::ui::{Act, Cur, Tone, Ui};
 use smithay_client_toolkit::seat::keyboard::{KeyEvent, Keysym};
 use smithay_client_toolkit::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer};
@@ -501,7 +501,6 @@ pub fn draw_editbar(ui: &mut Ui, _st: &State, w: i32, _h: i32) {
         ui.button(R::new(x, 8, bw, 24), label, icon, tone, false, true, act);
         x -= 6;
     }
-    let _ = CLEAR;
 }
 
 impl State {

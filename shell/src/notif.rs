@@ -5,7 +5,6 @@
 use crate::app::{local_now, App, SKind, State};
 use crate::font::{self, PX};
 use crate::gfx::{BoxStyle, Img, R};
-use crate::theme::WHITE;
 use crate::ui::{Act, Cur, Tone, Ui};
 use smithay_client_toolkit::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer};
 use smithay_client_toolkit::shell::WaylandSurface;
@@ -211,7 +210,6 @@ pub fn draw_osd(ui: &mut Ui, st: &State, w: i32, _h: i32) {
             x += if on { 20 } else { 12 };
         }
     }
-    let _ = WHITE;
 }
 
 impl App {

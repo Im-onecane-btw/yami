@@ -29,14 +29,20 @@ fn stamp() -> Option<SystemTime> {
 
 impl Look {
     pub fn load() -> Look {
+        Look::load_mode(None)
+    }
+
+    /// light: Some — тема поверх настроек (снимки `shot --theme light`)
+    pub fn load_mode(light: Option<bool>) -> Look {
         let v: serde_json::Value = std::fs::read_to_string(crate::paths::shell_settings()).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(serde_json::Value::Null);
         let f = |k: &str, d: f32| v.get(k).and_then(|x| x.as_f64()).map(|x| x as f32).unwrap_or(d);
         let s = |k: &str| v.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string();
         let b = |k: &str, d: bool| v.get(k).and_then(|x| x.as_bool()).unwrap_or(d);
         let palette = s("palette");
         let accent = parse_hex(&s("accent")).unwrap_or_else(|| PRESETS.iter().find(|p| p.id == palette).unwrap_or(&PRESETS[0]).accent);
+        crate::gfx::set_reveal(crate::gfx::Reveal::from_id(&s("reveal")), v.get("revealGrain").and_then(|x| x.as_i64()).unwrap_or(1) as i32);
         Look {
-            theme: Theme::new(accent, f("tint", 1.0), f("glass", 0.55), f("lift", 0.0), f("inner", 1.0)),
+            theme: Theme::new(accent, f("tint", 1.0), f("glass", 0.55), f("lift", 0.0), f("inner", 1.0), light.unwrap_or_else(|| b("light", false))).apply(),
             lang: s("lang"),
             animations: b("animations", true),
             anim_speed: f("animSpeed", 1.0),

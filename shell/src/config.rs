@@ -93,6 +93,8 @@ pub struct Settings {
     pub palette: String,
     pub accent: String,
     pub tint: f32,
+    /// светлая тема (бумага вместо графита) для шелла и всего, что красит theme.py
+    pub light: bool,
 
     // вид
     pub glass: f32,
@@ -107,6 +109,14 @@ pub struct Settings {
     pub animations: bool,
     /// множитель длительности анимаций: 0.5 — быстрее, 2 — медленнее
     pub anim_speed: f32,
+    /// узор проявления: dither | scan | noise | wipe | blocks (yami-px gfx::Reveal)
+    pub reveal: String,
+    /// крупность клеток проявления, 1–4
+    pub reveal_grain: i32,
+    /// закрывать панели с анимацией (иначе — сразу)
+    pub anim_close: bool,
+    /// строки развёртки поверх панелей шелла
+    pub scanlines: bool,
     /// режим «стол»: все окна плавают, у каждого заголовок как в DE
     pub stacking: bool,
     pub titlebars: bool,
@@ -248,6 +258,18 @@ pub struct Settings {
     pub game_cache: bool,
     pub game_dnd: bool,
     pub game_profile: bool,
+    /// PROTON_USE_NTSYNC=1, если в ядре есть /dev/ntsync
+    pub game_ntsync: bool,
+    /// регистрировать игру в фокусе у gamemoded
+    pub game_gamemode: bool,
+    /// открыть при входе программы, что были открыты (session.rs)
+    pub session_restore: bool,
+    /// ночной свет (wlsunset): температура, координаты «lat, lon» или часы вкл/выкл
+    pub night: bool,
+    pub night_temp: i32,
+    pub night_geo: String,
+    pub night_on_h: i32,
+    pub night_off_h: i32,
     /// свои app-id игр: через запятую, `name*` — по началу
     pub game_apps: String,
 
@@ -293,7 +315,7 @@ fn group(m: &str) -> i32 {
         "workspaces" => 1,
         "mode" => 2,
         "tray" => 3,
-        "net" | "netspeed" | "bt" | "kb" | "cpu" | "ram" | "temp" | "bat" | "profile" => 4,
+        "net" | "netspeed" | "bt" | "kb" | "cpu" | "ram" | "temp" | "bat" | "profile" | "night" => 4,
         "vol" | "media" => 5,
         "clock" | "notif" | "settings" | "power" => 6,
         _ => 7,
@@ -317,6 +339,7 @@ pub const ALL_MODULES: &[(&str, &str)] = &[
     ("vol", "звук"),
     ("bat", "батарея"),
     ("profile", "профиль питания"),
+    ("night", "ночной свет"),
     ("clock", "часы"),
     ("notif", "уведомления"),
     ("settings", "настройки"),
@@ -338,6 +361,10 @@ pub const NUMS: &[(&str, i32, i32, i32)] = &[
     ("bar_mid", 0, 64, 2),
     ("bar_task_gap", 0, 16, 2),
     ("task_width", 60, 400, 10),
+    ("reveal_grain", 1, 4, 1),
+    ("night_temp", 2500, 6000, 250),
+    ("night_on_h", 0, 23, 1),
+    ("night_off_h", 0, 23, 1),
 ];
 
 impl Default for Settings {
@@ -348,6 +375,7 @@ impl Default for Settings {
             palette: "blood".into(),
             accent: String::new(),
             tint: 1.0,
+            light: false,
             glass: 0.78,
             lift: 0.0,
             inner: 1.0,
@@ -356,6 +384,10 @@ impl Default for Settings {
             blur_term: true,
             animations: true,
             anim_speed: 1.0,
+            reveal: "dither".into(),
+            reveal_grain: 1,
+            anim_close: true,
+            scanlines: false,
             stacking: false,
             titlebars: true,
             icon_theme: String::new(),
@@ -441,6 +473,14 @@ impl Default for Settings {
             game_cache: true,
             game_dnd: true,
             game_profile: true,
+            game_ntsync: true,
+            game_gamemode: true,
+            session_restore: false,
+            night: false,
+            night_temp: 4000,
+            night_geo: String::new(),
+            night_on_h: 20,
+            night_off_h: 7,
             game_apps: String::new(),
             agent_notif: true,
             agent_tray: true,
@@ -476,9 +516,42 @@ impl Settings {
                 }
                 // виджета агента больше нет
                 s.widgets.retain(|w| w.kind != "agent");
+                s.sanitize();
                 s
             }
             Err(_) => Settings::default(),
+        }
+    }
+
+    /// строки из файла (правка руками, `yami import`, чужая тема) уходят в конфиги niri, kitty,
+    /// GTK и Qt: имена — без управляющих символов, кавычек и разделителей (иначе перевод строки
+    /// в имени шрифта дописал бы в kitty.conf свою команду), акцент — только #rrggbb
+    pub fn sanitize(&mut self) {
+        let name = |s: &mut String| {
+            s.retain(|c| !c.is_control() && !"\"\\'`$;,{}<>|&#=".contains(c));
+            if s.chars().count() > 64 {
+                *s = s.chars().take(64).collect();
+            }
+        };
+        for f in [&mut self.font_shell, &mut self.font_files, &mut self.font_view, &mut self.font_ui, &mut self.font_mono, &mut self.icon_theme, &mut self.cursor] {
+            name(f);
+        }
+        self.lang.retain(|c| c.is_ascii_alphabetic());
+        if !self.accent.is_empty() && crate::theme::parse_hex(&self.accent).is_none() {
+            self.accent.clear();
+        }
+        // app-id: то, что бывает в app-id, и разделители списка
+        let ids = |s: &mut String| s.retain(|c| c.is_alphanumeric() || "._-*!+, ".contains(c));
+        ids(&mut self.float_apps);
+        ids(&mut self.game_apps);
+        self.kb_switch.retain(|c| c.is_ascii_alphanumeric() || "_:,()-".contains(c));
+        self.cursor_size = self.cursor_size.clamp(16, 96);
+        self.font_pt = self.font_pt.clamp(0, 48);
+        self.binds.retain(|_, k| k.is_empty() || crate::keys::key_ok(k));
+        self.custom_binds.retain(|c| c.key.is_empty() || crate::keys::key_ok(&c.key));
+        // модули-скрипты: только имя файла в ~/.config/yami/modules; «rec» (повтор) убран
+        for l in [&mut self.bar_left, &mut self.bar_center, &mut self.bar_right] {
+            l.retain(|m| m != "rec" && m.strip_prefix("x:").map_or(true, crate::plugins::name_ok));
         }
     }
 
@@ -534,6 +607,10 @@ impl Settings {
             "bar_mid" => self.bar_mid,
             "bar_task_gap" => self.bar_task_gap,
             "task_width" => self.task_width,
+            "reveal_grain" => self.reveal_grain,
+            "night_temp" => self.night_temp,
+            "night_on_h" => self.night_on_h,
+            "night_off_h" => self.night_off_h,
             "win_gap" => self.win_gap,
             "win_left" => self.win_left,
             "win_right" => self.win_right,
@@ -556,6 +633,10 @@ impl Settings {
             "bar_mid" => self.bar_mid = v,
             "bar_task_gap" => self.bar_task_gap = v,
             "task_width" => self.task_width = v,
+            "reveal_grain" => self.reveal_grain = v,
+            "night_temp" => self.night_temp = v,
+            "night_on_h" => self.night_on_h = v,
+            "night_off_h" => self.night_off_h = v,
             "win_gap" => self.win_gap = v,
             "win_left" => self.win_left = v,
             "win_right" => self.win_right = v,

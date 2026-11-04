@@ -5,7 +5,7 @@ use crate::app::{local_now, State, BAR_H, RU_DAY};
 use crate::font::{self, PX};
 use crate::gfx::{BoxStyle, R};
 use crate::icons;
-use crate::theme::{CLEAR, WHITE};
+use crate::theme::CLEAR;
 use crate::ui::{Act, Cur, Tone, Ui};
 
 const H: i32 = BAR_H;
@@ -190,7 +190,7 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
             if !measure {
                 let r = R::new(x - 2, 0, w + 4, H - 1);
                 let hov = ui.hover(r);
-                ui.cv.fill(R::new(x + if off { 0 } else { 2 }, cy - 3, 6, 6), if off { t.ember } else if hov { WHITE } else { t.ok });
+                ui.cv.fill(R::new(x + if off { 0 } else { 2 }, cy - 3, 6, 6), if off { t.ember } else if hov { t.text_hi } else { t.ok });
                 if off {
                     ui.text_in(PX, R::new(x + 12, 0, w, H - 1), "нет сети", t.ember);
                 }
@@ -218,7 +218,7 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
             if !measure {
                 let r = R::new(x - 2, 0, w + 4, H - 1);
                 let hov = ui.hover(r);
-                let c = if !st.bt.powered { t.text_faint } else if hov { WHITE } else if n > 0 { t.red } else { t.text_dim };
+                let c = if !st.bt.powered { t.text_faint } else if hov { t.text_hi } else if n > 0 { t.red } else { t.text_dim };
                 ui.cv.icon("bt", x, cy - 7, 2, c);
                 if n > 0 {
                     ui.text_in(PX, R::new(x + 18, 0, 40, H - 1), &label, t.text);
@@ -231,7 +231,7 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
             if !measure {
                 let r = R::new(x - 2, 0, 18, H - 1);
                 let hov = ui.hover(r);
-                let c = if hov { WHITE } else if !st.prof.present { t.text_faint } else if st.prof.active == "performance" { t.red } else if st.prof.active == "power-saver" { t.ok } else { t.text_dim };
+                let c = if hov { t.text_hi } else if !st.prof.present { t.text_faint } else if st.prof.active == "performance" { t.red } else if st.prof.active == "power-saver" { t.ok } else { t.text_dim };
                 ui.cv.icon(st.prof.icon(), x, cy - 7, 2, c);
                 ui.zone(r, Act::Popup("profile"), Cur::Pointer);
             }
@@ -251,9 +251,9 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
             let low = bat.pct <= 15 && !bat.charging && !bat.plugged;
             let col = if low { t.ember } else if bat.charging || bat.plugged { t.ok } else { t.red };
             if bat.charging {
-                ui.cv.icon("bolt", x, cy - 7, 2, if hov { WHITE } else { t.ok });
+                ui.cv.icon("bolt", x, cy - 7, 2, if hov { t.text_hi } else { t.ok });
             }
-            let body = if low { t.ember } else if hov { WHITE } else { t.text_dim };
+            let body = if low { t.ember } else if hov { t.text_hi } else { t.text_dim };
             ui.cv.battery(x + bw, cy - 7, 2, bat.pct as f32 / 100.0, body, col, t.surface_hi.lerp(t.border, 0.45));
             ui.text_in(PX, R::new(x + bw + 28, 0, w, H - 1), &txt, if low { t.ember } else if hov { t.text } else { t.text_dim });
             ui.zone(r, Act::Popup("profile"), Cur::Pointer);
@@ -314,7 +314,7 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
             if !measure {
                 let r = R::new(x, 0, w, H - 1);
                 let hov = ui.hover(r);
-                ui.cv.icon(if a.muted { "mute" } else { "speaker" }, x, cy - 7, 2, if a.muted { t.text_faint } else if hov { WHITE } else { t.text });
+                ui.cv.icon(if a.muted { "mute" } else { "speaker" }, x, cy - 7, 2, if a.muted { t.text_faint } else if hov { t.text_hi } else { t.text });
                 ui.text_in(PX, R::new(x + 19, 0, w - 19, H - 1), &s, if a.muted { t.text_faint } else { t.text });
                 ui.zone(r, Act::Popup("sound"), Cur::Pointer);
             }
@@ -336,7 +336,7 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
                     ui.cv.fill(R::new(x + i as i32 * 3, cy + 7 - hh, 2, hh), t.red);
                 }
                 let label = if me.artist.is_empty() { me.title.clone() } else { format!("{} — {}", me.artist, me.title) };
-                ui.text_in(PX, R::new(x + 20, 0, w - 20, H - 1), &label, if hov { WHITE } else { t.text_dim });
+                ui.text_in(PX, R::new(x + 20, 0, w - 20, H - 1), &label, if hov { t.text_hi } else { t.text_dim });
                 ui.zone(r, Act::Popup("sound"), Cur::Pointer);
             }
             w
@@ -354,11 +354,44 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
                 if hov {
                     ui.cv.fill(R::new(x - 4, H - 3, w + 8, 2), t.red);
                 }
-                ui.text_in(PX, R::new(x, 0, tw, H - 1), &time, if hov { WHITE } else { t.text });
+                ui.text_in(PX, R::new(x, 0, tw, H - 1), &time, if hov { t.text_hi } else { t.text });
                 if st.set.clock_date {
                     ui.text_in(PX, R::new(x + tw + 6, 0, dw, H - 1), &date, t.text_dim);
                 }
                 ui.zone(r, Act::Popup("cal"), Cur::Pointer);
+            }
+            w
+        }
+        "night" => {
+            if !measure {
+                let r = R::new(x - 2, 0, 18, H - 1);
+                let hov = ui.hover(r);
+                let c = if hov { t.text_hi } else if st.night.on { t.warn } else { t.text_faint };
+                ui.cv.icon("moon", x, cy - 7, 2, c);
+                ui.zone(r, Act::NightToggle, Cur::Pointer);
+            }
+            14
+        }
+        m if m.starts_with("x:") => {
+            // модуль-скрипт: значок 7×7 и текст его цветом роли
+            let Some(p) = st.plugins.shown.get(m) else { return 0 };
+            if p.text.is_empty() && p.icon.is_empty() {
+                return 0;
+            }
+            let icon = !p.icon.is_empty() && crate::gfx::icon7(&p.icon).is_some();
+            let tw = ui.f.width(PX, &p.text);
+            let w = if icon { 16 } else { 0 } + tw;
+            if !measure {
+                let r = R::new(x - 2, 0, w + 4, H - 1);
+                let hov = !p.click.is_empty() && ui.hover(r);
+                let c = if hov { t.text_hi } else { crate::plugins::color(&t, &p.color) };
+                if icon {
+                    ui.cv.icon(&p.icon, x, cy - 7, 2, c);
+                }
+                ui.cv.text_in(ui.f, PX, R::new(x + if icon { 16 } else { 0 }, 0, tw + 2, H - 1), &p.text, c);
+                if !p.click.is_empty() {
+                    ui.zone(r, Act::Plug(p.click.clone()), Cur::Pointer);
+                }
             }
             w
         }
@@ -368,7 +401,7 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
             if !measure {
                 let r = R::new(x - 2, 0, w + 4, H - 1);
                 let hov = ui.hover(r);
-                let c = if st.set.dnd { t.text_faint } else if hov { WHITE } else if n > 0 { t.red } else { t.text_dim };
+                let c = if st.set.dnd { t.text_faint } else if hov { t.text_hi } else if n > 0 { t.red } else { t.text_dim };
                 ui.cv.icon(if st.set.dnd { "bellx" } else { "bell" }, x, cy - 7, 2, c);
                 if n > 0 {
                     ui.text_in(PX, R::new(x + 18, 0, 30, H - 1), &n.to_string(), t.text);
@@ -429,7 +462,7 @@ fn tasks(ui: &mut Ui, st: &State, out: &str, area: R) {
             cx += 20;
         }
         let title = if w.title.is_empty() { &w.app_id } else { &w.title };
-        let c = if w.focused { WHITE } else if hidden { t.text_faint } else { t.text };
+        let c = if w.focused { t.text_hi } else if hidden { t.text_faint } else { t.text };
         ui.text_in(font::PX, R::new(cx, r.y, r.right() - cx - 6, r.h), title, c);
         ui.zone(r, Act::Task(w.id), Cur::Pointer);
         x += iw + tg;

@@ -28,6 +28,9 @@ const DEPS: &[(&str, &str, &str, bool)] = &[
     ("bsdtar", "архивы в файлах", "archives in files", false),
     ("udisksctl", "флешки и диски", "USB drives", false),
     ("git", "обновления", "updates", false),
+    ("wlsunset", "ночной свет", "night light", false),
+    ("tesseract", "текст со скриншота", "text from screenshots", false),
+    ("zbarimg", "QR-коды со скриншота", "QR codes from screenshots", false),
     ("cargo", "сборка обновлений", "building updates", false),
     ("ssh-keygen", "проверка подписи выпусков", "release signature check", false),
 ];
@@ -166,6 +169,12 @@ pub fn run(y: &Sty) -> i32 {
         }
     }
     services(y, &mut problems);
+    // новым функциям не хватает пакетов (установщик записал, обновление без sudo не поставило)
+    if let Some(n) = crate::need::load() {
+        y.section(&crate::tf!("пакеты для выбранного при установке", "packages for what the install chose"));
+        line(y, &y.warn("·"), &n.pkgs.join(" "), &crate::tf!("не стоят", "not installed"));
+        println!("   {}  {}", y.bold(&n.line()), y.dim("yami update need --run"));
+    }
     y.section(&crate::tf!("настройки", "config"));
     let (bad, unknown) = crate::config::Settings::problems(&crate::cli::file_json());
     if bad.is_empty() && unknown.is_empty() {
@@ -194,6 +203,8 @@ pub fn run(y: &Sty) -> i32 {
         y.section(&crate::tf!("диск", "disk"));
         line(y, &y.dim("·"), &crate::tf!("кеш сборки", "build cache"), &crate::tf!("{} — yami clean убирает (нужен только следующей сборке)", "{}: yami clean removes it (only the next build needs it)", crate::clean::human(cache)));
     }
+    snapshots(y);
+    println!("   {}", y.dim(&crate::tf!("игры: yami doctor games", "games: yami doctor games")));
     println!();
     if problems == 0 {
         println!(" {} {}\n", y.ok("✓"), crate::tf!("всё в порядке", "all good"));
@@ -234,4 +245,22 @@ pub fn status(y: &Sty) {
         None => crate::tf!("не проверялось", "never checked"),
     };
     line(y, &y.ok("✓"), &crate::tf!("версия", "version"), &format!("{}  ·  {upd}", if u.version.is_empty() { env!("CARGO_PKG_VERSION") } else { &u.version }));
+}
+
+/// снимки системы: yami сам откатывает только свои бинари (yami update rollback); всю систему
+/// откатывают снимки btrfs (snapper, timeshift) или zfs — показать, есть ли они и как сделать
+fn snapshots(y: &Sty) {
+    let fs = std::process::Command::new("findmnt").args(["-no", "FSTYPE", "/"]).output().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default();
+    if fs != "btrfs" && fs != "zfs" {
+        return;
+    }
+    y.section(&crate::tf!("снимки системы", "system snapshots"));
+    let tool = ["snapper", "timeshift", "zfs"].into_iter().find(|t| which(t));
+    let (mark, note) = match tool {
+        Some("snapper") => (y.ok("✓"), crate::tf!("перед большим обновлением: sudo snapper create -d 'before yami update'", "before a big update: sudo snapper create -d 'before yami update'")),
+        Some("timeshift") => (y.ok("✓"), crate::tf!("перед большим обновлением: sudo timeshift --create --comments 'before yami update'", "before a big update: sudo timeshift --create --comments 'before yami update'")),
+        Some(_) => (y.ok("✓"), crate::tf!("перед большим обновлением: sudo zfs snapshot <пул>/ROOT@yami", "before a big update: sudo zfs snapshot <pool>/ROOT@yami")),
+        None => (y.dim("·"), crate::tf!("корень на {}, но нет snapper или timeshift: систему откатить нечем", "the root is {} but there is no snapper or timeshift: nothing rolls the system back", fs)),
+    };
+    line(y, &mark, &fs, &note);
 }

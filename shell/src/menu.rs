@@ -4,7 +4,6 @@
 use crate::app::{App, SKind, State};
 use crate::font::{Fonts, PX};
 use crate::gfx::{BoxStyle, R};
-use crate::theme::WHITE;
 use crate::ui::{Act, Cur, Ui};
 use smithay_client_toolkit::seat::keyboard::{KeyEvent, Keysym};
 use smithay_client_toolkit::shell::WaylandSurface;
@@ -130,7 +129,7 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
                 ui.app_icon(&name, ic.x - 1, r.cy() - 8, 16, 1.0);
             }
         }
-        let c = if !it.enabled { t.text_faint } else if hov { WHITE } else { t.text };
+        let c = if !it.enabled { t.text_faint } else if hov { t.text_hi } else { t.text };
         ui.text_in(PX, R::new(r.x + 28, r.y, r.w - 46, r.h), &it.label, c);
         if !it.children.is_empty() {
             ui.text_right(PX, R::new(r.x, r.y, r.w - 6, r.h), "▸", t.text_dim);

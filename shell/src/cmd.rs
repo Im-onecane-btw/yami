@@ -83,6 +83,8 @@ fn help(y: &Sty, me: &str) {
     y.row("palette [name|#hex]", &crate::tf!("палитры или сменить: blood ash sakura …", "list palettes or switch: blood ash sakura …"));
     y.row("wallpaper [path]", &crate::tf!("свои обои; без пути — пиксельные из палитры", "own picture; no path: the palette's pixel art"));
     y.section(&crate::tf!("настройки", "config"));
+    y.row("theme export | import FILE", &crate::tf!("тема одним файлом: поделиться и поставить чужую (только вид)", "a theme as one file: share yours, apply others' (the look only)"));
+    y.row("export | import FILE", &crate::tf!("все настройки одним файлом: переезд на новую систему", "every setting as one file: move to a new system"));
     y.row("config …", &crate::tf!("все настройки: list get set reset check path kdl", "every setting: list get set reset check path kdl"));
     y.row("binds …", &crate::tf!("клавиши: list print write", "keybindings: list print write"));
     y.section(&crate::tf!("обслуживание", "maintenance"));
@@ -91,6 +93,8 @@ fn help(y: &Sty, me: &str) {
     y.row("update rollback", &crate::tf!("вернуть то, что было до обновления", "go back to what was there before"));
     y.row("update status | log", &crate::tf!("что стоит, откуда, последний лог", "what is installed, from where, the last log"));
     y.row("doctor", &crate::tf!("проверить зависимости и службы, сказать, чего нет", "check dependencies and services, say what is missing"));
+    y.row("doctor games", &crate::tf!("ntsync, gamemode, MangoHud: что есть и как добавить", "ntsync, gamemode, MangoHud: what is there, how to add it"));
+    y.row("report [-o FILE]", &crate::tf!("архив для issue: версии, doctor, журнал, конфиги без секретов", "an archive for an issue: versions, doctor, journal, configs without secrets"));
     y.row("clean [--dry-run]", &crate::tf!("убрать кеш сборки: исходники yami-niri и target шелла (гигабайты)", "remove the build cache: yami-niri sources and the shell's target (gigabytes)"));
     y.row("version", &crate::tf!("версии всех частей", "versions of every part"));
     y.row("shot …", &crate::tf!("панели в PNG без Wayland (разработка)", "panels to PNG without Wayland (development)"));
@@ -110,6 +114,7 @@ fn help_msg(y: &Sty) {
         ("minimize | restore", "свернуть / вернуть окно", "minimize / restore a window"),
         ("wallpaper [path] | curtain [on|off]", "обои / шторка для трансляций", "wallpaper / privacy curtain"),
         ("profile", "следующий профиль питания", "next power profile"),
+        ("night", "ночной свет вкл-выкл", "night light on-off"),
         ("reload | restart | quit", "перечитать настройки / перезапуск / выход", "reload settings / restart / quit"),
     ] {
         y.row(c, if crate::i18n::en() { en } else { ru });
@@ -135,6 +140,7 @@ fn help_update(y: &Sty) {
     y.row("update to X.Y.Z", &crate::tf!("собрать и поставить выбранный подписанный выпуск", "build and install the chosen signed release"));
     y.row("update status", &crate::tf!("версия, коммит, канал, источник", "version, commit, channel, source"));
     y.row("update log", &crate::tf!("лог последнего обновления", "the log of the last update"));
+    y.row("update need [--run]", &crate::tf!("пакеты, которых не хватает новым функциям: одна команда (--run — поставить)", "packages new features miss: one command (--run installs them)"));
     println!("\n   {}", y.dim(&crate::tf!("канал, подписи, расписание: настройки → обновления или yami config set updateChannel main", "channel, signatures, schedule: settings → updates or yami config set updateChannel main")));
     println!();
 }
@@ -240,6 +246,7 @@ fn restart(y: &Sty, force: bool) -> i32 {
 fn update(y: &Sty, args: &[&str]) -> i32 {
     let set = Settings::load();
     let notify = args.contains(&"--notify");
+    let raw = args;
     let args: Vec<&str> = args.iter().copied().filter(|a| !a.starts_with('-')).collect();
     match args.first().copied().unwrap_or("check") {
         "check" => {
@@ -369,6 +376,7 @@ fn update(y: &Sty, args: &[&str]) -> i32 {
                 0
             }
         },
+        "need" => crate::need::cli(y, raw),
         "stamp" => {
             // установщик и tools/deploy.sh: `update stamp DIR [--components "core apps …"]`
             let all: Vec<String> = std::env::args().collect();
@@ -437,7 +445,16 @@ pub fn run(args: &[String], me: &str) -> i32 {
         },
         Some("restart") => restart(&y, a.contains(&"--force")),
         Some("status") => status(&y),
+        Some("doctor") if a.get(1) == Some(&"games") => crate::gameboost::doctor(&y),
         Some("doctor") => crate::doctor::run(&y),
+        Some("report") => crate::report::run(&y, &a[1..]),
+        Some("theme") => match a.get(1) {
+            Some(&"export") => crate::bundle::run(&y, "theme-export", &a[2..]),
+            Some(&"import") => crate::bundle::run(&y, "theme-import", &a[2..]),
+            _ => crate::bundle::run(&y, "", &[]),
+        },
+        Some("export") => crate::bundle::run(&y, "export", &a[1..]),
+        Some("import") => crate::bundle::run(&y, "import", &a[1..]),
         Some("clean") => crate::clean::run(&y, &a[1..]),
         Some("palette") => palette(&y, &a[1..]),
         Some("wallpaper") => {

@@ -13,14 +13,20 @@
 
 mod act;
 mod app;
+mod ask;
 mod cfg;
+mod cmds;
+mod devices;
+mod dialogs;
 mod draw;
 mod fm;
 mod fsx;
 mod i18n;
 mod keys;
+mod mouse;
 mod menus;
 mod mime;
+mod open;
 mod ops;
 mod picons;
 mod places;
@@ -31,6 +37,7 @@ mod shot;
 mod thumbs;
 mod trash;
 mod watch;
+mod wayland;
 
 pub use yami_px::{font, gfx, icons, look, paths, theme, ui};
 

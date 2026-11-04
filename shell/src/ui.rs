@@ -45,7 +45,11 @@ pub enum Act {
     SWall(&'static str),
     /// модуль бара во вкладке «бар»: тащить (сторона, индекс), новый, убрать
     SModDrag(usize, usize),
-    SModNew(&'static str),
+    SModNew(String),
+    /// щелчок по модулю-скрипту: его команда
+    Plug(String),
+    NightToggle,
+    ReplySend,
     SModDel(usize, usize),
     SWidgetAdd(&'static str),
     SWidgetDel(u32),

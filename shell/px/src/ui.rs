@@ -5,7 +5,7 @@
 use crate::font::{self, Face, Fonts};
 use crate::gfx::{BoxStyle, Canvas, C, R};
 use crate::icons::Icons;
-use crate::theme::{Theme, CLEAR, WHITE};
+use crate::theme::{Theme, CLEAR};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Cur {
@@ -27,24 +27,46 @@ pub struct Zone<A> {
 pub struct Field {
     pub text: String,
     pub cur: usize,
+    /// весь текст выделен (Ctrl+A): ввод заменяет его, стирание убирает целиком
+    pub all: bool,
 }
 
 impl Field {
     pub fn set(&mut self, s: &str) {
         self.text = s.to_string();
         self.cur = self.text.chars().count();
+        self.all = false;
+    }
+    /// выделить всё (пустое поле выделять нечего)
+    pub fn select_all(&mut self) {
+        self.all = !self.text.is_empty();
+        self.cur = self.text.chars().count();
+    }
+    /// выделенный текст (для копирования)
+    pub fn selected(&self) -> Option<&str> {
+        self.all.then_some(self.text.as_str())
+    }
+    /// снять выделение вместе с текстом; true — было что снимать
+    fn take_all(&mut self) -> bool {
+        if self.all {
+            self.clear();
+            true
+        } else {
+            false
+        }
     }
     fn byte(&self, ci: usize) -> usize {
         self.text.char_indices().nth(ci).map(|(b, _)| b).unwrap_or(self.text.len())
     }
     pub fn insert(&mut self, s: &str) {
+        self.take_all();
         let b = self.byte(self.cur);
         let s: String = s.chars().filter(|c| !c.is_control()).collect();
         self.text.insert_str(b, &s);
         self.cur += s.chars().count();
     }
     pub fn backspace(&mut self, word: bool) {
-        if self.cur == 0 {
+        if self.take_all() || self.cur == 0 {
             return;
         }
         let chars: Vec<char> = self.text.chars().collect();
@@ -62,6 +84,9 @@ impl Field {
         self.cur = from;
     }
     pub fn delete(&mut self) {
+        if self.take_all() {
+            return;
+        }
         let n = self.text.chars().count();
         if self.cur < n {
             let (a, b) = (self.byte(self.cur), self.byte(self.cur + 1));
@@ -69,26 +94,36 @@ impl Field {
         }
     }
     pub fn left(&mut self) {
+        // как в любом поле: стрелка снимает выделение и встаёт к его краю
+        if std::mem::take(&mut self.all) {
+            self.cur = 0;
+            return;
+        }
         self.cur = self.cur.saturating_sub(1);
     }
     pub fn right(&mut self) {
+        self.all = false;
         self.cur = (self.cur + 1).min(self.text.chars().count());
     }
     pub fn home(&mut self) {
+        self.all = false;
         self.cur = 0;
     }
     pub fn end(&mut self) {
+        self.all = false;
         self.cur = self.text.chars().count();
     }
     pub fn clear(&mut self) {
         self.text.clear();
         self.cur = 0;
+        self.all = false;
     }
 
     /// стереть (пароль): байты затираются нулями, а не просто отпускаются
     pub fn wipe(&mut self) {
         wipe(&mut self.text);
         self.cur = 0;
+        self.all = false;
     }
 }
 
@@ -188,20 +223,18 @@ impl<'a, 'b, A: Action> Ui<'a, 'b, A> {
         } else {
             base.lerp(t.surface_hi, h)
         };
+        // на глубоком акценте (выбранное, «опасные») — белый в обеих темах
+        let on_deep = if crate::theme::lightness(fill) > 0.6 { crate::gfx::C::hex(0x0b0909) } else { crate::theme::WHITE };
         let fg = if !enabled {
             t.text_faint
-        } else if tone == Tone::Ghost {
-            if selected {
-                WHITE
-            } else {
-                t.text_dim.lerp(WHITE, h)
-            }
+        } else if tone == Tone::Ghost && !selected {
+            t.text_dim.lerp(t.text_hi, h)
         } else if tone == Tone::Plain && !selected {
             t.text
         } else if tone == Tone::Primary && !selected {
             t.on_accent
         } else {
-            WHITE
+            on_deep
         };
         let d = if down { 1 } else { 0 };
         if tone != Tone::Ghost || selected || hov {
@@ -245,7 +278,7 @@ impl<'a, 'b, A: Action> Ui<'a, 'b, A> {
         if on {
             self.cv.fill(R::new(b.x + 4, b.y + 4, 8, 8), t.ember);
         }
-        self.text_in(font::PX, R::new(r.x + 26, r.y + 2, r.w - 26, 20), text, if hov { WHITE } else { t.text });
+        self.text_in(font::PX, R::new(r.x + 26, r.y + 2, r.w - 26, 20), text, if hov { t.text_hi } else { t.text });
         if !hint.is_empty() {
             self.text_in(font::PX, R::new(r.x + 26, r.y + 22, r.w - 26, 16), hint, t.text_faint);
         }
@@ -272,7 +305,8 @@ impl<'a, 'b, A: Action> Ui<'a, 'b, A> {
         let face = font::PX;
         let shown: String = if password { "■".repeat(f.text.chars().count()) } else { f.text.clone() };
         let before: String = shown.chars().take(f.cur).collect();
-        let bw = self.w(face, &before);
+        // введённое — как есть, без перевода интерфейса (набранное «сон» не станет «sleep»)
+        let bw = self.f.width(face, &before);
         // прокрутка: курсор всегда виден
         let shift = (bw - (inner.w - 10)).max(0);
         self.cv.push_clip(inner);
@@ -282,7 +316,12 @@ impl<'a, 'b, A: Action> Ui<'a, 'b, A> {
             self.text_in(face, R::new(inner.x + off, inner.y, inner.w - off, inner.h), placeholder, t.text_faint);
         } else {
             let y = inner.y + (inner.h - self.f.line(face)) / 2;
-            self.text(face, inner.x - shift, y, &shown, t.text);
+            if f.all {
+                // выделение — подложка цвета выделения под всем текстом
+                let tw = self.f.width(face, &shown);
+                self.cv.fill(R::new(inner.x - shift - 1, y - 1, tw + 2, self.f.line(face) + 2), t.selection);
+            }
+            self.cv.text(self.f, face, inner.x - shift, y, &shown, if f.all { t.text_hi } else { t.text });
         }
         if focused && self.blink {
             let lh = self.f.line(face);

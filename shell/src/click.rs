@@ -40,6 +40,9 @@ impl App {
             Act::CloseModal => self.close_modal(),
             // ── бар ─────────────────────────────────────────────────────────
             Act::Launcher => self.toggle_modal(Modal::Launcher, button == RMB),
+            Act::Plug(cmd) => App::sh(&cmd),
+            Act::NightToggle => self.night_toggle(),
+            Act::ReplySend => self.reply_send(),
             Act::Power => self.toggle_modal(Modal::Power, false),
             Act::Settings => self.toggle_modal(Modal::Settings, false),
             Act::Curtain => self.curtain_cmd(""),
@@ -151,6 +154,7 @@ impl App {
                 crate::dbus::notif_closed(id, 2);
                 self.sync_notifs();
             }
+            Act::NotifAct(id, key) if key == "inline-reply" => self.reply_open(id),
             Act::NotifAct(id, key) => {
                 if !self.shot_note_action(id, &key) && !self.update_note_action(id) {
                     crate::dbus::notif_action(id, &key);

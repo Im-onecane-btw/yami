@@ -97,9 +97,13 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     } else {
         format!("{} pt", s.font_pt)
     };
-    opt_btn(ui, R::new(b.x, y, half, 26), "размер", &size, Act::SCycle(if pixel_ui { "font_size" } else { "font_pt" }));
-    opt_btn(ui, R::new(b.x + half + 20, y, half, 26), "терминал", &shown("font_mono", &s.font_mono), Act::SCycle("font_mono"));
+    opt_btn(ui, R::new(b.x, y, b.w, 26), "размер", &size, Act::SCycle(if pixel_ui { "font_size" } else { "font_pt" }));
     y += 40;
+    y = title(ui, b.x, y, b.w, "терминал");
+    opt_btn(ui, R::new(b.x, y, b.w, 26), "шрифт", &shown("font_mono", &s.font_mono), Act::SCycle("font_mono"));
+    y += 32;
+    ui.toggle(R::new(b.x, y, b.w, 40), "расширенный fastfetch", "ещё ядро, пакеты, процессор, видеокарта, память, диск, экран", s.fetch_full, Act::SBool("fetch_full"));
+    y += 48;
     y = title(ui, b.x, y, b.w, "браузер (Firefox, LibreWolf, Floorp, Zen)");
     ui.toggle(R::new(b.x, y, half, 40), "меню ПКМ в палитре", "тема браузера — твоя, не трогаем", s.browser_menus, Act::SBool("browser_menus"));
     ui.toggle(R::new(b.x + half + 20, y, half, 40), "пиксельный шрифт", "в меню и интерфейсе, не на сайтах", s.browser_font, Act::SBool("browser_font"));
