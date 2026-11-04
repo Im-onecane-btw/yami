@@ -11,14 +11,19 @@
 #   ./install.sh --lang en|ru     interface language (installer, shell, key hints)
 #   ./install.sh --palette ash    blood ash sakura amber venom ice dusk
 #   ./install.sh --look light     panel transparency: matte glass light solid
+#   ./install.sh --theme light    dark (default) or light: the shell and every app it recolours
 #   ./install.sh --font sans      app font: sans (readable, default) or pixel (Tiny5 everywhere)
 #   ./install.sh --fetch mini     fastfetch: mini (who, system, desktop; default) or full (+ hardware)
 #   ./install.sh --no-fork        packaged niri instead of yami-niri (built from source, 5–25 min)
+#   ./install.sh --no-tools       skip night light, screen text recognition and QR (wlsunset, tesseract, zbar)
+#   ./install.sh --games          GameMode and MangoHud (on by default when Steam is here)
+#   ./install.sh --no-games       leave them out
 #   ./install.sh --login          SDDM with the yami theme even if another login manager is set
 #   ./install.sh --no-login       leave the login manager alone
 #   ./install.sh --no-sudo        home directory only: no packages, no system files
 #   ./install.sh --no-anim        no animations
 #   ./install.sh --dry-run        show the plan, change nothing
+#   ./install.sh --print-packages the package lists for this distro, one per line (CI checks them)
 #   ./install.sh --no-count       do not count this install (see docs/SECURITY.md, «Install count»)
 #   ./install.sh --keep-build     keep the yami-niri sources after building it (~4 GB; removed by default)
 #   ./install.sh --no-monocraft   skip the 31 MB Monocraft font: the terminal uses Terminess (--monocraft undoes it)
@@ -75,22 +80,28 @@ MONOCRAFT_URL="https://github.com/IdreesInc/Monocraft/releases/download/v4.2.1/M
 MONOCRAFT_SHA256="67f88ff9e7c6560f6cf60fb062fd353a72f62dc2654462950c65b63ed53d9754"
 [[ -d $HOME/.cargo/bin ]] && export PATH="$HOME/.cargo/bin:$PATH"
 
-YES=0 SUDO=1 FORK_FLAG=1 LOGIN_FLAG="" PALETTE="" LOOK_OPT="" LANG_OPT="" FONT_OPT="" FETCH_OPT="" ANIM=1 DRY=0 UNINSTALL=0 UPDATE=0 COUNT=1 KEEP_BUILD=0 MONO=""
+YES=0 SUDO=1 FORK_FLAG=1 LOGIN_FLAG="" GAMES_FLAG="" TOOLS_FLAG=1 PALETTE="" LOOK_OPT="" THEME_OPT="" LANG_OPT="" FONT_OPT="" FETCH_OPT="" ANIM=1 DRY=0 UNINSTALL=0 UPDATE=0 COUNT=1 KEEP_BUILD=0 MONO="" PRINT_PKGS=0
 while (($#)); do
   case "$1" in
     -y | --yes) YES=1 ;;
     --no-sudo) SUDO=0 ;;
     --fork) FORK_FLAG=1 ;;
     --no-fork) FORK_FLAG=0 ;;
+    --games) GAMES_FLAG=1 ;;
+    --no-games) GAMES_FLAG=0 ;;
+    --tools) TOOLS_FLAG=1 ;;
+    --no-tools) TOOLS_FLAG=0 ;;
     --font) FONT_OPT="${2:-}"; shift ;;
     --fetch) FETCH_OPT="${2:-}"; shift ;;
     --login) LOGIN_FLAG=1 ;;
     --no-login) LOGIN_FLAG=0 ;;
     --palette) PALETTE="${2:-}"; shift ;;
     --look) LOOK_OPT="${2:-}"; shift ;;
+    --theme) THEME_OPT="${2:-}"; shift ;;
     --lang) LANG_OPT="${2:-}"; shift ;;
     --no-anim) ANIM=0 ;;
     --dry-run) DRY=1 ;;
+    --print-packages) PRINT_PKGS=1 ;;
     --no-count) COUNT=0 ;;
     --keep-build) KEEP_BUILD=1 ;;
     --no-monocraft) MONO=0 ;;
@@ -180,10 +191,15 @@ fi
 LOGIN_ON=1
 [[ -n $OTHER_DM ]] && LOGIN_ON=0
 [[ -n $LOGIN_FLAG ]] && LOGIN_ON=$LOGIN_FLAG
+# игры: по умолчанию — только если здесь есть Steam (пакет, flatpak или его папка)
+GAMES_ON=0
+{ command -v steam >/dev/null || [[ -d $HOME/.local/share/Steam || -d $HOME/.steam || -d $HOME/.var/app/com.valvesoftware.Steam ]]; } && GAMES_ON=1
+[[ -n $GAMES_FLAG ]] && GAMES_ON=$GAMES_FLAG
 
 # ── packages by family ──────────────────────────────────────────────────────
 # niri — the compositor; base — what the shell and the session use at runtime;
-# build — to compile the shell; apps, look — optional; nirisrc — to build niri itself
+# build — to compile the shell; apps, look — optional; games — GameMode, MangoHud;
+# tools — night light, text and QR from screenshots; nirisrc — to build niri itself
 case "$FAM" in
   arch)
     P_niri=(niri xwayland-satellite xdg-desktop-portal-gnome xdg-desktop-portal-gtk)
@@ -193,6 +209,8 @@ case "$FAM" in
     P_build=(rust gcc pkgconf)
     P_apps=(kitty fastfetch pavucontrol btop udisks2 ffmpegthumbnailer libarchive mpv gvfs gvfs-mtp gvfs-gphoto2 gvfs-afc gvfs-smb)
     P_look=(qt6ct adw-gtk-theme papirus-icon-theme)
+    P_games=(gamemode mangohud)
+    P_tools=(wlsunset tesseract tesseract-data-eng tesseract-data-rus zbar)
     P_nirisrc=(git clang pkgconf libinput libxkbcommon mesa libdisplay-info seatd pango cairo pipewire systemd-libs) ;;
   fedora)
     P_niri=(niri xwayland-satellite xdg-desktop-portal-gnome xdg-desktop-portal-gtk)
@@ -202,6 +220,8 @@ case "$FAM" in
     P_build=(rust cargo gcc pkgconf-pkg-config libxkbcommon-devel pam-devel)
     P_apps=(kitty fastfetch pavucontrol btop udisks2 ffmpegthumbnailer bsdtar mpv-libs gvfs gvfs-mtp gvfs-gphoto2 gvfs-afc gvfs-smb gvfs-fuse)
     P_look=(qt6ct adw-gtk3-theme papirus-icon-theme)
+    P_games=(gamemode mangohud)
+    P_tools=(wlsunset tesseract tesseract-langpack-eng tesseract-langpack-rus zbar)
     P_nirisrc=(git clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel
       libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel) ;;
   debian)
@@ -212,6 +232,8 @@ case "$FAM" in
     P_build=(cargo rustc gcc pkg-config libxkbcommon-dev libpam0g-dev)
     P_apps=(kitty fastfetch pavucontrol btop udisks2 ffmpegthumbnailer libarchive-tools libmpv2 gvfs gvfs-backends gvfs-fuse)
     P_look=(qt6ct adw-gtk3 papirus-icon-theme)
+    P_games=(gamemode mangohud)
+    P_tools=(wlsunset tesseract-ocr tesseract-ocr-eng tesseract-ocr-rus zbar-tools)
     P_nirisrc=(git clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev
       libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev) ;;
   suse)
@@ -222,6 +244,8 @@ case "$FAM" in
     P_build=(rust cargo gcc pkgconf libxkbcommon-devel pam-devel)
     P_apps=(kitty fastfetch pavucontrol btop udisks2 ffmpegthumbnailer bsdtar libmpv2 gvfs gvfs-backends gvfs-backend-afc gvfs-fuse)
     P_look=(qt6ct gtk3-metatheme-adwaita papirus-icon-theme)
+    P_games=(gamemode mangohud)
+    P_tools=(wlsunset tesseract-ocr tesseract-ocr-traineddata-english tesseract-ocr-traineddata-russian zbar)
     P_nirisrc=(git clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-1-devel systemd-devel
       libseat-devel pipewire-devel pango-devel cairo-devel libdisplay-info-devel) ;;
   void)
@@ -232,6 +256,8 @@ case "$FAM" in
     P_build=(rust cargo gcc pkg-config libxkbcommon-devel pam-devel)
     P_apps=(kitty fastfetch pavucontrol btop udisks2 ffmpegthumbnailer bsdtar mpv gvfs gvfs-mtp gvfs-gphoto2 gvfs-afc gvfs-smb)
     P_look=(qt6ct adw-gtk3 papirus-icon-theme)
+    P_games=(gamemode MangoHud)
+    P_tools=(wlsunset tesseract-ocr tesseract-ocr-eng tesseract-ocr-rus zbar)
     P_nirisrc=(git clang eudev-libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel
       libseat-devel pipewire-devel pango-devel libdisplay-info-devel) ;;
   alpine)
@@ -242,6 +268,8 @@ case "$FAM" in
     P_build=(rust cargo gcc musl-dev pkgconf libxkbcommon-dev linux-pam-dev)
     P_apps=(kitty fastfetch pavucontrol btop udisks2 ffmpegthumbnailer libarchive-tools mpv-libs gvfs gvfs-mtp gvfs-gphoto2 gvfs-afc gvfs-smb gvfs-fuse)
     P_look=(qt6ct adw-gtk3 papirus-icon-theme)
+    P_games=(gamemode mangohud)
+    P_tools=(wlsunset tesseract-ocr tesseract-ocr-data-rus zbar)
     P_nirisrc=(git clang eudev-dev mesa-dev libxkbcommon-dev wayland-dev libinput-dev dbus-dev libseat-dev pipewire-dev
       pango-dev libdisplay-info-dev) ;;
   gentoo)
@@ -253,10 +281,21 @@ case "$FAM" in
     P_build=(virtual/rust virtual/pkgconfig)
     P_apps=(x11-terms/kitty app-misc/fastfetch media-sound/pavucontrol sys-process/btop sys-fs/udisks media-video/ffmpegthumbnailer app-arch/libarchive media-video/mpv gnome-base/gvfs)
     P_look=(gui-apps/qt6ct x11-themes/adw-gtk3 x11-themes/papirus-icon-theme)
+    P_games=(games-util/gamemode games-util/mangohud)
+    P_tools=(gui-apps/wlsunset app-text/tesseract media-gfx/zbar)
     P_nirisrc=(dev-vcs/git llvm-core/clang dev-libs/libinput sys-auth/seatd media-libs/mesa x11-libs/pango media-libs/libdisplay-info) ;;
   *)
-    P_niri=() P_base=() P_build=() P_apps=() P_look=() P_nirisrc=() ;;
+    P_niri=() P_base=() P_build=() P_apps=() P_look=() P_games=() P_tools=() P_nirisrc=() ;;
 esac
+if ((PRINT_PKGS)); then
+  # name: packages — tools/ci-distro.sh checks that each exists in this distro's repositories
+  printf 'family: %s\n' "$FAM"
+  for a in P_niri P_base P_build P_apps P_look P_games P_tools P_nirisrc; do
+    declare -n arr=$a
+    printf '%s: %s\n' "$a" "${arr[*]}"
+  done
+  exit 0
+fi
 NIX_PKGS="niri xwayland-satellite xdg-desktop-portal-gnome xdg-desktop-portal-gtk polkit cliphist
 wl-clipboard grim slurp brightnessctl playerctl pulseaudio (python3.withPackages (p: [ p.pillow ])) noto-fonts noto-fonts-cjk-sans
 noto-fonts-color-emoji kitty fastfetch pavucontrol btop qt6ct adw-gtk3 papirus-icon-theme mpv
@@ -288,6 +327,22 @@ elif [[ -f "$SET_JSON" ]]; then
   cur="$(python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); print(round(d.get("glass",0.78)*100), round(d.get("lift",0)*100), round(d.get("inner",1)*100))' "$SET_JSON" 2>/dev/null)"
   for i in "${!LOOK_ID[@]}"; do [[ "${LOOK_GLASS[$i]} ${LOOK_LIFT[$i]} ${LOOK_INNER[$i]}" == "$cur" ]] && look=$i; done
 fi
+# ── theme: dark graphite (default) or light paper; the same palette, the whole rice follows ──
+THEME_ID=(dark light)
+theme=0 THEME_SET=0
+if [[ -n $THEME_OPT ]]; then
+  case $THEME_OPT in dark) theme=0 ;; light) theme=1 ;; *) echo "--theme: dark or light" >&2; exit 2 ;; esac
+  THEME_SET=1
+elif [[ -f "$SET_JSON" ]]; then
+  python3 -I -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("light") else 1)' "$SET_JSON" 2>/dev/null && theme=1
+fi
+theme_name() { case ${THEME_ID[$1]} in dark) t "тёмная" "dark" ;; light) t "светлая" "light" ;; esac; }
+theme_desc() {
+  case ${THEME_ID[$1]} in
+    dark) t "графит и акцент — как задумано" "graphite and the accent: the original look" ;;
+    light) t "светлая бумага, акцент темнее; GTK, Qt, kitty и курсор — тоже" "light paper, a deeper accent; GTK, Qt, kitty and the cursor follow" ;;
+  esac
+}
 # ── app font: readable sans (default) or the pixel Tiny5 everywhere; the shell stays pixel ──
 FONT_ID=(sans pixel)
 font=0
@@ -446,21 +501,30 @@ bye() { printf '\e[H\e[J  %s\n' "$(t "ну и ладно. ничего не тр
 screen() { printf '\e[H\e[J'; banner 0; }
 
 # ── components ──────────────────────────────────────────────────────────────
-C_ID=(core apps look login nvidia fork)
-C_ON=(1 1 1 "$LOGIN_ON" "$NVIDIA" "$FORK_FLAG")
+C_ID=(core apps tools games look login nvidia fork)
+C_ON=(1 1 "$TOOLS_FLAG" "$GAMES_ON" 1 "$LOGIN_ON" "$NVIDIA" "$FORK_FLAG")
+# components this installer offered last time: one that came later (games, tools) starts at its
+# default on an update instead of «off because it was not in the list»
+KNOWN_F="$STATE/components-known"
 # what was installed (the shell's `update stamp`): an update repeats the same choice
 INSTALLED="$STATE/install.json"
 COMP=""
 if ((UPDATE)) && [[ -f $INSTALLED ]]; then
   COMP="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("components",""))' "$INSTALLED" 2>/dev/null)"
   if [[ -n $COMP ]]; then
-    for i in "${!C_ID[@]}"; do [[ " $COMP " == *" ${C_ID[$i]} "* ]] && C_ON[i]=1 || C_ON[i]=0; done
+    known="$(cat "$KNOWN_F" 2>/dev/null || echo "core apps look login nvidia fork")"
+    for i in "${!C_ID[@]}"; do
+      if [[ " $COMP " == *" ${C_ID[$i]} "* ]]; then C_ON[i]=1
+      elif [[ " $known " == *" ${C_ID[$i]} "* ]]; then C_ON[i]=0; fi
+    done
   fi
 fi
 c_name() {
   case $1 in
     core) t "niri и сеанс" "niri and session" ;;
     apps) t "программы" "apps" ;;
+    tools) t "инструменты" "tools" ;;
+    games) t "игры" "games" ;;
     look) t "тема программ" "app theme" ;;
     login) t "экран входа SDDM" "SDDM login screen" ;;
     nvidia) t "фикс NVIDIA" "NVIDIA fixes" ;;
@@ -471,18 +535,25 @@ c_desc() {
   case $1 in
     core) t "niri, порталы, polkit, pipewire, сеть, bluetooth, буфер, скриншоты" "niri, portals, polkit, pipewire, network, bluetooth, clipboard, screenshots" ;;
     apps) t "kitty, fastfetch, pavucontrol, btop, udisks2, миниатюры видео, bsdtar, libmpv для плеера, gvfs: телефоны и сеть" "kitty, fastfetch, pavucontrol, btop, udisks2, video thumbnails, bsdtar, libmpv for the player, gvfs: phones and network" ;;
+    tools) t "ночной свет (wlsunset), текст и QR со скриншота (tesseract, zbar)" "night light (wlsunset), text and QR from screenshots (tesseract, zbar)" ;;
+    games) t "GameMode и MangoHud в палитре" "GameMode and MangoHud in the palette" ;;
     login) if [[ -n $OTHER_DM ]]; then t "пиксельная тема как экран блокировки; заменит $OTHER_DM" "pixel theme like the lock screen; replaces $OTHER_DM"; else t "пиксельная тема как экран блокировки, вход в niri" "pixel theme like the lock screen, logs into niri"; fi ;;
     look) t "qt6ct + adw-gtk3 + Papirus: Qt, KDE и GTK в палитре райса" "qt6ct + adw-gtk3 + Papirus: Qt, KDE and GTK in the rice palette" ;;
     nvidia) t "переменные драйвера, профиль против утечки VRAM, драйвер с начала загрузки (пароль диска виден и на DisplayPort), NVENC в OBS на старом драйвере" "driver env, a VRAM leak profile, the driver from the start of boot (disk password visible on DisplayPort too), NVENC in OBS on an old driver" ;;
     fork) t "наш niri из исходников, 5–25 мин: под этот процессор, tearing и realtime для игр; пакетный niri — запасной" "our niri from source, 5–25 min: built for this CPU, tearing and realtime for games; packaged niri stays as a fallback" ;;
   esac
 }
-needs_root() { [[ $1 == core || $1 == apps || $1 == look || $1 == login || $1 == nvidia ]]; }
+needs_root() { [[ $1 != fork ]]; }
 can() { ! needs_root "$1" || ((SUDO)); }
 on() { local i; for i in "${!C_ID[@]}"; do [[ ${C_ID[$i]} == "$1" ]] && return $((1 - C_ON[i])); done; return 1; }
+off() { local i; for i in "${!C_ID[@]}"; do [[ ${C_ID[$i]} == "$1" ]] && C_ON[i]=0; done; }
+# what was chosen, before this run drops what needs root: an update without sudo still knows
+# which packages the chosen components want (do_need_pkgs)
+C_WANT=("${C_ON[@]}")
+wants() { local i; for i in "${!C_ID[@]}"; do [[ ${C_ID[$i]} == "$1" ]] && return $((1 - C_WANT[i])); done; return 1; }
 for i in "${!C_ID[@]}"; do can "${C_ID[$i]}" || C_ON[i]=0; done
 # yami-niri needs clang and the compositor's libraries: without root they must already be there
-((SUDO)) || command -v clang >/dev/null || C_ON[5]=0
+((SUDO)) || command -v clang >/dev/null || off fork
 
 pick_lang() {
   local cur=$([[ $L == ru ]] && echo 0 || echo 1) opts=("Русский" "English") i mark style
@@ -639,6 +710,24 @@ pick_font() {
   done
 }
 
+pick_theme() {
+  local n=${#THEME_ID[@]} i mark style
+  while :; do
+    screen
+    printf '  %s%s%s%s   %s%s%s\n\n' "$T" "$B" "$(t "тема" "theme")" "$R" "$F" \
+      "$(t "↑↓ выбор · enter — дальше · потом: настройки → цвет" "↑↓ move · enter next · later: settings → color")" "$R"
+    for ((i = 0; i < n; i++)); do
+      if ((i == theme)); then mark="$A▸$R" style="$T$B"; else mark=" " style="$D"; fi
+      printf '  %s %s%s%s %s%s%s\n' "$mark" "$style" "$(pad "$(theme_name "$i")" 22)" "$R" "$F" "$(theme_desc "$i")" "$R"
+    done
+    case "$(key)" in
+      up | k | down | j) theme=$((1 - theme)) ;;
+      enter) THEME_SET=1; return 0 ;;
+      q | esc | eof) bye ;;
+    esac
+  done
+}
+
 pick_fetch() {
   local n=${#FETCH_ID[@]} i mark style
   while :; do
@@ -668,6 +757,7 @@ confirm() {
   printf '  %s■%s %s%s%s\n' "$A" "$R" "$T" "$(t "шелл, шрифты, niri, kitty, fastfetch" "shell, fonts, niri, kitty, fastfetch")" "$R"
   printf '  %s■%s %s%s: %s%s \e[48;2;%sm    %s\n' "$A" "$R" "$T" "$(t "палитра" "palette")" "$(pal_name "$pal")" "$R" "$(rgb "${PAL_HEX[$pal]}")" "$R"
   ((LOOK_SET)) && printf '  %s■%s %s%s: %s%s\n' "$A" "$R" "$T" "$(t "панели" "panels")" "$(look_name "$look")" "$R"
+  printf '  %s■%s %s%s: %s%s\n' "$A" "$R" "$T" "$(t "тема" "theme")" "$(theme_name "$theme")" "$R"
   printf '  %s■%s %s%s: %s%s\n' "$A" "$R" "$T" "$(t "шрифт программ" "app font")" "$(font_name "$font")" "$R"
   printf '  %s■%s %sfastfetch: %s%s\n' "$A" "$R" "$T" "$(fetch_name "$fetch")" "$R"
   printf '  %s■%s %s%s%s\n\n' "$A" "$R" "$T" "$(t "язык: русский" "language: English")" "$R"
@@ -980,9 +1070,10 @@ do_dotfiles() {
   # shell settings: palette, language and, when chosen, the panel look
   local lk=""
   ((LOOK_SET)) && lk="${LOOK_GLASS[$look]} ${LOOK_LIFT[$look]} ${LOOK_INNER[$look]} ${LOOK_DIM[$look]}"
-  local fe=""
+  local fe="" th=""
   ((FETCH_SET)) && fe="${FETCH_ID[$fetch]}"
-  python3 -I - "$CFG/yami-shell.json" "${PAL_ID[$pal]}" "$L" "$lk" "${FONT_ID[$font]}" "$fe" <<'PY' || return 1
+  ((THEME_SET)) && th="${THEME_ID[$theme]}"
+  python3 -I - "$CFG/yami-shell.json" "${PAL_ID[$pal]}" "$L" "$lk" "${FONT_ID[$font]}" "$fe" "$th" <<'PY' || return 1
 import json, sys
 from pathlib import Path
 p = Path(sys.argv[1])
@@ -994,6 +1085,8 @@ d["palette"], d["accent"], d["lang"] = sys.argv[2], "", sys.argv[3]
 d["fontUi"] = "" if sys.argv[5] == "pixel" else "sans"
 if sys.argv[6]:
     d["fetchFull"] = sys.argv[6] == "full"
+if sys.argv[7]:
+    d["light"] = sys.argv[7] == "light"
 if sys.argv[4]:
     for k, v in zip(("glass", "lift", "inner", "dim"), sys.argv[4].split()):
         d[k] = int(v) / 100
@@ -1007,7 +1100,9 @@ PY
     cp "$CFG/fastfetch/config.jsonc" "$CFG/fastfetch/config.jsonc.bak-$STAMP"
   fi
   # wallpaper, kitty and fastfetch colors, niri borders, cursor, fonts
-  python3 -I "$ROOT/tools/theme.py" --accent "#${PAL_HEX[$pal]}"
+  local lt=()
+  ((theme == 1)) && lt=(--light)
+  python3 -I "$ROOT/tools/theme.py" --accent "#${PAL_HEX[$pal]}" "${lt[@]}"
   # keybindings and the shell's window rules, before the first login (the shell keeps them current)
   "$BIN/yami-shell" binds write || return 1
   "$BIN/yami-shell" config kdl >"$CFG/niri/yami-fx.kdl" || return 1
@@ -1067,10 +1162,60 @@ do_count() {
 # what is installed and from where: `yami update` compares against it
 do_stamp() {
   local c="" i
-  for i in "${!C_ID[@]}"; do ((C_ON[i])) && c+="${C_ID[$i]} "; done
-  # update without sudo skips root components for this run, the choice itself stays
-  ((UPDATE)) && [[ -n ${COMP:-} ]] && c="$COMP "
-  "$BIN/yami-shell" update stamp "$ROOT" --components "${c% }"
+  # the choice, not what this run could do: an update without sudo skips root components, the
+  # choice itself stays (a component added in this version comes in at its default)
+  for i in "${!C_ID[@]}"; do ((C_WANT[i])) && c+="${C_ID[$i]} "; done
+  "$BIN/yami-shell" update stamp "$ROOT" --components "${c% }" || return 1
+  printf '%s\n' "${C_ID[*]}" >"$KNOWN_F"
+}
+
+# ── packages the chosen components want but the system lacks ───────────────
+# An update runs without sudo: it cannot install what a new version needs (night light, OCR,
+# GameMode…). It writes the package manager and the names to $STATE/packages-needed; `yami doctor`
+# and settings → updates show one command and run it in a terminal (the password stays there).
+# Only names the repositories have: one that is not packaged here is no use in the command.
+pkg_has() {
+  case $PM in
+    pacman) pacman -T "$1" >/dev/null 2>&1 ;;
+    dnf | rpm-ostree | zypper) rpm -q --whatprovides "$1" >/dev/null 2>&1 ;;
+    apt) dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q "install ok installed" ;;
+    xbps) xbps-query "$1" >/dev/null 2>&1 ;;
+    apk) apk info -e "$1" >/dev/null 2>&1 ;;
+    *) return 0 ;;
+  esac
+}
+pkg_avail() {
+  case $PM in
+    pacman) pacman -Si "$1" >/dev/null 2>&1 ;;
+    dnf) dnf -q -C info "$1" >/dev/null 2>&1 || dnf -q info "$1" >/dev/null 2>&1 ;;
+    apt) [[ -n "$(apt-cache policy "$1" 2>/dev/null | sed -n 's/^ *Candidate: //p' | grep -v '(none)')" ]] ;;
+    zypper) zypper --no-refresh -q se -x "$1" >/dev/null 2>&1 ;;
+    xbps) xbps-query -R "$1" >/dev/null 2>&1 ;;
+    apk) [[ -n "$(apk search -e "$1" 2>/dev/null)" ]] ;;
+    rpm-ostree) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+do_need_pkgs() {
+  local f="$STATE/packages-needed" want=() need=() p
+  wants core && want+=("${P_base[@]}")
+  wants apps && want+=("${P_apps[@]}")
+  wants tools && want+=("${P_tools[@]}")
+  wants games && want+=("${P_games[@]}")
+  wants look && want+=("${P_look[@]}")
+  [[ -n $PM && $PM != nix && $PM != emerge ]] || { rm -f "$f"; return 99; }
+  for p in "${want[@]}"; do
+    pkg_has "$p" && continue
+    grep -qx -- "$p" "$MISSING_F" 2>/dev/null && continue
+    pkg_avail "$p" && need+=("$p")
+  done
+  if ((${#need[@]})); then
+    mkdir -p "$STATE"
+    printf 'pm %s\npkgs %s\n' "$PM" "${need[*]}" >"$f"
+    echo "missing: ${need[*]}"
+  else
+    rm -f "$f"
+  fi
 }
 
 # ── login screen: SDDM with the yami theme ──────────────────────────────────
@@ -1284,6 +1429,7 @@ uninstall() {
     "$CFG/xdg-desktop-portal/niri-portals.conf" "$CFG/niri/yami-cursor.kdl" "$CFG/btop/themes/yami.theme"
   find "$data/icons" -maxdepth 1 -type d -regextype posix-extended -regex '.*/yami-[0-9a-f]{6}' -exec rm -rf {} + 2>/dev/null
   rm -rf "$HOME/.local/share/fonts/yami" "$HOME/.local/share/yami" "$CFG/qt6ct/qss/yami"
+  rm -f "$STATE/packages-needed" "$STATE/components-known"
   rm -f "$CFG/qt6ct/qss/yami.qss" "$CFG/qt6ct/colors/yami.conf"
   fc-cache -f >/dev/null 2>&1
   if [[ -f "$CFG/kitty/kitty.conf" ]]; then
@@ -1339,8 +1485,10 @@ if ((!YES)); then
   banner 1
   ((LANG_ASK)) && pick_lang
   pick_components
+  C_WANT=("${C_ON[@]}")
   pick_palette
   pick_look
+  pick_theme
   pick_font
   pick_fetch
   confirm
@@ -1376,6 +1524,8 @@ done
 ((SUDO)) && add "$(t "пакеты: сборка шелла" "packages: shell build deps")" pkgs "${P_build_need[@]}"
 on apps && add "$(t "пакеты: программы" "packages: apps")" pkgs "${P_apps[@]}"
 on look && add "$(t "пакеты: тема Qt и GTK" "packages: Qt and GTK theme")" pkgs "${P_look[@]}"
+on tools && add "$(t "пакеты: ночной свет, текст и QR со скриншота" "packages: night light, text and QR from screenshots")" pkgs "${P_tools[@]}"
+on games && add "$(t "пакеты: GameMode, MangoHud" "packages: GameMode, MangoHud")" pkgs "${P_games[@]}"
 on login && add "$(t "пакеты: SDDM" "packages: SDDM")" pkgs "$([[ $FAM == gentoo ]] && echo x11-misc/sddm || echo sddm)"
 if on core; then
   niri_ok || ((DRY)) || add "$(t "пакеты: сборка niri" "packages: niri build deps")" pkgs "${P_nirisrc[@]}"
@@ -1397,6 +1547,7 @@ on login && add "$(t "экран входа: тема yami для SDDM" "login s
 add "$(t "убрать старый форк dark-niri" "remove the old dark-niri fork")" do_drop_dark_niri
 old_install && add "$(t "убрать файлы под старым именем" "remove files under the old name")" do_drop_old
 add "$(t "запись об установке (для yami update)" "install record (for yami update)")" do_stamp
+add "$(t "каких пакетов ещё не хватает" "packages still missing")" do_need_pkgs
 add "$(t "счётчик установок (один раз, без данных)" "install counter (once, no data)")" do_count
 ((RUNNING_NIRI)) && add "$(t "перезапуск шелла" "restart the shell")" do_restart_shell
 
@@ -1428,6 +1579,10 @@ fi
 if [[ -s $MISSING_F ]]; then
   warn "$(t "этих пакетов нет в репозиториях" "not in the repositories") ($OS_NAME): $(sort -u "$MISSING_F" | tr '\n' ' ')"
   note "$(t "шелл работает и без них; поставь аналоги вручную, если нужно" "the shell works without them; install equivalents by hand if needed")"
+fi
+if [[ -s $STATE/packages-needed ]] && ((!DRY)); then
+  warn "$(t "для выбранного не хватает пакетов — одна команда (или настройки → обновления):" "the chosen components miss packages; one command (or settings → updates):")"
+  note "$("$BIN/yami-shell" update need --print 2>/dev/null)"
 fi
 if [[ $FAM == nixos ]]; then
   printf '\n  %s%s%s\n' "$T" "$(t "добавь в environment.systemPackages:" "add to environment.systemPackages:")" "$R"
