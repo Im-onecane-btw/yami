@@ -6,6 +6,8 @@ subjects when that section is empty).
 
 ## Unreleased
 
+## 2.4.1
+
 - Hybrid laptops: the GPU sensor no longer wakes a sleeping NVIDIA card (it shows «sleep» instead of running nvidia-smi every 3 s), and the installer leaves the NVIDIA driver out of the initramfs there
 
 ## 2.4.0
