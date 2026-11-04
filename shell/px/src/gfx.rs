@@ -347,6 +347,18 @@ impl<'a> Canvas<'a> {
             }
         }
     }
+    /// батарейка клетками, как значки icon7: корпус 10×7 с фасками и «пипкой» (11 клеток в ширину),
+    /// внутри 6 столбиков заряда; погасшие — цветом `empty`. frac > 0 зажигает хотя бы один
+    pub fn battery(&mut self, x: i32, y: i32, cell: i32, frac: f32, body: C, fill: C, empty: C) {
+        let c = |i: i32, j: i32, w: i32, h: i32| R::new(x + i * cell, y + j * cell, w * cell, h * cell);
+        for r in [c(1, 0, 8, 1), c(1, 6, 8, 1), c(0, 1, 1, 5), c(9, 1, 1, 5), c(10, 2, 1, 3)] {
+            self.fill(r, body);
+        }
+        let lit = if frac <= 0.0 { 0 } else { ((frac.min(1.0) * 6.0).ceil() as i32).max(1) };
+        for k in 0..6 {
+            self.fill(c(2 + k, 2, 1, 3), if k < lit { fill } else { empty });
+        }
+    }
     /// иконка по центру прямоугольника
     pub fn icon_in(&mut self, name: &str, r: R, cell: i32, c: C) {
         let s = 7 * cell;

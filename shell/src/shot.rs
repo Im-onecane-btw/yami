@@ -32,6 +32,7 @@ const TARGETS: &[&str] = &[
     "popup:cal",
     "popup:sound",
     "popup:net",
+    "popup:wifi",
     "popup:bt",
     "popup:sys",
     "popup:profile",
@@ -216,7 +217,13 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
             if arg == "profile" {
                 st.prof = crate::profile::Prof { present: true, active: "performance".into(), list: vec!["power-saver".into(), "balanced".into(), "performance".into()], degraded: String::new() };
             }
-            let k = ["cal", "sound", "net", "bt", "sys", "profile"].into_iter().find(|k| *k == arg).unwrap_or("cal");
+            if arg == "net" || arg == "wifi" {
+                mock_net(st, arg == "wifi");
+            }
+            if arg == "bt" {
+                mock_bt(st);
+            }
+            let k = ["cal", "sound", "net", "bt", "sys", "profile"].into_iter().find(|k| *k == arg).unwrap_or(if arg == "wifi" { "net" } else { "cal" });
             st.popup = Some(Popup { kind: k });
             crate::popups::size(k, st)
         }
@@ -407,6 +414,28 @@ fn mock_niri() -> Niri {
     n
 }
 
+/// сети образца; ask — сеть попросила пароль (поле под ней, подсказка)
+fn mock_net(st: &mut State, ask: bool) {
+    use crate::net::WifiNet;
+    let net = |ssid: &str, signal: u8, sec: &str, active: bool, known: bool| WifiNet { ssid: ssid.into(), signal, secure: !sec.is_empty(), active, known, sec: sec.into(), uuid: if known { "u".into() } else { String::new() }, mgmt: if known { "wpa-psk".into() } else { String::new() } };
+    st.net = crate::net::NetState { loaded: true, wifi_present: true, wifi_on: true, active: vec![("home".into(), "wi-fi".into(), "wlan0".into())], ..Default::default() };
+    st.net.nets = vec![net("home", 82, "WPA2", !ask, true), net("cafe-guest", 64, "", false, false), net("neighbour 5G", 41, "WPA2 WPA3", false, false), net("office", 27, "WPA2 802.1X", false, false)];
+    if ask {
+        st.net.active.clear();
+        st.net.msg = "нужен пароль".into();
+        st.wifi_target = "home".into();
+        st.wifi_pass.text = "secret".into();
+        st.wifi_pass.cur = 6;
+        st.field_focus = Some("wifi");
+    }
+}
+
+fn mock_bt(st: &mut State) {
+    use crate::net::BtDev;
+    let dev = |n: &str, icon: &str, c: bool, p: bool, b: Option<u8>| BtDev { path: format!("/org/bluez/hci0/{n}"), name: n.into(), icon: icon.into(), connected: c, paired: p, battery: b };
+    st.bt = crate::net::BtState { present: true, powered: true, adapter: "/org/bluez/hci0".into(), devices: vec![dev("headphones", "audio-headset", true, true, Some(80)), dev("mouse", "input-mouse", false, true, None), dev("speaker", "audio-card", false, false, None)], msg: "AuthenticationFailed".into(), busy: "/org/bluez/hci0/speaker".into(), ..Default::default() };
+}
+
 /// датчики образца, а не этой машины: снимки одинаковы везде и не выдают железо
 fn mock_sys(s: &mut crate::sys::Sys) {
     let wave = |i: usize, k: f32, b: f32| (b + 0.18 * ((i as f32 * k).sin() + 0.5 * (i as f32 * k * 2.7).cos())).clamp(0.02, 0.98);
@@ -420,7 +449,7 @@ fn mock_sys(s: &mut crate::sys::Sys) {
     }
     (s.cpu, s.mem, s.mem_used, s.mem_total, s.swap, s.temp, s.gpu_temp, s.disk) = (0.32, 0.41, 6.6, 16.0, 0.0, 48.0, 41.0, 0.37);
     s.iface = "wlan0".into();
-    s.bat = Some((73, true));
+    s.bat = Some(crate::sys::Bat { pct: 73, charging: true, plugged: false, mins: Some(48) });
     s.ip = "192.0.2.10".into();
     (s.rx, s.tx) = (6.1e5, 1.2e5);
 }

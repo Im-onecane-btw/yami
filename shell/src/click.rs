@@ -121,12 +121,16 @@ impl App {
             }
             Act::NetEditor => {
                 self.close_popup();
-                App::spawn(&["nm-connection-editor".into()]);
+                App::open_tool(&["nm-connection-editor"], &["nmtui"]);
+            }
+            Act::BtManager => {
+                self.close_popup();
+                App::open_tool(&["blueman-manager", "overskride"], &["bluetoothctl"]);
             }
             Act::BtPower(on) => net::bt_power(&self.st.bt.adapter.clone(), on, self.tx.clone()),
             Act::BtDev(path) => {
-                let c = self.st.bt.devices.iter().find(|d| d.path == path).map(|d| d.connected).unwrap_or(false);
-                net::bt_toggle_dev(&path, c, self.tx.clone());
+                let Some(d) = self.st.bt.devices.iter().find(|d| d.path == path).cloned() else { return };
+                net::bt_toggle_dev(d, self.tx.clone(), self.st.bt.clone());
             }
             Act::BtScan => net::bt_scan(&self.st.bt.adapter.clone(), self.tx.clone()),
             Act::Dnd => {
@@ -265,20 +269,28 @@ impl App {
         }
     }
 
-    fn open_sysmon(&self) {
-        let term = crate::launcher::term();
-        for bin in ["btop", "htop"] {
-            if which(bin) {
-                let mut v = vec![term.clone()];
-                if !term.ends_with("kitty") {
-                    v.push("-e".into());
-                }
-                v.push(bin.into());
-                App::spawn(&v);
-                return;
-            }
+    /// первая найденная графическая программа, иначе текстовая в терминале: на чистой системе
+    /// nm-connection-editor и blueman часто не стоят, а nmtui и bluetoothctl идут с сервисами
+    fn open_tool(gui: &[&str], tui: &[&str]) -> bool {
+        if let Some(g) = gui.iter().find(|b| which(b)) {
+            App::spawn(&[g.to_string()]);
+            return true;
         }
-        App::spawn(&["plasma-systemmonitor".into()]);
+        let Some(bin) = tui.iter().find(|b| which(b)) else { return false };
+        let term = crate::launcher::term();
+        let mut v = vec![term.clone()];
+        if !term.ends_with("kitty") {
+            v.push("-e".into());
+        }
+        v.push(bin.to_string());
+        App::spawn(&v);
+        true
+    }
+
+    fn open_sysmon(&self) {
+        if !App::open_tool(&[], &["btop", "htop"]) {
+            App::spawn(&["plasma-systemmonitor".into()]);
+        }
     }
 }
 

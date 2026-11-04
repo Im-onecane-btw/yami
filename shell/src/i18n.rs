@@ -70,6 +70,17 @@ fn table() -> &'static HashMap<&'static str, &'static str> {
 }
 
 const PAIRS: &[(&str, &str)] = &[
+    // ── батарея, Wi-Fi, bluetooth ──
+    ("подождите…", "wait…"),
+    ("заряжается", "charging"),
+    ("от сети", "on AC power"),
+    ("от батареи", "on battery"),
+    ("подключи зарядку", "plug in the charger"),
+    ("неверный пароль", "wrong password"),
+    ("пароль — от 8 до 63 символов", "the password is 8 to 63 characters"),
+    ("сеть с учётной записью: «все подключения»", "a network with a login: use «all connections»"),
+    ("nmcli не найден", "nmcli not found"),
+    ("нет системной шины", "no system bus"),
     // ── окно пароля polkit ──
     ("отмена", "cancel"),
     ("профиль питания", "power profile"),

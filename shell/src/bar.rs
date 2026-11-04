@@ -238,27 +238,24 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
             14
         }
         "bat" => {
-            // батарея ноутбука: нет батареи — модуля нет
-            let Some((pct, charging)) = st.sys.bat else { return 0 };
-            let txt = format!("{pct}%");
-            let bw = if charging { 16 } else { 0 };
+            // батарея ноутбука: нет батареи — модуля нет. Значок — клетками по 2 px, как все значки бара
+            let Some(bat) = st.sys.bat else { return 0 };
+            let txt = format!("{}%", bat.pct);
+            let bw = if bat.charging { 16 } else { 0 };
             let w = bw + 22 + 6 + ui.w(PX, &txt);
             if measure {
                 return w;
             }
-            let r = R::new(x, 0, w, H - 1);
+            let r = R::new(x - 2, 0, w + 4, H - 1);
             let hov = ui.hover(r);
-            let low = pct <= 15 && !charging;
-            let col = if low { t.ember } else if charging { t.ok } else { t.red };
-            if charging {
-                ui.cv.icon("bolt", x, cy - 7, 2, col);
+            let low = bat.pct <= 15 && !bat.charging && !bat.plugged;
+            let col = if low { t.ember } else if bat.charging || bat.plugged { t.ok } else { t.red };
+            if bat.charging {
+                ui.cv.icon("bolt", x, cy - 7, 2, if hov { WHITE } else { t.ok });
             }
-            // корпус 20×12 с «пипкой», заливка по заряду — целыми пикселями
-            let b = R::new(x + bw, cy - 6, 20, 12);
-            ui.cv.outline(b, if hov { t.text } else { t.text_dim }, 1);
-            ui.cv.fill(R::new(b.right(), cy - 2, 2, 4), if hov { t.text } else { t.text_dim });
-            ui.cv.fill(R::new(b.x + 2, b.y + 2, ((b.w - 4) * pct as i32 / 100).max(1), b.h - 4), col);
-            ui.text_in(PX, R::new(b.right() + 8, 0, w, H - 1), &txt, if low { t.ember } else if hov { t.text } else { t.text_dim });
+            let body = if low { t.ember } else if hov { WHITE } else { t.text_dim };
+            ui.cv.battery(x + bw, cy - 7, 2, bat.pct as f32 / 100.0, body, col, t.surface_hi.lerp(t.border, 0.45));
+            ui.text_in(PX, R::new(x + bw + 28, 0, w, H - 1), &txt, if low { t.ember } else if hov { t.text } else { t.text_dim });
             ui.zone(r, Act::Popup("profile"), Cur::Pointer);
             w
         }

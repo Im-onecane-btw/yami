@@ -66,8 +66,8 @@ pub struct Sys {
     nv_pm: Option<String>,
     /// дискретная NVIDIA спит: датчики не спрашиваем
     pub gpu_sleep: bool,
-    /// батарея ноутбука: заряд 0..100 и идёт ли зарядка; None — батареи нет
-    pub bat: Option<(u8, bool)>,
+    /// батарея ноутбука; None — батареи нет
+    pub bat: Option<Bat>,
 }
 
 /// датчики amdgpu: hwmon temp1_input (edge) и gpu_busy_percent той же карты
@@ -83,9 +83,21 @@ fn find_gpu() -> Option<(String, Option<String>)> {
     None
 }
 
+/// батарея: заряд, от сети ли, сколько минут до пустой (или до полной при зарядке)
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Bat {
+    pub pct: u8,
+    /// идёт зарядка
+    pub charging: bool,
+    /// от сети, но не заряжается: полная или держит порог (Full, Not charging)
+    pub plugged: bool,
+    pub mins: Option<u32>,
+}
+
 /// заряд батарей системы (не мышек и наушников: у них scope=Device); несколько — по энергии
-fn read_bat() -> Option<(u8, bool)> {
-    let (mut now, mut full, mut charging, mut any) = (0.0f64, 0.0f64, false, false);
+fn read_bat() -> Option<Bat> {
+    let (mut now, mut full, mut rate, mut any) = (0.0f64, 0.0f64, 0.0f64, false);
+    let (mut charging, mut plugged, mut discharging) = (false, false, false);
     for e in fs::read_dir("/sys/class/power_supply").ok()?.flatten() {
         let p = e.path();
         let rd = |k: &str| fs::read_to_string(p.join(k)).map(|s| s.trim().to_string()).unwrap_or_default();
@@ -94,7 +106,11 @@ fn read_bat() -> Option<(u8, bool)> {
         }
         let num = |k: &str| rd(k).parse::<f64>().ok();
         let (n, f) = match (num("energy_now").or(num("charge_now")), num("energy_full").or(num("charge_full"))) {
-            (Some(n), Some(f)) if f > 0.0 => (n, f),
+            (Some(n), Some(f)) if f > 0.0 => {
+                // мощность в тех же единицах, что запас: µW к µWh, µA к µAh
+                rate += if num("energy_now").is_some() { num("power_now") } else { num("current_now") }.unwrap_or(0.0).abs();
+                (n, f)
+            }
             _ => match num("capacity") {
                 Some(c) => (c, 100.0),
                 None => continue,
@@ -103,9 +119,21 @@ fn read_bat() -> Option<(u8, bool)> {
         now += n;
         full += f;
         any = true;
-        charging |= matches!(rd("status").as_str(), "Charging" | "Full");
+        match rd("status").as_str() {
+            "Charging" => charging = true,
+            "Discharging" => discharging = true,
+            "Full" | "Not charging" => plugged = true,
+            _ => {}
+        }
     }
-    any.then(|| (((now / full.max(1e-9)) * 100.0).round().clamp(0.0, 100.0) as u8, charging))
+    if !any {
+        return None;
+    }
+    // одна батарея разряжается, другая полная — значит, от батареи
+    let plugged = plugged && !discharging && !charging;
+    let left = if charging { full - now } else { now };
+    let mins = (rate > 0.0 && (charging || discharging)).then(|| (left / rate * 60.0).round() as u32).filter(|m| *m > 0 && *m < 100 * 60);
+    Some(Bat { pct: ((now / full.max(1e-9)) * 100.0).round().clamp(0.0, 100.0) as u8, charging, plugged, mins })
 }
 
 fn find_temp() -> Option<String> {

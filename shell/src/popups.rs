@@ -20,12 +20,13 @@ pub fn size(kind: &str, st: &State) -> (i32, i32) {
             (420, 44 + 56 + sinks + 60 + if apps > 0 { 30 + apps * 46 } else { 0 } + media + 50)
         }
         "net" => {
-            let wifi = if st.net.wifi_present { 40 + if st.net.wifi_on { st.net.nets.len().min(8) as i32 * 28 + if st.wifi_target.is_empty() { 0 } else { 44 } } else { 0 } } else { 0 };
+            let msg = if st.net.msg.is_empty() { 0 } else { 24 };
+            let wifi = if st.net.wifi_present { 40 + msg + if st.net.wifi_on { st.net.nets.len().min(8) as i32 * 28 + if st.wifi_target.is_empty() { 0 } else { 44 } } else { 0 } } else { 0 };
             (420, 44 + 24 + st.net.active.len().max(1) as i32 * 22 + 130 + wifi + 50)
         }
-        "bt" => (380, 44 + 40 + if st.bt.powered { st.bt.devices.len().clamp(1, 8) as i32 * 34 } else { 30 } + 50),
+        "bt" => (380, 44 + 40 + if st.bt.msg.is_empty() { 0 } else { 24 } + if st.bt.powered { st.bt.devices.len().clamp(1, 8) as i32 * 34 } else { 30 } + 50),
         "sys" => (440, 44 + 4 * 74 + 40 + 50),
-        "profile" => (340, 44 + 36 * 3 + if st.prof.degraded.is_empty() { 0 } else { 26 } + 30),
+        "profile" => (340, 44 + if st.sys.bat.is_some() { 40 } else { 0 } + if st.prof.present { 36 * 3 + if st.prof.degraded.is_empty() { 0 } else { 26 } } else { 60 } + 30),
         _ => (300, 200),
     }
 }
@@ -203,14 +204,16 @@ fn net(ui: &mut Ui, st: &State, b: R) {
         if st.net.wifi_on {
             ui.button(R::new(b.right() - 110, y, 110, 24), "искать", "search", Tone::Ghost, false, !st.net.busy, Act::WifiRescan);
         }
-        if !st.net.msg.is_empty() {
-            ui.text_in(PX, R::new(b.x + 150, y, b.w - 270, 24), &st.net.msg, t.warn);
-        }
         y += 34;
+        if !st.net.msg.is_empty() {
+            let c = if st.net.busy { t.text_dim } else { t.warn };
+            ui.text_in(PX, R::new(b.x, y - 4, b.w, 20), &st.net.msg, c);
+            y += 24;
+        }
         if st.net.wifi_on {
             for n in st.net.nets.iter().take(8) {
                 let r = R::new(b.x, y, b.w, 26);
-                ui.button(r, "", "", Tone::Ghost, n.active, true, Act::WifiNet(n.ssid.clone()));
+                ui.button(r, "", "", Tone::Ghost, n.active, !st.net.busy, Act::WifiNet(n.ssid.clone()));
                 // сила сигнала — 4 столбика
                 for k in 0..4 {
                     let on = n.signal as i32 > k * 25;
@@ -250,6 +253,10 @@ fn bt(ui: &mut Ui, st: &State, b: R) {
         ui.button(R::new(b.right() - 110, y, 110, 24), if s.discovering { "ищу…" } else { "искать" }, "search", Tone::Ghost, s.discovering, !s.discovering, Act::BtScan);
     }
     y += 36;
+    if !s.msg.is_empty() {
+        ui.text_in(PX, R::new(b.x, y - 4, b.w, 20), &s.msg, t.warn);
+        y += 24;
+    }
     if !s.powered {
         ui.text_in(PX, R::new(b.x, y, b.w, 20), "выключен", t.text_faint);
     } else if s.devices.is_empty() {
@@ -267,16 +274,16 @@ fn bt(ui: &mut Ui, st: &State, b: R) {
             };
             ui.cv.icon(icon, r.x + 8, r.cy() - 7, 2, if d.connected { t.ember } else { t.text_dim });
             ui.text_in(PX, R::new(r.x + 30, r.y, r.w - 130, r.h), &d.name, if d.connected { WHITE } else { t.text });
-            let st_txt = if d.connected { "подключено".to_string() } else if d.paired { "сопряжено".to_string() } else { "новое".to_string() };
+            let st_txt = if s.busy == d.path { "подождите…".to_string() } else if d.connected { "подключено".to_string() } else if d.paired { "сопряжено".to_string() } else { "новое".to_string() };
             let st_txt = match d.battery {
-                Some(p) => format!("{p}% · {st_txt}"),
+                Some(p) => format!("{p}% · {}", crate::i18n::tr(&st_txt)),
                 None => st_txt,
             };
             ui.text_right(PX, R::new(r.x, r.y, r.w - 8, r.h), &st_txt, t.text_faint);
             y += 34;
         }
     }
-    ui.button(R::new(b.x, b.bottom() - 28, b.w, 28), "менеджер устройств", "gear", Tone::Plain, false, true, Act::SysMon);
+    ui.button(R::new(b.x, b.bottom() - 28, b.w, 28), "менеджер устройств", "gear", Tone::Plain, false, true, Act::BtManager);
 }
 
 // ── профиль питания ─────────────────────────────────────────────────────────
@@ -284,6 +291,19 @@ fn profile(ui: &mut Ui, st: &State, b: R) {
     let t = ui.t;
     let p = &st.prof;
     let mut y = head(ui, b, p.icon(), "профиль питания", if p.present { crate::profile::label(&p.active) } else { "" });
+    if let Some(bat) = st.sys.bat {
+        // заряд, состояние и сколько осталось — то, что ноутбуку важнее профиля
+        let col = if bat.charging || bat.plugged { t.ok } else if bat.pct <= 15 { t.ember } else { t.red };
+        ui.cv.battery(b.x, y + 3, 2, bat.pct as f32 / 100.0, t.text_dim, col, t.surface_hi.lerp(t.border, 0.45));
+        let state = if bat.charging { "заряжается" } else if bat.plugged { "от сети" } else { "от батареи" };
+        let w = ui.text_in(PX, R::new(b.x + 30, y, 60, 20), &format!("{}%", bat.pct), t.text);
+        ui.text_in(PX, R::new(b.x + 30 + w + 10, y, b.w - 140, 20), state, t.text_dim);
+        if let Some(m) = bat.mins {
+            let left = if m >= 60 { crate::tf!("{} ч {} мин", "{} h {} min", m / 60, m % 60) } else { crate::tf!("{} мин", "{} min", m) };
+            ui.text_right(PX, R::new(b.x, y, b.w, 20), &left, t.text_faint);
+        }
+        y += 40;
+    }
     if !p.present {
         ui.wrap(PX, R::new(b.x, y, b.w, 60), "power-profiles-daemon не запущен: установи его и включи (systemctl enable --now power-profiles-daemon)", t.text_faint, 3);
         return;
@@ -357,19 +377,21 @@ impl App {
         }
     }
 
+    /// щелчок по сети. Подключённая — отключить; новая с паролем — сначала поле; иначе пробуем,
+    /// а если NetworkManager попросит пароль (не сохранён, лежал в KWallet живой сессии, сменили),
+    /// поток вернёт `ask` и поле откроется само (app.rs, Msg::Net)
     pub fn wifi_connect(&mut self, ssid: &str) {
-        let n = self.st.net.nets.iter().find(|n| n.ssid == ssid).cloned();
-        let Some(n) = n else { return };
+        if self.st.net.busy {
+            return;
+        }
+        let Some(n) = self.st.net.nets.iter().find(|n| n.ssid == ssid).cloned() else { return };
         if n.active {
-            crate::net::wifi_cmd(vec!["connection".into(), "down".into(), "id".into(), ssid.into()], self.tx.clone(), self.st.net.clone());
+            let by = if n.uuid.is_empty() { ["id".to_string(), n.ssid.clone()] } else { ["uuid".to_string(), n.uuid.clone()] };
+            crate::net::wifi_cmd(vec!["connection".into(), "down".into(), by[0].clone(), by[1].clone()], self.tx.clone(), self.st.net.clone());
             return;
         }
-        if n.known {
-            crate::net::wifi_cmd(vec!["connection".into(), "up".into(), "id".into(), ssid.into()], self.tx.clone(), self.st.net.clone());
-            return;
-        }
-        if n.secure && (self.st.wifi_target != ssid || self.st.wifi_pass.text.is_empty()) {
-            // сначала — пароль
+        let typed = self.st.wifi_target == ssid && !self.st.wifi_pass.text.is_empty();
+        if !n.known && n.secure && !typed && !n.sec.contains("802.1X") {
             self.st.wifi_target = ssid.to_string();
             self.st.wifi_pass.clear();
             self.st.field_focus = Some("wifi");
@@ -377,15 +399,11 @@ impl App {
             self.dirty(&SKind::Popup);
             return;
         }
-        let mut args = vec!["device".into(), "wifi".into(), "connect".into(), ssid.to_string()];
-        if n.secure {
-            args.push("password".into());
-            args.push(self.st.wifi_pass.text.clone());
-        }
+        let pass = typed.then(|| std::mem::take(&mut self.st.wifi_pass.text));
         self.st.wifi_target.clear();
         self.st.wifi_pass.clear();
         self.st.field_focus = None;
-        crate::net::wifi_cmd(args, self.tx.clone(), self.st.net.clone());
+        crate::net::wifi_connect(n, pass, self.tx.clone(), self.st.net.clone());
         self.resize_popup();
     }
 }

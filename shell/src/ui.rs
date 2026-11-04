@@ -76,6 +76,8 @@ pub enum Act {
     BtPower(bool),
     BtDev(String),
     BtScan,
+    /// полный менеджер bluetooth (blueman или bluetoothctl в терминале)
+    BtManager,
     Dnd,
     NotifClear,
     NotifDel(u32),

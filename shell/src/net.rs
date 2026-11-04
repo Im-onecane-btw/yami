@@ -16,6 +16,11 @@ pub struct WifiNet {
     pub secure: bool,
     pub active: bool,
     pub known: bool,
+    /// SECURITY из nmcli: «WPA2», «WPA2 WPA3», «WPA2 802.1X», «WEP», «OWE»…
+    pub sec: String,
+    /// сохранённый профиль этой сети: uuid и key-mgmt (wpa-psk, sae, wpa-eap, none)
+    pub uuid: String,
+    pub mgmt: String,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -27,10 +32,20 @@ pub struct NetState {
     pub active: Vec<(String, String, String)>,
     pub busy: bool,
     pub msg: String,
+    /// сети не хватило пароля: всплывашка открывает под ней поле
+    pub ask: String,
+}
+
+/// nmcli всегда по-английски: разбираем его слова («enabled», «Secrets were required»),
+/// а на русской системе он бы ответил по-русски
+fn nm() -> Command {
+    let mut c = Command::new("nmcli");
+    c.env("LC_ALL", "C").env("LANG", "C");
+    c
 }
 
 fn nmcli(args: &[&str]) -> String {
-    Command::new("nmcli").args(args).output().map(|o| String::from_utf8_lossy(&o.stdout).to_string()).unwrap_or_default()
+    nm().args(args).output().map(|o| String::from_utf8_lossy(&o.stdout).to_string()).unwrap_or_default()
 }
 
 /// разбор `nmcli -t`: двоеточия внутри полей экранированы обратной чертой
@@ -52,6 +67,42 @@ fn fields(l: &str) -> Vec<String> {
     v
 }
 
+/// сохранённые Wi-Fi профили: ssid → (uuid, key-mgmt). Имя профиля не обязано совпадать с SSID
+/// («Дом 1», переименованный), поэтому SSID спрашиваем у самих профилей — одним вызовом
+fn known_wifi() -> HashMap<String, (String, String)> {
+    let uuids: Vec<String> = nmcli(&["-t", "-f", "UUID,TYPE", "connection", "show"]).lines().map(fields).filter(|f| f.get(1).is_some_and(|t| t == "802-11-wireless")).map(|f| f[0].clone()).collect();
+    let mut out = HashMap::new();
+    if uuids.is_empty() {
+        return out;
+    }
+    let mut args: Vec<&str> = vec!["-t", "-f", "connection.uuid,802-11-wireless.ssid,802-11-wireless-security.key-mgmt", "connection", "show"];
+    args.extend(uuids.iter().map(|u| u.as_str()));
+    let (mut uuid, mut ssid, mut mgmt) = (String::new(), String::new(), String::new());
+    let mut flush = |u: &mut String, s: &mut String, m: &mut String| {
+        if !u.is_empty() && !s.is_empty() {
+            out.entry(std::mem::take(s)).or_insert((std::mem::take(u), std::mem::take(m)));
+        }
+        u.clear();
+        s.clear();
+        m.clear();
+    };
+    for l in nmcli(&args).lines() {
+        let Some((k, v)) = l.split_once(':') else { continue };
+        let v = v.replace("\\:", ":").replace("\\\\", "\\");
+        match k {
+            "connection.uuid" => {
+                flush(&mut uuid, &mut ssid, &mut mgmt);
+                uuid = v;
+            }
+            "802-11-wireless.ssid" => ssid = v,
+            "802-11-wireless-security.key-mgmt" => mgmt = v,
+            _ => {}
+        }
+    }
+    flush(&mut uuid, &mut ssid, &mut mgmt);
+    out
+}
+
 pub fn query_wifi(rescan: bool) -> NetState {
     let mut s = NetState { loaded: true, ..Default::default() };
     s.wifi_on = nmcli(&["-t", "-f", "WIFI", "general"]).trim() == "enabled";
@@ -70,7 +121,7 @@ pub fn query_wifi(rescan: bool) -> NetState {
         }
     }
     if s.wifi_present && s.wifi_on {
-        let known: Vec<String> = nmcli(&["-t", "-f", "NAME,TYPE", "connection", "show"]).lines().map(fields).filter(|f| f.get(1).map(|t| t == "802-11-wireless").unwrap_or(false)).map(|f| f[0].clone()).collect();
+        let known = known_wifi();
         let list = nmcli(&["-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "device", "wifi", "list", "--rescan", if rescan { "yes" } else { "auto" }]);
         let mut seen: HashMap<String, usize> = HashMap::new();
         for l in list.lines() {
@@ -78,7 +129,9 @@ pub fn query_wifi(rescan: bool) -> NetState {
             if f.len() < 4 || f[1].is_empty() {
                 continue;
             }
-            let n = WifiNet { active: f[0] == "*", ssid: f[1].clone(), signal: f[2].parse().unwrap_or(0), secure: !f[3].is_empty() && f[3] != "--", known: known.contains(&f[1]) };
+            let sec = if f[3] == "--" { String::new() } else { f[3].trim().to_string() };
+            let (uuid, mgmt) = known.get(&f[1]).cloned().unwrap_or_default();
+            let n = WifiNet { active: f[0] == "*", ssid: f[1].clone(), signal: f[2].parse().unwrap_or(0), secure: !sec.is_empty() && sec != "OWE", known: !uuid.is_empty(), sec, uuid, mgmt };
             if let Some(&i) = seen.get(&n.ssid) {
                 if n.signal > s.nets[i].signal || n.active {
                     s.nets[i] = n;
@@ -88,7 +141,7 @@ pub fn query_wifi(rescan: bool) -> NetState {
                 s.nets.push(n);
             }
         }
-        s.nets.sort_by(|a, b| b.active.cmp(&a.active).then(b.signal.cmp(&a.signal)));
+        s.nets.sort_by(|a, b| b.active.cmp(&a.active).then(b.known.cmp(&a.known)).then(b.signal.cmp(&a.signal)));
         s.nets.truncate(12);
     }
     s
@@ -100,20 +153,153 @@ pub fn refresh_wifi(tx: Sender<Msg>) {
     });
 }
 
+/// короткая причина из stderr nmcli (последняя строка без «Error:»)
+fn nm_err(e: &str) -> String {
+    let l = e.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("не вышло");
+    let l = l.trim().trim_start_matches("Error:").trim();
+    let l = l.rsplit_once("failed: ").map(|(_, r)| r).unwrap_or(l);
+    l.chars().take(60).collect()
+}
+
+/// нехватка секрета: пароль не сохранён, сохранён у агента (KWallet живой сессии) или неверный
+fn needs_secret(e: &str) -> bool {
+    ["Secrets were required", "no-secrets", "No secrets", "802-11-wireless-security", "password"].iter().any(|k| e.contains(k))
+}
+
+/// радио Wi-Fi и «отключиться»: команды без секретов
 pub fn wifi_cmd(args: Vec<String>, tx: Sender<Msg>, mut cur: NetState) {
     cur.busy = true;
-    cur.msg = "подключаюсь…".into();
+    cur.msg = String::new();
+    cur.ask.clear();
     let _ = tx.send(Msg::Net(cur));
     std::thread::spawn(move || {
-        let o = Command::new("nmcli").args(&args).output();
+        let o = nm().args(&args).output();
         let mut s = query_wifi(false);
         if let Ok(o) = o {
             if !o.status.success() {
-                let e = String::from_utf8_lossy(&o.stderr).to_string();
-                s.msg = if e.contains("Secrets were required") || e.contains("password") { "нужен пароль".into() } else { e.lines().last().unwrap_or("не вышло").chars().take(60).collect() };
+                s.msg = nm_err(&String::from_utf8_lossy(&o.stderr));
             }
         }
         let _ = tx.send(Msg::Net(s));
+    });
+}
+
+/// key-mgmt новой сети по её SECURITY: WPA1/2 (и переходный WPA2+WPA3) — wpa-psk, только WPA3 — sae
+fn mgmt_of(sec: &str) -> &'static str {
+    if sec.contains("802.1X") {
+        "wpa-eap"
+    } else if sec.contains("WPA1") || sec.contains("WPA2") {
+        "wpa-psk"
+    } else if sec.contains("WPA3") {
+        "sae"
+    } else if sec.contains("WEP") {
+        "none"
+    } else {
+        ""
+    }
+}
+
+/// пароль в профиль — по D-Bus (Settings.Connection.Update2), а не аргументом nmcli: командную
+/// строку видят все процессы системы. Флаги 0 — пароль хранит NetworkManager, а не агент
+/// (KWallet и подобные, которых в сеансе yami нет)
+fn nm_set_secret(uuid: &str, wep: bool, pass: &str) -> Result<(), String> {
+    let e = |x: zbus::Error| x.to_string();
+    let c = system().ok_or("нет системной шины")?;
+    let st = Proxy::new(&c, "org.freedesktop.NetworkManager", "/org/freedesktop/NetworkManager/Settings", "org.freedesktop.NetworkManager.Settings").map_err(e)?;
+    let path: OwnedObjectPath = st.call("GetConnectionByUuid", &(uuid,)).map_err(e)?;
+    let con = Proxy::new(&c, "org.freedesktop.NetworkManager", path, "org.freedesktop.NetworkManager.Settings.Connection").map_err(e)?;
+    let mut set: HashMap<String, HashMap<String, OwnedValue>> = con.call("GetSettings", &()).map_err(e)?;
+    let sec = set.entry("802-11-wireless-security".into()).or_default();
+    let (key, flags) = if wep { ("wep-key0", "wep-key-flags") } else { ("psk", "psk-flags") };
+    sec.insert(key.into(), OwnedValue::try_from(Value::from(pass)).map_err(|x| x.to_string())?);
+    sec.insert(flags.into(), OwnedValue::from(0u32));
+    if wep {
+        // 1 — ключ (10/26 hex или 5/13 символов), не парольная фраза
+        sec.insert("wep-key-type".into(), OwnedValue::from(1u32));
+    }
+    // 0x1 — сохранить на диск
+    let _: HashMap<String, OwnedValue> = con.call("Update2", &(set, 1u32, HashMap::<String, Value>::new())).map_err(e)?;
+    Ok(())
+}
+
+/// подключиться к сети. Известная — поднять её профиль (с новым паролем, если дали); новая открытая —
+/// `device wifi connect`; новая с паролем — профиль без секрета, секрет по D-Bus, затем подъём.
+/// Не хватило пароля — `ask` открывает поле под сетью; профиль, созданный этой попыткой, удаляется
+pub fn wifi_connect(n: WifiNet, pass: Option<String>, tx: Sender<Msg>, mut cur: NetState) {
+    cur.busy = true;
+    cur.msg = "подключаюсь…".into();
+    cur.ask.clear();
+    let _ = tx.send(Msg::Net(cur));
+    std::thread::spawn(move || {
+        let done = |msg: String, ask: bool| {
+            let mut s = query_wifi(false);
+            s.msg = msg;
+            if ask {
+                s.ask = n.ssid.clone();
+            }
+            let _ = tx.send(Msg::Net(s));
+        };
+        let mgmt = if n.known { n.mgmt.clone() } else { mgmt_of(&n.sec).to_string() };
+        if mgmt == "wpa-eap" {
+            // логин и пароль, сертификаты — это редактору подключений
+            return done("сеть с учётной записью: «все подключения»".into(), false);
+        }
+        if !n.known && (mgmt.is_empty() || !n.secure) {
+            let o = nm().args(["-w", "40", "device", "wifi", "connect", &n.ssid]).output();
+            return match o {
+                Ok(o) if o.status.success() => done(String::new(), false),
+                Ok(o) => done(nm_err(&String::from_utf8_lossy(&o.stderr)), false),
+                Err(_) => done("nmcli не найден".into(), false),
+            };
+        }
+        // WPA: 8–63 символа (или 64 hex); короче NetworkManager не примет — скажем сразу
+        if let Some(p) = pass.as_ref().filter(|p| !p.is_empty()) {
+            if mgmt != "none" && !(8..=64).contains(&p.chars().count()) {
+                return done("пароль — от 8 до 63 символов".into(), true);
+            }
+        }
+        let mut created = false;
+        let uuid = if n.known {
+            n.uuid.clone()
+        } else {
+            if pass.as_ref().is_none_or(|p| p.is_empty()) {
+                return done("нужен пароль".into(), true);
+            }
+            let mut a = vec!["-t", "connection", "add", "type", "wifi", "con-name", &n.ssid, "ssid", &n.ssid, "wifi-sec.key-mgmt", &mgmt];
+            a.extend(if mgmt == "none" { ["wifi-sec.wep-key-flags", "0"] } else { ["wifi-sec.psk-flags", "0"] });
+            let out = nm().args(&a).output();
+            let txt = out.as_ref().map(|o| String::from_utf8_lossy(&o.stdout).to_string()).unwrap_or_default();
+            // «Connection 'X' (uuid) successfully added.»
+            let Some(u) = txt.rsplit_once('(').and_then(|(_, r)| r.split_once(')')).map(|(u, _)| u.to_string()) else {
+                return done(out.map(|o| nm_err(&String::from_utf8_lossy(&o.stderr))).unwrap_or_else(|_| "nmcli не найден".into()), false);
+            };
+            created = true;
+            u
+        };
+        if let Some(p) = pass.as_ref().filter(|p| !p.is_empty()) {
+            if let Err(e) = nm_set_secret(&uuid, mgmt == "none", p) {
+                if created {
+                    let _ = nm().args(["connection", "delete", "uuid", &uuid]).output();
+                }
+                return done(e.chars().take(60).collect(), false);
+            }
+        }
+        let o = nm().args(["-w", "40", "connection", "up", "uuid", &uuid]).output();
+        match o {
+            Ok(o) if o.status.success() => done(String::new(), false),
+            Ok(o) => {
+                let e = String::from_utf8_lossy(&o.stderr).to_string();
+                if created {
+                    let _ = nm().args(["connection", "delete", "uuid", &uuid]).output();
+                }
+                if needs_secret(&e) {
+                    done(if pass.is_some() { "неверный пароль" } else { "нужен пароль" }.into(), true)
+                } else {
+                    done(nm_err(&e), false)
+                }
+            }
+            Err(_) => done("nmcli не найден".into(), false),
+        }
     });
 }
 
@@ -135,6 +321,12 @@ pub struct BtState {
     pub discovering: bool,
     pub adapter: String,
     pub devices: Vec<BtDev>,
+    /// что не вышло в последний раз (сопряжение, подключение)
+    pub msg: String,
+    /// устройство, с которым сейчас идёт сопряжение или подключение
+    pub busy: String,
+    /// состояние пришло от действия пользователя (а не от сигнала BlueZ): msg и busy — его
+    pub op: bool,
 }
 
 static SYS: OnceLock<Connection> = OnceLock::new();
@@ -227,19 +419,49 @@ pub fn bt_power(adapter: &str, on: bool, tx: Sender<Msg>) {
                 let _ = p.call_method("Set", &("org.bluez.Adapter1", "Powered", Value::from(on)));
             }
         }
-        let _ = tx.send(Msg::Bt(query_bt()));
+        let _ = tx.send(Msg::Bt(BtState { op: true, ..query_bt() }));
     });
 }
 
-pub fn bt_toggle_dev(path: &str, connected: bool, tx: Sender<Msg>) {
-    let p = path.to_string();
+/// короткая причина ошибки BlueZ: org.bluez.Error.AuthenticationFailed → «AuthenticationFailed»
+fn bt_err(e: &zbus::Error) -> String {
+    let t = match e {
+        zbus::Error::MethodError(name, desc, _) => desc.clone().filter(|d| !d.is_empty()).unwrap_or_else(|| name.rsplit('.').next().unwrap_or("").to_string()),
+        x => x.to_string(),
+    };
+    t.chars().take(60).collect()
+}
+
+/// подключить или отключить. Новое устройство сначала сопрягается (Pair) и становится доверенным
+/// (Trusted: потом подключается само, без вопросов), иначе Connect у новых наушников не выходит
+pub fn bt_toggle_dev(d: BtDev, tx: Sender<Msg>, mut cur: BtState) {
+    cur.busy = d.path.clone();
+    cur.msg.clear();
+    cur.op = true;
+    let _ = tx.send(Msg::Bt(cur));
     std::thread::spawn(move || {
+        let mut msg = String::new();
         if let Some(c) = SYS.get() {
-            if let Ok(px) = Proxy::new(c, "org.bluez", p, "org.bluez.Device1") {
-                let _ = px.call_method(if connected { "Disconnect" } else { "Connect" }, &());
+            let run = || -> Result<(), zbus::Error> {
+                let dev = Proxy::new(c, "org.bluez", d.path.as_str(), "org.bluez.Device1")?;
+                if d.connected {
+                    return dev.call_method("Disconnect", &()).map(|_| ());
+                }
+                if !d.paired {
+                    dev.call_method("Pair", &())?;
+                    let props = Proxy::new(c, "org.bluez", d.path.as_str(), "org.freedesktop.DBus.Properties")?;
+                    let _ = props.call_method("Set", &("org.bluez.Device1", "Trusted", Value::from(true)));
+                }
+                dev.call_method("Connect", &()).map(|_| ())
+            };
+            if let Err(e) = run() {
+                msg = bt_err(&e);
             }
         }
-        let _ = tx.send(Msg::Bt(query_bt()));
+        let mut s = query_bt();
+        s.msg = msg;
+        s.op = true;
+        let _ = tx.send(Msg::Bt(s));
     });
 }
 
@@ -249,7 +471,7 @@ pub fn bt_scan(adapter: &str, tx: Sender<Msg>) {
         let Some(c) = SYS.get() else { return };
         let Ok(p) = Proxy::new(c, "org.bluez", a, "org.bluez.Adapter1") else { return };
         let _ = p.call_method("StartDiscovery", &());
-        let _ = tx.send(Msg::Bt(query_bt()));
+        let _ = tx.send(Msg::Bt(BtState { op: true, ..query_bt() }));
         std::thread::sleep(std::time::Duration::from_secs(12));
         let _ = p.call_method("StopDiscovery", &());
         let _ = tx.send(Msg::Bt(query_bt()));

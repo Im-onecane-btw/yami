@@ -212,6 +212,8 @@ pub struct State {
     pub bt: net::BtState,
     pub wifi_pass: Field,
     pub wifi_target: String,
+    /// о низком заряде уже сказали: 1 — на 10%, 2 — на 5%; сбрасывается на зарядке
+    pub bat_warn: u8,
     pub tray: Vec<dbus::TrayItem>,
     pub locked: bool,
     pub lock_field: Field,
@@ -354,6 +356,7 @@ impl State {
             bt: net::BtState::default(),
             wifi_pass: Field::default(),
             wifi_target: String::new(),
+            bat_warn: 0,
             tray: vec![],
             locked: false,
             lock_field: Field::default(),
@@ -1056,6 +1059,21 @@ impl App {
         Duration::from_millis(if fast { 100 } else { 1000 })
     }
 
+    /// батарея садится: одно уведомление на 10% и одно на 5%, пока не поставят на зарядку
+    fn bat_check(&mut self) {
+        let Some(b) = self.st.sys.bat else { return };
+        if b.charging || b.plugged {
+            self.st.bat_warn = 0;
+            return;
+        }
+        let lvl = if b.pct <= 5 { 2 } else if b.pct <= 10 { 1 } else { 0 };
+        if lvl > self.st.bat_warn {
+            self.st.bat_warn = lvl;
+            let left = b.mins.map(|m| crate::tf!("осталось {} мин", "{} min left", m)).unwrap_or_default();
+            self.toast_note(&crate::tf!("батарея {}%", "battery {}%", b.pct), if left.is_empty() { "подключи зарядку" } else { &left });
+        }
+    }
+
     fn tick(&mut self) {
         let now = Instant::now();
         // мигание курсора ввода — раз в полсекунды
@@ -1074,6 +1092,7 @@ impl App {
             self.last_sample = now;
             self.st.sys.want_gpu = self.uses("gpu");
             self.st.sys.sample();
+            self.bat_check();
             self.st.rss = crate::sys::self_rss_mb();
             let lt = local_now();
             let sec_needed = self.st.set.clock_seconds || self.st.set.widgets.iter().any(|w| w.on && (w.kind == "clock" || w.kind == "graph" || w.kind == "net"));
@@ -1320,11 +1339,24 @@ impl App {
             }
             Msg::TrayMenu(svc, items) => self.open_tray_menu(&svc, items),
             Msg::Net(n) => {
+                // сети не хватило пароля — поле под ней, курсор в нём
+                if !n.ask.is_empty() && self.st.popup.as_ref().is_some_and(|p| p.kind == "net") {
+                    self.st.wifi_target = n.ask.clone();
+                    self.st.wifi_pass.clear();
+                    self.st.field_focus = Some("wifi");
+                }
                 self.st.net = n;
+                self.resize_popup();
                 self.dirty(&SKind::Popup);
             }
-            Msg::Bt(b) => {
+            Msg::Bt(mut b) => {
+                // сигналы BlueZ не знают, что идёт сопряжение: его состояние держим до ответа
+                if !b.op {
+                    b.msg = std::mem::take(&mut self.st.bt.msg);
+                    b.busy = std::mem::take(&mut self.st.bt.busy);
+                }
                 self.st.bt = b;
+                self.resize_popup();
                 self.dirty_where(|k| matches!(k, SKind::Popup | SKind::Bar));
             }
             Msg::Pam(ok) => self.on_pam(ok),
