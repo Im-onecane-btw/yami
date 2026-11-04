@@ -149,7 +149,7 @@ pub fn main_menu(fm: &mut Fm) -> Vec<MItem> {
     ]
 }
 
-pub fn for_place(fm: &mut Fm, path: &std::path::Path, user: bool) -> Vec<MItem> {
+pub fn for_place(path: &std::path::Path, user: bool) -> Vec<MItem> {
     let p = path.to_path_buf();
     let mut m = vec![MItem::new("открыть", "right", "", Cmd::Go(p.clone())), MItem::new("в новой вкладке", "plus", "", Cmd::OpenTab)];
     m.push(MItem::new("вставить сюда", "down", "", Cmd::PasteInto(p.clone())));
@@ -157,7 +157,6 @@ pub fn for_place(fm: &mut Fm, path: &std::path::Path, user: bool) -> Vec<MItem> 
         m.push(MItem::sep());
         m.push(MItem::new("убрать из мест", "close", "", Cmd::RemovePlace(p)));
     }
-    let _ = fm;
     m
 }
 

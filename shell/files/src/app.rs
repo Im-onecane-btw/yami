@@ -75,7 +75,6 @@ struct Press {
 pub struct App {
     conn: Connection,
     qh: QueueHandle<App>,
-    #[allow(dead_code)]
     handle: LoopHandle<'static, App>,
     tx: Sender<Ev>,
     registry: RegistryState,
@@ -760,7 +759,7 @@ impl App {
                     crate::menus::open(fm, items, xi, yi, "");
                 }
                 Act::Place(path, user) => {
-                    let items = crate::menus::for_place(fm, path, *user);
+                    let items = crate::menus::for_place(path, *user);
                     // «в новой вкладке» берёт цель из выделения: подставим путь
                     let items = items.into_iter().map(|mut it| {
                         if it.cmd == Cmd::OpenTab {

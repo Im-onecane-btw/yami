@@ -697,7 +697,6 @@ impl App {
             self.destroy(id);
         }
         for n in names {
-            let (w, h) = self.output_size(&n);
             if self.find_on(&SKind::Wall, &n).is_none() {
                 self.mk(SKind::Wall, &n, Layer::Background, "yami-wall", Anchor::all(), (0, 0), (0, 0, 0, 0), -1, KeyboardInteractivity::None);
                 // монитор появился: теперь известен его размер (обои режутся под него)
@@ -708,7 +707,6 @@ impl App {
             if self.find_on(&SKind::Bar, &n).is_none() && !self.st.bar_hidden {
                 self.mk(SKind::Bar, &n, Layer::Top, "yami-bar", Anchor::TOP | Anchor::LEFT | Anchor::RIGHT, (0, BAR_H), (0, 0, 0, 0), BAR_H, KeyboardInteractivity::None);
             }
-            let _ = (w, h);
         }
         self.sync_widgets();
         self.sync_dock();
@@ -929,8 +927,6 @@ impl App {
             s.release_pool = true;
         }
         if done_closing {
-            drop(s);
-            self.after_close();
             return;
         }
         let curtain = (s.kind == SKind::Curtain).then(|| s.output.clone());
@@ -939,9 +935,6 @@ impl App {
             self.curtain_drawn(id, &out);
         }
     }
-
-    /// панель закрылась совсем: если это была модальная — забыть её
-    fn after_close(&mut self) {}
 
     // ── блокировка ──────────────────────────────────────────────────────────
     pub fn lock_now(&mut self) {
@@ -1795,7 +1788,7 @@ impl App {
                     return;
                 }
                 if let Some(z) = self.zone_at(sid, x, y) {
-                    self.on_wheel(z.act, if d > 0.0 { 1 } else { -1 }, sid);
+                    self.on_wheel(z.act, if d > 0.0 { 1 } else { -1 });
                 }
             }
         }

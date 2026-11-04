@@ -28,7 +28,7 @@ pub enum Resolve {
 
 pub enum Ev {
     Progress { id: u32, done: u64, total: u64, name: String },
-    Conflict { id: u32, src: PathBuf, dst: PathBuf, reply: mpsc::Sender<(Resolve, bool)> },
+    Conflict { src: PathBuf, dst: PathBuf, reply: mpsc::Sender<(Resolve, bool)> },
     /// pairs: (откуда, куда) — для отмены и подсветки нового
     Done { id: u32, kind: Kind, errors: Vec<String>, pairs: Vec<(PathBuf, PathBuf)> },
 }
@@ -87,7 +87,7 @@ impl Ctx<'_> {
             Some(r) => r,
             None => {
                 let (tx, rx) = mpsc::channel();
-                (self.send)(Ev::Conflict { id: self.id, src: src.to_path_buf(), dst: dst.clone(), reply: tx });
+                (self.send)(Ev::Conflict { src: src.to_path_buf(), dst: dst.clone(), reply: tx });
                 let (r, all) = rx.recv().unwrap_or((Resolve::Cancel, false));
                 if all {
                     self.all = Some(r);

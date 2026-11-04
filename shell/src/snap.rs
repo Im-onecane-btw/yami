@@ -416,7 +416,7 @@ pub fn draw(ui: &mut Ui, st: &State, out: &str, w: i32, h: i32) {
         let lr = R::new(r.x, ly, sw, 22);
         ui.cv.pxbox(lr, &BoxStyle::new(t.panel.alpha(0.95), t.border));
         ui.cv.text_center(ui.f, PX, lr, &s, t.text);
-        toolbar(ui, st, sn, r, w, h);
+        toolbar(ui, sn, r, w, h);
     } else {
         top_bar(ui, sn, w);
     }
@@ -518,7 +518,7 @@ fn top_bar(ui: &mut Ui, sn: &Snap, w: i32) {
     ui.text_center(PX, hr, hint, t.text_dim);
 }
 
-fn toolbar(ui: &mut Ui, st: &State, sn: &Snap, sel: R, w: i32, h: i32) {
+fn toolbar(ui: &mut Ui, sn: &Snap, sel: R, w: i32, h: i32) {
     let t = ui.t;
     let bs = 30;
     let colors = Snap::colors(&t);
@@ -593,7 +593,6 @@ fn toolbar(ui: &mut Ui, st: &State, sn: &Snap, sel: R, w: i32, h: i32) {
             ui.text_center(PX, tr, tip, t.text);
         }
     }
-    let _ = st;
 }
 
 fn tip_of(a: &str) -> Option<&'static str> {

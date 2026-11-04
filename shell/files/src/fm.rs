@@ -1378,8 +1378,7 @@ impl Fm {
                     j.name = name;
                 }
             }
-            ops::Ev::Conflict { id, src, dst, reply } => {
-                let _ = id;
+            ops::Ev::Conflict { src, dst, reply } => {
                 self.dlg = Some((Dlg::Conflict { src, dst, all: false, reply }, Instant::now()));
             }
             ops::Ev::Done { id, kind, errors, pairs } => {

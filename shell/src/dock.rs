@@ -394,8 +394,7 @@ impl App {
             if self.find(&SKind::DockEdge).is_empty() {
                 let (ew, eh) = if vert { (2, h) } else { (w, 2) };
                 let m = if self.st.set.dock_side == "top" { top_m } else { 0 };
-                let id = self.mk(SKind::DockEdge, &out, Layer::Top, "yami-dock-edge", anchor, (ew, eh), (m, 0, 0, 0), -1, KeyboardInteractivity::None);
-                let _ = id;
+                self.mk(SKind::DockEdge, &out, Layer::Top, "yami-dock-edge", anchor, (ew, eh), (m, 0, 0, 0), -1, KeyboardInteractivity::None);
             }
         }
     }

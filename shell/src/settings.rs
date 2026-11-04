@@ -511,7 +511,7 @@ fn tab_dock(ui: &mut Ui, st: &State, b: R) {
     y += 50;
     y = title(ui, b.x, y, b.w, "закреплённые");
     let mut x = b.x;
-    for (i, id) in s.dock_pins.iter().enumerate() {
+    for id in s.dock_pins.iter() {
         let Some(a) = st.apps.iter().find(|a| &a.id == id) else { continue };
         let r = R::new(x, y, 30, 30);
         if x + 30 > b.right() {
@@ -521,7 +521,6 @@ fn tab_dock(ui: &mut Ui, st: &State, b: R) {
         ui.cv.pxbox(r, &BoxStyle::new(if hov { t.surface_hi } else { t.surface }, if hov { t.red } else { t.border }));
         ui.app_icon(&a.icon, r.x + 3, r.y + 3, 24, 1.0);
         ui.zone(r, Act::DockPin(id.clone(), 0), Cur::Pointer);
-        let _ = i;
         x += 36;
     }
     ui.text_in(PX, R::new(b.x, y + 36, b.w, 18), "щелчок — убрать · порядок и закрепление — ПКМ по значку в доке", t.text_faint);

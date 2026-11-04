@@ -164,9 +164,7 @@ fn sound(ui: &mut Ui, st: &State, b: R) {
         ui.cv.fill(R::new(b.x, y, b.w, 1), t.border);
         y += 10;
         widgets::media_card(ui, st, R::new(b.x, y, b.w, 150), "bars", t.red, true);
-        y += 160;
     }
-    let _ = y;
     ui.button(R::new(b.x, b.bottom() - 28, b.w, 28), "микшер pavucontrol", "speaker", Tone::Plain, false, true, Act::Pavu);
 }
 

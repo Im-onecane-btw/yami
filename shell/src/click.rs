@@ -3,7 +3,6 @@
 
 use crate::app::{App, Modal, SKind};
 use crate::gfx::R;
-use crate::menu::MenuState;
 use crate::ui::Act;
 use crate::{audio, media, net};
 
@@ -213,7 +212,7 @@ impl App {
         self.dirty_all();
     }
 
-    pub fn on_wheel(&mut self, a: Act, d: i32, sid: u32) {
+    pub fn on_wheel(&mut self, a: Act, d: i32) {
         let up = d < 0;
         match a {
             Act::Popup("sound") | Act::VolSlider | Act::VolMute => audio::step_volume(if up { 1 } else { -1 }),
@@ -260,8 +259,6 @@ impl App {
             }
             _ => {}
         }
-        let _ = sid;
-        let _ = MenuState::new;
     }
 
     fn open_sysmon(&self) {

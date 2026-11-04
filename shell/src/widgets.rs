@@ -555,13 +555,10 @@ impl App {
                         self.move_surface(sid, x, y);
                     }
                     if let Some(s) = self.surfs.get_mut(&sid) {
-                        let mut changed = false;
                         if s.w != ww || s.h != wh {
                             s.layer.set_size(ww as u32, wh as u32);
-                            changed = true;
                         }
                         s.layer.set_layer(if raised { Layer::Top } else { Layer::Bottom });
-                        let _ = changed;
                         s.layer.commit();
                         s.dirty = true;
                     }
