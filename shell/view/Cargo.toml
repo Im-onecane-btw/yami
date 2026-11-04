@@ -1,6 +1,6 @@
 [package]
 name = "yami-view"
-version = "2.4.2"
+version = "2.4.3"
 edition = "2021"
 description = "Fast pixel-art image viewer and quick editor of the yami shell"
 license = "MIT"
