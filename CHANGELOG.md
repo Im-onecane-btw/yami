@@ -6,6 +6,25 @@ subjects when that section is empty).
 
 ## Unreleased
 
+- Light theme: settings → color → theme (or `install.sh --theme light`). The same palette on light paper with a deeper accent that stays readable; GTK (adw-gtk3 and `prefer-light`), Qt, KDE, kitty, btop, Firefox menus, the cursor, the lock and login screens and the light/dark icon variant (Papirus, Gruvbox-Plus) follow it
+- Effects in settings → look: five reveal patterns (dither, scanlines, noise, diagonal, blocks), the cell size, the closing animation on or off, CRT scanlines over shell panels. The default dither is 1.7× faster than before (0.6 ms for a full 1080p frame)
+- Launcher: a calculator (`2+2*3`, `=sqrt(2)`, Enter copies), open windows and settings places in the results (`vrr` → screens), `>` runs a command in a terminal, `/` finds files in your home folder, `?` lists settings; Ctrl+A selects the search, Ctrl+C copies it. Typed text is no longer passed through the interface translation
+- Games: ntsync for Proton (`PROTON_USE_NTSYNC=1` when `/dev/ntsync` exists), the focused game registered with GameMode; `yami doctor games` shows what the system has and one install command for the rest. The games tab is grouped by what each switch touches: game windows, while you play, Proton and the driver
+- MangoHud in the palette and the pixel font (only when the config is not your own)
+- Bar modules from scripts: an executable in `~/.config/yami/modules/` prints text or JSON (`text icon color click interval`) and becomes a bar module
+- Night light through wlsunset (by coordinates or by the clock) with a `night` bar module
+- Reply from a notification for messengers that offer it (`inline-reply`)
+- Session restore (off by default): the programs that were open come back on their workspaces at the next login
+- Screenshots: a colour picker tool (hex to the clipboard), text recognition (tesseract) and QR codes (zbarimg) from the selection
+- `yami theme export | import FILE` shares a look as one file (never commands or scripts); `yami export | import FILE` moves every setting to a new system (commands only with `--yes`)
+- `yami report` packs versions, doctor, this boot's journal and configs for an issue, with passwords, tokens, the home path, user and host scrubbed
+- `yami doctor` mentions btrfs/zfs snapshots (snapper, timeshift) before big updates
+- CI: every distro family the installer supports (Arch, Fedora, Debian, Ubuntu, openSUSE, Void, Alpine) checks the package names, builds the workspace and runs the installer's dry run; `install.sh --print-packages` prints the lists
+- Installer: two new components with flags: `tools` (night light, text and QR from screenshots: wlsunset, tesseract, zbar; `--no-tools`) and `games` (GameMode, MangoHud; on when Steam is installed, `--games`/`--no-games`). An update keeps the choice and turns a newly added component on at its default; since updates run without sudo, the packages a new version wants are listed in settings → updates with an **install** button, in `yami doctor` and `yami update need [--run]`
+- Settings: tabs sorted by meaning (screens next to windows), desk mode and title bars moved to windows, the cursor to look, the terminal font and fastfetch to fonts; the night light says what it needs and hides the hours when it follows the sun; a long value no longer runs over its label
+- Security: `yami import` writes only the files `yami export` makes (a crafted file could drop anything into `~/.config`, autostart included); reassigned keys and the file manager's terminal come in only with `--yes`; key names, font names, app-ids and bar script names from the settings file are checked before they reach niri, kitty, GTK or Qt configs (a font name with a line break could add a command to kitty.conf through `yami theme import`); `yami report` and screen text recognition use a private 0700 folder instead of a predictable one in /tmp, and the report hides coordinates, servers and key commands
+- Code: app.rs, the file manager's fm.rs, draw.rs and app.rs, settings.rs, snap.rs and update.rs split into smaller modules; Firefox menus got their shadow back (the CSS colour was written in the wrong order and was invisible)
+
 ## 2.4.3
 
 - Disk: after a successful yami-niri build the installer removes its sources and build cache (~4 GB; the installed binary does not need them, the next build fetches them again). `--keep-build` or `YAMI_KEEP_BUILD=1` keeps them; a tree with your own edits or commits is never touched

@@ -52,8 +52,9 @@ Everything it does and its flags: [Installation](#installation).
 - **Pixel dock.** Pinned apps and open windows on any edge, window markers, a hover animation to
   choose (grow, wave, lift or none) that steps in whole pixels, a stepped bounce on launch; never, smart (empty workspace) or always hidden.
 - **Screenshots.** `Print` freezes the screen under a pixel overlay: area, window or monitor, a
-  loupe with a colour picker, pen, frame, arrow, marker, mosaic and numbered badges; copies and/or
-  saves, the notification has a thumbnail and open / show-in-folder.
+  loupe, pen, frame, arrow, marker, mosaic and numbered badges, a colour picker that copies hex,
+  text recognition (tesseract) and QR codes (zbarimg) from the selection; copies
+  and/or saves, the notification has a thumbnail and open / show-in-folder.
 - **yami-files.** A file manager in the same pixels: tabs, split view, icons and details, places,
   devices (drives through udisks2, phones and cameras over MTP/PTP, iPhone), network shares
   (smb, sftp, ftp, WebDAV, nfs: «connect to a server», addresses remembered without passwords), freedesktop trash, copy/move with progress and conflicts, undo, drag and
@@ -78,7 +79,9 @@ Everything it does and its flags: [Installation](#installation).
   packaged niri stays as an automatic fallback. See [fork/README.md](fork/README.md).
 - **Games.** Settings → games: game windows open fullscreen with VRR (and tearing on yami-niri),
   a big shader cache; while a game has focus notifications wait quietly and the power profile
-  switches to «performance»; the shell stops redrawing what the game covers.
+  switches to «performance»; the shell stops redrawing what the game covers. It finds and uses what
+  the system has on any distro: ntsync for Proton, GameMode for the focused game, MangoHud in the
+  palette (`yami doctor games` lists it all).
 - **Every key rebindable.** Settings → keys: all niri and shell bindings by category, press the
   new keys right there (even ones niri itself uses), conflicts are freed and named, add your own
   commands. Keyboard layouts too: by default they follow the system languages (an English system
@@ -106,7 +109,17 @@ Everything it does and its flags: [Installation](#installation).
 - **Your fonts.** Settings → fonts: any font for the shell, separately for yami-files and
   yami-view, for GTK/Qt apps (readable sans by default, or pixel everywhere) and the terminal.
 - **Pixel motion.** Panels and windows dissolve in on a Bayer dither grid, matching niri's custom
-  window-open shaders.
+  window-open shaders. Settings → look offers four more patterns (scanlines, noise, diagonal,
+  blocks), the cell size, an instant close and CRT scanlines over the panels.
+- **Light or dark.** One switch (settings → color, or `install.sh --theme light`) turns the whole
+  rice light: the shell, GTK/Qt/KDE, kitty, the cursor, the lock and login screens.
+- **A launcher that does more.** Type `2+2*3` for an answer, an app or a window title, `vrr` to land
+  on that setting, `>cmd` to run a command, `/name` to find a file at home.
+- **Your own bar modules.** Any script in `~/.config/yami/modules/` that prints text or JSON
+  becomes a module (weather, crypto, GitHub, anything); see [docs/CONFIG.md](docs/CONFIG.md).
+- **Small comforts.** Reply to a message right from its notification, a night light (wlsunset),
+  the programs of your last session reopened at login (opt-in), themes shared as one file
+  (`yami theme export | import`) and the whole setup moved to a new system (`yami export | import`).
 - **Bilingual.** English and Russian interface, switchable live in settings.
 - **Portable installer.** One script for Arch, Fedora (including atomic), Debian/Ubuntu,
   openSUSE, Void, Alpine, Gentoo and NixOS.
@@ -179,6 +192,8 @@ in the finished desktop. Useful flags:
 | `--font sans\|pixel` | app font: readable sans (default) or the pixel Tiny5 everywhere |
 | `--fetch mini\|full` | fastfetch: who, system and desktop (default) or with the hardware too |
 | `--no-fork` | keep the packaged niri instead of building yami-niri |
+| `--no-tools` | leave out night light, text and QR from screenshots (wlsunset, tesseract, zbar) |
+| `--games`, `--no-games` | GameMode and MangoHud (on by default when Steam is installed) |
 | `--login`, `--no-login` | SDDM with the yami theme even if another login manager is set / leave it alone |
 | `--no-sudo` | home directory only: no packages, no system files |
 | `--dry-run` | print the plan, change nothing |
@@ -285,8 +300,12 @@ yami wallpaper ~/x.png        # own wallpaper; no path: the palette's pixel art
 yami restart                  # restart the shell (waits while a game has focus)
 yami status                   # what runs: shell, portal, niri, the last update check
 yami doctor                   # which programs and D-Bus services are there, what is missing and what it costs
+yami doctor games             # ntsync, gamemode, MangoHud: what is there, how to add the rest
+yami report                   # an archive for an issue: versions, doctor, journal, configs without secrets
+yami theme export ~/my.yami   # the look as one file (import: yami theme import FILE)
+yami export ~/all.yami        # every setting as one file for a new system (yami import FILE)
 yami version                  # every part, the installed commit, the update channel
-yami update                   # what is new; apply | list | to X.Y.Z | rollback | status | log
+yami update                   # what is new; apply | list | to X.Y.Z | rollback | status | log | need
 ```
 
 ## Updates
@@ -296,7 +315,9 @@ release is out; installing is always your click. The updater keeps its own clone
 `~/.local/share/yami/src`, builds the new version from source with `install.sh --update`
 (settings kept, no sudo) and keeps the previous binaries for `yami update rollback`. Channels:
 **releases** (`vX.Y.Z` tags) or **every commit** of `main`. The tab shows a small console with the
-update log and a progress bar while it runs.
+update log and a progress bar while it runs. An update needs no sudo, so when a new version wants
+packages (a new feature's helper) the tab shows them with an **install** button that runs one
+`sudo` command in a terminal (`yami update need`, also in `yami doctor`).
 
 Going back is a choice, not a single click: **roll back** opens a list with the previous build
 (instant) and the signed releases (`yami update list`, `yami update to 2.1.0`), and only
@@ -338,7 +359,7 @@ yami-shell binds list                  # keybindings: id, keys, action
 - **IPC**: `yami-shell msg <command>`, where the command is one of `launcher`, `clipboard`,
   `power`, `settings`, `lock`, `bar`, `stacking`, `minimize`, `restore`, `edit`, `reload`,
   `restart`, `quit`, `settings TAB`, `profile` (next power profile), `popup cal|sound|net|bt|sys|profile`, `screenshot [area|window|screen]`,
-  `wallpaper [PATH]` (no path: the generated pixel wallpaper), `curtain [on|off]` (privacy curtain).
+  `wallpaper [PATH]` (no path: the generated pixel wallpaper), `curtain [on|off]` (privacy curtain), `night` (night light on/off).
 - **yami-files**: `~/.config/yami-files.json` (also from its ≡ menu → settings). `yami-files
   --pick open|save|dir …` is the dialog the portal runs; `yami-files --portal` is the portal and
   FileManager1 service, started by D-Bus.

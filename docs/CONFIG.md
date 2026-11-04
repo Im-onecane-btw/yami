@@ -32,9 +32,13 @@ yami wallpaper ~/Pictures/x.png           # no path: the palette's pixel wallpap
 yami restart                              # restart the shell (refuses while a game has focus; --force)
 yami status                               # shell, portal, niri, last update check
 yami doctor                               # programs, D-Bus services, config: what is missing and what it costs
+yami doctor games                         # ntsync, gamemode, MangoHud: what is there, one command for the rest
+yami report [-o FILE]                     # versions, doctor, this boot's journal, configs in a tar.gz for an issue (secrets scrubbed)
+yami theme export FILE | import FILE      # the look as one file: palette, effects, fonts, bar, widgets, wallpaper (never commands)
+yami export FILE | import FILE [--yes]    # every setting as one file; user.kdl, custom keys and bar scripts only with --yes
 yami clean [--dry-run]                    # remove the build cache (yami-niri sources, the shell's target: gigabytes); --force also drops a tree with your patch work
 yami version                              # every part with the installed commit
-yami update [check|apply|list|to X.Y.Z|rollback|status|log]
+yami update [check|apply|list|to X.Y.Z|rollback|status|log|need]
 yami msg <command>                        # raw shell command (yami help msg)
 yami-shell config list                    # every key = value; * marks what differs from the default
 yami-shell config get dockPins
@@ -63,6 +67,11 @@ yami-shell binds list | print | write     # keybindings
 | `blurShell`, `blurTerm` | `true` | niri blur under the shell's panels / terminals |
 | `animations` | `true` | Bayer dissolve, panel motion; off everywhere when false |
 | `animSpeed` | `1.0` | duration multiplier: 0.5 faster, 2 slower |
+| `light` | `false` | light theme: paper instead of graphite, the accent deepened until it reads; theme.py switches GTK (adw-gtk3, `prefer-light`), Qt, KDE, kitty, btop, the cursor and the light icon variant with it |
+| `reveal` | `"dither"` | how panels appear: `dither` (Bayer 4×4), `scan` (interlaced lines), `noise`, `wipe` (diagonal with a dithered edge), `blocks` (Bayer, double cells) |
+| `revealGrain` | `1` | cell size of the reveal, 1–4 |
+| `animClose` | `true` | panels close with the reveal backwards; off: they vanish at once |
+| `scanlines` | `false` | every second line of the shell's panels a little darker, like an old monitor |
 | `wallpaper` | `""` | path to your own image (PNG, JPEG, WebP); empty: the generated pixel wallpaper |
 | `wallFit` | `"fill"` | `fill`: cover the screen, crop the rest; `fit`: the whole image, margins in the background colour |
 | `wallPixel` | `1` | pixel cells of your image: 1 as is, 2…8 → cells of 2, 3, 4, 6, 8, 12, 16 px |
@@ -127,6 +136,11 @@ yami-shell binds list | print | write     # keybindings
 | `curtainStyle` | `"blur"` | what stream viewers see while the screen is hidden (Mod+Shift+H), no labels: `blur` the frozen screen blurred, `pixels` in big pixels, `wall` the wallpaper |
 | `curtainCell` | `24` | pixel size of `pixels` |
 | `lockAfter`, `screenOffAfter` | `10`, `15` | idle minutes; 0: never |
+| `sessionRestore` | `false` | at login, start the programs that were open last time and put their first window back on its monitor and workspace (snapshot in `~/.local/state/yami/session.json`; games stay out) |
+| `night` | `false` | night light through wlsunset |
+| `nightTemp` | `4000` | evening colour temperature, K (2500–6000) |
+| `nightGeo` | `""` | `"lat, lon"`: from sunset to sunrise there; empty: by the clock |
+| `nightOnH`, `nightOffH` | `20`, `7` | the clock: warm from / until this hour |
 | `dnd`, `notifTimeout` | `false`, `7` | do not disturb; seconds a notification stays |
 
 ### Games
@@ -140,6 +154,11 @@ yami-shell binds list | print | write     # keybindings
 | `gameDnd` | `true` | notifications wait in the history while a game or any fullscreen window has focus |
 | `gameProfile` | `true` | «performance» power profile while a game has focus, the previous one after |
 | `gameApps` | `""` | your games' app-ids, comma separated; `name*` matches the start |
+| `gameNtsync` | `true` | `PROTON_USE_NTSYNC=1` for Proton when the kernel has `/dev/ntsync` (from the next login) |
+| `gameGamemode` | `true` | the focused game is registered with gamemoded (no `gamemoderun %command%` needed) |
+
+MangoHud gets a config in the palette and the pixel font (`~/.config/MangoHud/MangoHud.conf`) as
+long as its first line is yami's; delete that line and theme.py never touches it again.
 
 ### Services
 
@@ -172,6 +191,12 @@ what passes `updateVerify`). Before switching to an older version the settings a
 next switch to a version at least as new. A switch to a whole version also rebuilds yami-niri at
 that version's level (from the next login).
 
+An update runs without sudo. When the components chosen at install time (`tools`, `games`, …)
+want packages the system lacks — a new version brought a feature with a helper program — the
+installer writes them to `~/.local/state/yami/packages-needed`; `yami update need` prints one
+`sudo` command (`--run` runs it), `yami doctor` and settings → updates show it too, the tab with an
+**install** button that opens it in a terminal. Only package names the repositories have go there.
+
 | Key | Default | Meaning |
 |---|---|---|
 | `updateCheck`, `updateEvery` | `true`, `24` | check by itself every N hours (only a check and a card: installing is your click) |
@@ -191,6 +216,24 @@ that version's level (from the next login).
 Keys are written as niri does: `Mod` (Super), `Ctrl`, `Alt`, `Shift`, then a key name (`Q`,
 `Slash`, `Page_Up`, `Print`, `XF86AudioMute`, `WheelScrollDown`). Anything the table cannot
 express goes into `~/.config/niri/user.kdl` in plain niri syntax, which wins.
+
+### Bar modules from scripts
+
+An executable file in `~/.config/yami/modules/<name>` becomes the bar module `x:<name>` (settings
+→ bar lists it with the built-in ones). The script prints a line on every update, plain text or
+JSON; a script that keeps running streams lines, one that exits is run again after `interval`
+seconds (10 by default).
+
+```sh
+#!/bin/sh
+# ~/.config/yami/modules/weather: a 7×7 icon, the text, a theme colour, a click, every 10 minutes
+t=$(curl -fs 'https://wttr.in/?format=%t' || echo '?')
+printf '{"text":"%s","icon":"temp","color":"accent","click":"xdg-open https://wttr.in","interval":600}\n' "$t"
+```
+
+`color` is a theme role: `accent` `bright` `ok` `warn` `text` `dim`. `icon` is one of the shell's
+7×7 icons, e.g. `cpu` `ram` `temp` `net` `wifi` `bt` `bell` `clock` `cal` `music` `play` `power`
+`bolt` `leaf` `moon` `sun` `gauge` `chart` `drop` `folder` `image` `camera` `lock` `user` `gear`.
 
 ### Widgets
 
