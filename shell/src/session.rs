@@ -36,10 +36,14 @@ fn skip(app_id: &str) -> bool {
     app_id.is_empty() || app_id.starts_with("steam_app_") || app_id == "gamescope" || app_id.starts_with("yami-")
 }
 
-/// niri запущен меньше двух минут назад: это вход, а не перезапуск шелла
+/// niri запущен меньше двух минут назад: это вход, а не перезапуск шелла. Метка в runtime-папке
+/// (на этот niri) — второй раз не восстанавливаем, даже если шелл упал и поднялся в эти две минуты
 fn fresh() -> bool {
     let Some(sock) = std::env::var_os("NIRI_SOCKET") else { return false };
-    std::fs::metadata(sock).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_some_and(|e| e < Duration::from_secs(120))
+    let young = std::fs::metadata(&sock).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_some_and(|e| e < Duration::from_secs(120));
+    let Some(name) = std::path::Path::new(&sock).file_name() else { return false };
+    let mark = crate::ipc::path().with_file_name(format!("yami-restored-{}", name.to_string_lossy()));
+    young && std::fs::OpenOptions::new().write(true).create_new(true).open(mark).is_ok()
 }
 
 impl App {
