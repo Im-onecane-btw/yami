@@ -123,6 +123,8 @@ pub struct Surf {
 
 pub struct LockSurf {
     pub s: SessionLockSurface,
+    /// монитор: по нему видно, у какого вывода экрана блокировки ещё нет
+    pub wl: wl_output::WlOutput,
     pub output: String,
     pub w: i32,
     pub h: i32,
@@ -710,6 +712,7 @@ impl App {
         }
         self.sync_widgets();
         self.sync_dock();
+        self.sync_lock_surfs();
     }
 
     pub fn toggle_bar(&mut self) {
@@ -947,18 +950,28 @@ impl App {
         self.st.lock_status.clear();
         match self.lock_state.lock(&self.qh) {
             Ok(l) => {
-                for o in self.outputs.outputs().collect::<Vec<_>>() {
-                    let name = self.outputs.info(&o).and_then(|i| i.name.clone()).unwrap_or_default();
-                    let surface = self.compositor.create_surface(&self.qh);
-                    let sid = LOCK_BASE + self.lock_surfs.len() as u32;
-                    let frac = self.frac_mgr.as_ref().map(|m| m.get_fractional_scale(&surface, &self.qh, sid));
-                    let vp = self.viewporter.as_ref().map(|v| v.get_viewport(&surface, &self.qh, ()));
-                    let ls = l.create_lock_surface(surface, &o, &self.qh);
-                    self.lock_surfs.push(LockSurf { s: ls, output: name, w: 0, h: 0, pool: None, zones: vec![], dirty: false, scale: 1.0, frac, vp });
-                }
                 self.lock = Some(l);
+                self.sync_lock_surfs();
             }
             Err(_) => self.st.locked = false,
+        }
+    }
+
+    /// экран блокировки на каждом мониторе, и на подключённом уже под блокировкой. Номера
+    /// поверхностей — индексы в lock_surfs, поэтому ушедшие мониторы не вынимаются до разблокировки
+    fn sync_lock_surfs(&mut self) {
+        let Some(l) = self.lock.as_ref() else { return };
+        for o in self.outputs.outputs().collect::<Vec<_>>() {
+            if self.lock_surfs.iter().any(|ls| ls.wl == o) || self.lock_surfs.len() >= 64 {
+                continue;
+            }
+            let name = self.outputs.info(&o).and_then(|i| i.name.clone()).unwrap_or_default();
+            let surface = self.compositor.create_surface(&self.qh);
+            let sid = LOCK_BASE + self.lock_surfs.len() as u32;
+            let frac = self.frac_mgr.as_ref().map(|m| m.get_fractional_scale(&surface, &self.qh, sid));
+            let vp = self.viewporter.as_ref().map(|v| v.get_viewport(&surface, &self.qh, ()));
+            let ls = l.create_lock_surface(surface, &o, &self.qh);
+            self.lock_surfs.push(LockSurf { s: ls, wl: o, output: name, w: 0, h: 0, pool: None, zones: vec![], dirty: false, scale: 1.0, frac, vp });
         }
     }
     pub fn unlock(&mut self) {
