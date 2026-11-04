@@ -6,6 +6,14 @@ subjects when that section is empty).
 
 ## Unreleased
 
+- Window gaps in settings → windows: between windows and from each screen edge (the top one from the bar), with arrows or the wheel; the shell writes niri's `gaps` and `struts` (`winGap`, `winLeft`, `winRight`, `winTop`, `winBottom`)
+- Bar spacing in settings → bar: the left and right edge, the gap between modules, the separator width, the space around the window list and between window buttons, the window button width. Arrows or the wheel change them (`barPadL`, `barPadR`, `barGap`, `barSepW`, `barMid`, `barTaskGap`, `taskWidth`)
+- A battery module for laptops (`bat`: charge, charging, low warning; hidden without a battery), on by default for new installs
+- AMD graphics: temperature and load for the `gpu` graph come from the kernel, not only from nvidia-smi
+- The lock screen also covers a monitor plugged in while locked; users from LDAP, SSSD or systemd-homed can unlock (the system login service checks them)
+- Updates: a release signed by a key outside `keys/allowed_signers` is refused on every git version
+- The OFL licence texts of DotGothic16 and Terminess are in `fonts/`; `tools/release.sh` sets the version of every crate (yami-play stayed at 2.2.1)
+
 ## 2.3.0
 
 - yami-play: a video and music player in the shell's pixels. Every format ffmpeg knows (libmpv, loaded at run time), hardware decoding, subtitles and audio tracks, a cell timeline, the folder as a playlist, resume where you stopped, speed, frame step, saving a frame and a pixel scaling mode; the screen stays on while a video plays. Video and music open in it after the installer runs
