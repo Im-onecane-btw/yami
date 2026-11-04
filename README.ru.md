@@ -7,7 +7,7 @@
 Пиксельный рабочий стол для niri — целыми пикселями.
 
 [![Release](https://img.shields.io/github/v/release/Trendorin/yami?label=release&color=a8a29c)](https://github.com/Trendorin/yami/releases/latest)
-[![Active installs](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FTrendorin%2Fyami%2Fstats%2Fbadge.json)](docs/SECURITY.md#install-count)
+[![Installs](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FTrendorin%2Fyami%2Fstats%2Fbadge.json)](docs/SECURITY.md#install-count)
 [![License](https://img.shields.io/badge/license-MIT-a8a29c)](LICENSE)
 ![Rust](https://img.shields.io/badge/rust-1.89%2B-a8a29c)
 ![niri](https://img.shields.io/badge/niri-26.04-a8a29c)
@@ -187,6 +187,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
 | `--login`, `--no-login` | SDDM с темой yami, даже если стоит другой менеджер входа / не трогать вход |
 | `--no-sudo` | только домашняя папка: без пакетов и системных файлов |
 | `--dry-run` | показать план, ничего не менять |
+| `--no-count` | не добавлять машину в счётчик «installs» (одно анонимное скачивание, [подробно](docs/SECURITY.md#install-count)) |
 | `--uninstall` | удалить шелл и конфиги, вернуть резервные копии |
 | `--update` | пересобрать из этого дерева, все настройки остаются, без sudo (это запускает `yami update apply`) |
 | `--no-anim` | без анимаций установщика |

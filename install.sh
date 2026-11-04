@@ -19,6 +19,7 @@
 #   ./install.sh --no-sudo        home directory only: no packages, no system files
 #   ./install.sh --no-anim        no animations
 #   ./install.sh --dry-run        show the plan, change nothing
+#   ./install.sh --no-count       do not count this install (see docs/SECURITY.md, «Install count»)
 #   ./install.sh --uninstall      remove the shell and dotfiles, restore backups
 #   ./install.sh --update         rebuild from this tree, keep every setting, no sudo (what
 #                                 `yami update apply` runs after checking the release)
@@ -72,7 +73,7 @@ MONOCRAFT_URL="https://github.com/IdreesInc/Monocraft/releases/download/v4.2.1/M
 MONOCRAFT_SHA256="67f88ff9e7c6560f6cf60fb062fd353a72f62dc2654462950c65b63ed53d9754"
 [[ -d $HOME/.cargo/bin ]] && export PATH="$HOME/.cargo/bin:$PATH"
 
-YES=0 SUDO=1 FORK_FLAG=1 LOGIN_FLAG="" PALETTE="" LOOK_OPT="" LANG_OPT="" FONT_OPT="" FETCH_OPT="" ANIM=1 DRY=0 UNINSTALL=0 UPDATE=0
+YES=0 SUDO=1 FORK_FLAG=1 LOGIN_FLAG="" PALETTE="" LOOK_OPT="" LANG_OPT="" FONT_OPT="" FETCH_OPT="" ANIM=1 DRY=0 UNINSTALL=0 UPDATE=0 COUNT=1
 while (($#)); do
   case "$1" in
     -y | --yes) YES=1 ;;
@@ -88,6 +89,7 @@ while (($#)); do
     --lang) LANG_OPT="${2:-}"; shift ;;
     --no-anim) ANIM=0 ;;
     --dry-run) DRY=1 ;;
+    --no-count) COUNT=0 ;;
     --uninstall) UNINSTALL=1 ;;
     --update) UPDATE=1 YES=1 ANIM=0 SUDO=0 ;;
     -h | --help) sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]:-$0}" | sed -e '$d' -e 's/^# \{0,1\}//'; exit 0 ;;
@@ -1020,6 +1022,18 @@ sddm_stale() {
   for f in "$ROOT"/sddm/yami/*.qml; do cmp -s "$f" "/usr/share/sddm/themes/yami/${f##*/}" || return 0; done
   return 1
 }
+# the install counter: one download of a tiny release file per machine, ever. GitHub counts
+# downloads of release files; the request carries nothing about the machine (no id, no version, no
+# data: what any download from GitHub sends) and the file is thrown away. --no-count,
+# YAMI_NO_COUNT=1 or CI skip it. A marker in the state dir keeps it to one time per machine
+COUNT_URL="https://github.com/Trendorin/yami/releases/latest/download/yami-installs.txt"
+do_count() {
+  local mark="${XDG_STATE_HOME:-$HOME/.local/state}/yami/counted"
+  ((COUNT)) && [[ -z ${YAMI_NO_COUNT:-} && -z ${CI:-} && ! -e $mark ]] || return 99
+  command -v curl >/dev/null || return 99
+  curl -fsSL --max-time 15 -o /dev/null "$COUNT_URL" || { note "$(t "счётчик недоступен — не страшно" "counter unreachable, never mind")"; return 0; }
+  mkdir -p "${mark%/*}" && : >"$mark"
+}
 # what is installed and from where: `yami update` compares against it
 do_stamp() {
   local c="" i
@@ -1271,6 +1285,7 @@ if ((UPDATE)); then
   add "$(t "niri: конфиг" "niri: config")" do_niri_config
   add "$(t "палитра: всё, что из неё выводится" "palette: everything derived from it")" do_refresh
   add "$(t "запись об установке" "install record")" do_stamp
+  add "$(t "счётчик установок (один раз, без данных)" "install counter (once, no data)")" do_count
   ((RUNNING_NIRI)) && add "$(t "перезапуск шелла" "restart the shell")" do_restart_shell
   run_steps
   if on fork && ((!DRY)) && fork_stale; then
@@ -1352,6 +1367,7 @@ on login && add "$(t "экран входа: тема yami для SDDM" "login s
 add "$(t "убрать старый форк dark-niri" "remove the old dark-niri fork")" do_drop_dark_niri
 old_install && add "$(t "убрать файлы под старым именем" "remove files under the old name")" do_drop_old
 add "$(t "запись об установке (для yami update)" "install record (for yami update)")" do_stamp
+add "$(t "счётчик установок (один раз, без данных)" "install counter (once, no data)")" do_count
 ((RUNNING_NIRI)) && add "$(t "перезапуск шелла" "restart the shell")" do_restart_shell
 
 run_steps

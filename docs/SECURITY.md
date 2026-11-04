@@ -60,9 +60,18 @@ What yami trusts, what it exposes, and what was checked (audit of 2026-11-03).
 
 ## Install count
 
-yami sends nothing anywhere: no telemetry, no update pings beyond `git fetch` of the public
-repository. The «active installs» badge in the README is GitHub's own clone traffic: the number
-of unique cloners over the last 14 days (the installer clones, `yami update` fetches once a day),
-read daily by `.github/workflows/stats.yml` with a read-only token and written to the `stats`
-branch. It counts machines that checked for updates recently, not people, and turning update
-checks off (`updateCheck`) takes a machine out of it.
+yami has no telemetry: the shell never reports anything, and updates are a `git fetch` of the
+public repository. The «installs» badge in the README counts one thing: the installer downloads a
+tiny file, `yami-installs.txt`, from the latest GitHub release **once per machine** and throws it
+away. GitHub counts downloads of release files; `.github/workflows/stats.yml` adds those counts up
+daily and writes the badge to the `stats` branch.
+
+- The request carries nothing about you or the machine: no id, no version, no settings. GitHub
+  sees what it sees on any download (your IP address), as with the `git clone` the installer
+  already does.
+- Once means once: a marker `~/.local/state/yami/counted` keeps later updates silent. Machines
+  installed before the counter are counted once, on their next update.
+- Opt out: `install.sh --no-count`, or `YAMI_NO_COUNT=1` in the environment (also skipped in CI
+  and `--dry-run`). Creating the marker file by hand does the same.
+- It counts installs, not people and not active machines: a reinstall after deleting
+  `~/.local/state/yami` counts again, an uninstall does not subtract.

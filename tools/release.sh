@@ -52,6 +52,15 @@ Built from source on your machine (Arch, Fedora, Debian/Ubuntu, openSUSE, Void, 
   else
     gh release create "v$v" --verify-tag --title "yami $v" --notes "$body" --latest="$latest" >/dev/null
   fi
+  # the install counter (docs/SECURITY.md, «Install count»): install.sh downloads this file from
+  # the latest release once per machine; never --clobber, a re-upload would zero its download count
+  if ! gh release view "v$v" --json assets -q '.assets[].name' 2>/dev/null | grep -qx yami-installs.txt; then
+    local f; f="$(mktemp -d)/yami-installs.txt"
+    printf '%s\n' "yami install counter: install.sh downloads this file once per machine, so its download" \
+      "count is the number of installs. Nothing is sent with it. See docs/SECURITY.md, «Install count»." >"$f"
+    gh release upload "v$v" "$f" >/dev/null && say "$(t "счётчик установок прикреплён" "install counter attached")"
+    rm -rf "${f%/*}"
+  fi
   say "$(t "релиз на GitHub: yami $v" "GitHub release: yami $v")"
 }
 

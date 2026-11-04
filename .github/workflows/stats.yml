@@ -1,9 +1,9 @@
-# Active installs for the README badge: GitHub's unique cloners over the last 14 days (the
-# installer clones the repository, `yami update` fetches it once a day; this workflow's own bot
-# is subtracted). No telemetry in yami itself: only what GitHub already counts.
-# Writes badge.json (a shields.io endpoint) to the `stats` branch, so main gets no daily commits.
-# Needs the STATS_TOKEN secret: a fine-grained token for this repository with
-# «Administration: read-only» (the traffic API is not open to the workflow token).
+# Installs for the README badge: install.sh downloads `yami-installs.txt` from the latest release
+# once per machine (docs/SECURITY.md, «Install count»), and GitHub counts release downloads. The
+# badge is the sum over every release: machines that installed yami, each once. Nothing else is
+# collected. Writes badge.json (a shields.io endpoint) to the `stats` branch, so main gets no daily
+# commits. The optional STATS_TOKEN (read-only «Administration») only adds GitHub's clone traffic
+# to the log, for comparison; the badge does not use it.
 name: stats
 on:
   schedule:
@@ -22,10 +22,8 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           python3 -I - <<'PY'
-          import base64, json, os, sys, urllib.request, urllib.error
+          import base64, json, os, urllib.request, urllib.error
           repo, gh, stats = os.environ["REPO"], os.environ["GH_TOKEN"], os.environ.get("STATS_TOKEN", "")
-          if not stats:
-              sys.exit("STATS_TOKEN is not set: Settings → Secrets and variables → Actions")
           def api(path, token, method="GET", body=None):
               req = urllib.request.Request(f"https://api.github.com/repos/{repo}{path}", method=method,
                                            data=None if body is None else json.dumps(body).encode(),
@@ -37,9 +35,18 @@ jobs:
                   if e.code == 404:
                       return None
                   raise
-          clones = api("/traffic/clones", stats)
-          active = max(0, int(clones.get("uniques", 0)) - 1)
-          badge = json.dumps({"schemaVersion": 1, "label": "active installs", "message": str(active), "color": "a8a29c"}) + "\n"
+          installs, page = 0, 1
+          while True:
+              rel = api(f"/releases?per_page=100&page={page}", gh) or []
+              for r in rel:
+                  installs += sum(a["download_count"] for a in r.get("assets", []) if a["name"] == "yami-installs.txt")
+              if len(rel) < 100:
+                  break
+              page += 1
+          if stats:
+              c = api("/traffic/clones", stats) or {}
+              print(f"for comparison, unique cloners over 14 days (bots and CI included): {c.get('uniques', '?')}")
+          badge = json.dumps({"schemaVersion": 1, "label": "installs", "message": str(installs), "color": "a8a29c"}) + "\n"
           content = base64.b64encode(badge.encode()).decode()
           # the stats branch: an orphan with one file, made on the first run
           if api("/git/ref/heads/stats", gh) is None:
@@ -50,6 +57,6 @@ jobs:
           else:
               cur = api("/contents/badge.json?ref=stats", gh)
               if base64.b64decode(cur["content"]).decode() != badge:
-                  api("/contents/badge.json", gh, "PUT", {"message": f"stats: {active} active installs", "content": content, "sha": cur["sha"], "branch": "stats"})
-          print(f"active installs (14 days): {active}")
+                  api("/contents/badge.json", gh, "PUT", {"message": f"stats: {installs} installs", "content": content, "sha": cur["sha"], "branch": "stats"})
+          print(f"installs: {installs}")
           PY

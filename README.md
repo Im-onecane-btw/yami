@@ -7,7 +7,7 @@
 A pixel-art desktop for niri, drawn in whole pixels.
 
 [![Release](https://img.shields.io/github/v/release/Trendorin/yami?label=release&color=a8a29c)](https://github.com/Trendorin/yami/releases/latest)
-[![Active installs](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FTrendorin%2Fyami%2Fstats%2Fbadge.json)](docs/SECURITY.md#install-count)
+[![Installs](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FTrendorin%2Fyami%2Fstats%2Fbadge.json)](docs/SECURITY.md#install-count)
 [![License](https://img.shields.io/badge/license-MIT-a8a29c)](LICENSE)
 ![Rust](https://img.shields.io/badge/rust-1.89%2B-a8a29c)
 ![niri](https://img.shields.io/badge/niri-26.04-a8a29c)
@@ -182,6 +182,7 @@ in the finished desktop. Useful flags:
 | `--login`, `--no-login` | SDDM with the yami theme even if another login manager is set / leave it alone |
 | `--no-sudo` | home directory only: no packages, no system files |
 | `--dry-run` | print the plan, change nothing |
+| `--no-count` | do not add this machine to the «installs» badge (one anonymous download, [details](docs/SECURITY.md#install-count)) |
 | `--uninstall` | remove the shell, the fork and the dotfiles, restore the backups |
 | `--update` | rebuild from this tree keeping every setting, no sudo (what `yami update apply` runs) |
 | `--no-anim` | disable the installer animations |
