@@ -29,8 +29,11 @@ Rectangle {
         textDim: cfg("textDim", "#8e8181"),
         textFaint: cfg("textFaint", "#5f5151"),
         onAccent: cfg("onAccent", "#ffffff"),
+        textHi: cfg("textHi", "#ffffff"),
         warn: cfg("warn", "#ffaa28")
     })
+    // светлая тема шелла: вуаль высветляет обои, текст тёмный
+    readonly property bool light: cfg("mode", "dark") === "light"
     readonly property bool en: {
         var l = cfg("lang", "")
         if (l === "en") return true
@@ -93,11 +96,11 @@ Rectangle {
             smooth: cfg("pixelate", "true") !== "true"
             asynchronous: false
         }
-        Rectangle { anchors.fill: parent; color: "#8c000000" }
+        Rectangle { anchors.fill: parent; color: root.light ? pal.bg : "#000000"; opacity: root.light ? 0.62 : 0.55 }
         // строки развёртки — через одну, еле видно
         Repeater {
             model: Math.ceil(root.height / 4)
-            Rectangle { y: index * 4; width: root.width; height: 1; color: "#2e000000" }
+            Rectangle { y: index * 4; width: root.width; height: 1; color: root.light ? pal.text : "#000000"; opacity: root.light ? 0.07 : 0.18 }
         }
 
         // ── часы и дата ──

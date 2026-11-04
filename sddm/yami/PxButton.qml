@@ -30,8 +30,8 @@ Item {
         x: (btn.width - width) / 2 + (btn.down ? 1 : 0)
         y: (btn.height - height) / 2 + (btn.down ? 1 : 0)
         spacing: 7
-        PxIcon { visible: btn.icon !== ""; name: btn.icon; cell: 2; color: btn.primary ? pal.onAccent : (btn.hov ? "white" : pal.accent); anchors.verticalCenter: parent.verticalCenter }
-        PxText { visible: btn.text !== ""; text: btn.text; px: 16; color: btn.primary ? pal.onAccent : (btn.hov ? "white" : pal.text); anchors.verticalCenter: parent.verticalCenter }
+        PxIcon { visible: btn.icon !== ""; name: btn.icon; cell: 2; color: btn.primary ? pal.onAccent : (btn.hov ? pal.textHi : pal.accent); anchors.verticalCenter: parent.verticalCenter }
+        PxText { visible: btn.text !== ""; text: btn.text; px: 16; color: btn.primary ? pal.onAccent : (btn.hov ? pal.textHi : pal.text); anchors.verticalCenter: parent.verticalCenter }
     }
     MouseArea { id: ma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: btn.clicked() }
     Keys.onReturnPressed: btn.clicked()
