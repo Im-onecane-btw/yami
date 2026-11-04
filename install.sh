@@ -1081,6 +1081,8 @@ do_nvidia_profile() {
 NV_MODS="nvidia nvidia_modeset nvidia_uvm nvidia_drm"
 do_nvidia_early() {
   modinfo nvidia_drm >/dev/null 2>&1 || return 99
+  # a hybrid laptop shows its panel through the other GPU: nothing to gain, and the driver would load early
+  ((HYBRID)) && return 99
   $SU install -Dm644 "$ROOT/system/nvidia/yami-nvidia-kms.conf" /etc/modprobe.d/yami-nvidia-kms.conf || return 1
   if [[ -x /usr/bin/mkinitcpio ]]; then
     grep -qs '^[^#]*MODULES.*nvidia_drm' /etc/mkinitcpio.conf /etc/mkinitcpio.conf.d/*.conf && return 0

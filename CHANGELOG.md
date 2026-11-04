@@ -6,6 +6,8 @@ subjects when that section is empty).
 
 ## Unreleased
 
+- Hybrid laptops: the GPU sensor no longer wakes a sleeping NVIDIA card (it shows «sleep» instead of running nvidia-smi every 3 s), and the installer leaves the NVIDIA driver out of the initramfs there
+
 ## 2.4.0
 
 - Window gaps in settings → windows: between windows and from each screen edge (the top one from the bar), with arrows or the wheel; the shell writes niri's `gaps` and `struts` (`winGap`, `winLeft`, `winRight`, `winTop`, `winBottom`)

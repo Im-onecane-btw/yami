@@ -307,6 +307,7 @@ pub fn draw(ui: &mut Ui, st: &State, id: u32, sw: i32, sh: i32) {
             let (label, val) = match w.source.as_str() {
                 "ram" => ("память", crate::tf!("{:.0}%  {:.1}/{:.0} ГБ", "{:.0}%  {:.1}/{:.0} GB", st.sys.mem * 100.0, st.sys.mem_used, st.sys.mem_total)),
                 "temp" => ("температура", format!("{:.0}°C", st.sys.temp)),
+                "gpu" if st.sys.gpu_sleep => ("видеокарта", "сон".into()),
                 "gpu" => ("видеокарта", format!("{:.0}°C  {:.0}%", st.sys.gpu_temp, st.sys.gpu_load * 100.0)),
                 _ => ("процессор", format!("{:.0}%", st.sys.cpu * 100.0)),
             };

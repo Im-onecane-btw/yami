@@ -62,6 +62,10 @@ pub struct Sys {
     gpu_rx: Option<std::sync::mpsc::Receiver<(f32, f32)>>,
     /// AMD (amdgpu): температура и загрузка из /sys, без процессов
     gpu_sys: Option<(String, Option<String>)>,
+    /// power/runtime_status карты NVIDIA: на ноутбуке она спит (RTD3), а nvidia-smi её будит
+    nv_pm: Option<String>,
+    /// дискретная NVIDIA спит: датчики не спрашиваем
+    pub gpu_sleep: bool,
     /// батарея ноутбука: заряд 0..100 и идёт ли зарядка; None — батареи нет
     pub bat: Option<(u8, bool)>,
 }
@@ -129,9 +133,25 @@ fn find_temp() -> Option<String> {
     })
 }
 
+/// карта NVIDIA: файл её состояния питания (только у PCI-устройства, не у разъёмов cardN-…)
+fn find_nv_pm() -> Option<String> {
+    for e in fs::read_dir("/sys/class/drm").ok()?.flatten() {
+        let n = e.file_name().to_string_lossy().to_string();
+        if !n.starts_with("card") || n.contains('-') {
+            continue;
+        }
+        let d = e.path().join("device");
+        if fs::read_to_string(d.join("vendor")).unwrap_or_default().trim() == "0x10de" {
+            let p = d.join("power/runtime_status");
+            return p.exists().then(|| p.to_string_lossy().to_string());
+        }
+    }
+    None
+}
+
 impl Sys {
     pub fn new() -> Sys {
-        let mut s = Sys { temp_path: find_temp(), gpu_sys: find_gpu(), bat: read_bat(), online: true, ..Default::default() };
+        let mut s = Sys { temp_path: find_temp(), gpu_sys: find_gpu(), nv_pm: find_nv_pm(), bat: read_bat(), online: true, ..Default::default() };
         s.sample();
         s
     }
@@ -227,6 +247,13 @@ impl Sys {
             self.gpu_temp = fs::read_to_string(tp).ok().and_then(|v| v.trim().parse::<f32>().ok()).unwrap_or(0.0) / 1000.0;
             self.gpu_load = busy.as_ref().and_then(|b| fs::read_to_string(b).ok()).and_then(|v| v.trim().parse::<f32>().ok()).unwrap_or(0.0) / 100.0;
         } else if self.want_gpu && self.tick % 3 == 0 {
+            // спящую дискретку (ноутбук, RTD3) не будим: nvidia-smi раз в 3 с не дал бы ей уснуть
+            self.gpu_sleep = self.nv_pm.as_ref().and_then(|p| fs::read_to_string(p).ok()).map(|v| v.trim() == "suspended").unwrap_or(false);
+        }
+        if self.gpu_sleep {
+            self.gpu_temp = 0.0;
+            self.gpu_load = 0.0;
+        } else if self.want_gpu && self.gpu_sys.is_none() && self.tick % 3 == 0 {
             let (tx, rx) = std::sync::mpsc::channel();
             self.gpu_rx = Some(rx);
             std::thread::spawn(move || {

@@ -313,7 +313,7 @@ fn sys(ui: &mut Ui, st: &State, b: R) {
         ("cpu", "процессор", format!("{:.0}%", s.cpu * 100.0), "cpu"),
         ("ram", "память", crate::tf!("{:.1} / {:.0} ГБ", "{:.1} / {:.0} GB", s.mem_used, s.mem_total), "ram"),
         ("temp", "температура", format!("{:.0}°C", s.temp), "temp"),
-        ("temp", "видеокарта", if s.gpu_temp > 0.0 { format!("{:.0}°C  {:.0}%", s.gpu_temp, s.gpu_load * 100.0) } else { "—".into() }, "gpu"),
+        ("temp", "видеокарта", if s.gpu_sleep { "сон".into() } else if s.gpu_temp > 0.0 { format!("{:.0}°C  {:.0}%", s.gpu_temp, s.gpu_load * 100.0) } else { "—".into() }, "gpu"),
     ];
     for (icon, label, val, src) in rows {
         ui.cv.icon(icon, b.x, y + 3, 2, t.red);
