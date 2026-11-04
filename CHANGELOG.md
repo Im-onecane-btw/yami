@@ -6,6 +6,8 @@ subjects when that section is empty).
 
 ## Unreleased
 
+## 2.4.0
+
 - Window gaps in settings → windows: between windows and from each screen edge (the top one from the bar), with arrows or the wheel; the shell writes niri's `gaps` and `struts` (`winGap`, `winLeft`, `winRight`, `winTop`, `winBottom`)
 - Bar spacing in settings → bar: the left and right edge, the gap between modules, the separator width, the space around the window list and between window buttons, the window button width. Arrows or the wheel change them (`barPadL`, `barPadR`, `barGap`, `barSepW`, `barMid`, `barTaskGap`, `taskWidth`)
 - A battery module for laptops (`bat`: charge, charging, low warning; hidden without a battery), on by default for new installs
