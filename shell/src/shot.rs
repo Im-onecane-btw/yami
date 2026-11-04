@@ -420,6 +420,7 @@ fn mock_sys(s: &mut crate::sys::Sys) {
     }
     (s.cpu, s.mem, s.mem_used, s.mem_total, s.swap, s.temp, s.gpu_temp, s.disk) = (0.32, 0.41, 6.6, 16.0, 0.0, 48.0, 41.0, 0.37);
     s.iface = "wlan0".into();
+    s.bat = Some((73, true));
     s.ip = "192.0.2.10".into();
     (s.rx, s.tx) = (6.1e5, 1.2e5);
 }

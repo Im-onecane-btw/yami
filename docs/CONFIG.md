@@ -91,7 +91,7 @@ yami-shell binds list | print | write     # keybindings
 
 | Key | Default | Meaning |
 |---|---|---|
-| `barLeft`, `barCenter`, `barRight` | see `config list` | module ids in order: `launcher` `workspaces` `mode` `tasks` `media` `tray` `net` `netspeed` `bt` `kb` `cpu` `ram` `temp` `vol` `profile` `clock` `notif` `settings` `power` `sep` |
+| `barLeft`, `barCenter`, `barRight` | see `config list` | module ids in order: `launcher` `workspaces` `mode` `tasks` `media` `tray` `net` `netspeed` `bt` `kb` `cpu` `ram` `temp` `bat` `vol` `profile` `clock` `notif` `settings` `power` `sep` (`bat`: laptop battery, hidden without one) |
 | `cpuStyle` | `"gauge"` | `gauge` `graph` `number` |
 | `clockSeconds`, `clockDate` | `false`, `true` | |
 | `taskWidth` | `190` | width of a task button, px (60–400) |

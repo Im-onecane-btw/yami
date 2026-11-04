@@ -1,5 +1,5 @@
-// Датчики: ЦП, память, температура, сеть, диск — раз в секунду прямо из /proc и /sys
-// (никаких процессов). История по 120 точек — для графиков бара, всплывашек и виджетов.
+// Датчики: ЦП, память, температура, сеть, диск, батарея — раз в секунду прямо из /proc и /sys
+// (никаких процессов; только видеокарта NVIDIA — через nvidia-smi, у AMD всё есть в /sys). История по 120 точек — для графиков бара, всплывашек и виджетов.
 
 use std::collections::VecDeque;
 use std::fs;
@@ -60,6 +60,48 @@ pub struct Sys {
     tick: u64,
     pub want_gpu: bool,
     gpu_rx: Option<std::sync::mpsc::Receiver<(f32, f32)>>,
+    /// AMD (amdgpu): температура и загрузка из /sys, без процессов
+    gpu_sys: Option<(String, Option<String>)>,
+    /// батарея ноутбука: заряд 0..100 и идёт ли зарядка; None — батареи нет
+    pub bat: Option<(u8, bool)>,
+}
+
+/// датчики amdgpu: hwmon temp1_input (edge) и gpu_busy_percent той же карты
+fn find_gpu() -> Option<(String, Option<String>)> {
+    for e in fs::read_dir("/sys/class/hwmon").ok()?.flatten() {
+        let p = e.path();
+        if fs::read_to_string(p.join("name")).unwrap_or_default().trim() != "amdgpu" || !p.join("temp1_input").exists() {
+            continue;
+        }
+        let busy = p.join("device/gpu_busy_percent");
+        return Some((p.join("temp1_input").to_string_lossy().into(), busy.exists().then(|| busy.to_string_lossy().into())));
+    }
+    None
+}
+
+/// заряд батарей системы (не мышек и наушников: у них scope=Device); несколько — по энергии
+fn read_bat() -> Option<(u8, bool)> {
+    let (mut now, mut full, mut charging, mut any) = (0.0f64, 0.0f64, false, false);
+    for e in fs::read_dir("/sys/class/power_supply").ok()?.flatten() {
+        let p = e.path();
+        let rd = |k: &str| fs::read_to_string(p.join(k)).map(|s| s.trim().to_string()).unwrap_or_default();
+        if rd("type") != "Battery" || rd("scope") == "Device" || rd("present") == "0" {
+            continue;
+        }
+        let num = |k: &str| rd(k).parse::<f64>().ok();
+        let (n, f) = match (num("energy_now").or(num("charge_now")), num("energy_full").or(num("charge_full"))) {
+            (Some(n), Some(f)) if f > 0.0 => (n, f),
+            _ => match num("capacity") {
+                Some(c) => (c, 100.0),
+                None => continue,
+            },
+        };
+        now += n;
+        full += f;
+        any = true;
+        charging |= matches!(rd("status").as_str(), "Charging" | "Full");
+    }
+    any.then(|| (((now / full.max(1e-9)) * 100.0).round().clamp(0.0, 100.0) as u8, charging))
 }
 
 fn find_temp() -> Option<String> {
@@ -89,7 +131,7 @@ fn find_temp() -> Option<String> {
 
 impl Sys {
     pub fn new() -> Sys {
-        let mut s = Sys { temp_path: find_temp(), online: true, ..Default::default() };
+        let mut s = Sys { temp_path: find_temp(), gpu_sys: find_gpu(), bat: read_bat(), online: true, ..Default::default() };
         s.sample();
         s
     }
@@ -181,7 +223,10 @@ impl Sys {
                 self.gpu_load = l;
             }
         }
-        if self.want_gpu && self.tick % 3 == 0 {
+        if let (true, Some((tp, busy))) = (self.want_gpu, &self.gpu_sys) {
+            self.gpu_temp = fs::read_to_string(tp).ok().and_then(|v| v.trim().parse::<f32>().ok()).unwrap_or(0.0) / 1000.0;
+            self.gpu_load = busy.as_ref().and_then(|b| fs::read_to_string(b).ok()).and_then(|v| v.trim().parse::<f32>().ok()).unwrap_or(0.0) / 100.0;
+        } else if self.want_gpu && self.tick % 3 == 0 {
             let (tx, rx) = std::sync::mpsc::channel();
             self.gpu_rx = Some(rx);
             std::thread::spawn(move || {
@@ -191,6 +236,10 @@ impl Sys {
                     let _ = tx.send((it.next().unwrap_or(0.0), it.next().unwrap_or(0.0) / 100.0));
                 }
             });
+        }
+        // батарея меняется медленно: раз в 5 с (и сразу, если её вставили/вынули — тоже за 5 с)
+        if self.tick % 5 == 0 {
+            self.bat = read_bat();
         }
         if self.tick % 30 == 1 {
             if let Ok(st) = nix_statvfs("/") {

@@ -237,6 +237,31 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
             }
             14
         }
+        "bat" => {
+            // батарея ноутбука: нет батареи — модуля нет
+            let Some((pct, charging)) = st.sys.bat else { return 0 };
+            let txt = format!("{pct}%");
+            let bw = if charging { 16 } else { 0 };
+            let w = bw + 22 + 6 + ui.w(PX, &txt);
+            if measure {
+                return w;
+            }
+            let r = R::new(x, 0, w, H - 1);
+            let hov = ui.hover(r);
+            let low = pct <= 15 && !charging;
+            let col = if low { t.ember } else if charging { t.ok } else { t.red };
+            if charging {
+                ui.cv.icon("bolt", x, cy - 7, 2, col);
+            }
+            // корпус 20×12 с «пипкой», заливка по заряду — целыми пикселями
+            let b = R::new(x + bw, cy - 6, 20, 12);
+            ui.cv.outline(b, if hov { t.text } else { t.text_dim }, 1);
+            ui.cv.fill(R::new(b.right(), cy - 2, 2, 4), if hov { t.text } else { t.text_dim });
+            ui.cv.fill(R::new(b.x + 2, b.y + 2, ((b.w - 4) * pct as i32 / 100).max(1), b.h - 4), col);
+            ui.text_in(PX, R::new(b.right() + 8, 0, w, H - 1), &txt, if low { t.ember } else if hov { t.text } else { t.text_dim });
+            ui.zone(r, Act::Popup("profile"), Cur::Pointer);
+            w
+        }
         "kb" => {
             let s = st.niri.kb_short();
             let s = if s.is_empty() { "??".to_string() } else { s };
