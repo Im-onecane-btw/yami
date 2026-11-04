@@ -35,7 +35,7 @@ yami doctor                               # programs, D-Bus services, config: wh
 yami doctor games                         # ntsync, gamemode, MangoHud: what is there, one command for the rest
 yami report [-o FILE]                     # versions, doctor, this boot's journal, configs in a tar.gz for an issue (secrets scrubbed)
 yami theme export FILE | import FILE      # the look as one file: palette, effects, fonts, bar, widgets, wallpaper (never commands)
-yami export FILE | import FILE [--yes]    # every setting as one file; user.kdl, custom keys and bar scripts only with --yes
+yami export FILE | import FILE [--yes]    # every setting as one file; user.kdl, custom keys and bar scripts only with --yes; before an import the current state goes to ~/.local/state/yami/before-import-*.json (undo: yami import that file --yes)
 yami clean [--dry-run]                    # remove the build cache (yami-niri sources, the shell's target: gigabytes); --force also drops a tree with your patch work
 yami version                              # every part with the installed commit
 yami update [check|apply|list|to X.Y.Z|rollback|status|log|need]

@@ -4,8 +4,9 @@
 // ничего не может запустить: ни клавиш, ни команд, ни скриптов, ни источника обновлений.
 // `yami export ФАЙЛ` — полный бэкап yami этой машины (все настройки, настройки файлов,
 // niri/user.kdl, скрипты бара, обои); `yami import ФАЙЛ` показывает, что идёт с командами (свои
-// клавиши, user.kdl, скрипты), и ставит это только с `--yes`. Перед любым импортом текущие
-// настройки копируются в ~/.local/state/yami/before-import-*.json. Файл — JSON, двоичное в
+// клавиши, user.kdl, скрипты), и ставит это только с `--yes`. Перед любым импортом всё текущее
+// копируется в ~/.local/state/yami/before-import-*.json (тот же формат, пять последних;
+// `yami import КОПИЯ --yes` возвращает). Файл — JSON, двоичное в
 // base64: читается глазами, сравнивается diff'ом, делится одним файлом.
 // i18n: inline pairs
 
@@ -86,7 +87,8 @@ fn wall_entry(set: &Map<String, Value>) -> Option<Value> {
     Some(json!({ "name": path.file_name()?.to_string_lossy(), "data": b64(&data) }))
 }
 
-pub fn export(y: &Sty, file: &str, theme: bool) -> i32 {
+/// содержимое файла: тема (только вид) или все настройки; обои — картинкой, если with_wall
+fn bundle(theme: bool, with_wall: bool) -> Value {
     // все ключи, и те, которых в файле ещё нет (значения по умолчанию): тема должна быть полной
     let set = serde_json::to_value(crate::config::Settings::load()).ok().and_then(|v| v.as_object().cloned()).unwrap_or_else(settings_value);
     let mut s = Map::new();
@@ -96,7 +98,7 @@ pub fn export(y: &Sty, file: &str, theme: bool) -> i32 {
         }
     }
     let mut b = json!({ "format": FORMAT, "version": 1, "kind": if theme { "theme" } else { "full" }, "yami": env!("CARGO_PKG_VERSION"), "settings": s });
-    if let Some(w) = wall_entry(&set) {
+    if let Some(w) = with_wall.then(|| wall_entry(&set)).flatten() {
         b["wallpaper"] = w;
     }
     if !theme {
@@ -114,6 +116,11 @@ pub fn export(y: &Sty, file: &str, theme: bool) -> i32 {
         }
         b["files"] = Value::Object(files);
     }
+    b
+}
+
+pub fn export(y: &Sty, file: &str, theme: bool) -> i32 {
+    let b = bundle(theme, true);
     let text = serde_json::to_string_pretty(&b).unwrap_or_default() + "\n";
     if write_atomic(Path::new(file), &text).is_err() {
         eprintln!(" {} {}", y.bad("✕"), crate::tf!("не могу записать {}", "cannot write {}", file));
@@ -212,13 +219,11 @@ pub fn import(y: &Sty, file: &str, theme_only: bool, yes: bool, dry: bool) -> i3
         println!("\n   {}\n", y.dim(&crate::tf!("--dry-run: ничего не изменено", "--dry-run: nothing changed")));
         return 0;
     }
-    // копия того, что было
-    let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-    let backup = state_dir().join(format!("before-import-{stamp}.json"));
-    if let Ok(t) = std::fs::read_to_string(settings_path()) {
-        let _ = std::fs::create_dir_all(state_dir());
-        let _ = std::fs::write(&backup, t);
-    }
+    // копия того, что было, тем же форматом: `yami import КОПИЯ --yes` возвращает всё назад
+    let Some(backup) = backup() else {
+        eprintln!(" {} {}", y.bad("✕"), crate::tf!("не могу сохранить копию текущих настроек — ничего не меняю", "cannot save a copy of the current settings: nothing changed"));
+        return 1;
+    };
     if let Some(w) = wall {
         if let (Some(name), Some(data)) = (w["name"].as_str(), w["data"].as_str().and_then(unb64)) {
             let dir = crate::config::data_dir().join("yami/wallpapers");
@@ -231,6 +236,11 @@ pub fn import(y: &Sty, file: &str, theme_only: bool, yes: bool, dry: bool) -> i3
     } else if theme {
         // тема без своей картинки — пиксельные обои из её палитры
         set.insert("wallpaper".into(), Value::String(String::new()));
+    } else if let Some(p) = b["restore"]["wallpaper"].as_str() {
+        // копия перед импортом: обои были файлом на этой машине — путь назад, если файл на месте
+        if p.is_empty() || Path::new(p).is_file() {
+            set.insert("wallpaper".into(), Value::String(p.to_string()));
+        }
     }
     if !theme {
         if let Some(files) = b["files"].as_object() {
@@ -276,8 +286,26 @@ pub fn import(y: &Sty, file: &str, theme_only: bool, yes: bool, dry: bool) -> i3
         return 1;
     }
     println!("\n {} {}", y.ok("✓"), crate::tf!("готово — шелл перечитает сам", "done; the shell reloads by itself"));
-    println!("   {}\n", y.dim(&crate::tf!("было: {}", "before: {}", backup.display())));
+    println!("   {}\n", y.dim(&crate::tf!("вернуть как было: yami import {} --yes", "to undo: yami import {} --yes", backup.display())));
     0
+}
+
+/// копия всех настроек перед импортом: ~/.local/state/yami/before-import-<время>.json, пять последних
+fn backup() -> Option<PathBuf> {
+    let dir = state_dir();
+    std::fs::create_dir_all(&dir).ok()?;
+    let mut b = bundle(false, false);
+    b["restore"] = json!({ "wallpaper": settings_value().get("wallpaper").and_then(|w| w.as_str()).unwrap_or("") });
+    let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    // два импорта за секунду не затирают копию первого
+    let p = (0..100).map(|n| dir.join(if n == 0 { format!("before-import-{stamp}.json") } else { format!("before-import-{stamp}-{n}.json") })).find(|p| !p.exists())?;
+    write_atomic(&p, &(serde_json::to_string_pretty(&b).ok()? + "\n")).ok()?;
+    let mut old: Vec<PathBuf> = std::fs::read_dir(&dir).ok()?.flatten().map(|e| e.path()).filter(|p| p.file_name().is_some_and(|n| n.to_string_lossy().starts_with("before-import-"))).collect();
+    old.sort_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok());
+    for o in old.iter().take(old.len().saturating_sub(5)) {
+        let _ = std::fs::remove_file(o);
+    }
+    Some(p)
 }
 
 /// только простые относительные пути внутри ~/.config: без «..» и без абсолютных
