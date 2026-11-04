@@ -144,6 +144,13 @@ pub struct Settings {
     pub bar_sep_color: String,
     /// промежуток между модулями, px
     pub bar_gap: i32,
+    /// от левого и правого края бара до крайних модулей, px
+    pub bar_pad_l: i32,
+    pub bar_pad_r: i32,
+    /// от модулей по бокам до списка окон (и модулей середины), px
+    pub bar_mid: i32,
+    /// между кнопками окон, px
+    pub bar_task_gap: i32,
     /// версия раскладки бара: 0 — разделители ещё ставились сами по группам (переносим)
     #[serde(default)]
     pub bar_v: u32,
@@ -172,6 +179,13 @@ pub struct Settings {
     pub float_apps: String,
     pub float_w: f32,
     pub float_h: f32,
+    /// отступы окон (niri gaps/struts, пишутся в yami-fx.kdl): между окнами и от краёв экрана
+    /// (сверху — от бара), px
+    pub win_gap: i32,
+    pub win_left: i32,
+    pub win_right: i32,
+    pub win_top: i32,
+    pub win_bottom: i32,
 
     // док
     pub dock: bool,
@@ -309,6 +323,22 @@ pub const ALL_MODULES: &[(&str, &str)] = &[
     ("sep", "разделитель"),
 ];
 
+/// числа в пикселях, что меняются стрелками в настройках: ключ, от, до, шаг
+pub const NUMS: &[(&str, i32, i32, i32)] = &[
+    ("win_gap", 0, 64, 2),
+    ("win_left", 0, 128, 2),
+    ("win_right", 0, 128, 2),
+    ("win_top", 0, 128, 2),
+    ("win_bottom", 0, 128, 2),
+    ("bar_pad_l", 0, 64, 2),
+    ("bar_pad_r", 0, 64, 2),
+    ("bar_gap", 0, 32, 2),
+    ("bar_sep_w", 2, 32, 2),
+    ("bar_mid", 0, 64, 2),
+    ("bar_task_gap", 0, 16, 2),
+    ("task_width", 60, 400, 10),
+];
+
 impl Default for Settings {
     fn default() -> Self {
         let v = |xs: &[&str]| xs.iter().map(|s| s.to_string()).collect::<Vec<_>>();
@@ -347,6 +377,10 @@ impl Default for Settings {
             bar_sep_w: 10,
             bar_sep_color: "border".into(),
             bar_gap: 8,
+            bar_pad_l: 6,
+            bar_pad_r: 6,
+            bar_mid: 12,
+            bar_task_gap: 4,
             bar_v: 1,
             lock_after: 10,
             screen_off_after: 15,
@@ -365,6 +399,11 @@ impl Default for Settings {
             float_apps: String::new(),
             float_w: 0.62,
             float_h: 0.78,
+            win_gap: 8,
+            win_left: 8,
+            win_right: 8,
+            win_top: 8,
+            win_bottom: 8,
             dock: true,
             dock_side: "bottom".into(),
             dock_hide: "smart".into(),
@@ -482,6 +521,47 @@ impl Settings {
             }
         }
         (bad, unknown)
+    }
+
+    /// число в своих пределах (NUMS): в JSON руками можно вписать что угодно
+    pub fn num(&self, k: &str) -> i32 {
+        let v = match k {
+            "bar_pad_l" => self.bar_pad_l,
+            "bar_pad_r" => self.bar_pad_r,
+            "bar_gap" => self.bar_gap,
+            "bar_sep_w" => self.bar_sep_w,
+            "bar_mid" => self.bar_mid,
+            "bar_task_gap" => self.bar_task_gap,
+            "task_width" => self.task_width,
+            "win_gap" => self.win_gap,
+            "win_left" => self.win_left,
+            "win_right" => self.win_right,
+            "win_top" => self.win_top,
+            "win_bottom" => self.win_bottom,
+            _ => 0,
+        };
+        NUMS.iter().find(|n| n.0 == k).map(|n| v.clamp(n.1, n.2)).unwrap_or(v)
+    }
+
+    /// шаг числа стрелкой или колесом: d = ±1 шаг
+    pub fn step_num(&mut self, k: &str, d: i32) {
+        let Some(&(_, lo, hi, step)) = NUMS.iter().find(|n| n.0 == k) else { return };
+        let v = (self.num(k) + d * step).clamp(lo, hi);
+        match k {
+            "bar_pad_l" => self.bar_pad_l = v,
+            "bar_pad_r" => self.bar_pad_r = v,
+            "bar_gap" => self.bar_gap = v,
+            "bar_sep_w" => self.bar_sep_w = v,
+            "bar_mid" => self.bar_mid = v,
+            "bar_task_gap" => self.bar_task_gap = v,
+            "task_width" => self.task_width = v,
+            "win_gap" => self.win_gap = v,
+            "win_left" => self.win_left = v,
+            "win_right" => self.win_right = v,
+            "win_top" => self.win_top = v,
+            "win_bottom" => self.win_bottom = v,
+            _ => {}
+        }
     }
 
     /// модули стороны бара: 0 — слева, 1 — по центру, 2 — справа
@@ -610,9 +690,27 @@ impl Settings {
     /// yami-fx.kdl для niri уровня `lvl` (0 — сток, иначе наш форк: allow-tearing; ≥ 4 —
     /// `show-only-in`; ≥ 5 — `hide-from`); curtain — шторка опущена (без `show-only-in` тогда
     /// прячутся окна)
+    /// отступы окон: gaps — между окнами и у краёв; struts добирают край до заданного
+    /// (бывают и отрицательными, если край уже промежутка). struts в niri не сливаются между
+    /// файлами: свои в user.kdl заменят эти целиком
+    fn gaps_kdl(&self, l: &mut Vec<String>) {
+        let g = self.num("win_gap");
+        l.push("// window gaps (settings → windows): between windows, and from the screen edges".into());
+        l.push("layout {".into());
+        l.push(format!("    gaps {g}"));
+        l.push("    struts {".into());
+        for (side, k) in [("left", "win_left"), ("right", "win_right"), ("top", "win_top"), ("bottom", "win_bottom")] {
+            l.push(format!("        {side} {}", self.num(k) - g));
+        }
+        l.push("    }".into());
+        l.push("}".into());
+        l.push(String::new());
+    }
+
     pub fn fx_kdl(&self, lvl: u32, curtain: bool) -> String {
         let mut l: Vec<String> = vec!["// yami: written by the shell (settings → look, windows, games, services). Do not edit by hand: it is rewritten.".into(), String::new()];
         self.float_kdl(&mut l);
+        self.gaps_kdl(&mut l);
         crate::games::kdl(self, lvl > 0, &mut l);
         crate::curtain::kdl(lvl, curtain, self.notif_cast, &mut l);
         if !self.blur_term && !self.blur_shell {

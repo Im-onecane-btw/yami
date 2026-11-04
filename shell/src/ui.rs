@@ -35,6 +35,8 @@ pub enum Act {
     SBool(&'static str),
     SSlider(&'static str, f32, f32, i32),
     SCycle(&'static str),
+    /// число в пикселях (config::NUMS): на шаг вниз (-1) или вверх (+1); колесо — тоже
+    SNum(&'static str, i32),
     /// вкладка «обновления»: выбрать, куда откатиться («prev» — прошлая сборка, иначе версия)
     UpdSel(String),
     /// шторка для трансляций: опустить / поднять

@@ -94,10 +94,13 @@ yami-shell binds list | print | write     # keybindings
 | `barLeft`, `barCenter`, `barRight` | see `config list` | module ids in order: `launcher` `workspaces` `mode` `tasks` `media` `tray` `net` `netspeed` `bt` `kb` `cpu` `ram` `temp` `vol` `profile` `clock` `notif` `settings` `power` `sep` |
 | `cpuStyle` | `"gauge"` | `gauge` `graph` `number` |
 | `clockSeconds`, `clockDate` | `false`, `true` | |
-| `taskWidth` | `190` | width of a task button, px |
+| `taskWidth` | `190` | width of a task button, px (60–400) |
+| `barTaskGap` | `4` | gap between task buttons, px (0–16) |
 | `barSep` | `"dots"` | separator look: `dots` `line` `blocks` `gap` |
-| `barSepW`, `barSepColor` | `10`, `"border"` | separator width; colour `border` `accent` `dim` |
-| `barGap` | `8` | gap between modules, px |
+| `barSepW`, `barSepColor` | `10`, `"border"` | separator width, px (2–32); colour `border` `accent` `dim` |
+| `barGap` | `8` | gap between modules, px (0–32) |
+| `barPadL`, `barPadR` | `6`, `6` | from the left and right edge of the bar to the outermost modules, px (0–64) |
+| `barMid` | `12` | from the side modules to the window list (and the centre modules), px (0–64) |
 
 ### Windows, dock, screenshots, system
 
@@ -108,6 +111,8 @@ yami-shell binds list | print | write     # keybindings
 | `floatMedia`, `floatPip` | `true` | photo/video viewers and picture-in-picture open floating |
 | `floatApps` | `""` | more app-ids to open floating, comma separated |
 | `floatW`, `floatH` | `0.62`, `0.78` | their size, share of the screen |
+| `winGap` | `8` | gap between tiled windows, px (0–64): niri `gaps` in `yami-fx.kdl` |
+| `winLeft`, `winRight`, `winTop`, `winBottom` | `8` each | from the screen edge to the windows, px (0–128; the top one from the bar): niri `struts` = edge − gap. Struts in `user.kdl` replace these whole |
 | `cursor`, `cursorSize` | `"yami"`, `24` | `yami` (pixel, in the palette) or `system` |
 | `dock` | `true` | show the dock |
 | `dockSide` | `"bottom"` | `bottom` `top` `left` `right` |

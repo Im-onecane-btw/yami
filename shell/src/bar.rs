@@ -17,9 +17,11 @@ pub fn draw(ui: &mut Ui, st: &State, out: &str, w: i32) {
     ui.cv.fill(R::new(0, H - 1, w, 1), t.border);
     let set = &st.set;
 
-    let gap = set.bar_gap.clamp(2, 24);
-    let sw = set.bar_sep_w.clamp(2, 32);
-    // разделитель рисуется только между двумя видимыми модулями: без пар и висячих по краям
+    let gap = set.num("bar_gap");
+    let sw = set.num("bar_sep_w");
+    let mid = set.num("bar_mid");
+    // разделитель рисуется только между двумя видимыми модулями: без пар и висячих по краям.
+    // Возвращает внешний край последнего модуля (x0, если модулей нет)
     let row = |ui: &mut Ui, list: &mut dyn Iterator<Item = &String>, x0: i32, dir: i32| -> i32 {
         let mut x = x0;
         let (mut pending, mut any) = (false, false);
@@ -32,6 +34,9 @@ pub fn draw(ui: &mut Ui, st: &State, out: &str, w: i32) {
             if mw == 0 {
                 continue;
             }
+            if any {
+                x += dir * gap;
+            }
             if pending {
                 let sx = if dir > 0 { x } else { x - sw };
                 sep(ui, st, sx, sw);
@@ -39,20 +44,22 @@ pub fn draw(ui: &mut Ui, st: &State, out: &str, w: i32) {
                 pending = false;
             }
             module(ui, st, out, m, if dir > 0 { x } else { x - mw }, false);
-            x += dir * (mw + gap);
+            x += dir * mw;
             any = true;
         }
         x
     };
-    let left_end = row(ui, &mut set.bar_left.iter(), 6, 1);
-    let right_start = row(ui, &mut set.bar_right.iter().rev(), w - 6, -1);
+    let left_end = row(ui, &mut set.bar_left.iter(), set.num("bar_pad_l"), 1);
+    let right_start = row(ui, &mut set.bar_right.iter().rev(), w - set.num("bar_pad_r"), -1);
 
     // в середине — окна стола (и всё, что в bar_center)
-    let mut cx = left_end + 4;
+    let x0 = if left_end > set.num("bar_pad_l") { left_end + mid } else { left_end };
+    let x1 = if right_start < w - set.num("bar_pad_r") { right_start - mid } else { right_start };
+    let mut cx = x0;
     let mut pending = false;
     for m in set.bar_center.iter() {
         if m == "sep" {
-            pending = cx > left_end + 4;
+            pending = cx > x0;
             continue;
         }
         if pending {
@@ -61,11 +68,13 @@ pub fn draw(ui: &mut Ui, st: &State, out: &str, w: i32) {
             pending = false;
         }
         if m == "tasks" {
-            tasks(ui, st, out, R::new(cx, 0, right_start - cx - 8, H - 1));
-            cx = right_start;
+            tasks(ui, st, out, R::new(cx, 0, x1 - cx, H - 1));
+            cx = x1;
         } else {
             let mw = module(ui, st, out, m, cx, false);
-            cx += mw + gap;
+            if mw > 0 {
+                cx += mw + gap;
+            }
         }
     }
 }
@@ -372,7 +381,8 @@ fn tasks(ui: &mut Ui, st: &State, out: &str, area: R) {
         return;
     }
     let n = list.len() as i32;
-    let iw = st.set.task_width.min((area.w + 4) / n - 4).max(24);
+    let tg = st.set.num("bar_task_gap");
+    let iw = st.set.num("task_width").min((area.w + tg) / n - tg).max(24);
     ui.cv.push_clip(area);
     let mut x = area.x;
     for w in list {
@@ -400,7 +410,7 @@ fn tasks(ui: &mut Ui, st: &State, out: &str, area: R) {
         let c = if w.focused { WHITE } else if hidden { t.text_faint } else { t.text };
         ui.text_in(font::PX, R::new(cx, r.y, r.right() - cx - 6, r.h), title, c);
         ui.zone(r, Act::Task(w.id), Cur::Pointer);
-        x += iw + 4;
+        x += iw + tg;
     }
     ui.cv.pop_clip();
 }

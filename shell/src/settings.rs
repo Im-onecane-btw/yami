@@ -289,7 +289,6 @@ fn tab_bar(ui: &mut Ui, st: &State, b: R) {
     y = rs.iter().map(|r| r.bottom()).max().unwrap_or(y) + 12;
     // отступы, разделители, вид
     y = title(ui, b.x, y, b.w, "отступы и вид");
-    let half = (b.w - 12) / 2;
     let style = match s.bar_sep.as_str() {
         "line" => "черта",
         "blocks" => "клетки",
@@ -301,22 +300,29 @@ fn tab_bar(ui: &mut Ui, st: &State, b: R) {
         "dim" => "тусклый",
         _ => "рамка",
     };
-    opt_btn(ui, R::new(b.x, y, half, 26), "разделитель", style, Act::SCycle("bar_sep"));
-    opt_btn(ui, R::new(b.x + half + 12, y, half, 26), "цвет", color, Act::SCycle("bar_sep_color"));
-    y += 32;
-    opt_btn(ui, R::new(b.x, y, half, 26), "ширина разделителя", &format!("{} px", s.bar_sep_w), Act::SCycle("bar_sep_w"));
-    opt_btn(ui, R::new(b.x + half + 12, y, half, 26), "между модулями", &format!("{} px", s.bar_gap), Act::SCycle("bar_gap"));
-    y += 32;
     let cpu = match s.cpu_style.as_str() {
         "graph" => "график",
         "number" => "число",
         _ => "шкала",
     };
-    opt_btn(ui, R::new(b.x, y, half, 26), "процессор/память", cpu, Act::SCycle("cpu_style"));
-    opt_btn(ui, R::new(b.x + half + 12, y, half, 26), "кнопка окна", &format!("{} px", s.task_width), Act::SCycle("task_width"));
+    // три столбца: разделитель, края и модули, окна; числа — стрелками или колесом
+    let cw = (b.w - 24) / 3;
+    let col = |i: i32| b.x + i * (cw + 12);
+    opt_btn(ui, R::new(col(0), y, cw, 26), "разделитель", style, Act::SCycle("bar_sep"));
+    opt_btn(ui, R::new(col(1), y, cw, 26), "цвет", color, Act::SCycle("bar_sep_color"));
+    num_btn(ui, R::new(col(2), y, cw, 26), "ширина", s.num("bar_sep_w"), "bar_sep_w");
+    y += 32;
+    for (i, (k, label)) in [("bar_pad_l", "край слева"), ("bar_pad_r", "край справа"), ("bar_gap", "промежуток")].into_iter().enumerate() {
+        num_btn(ui, R::new(col(i as i32), y, cw, 26), label, s.num(k), k);
+    }
+    y += 32;
+    for (i, (k, label)) in [("bar_mid", "до окон"), ("bar_task_gap", "зазор окон"), ("task_width", "кнопка окна")].into_iter().enumerate() {
+        num_btn(ui, R::new(col(i as i32), y, cw, 26), label, s.num(k), k);
+    }
     y += 34;
-    ui.toggle(R::new(b.x, y, half, 26), "часы с секундами", "", s.clock_seconds, Act::SBool("clock_seconds"));
-    ui.toggle(R::new(b.x + half + 12, y, half, 26), "дата в часах", "", s.clock_date, Act::SBool("clock_date"));
+    opt_btn(ui, R::new(col(0), y, cw, 26), "цп/память", cpu, Act::SCycle("cpu_style"));
+    ui.toggle(R::new(col(1), y, cw, 26), "часы с секундами", "", s.clock_seconds, Act::SBool("clock_seconds"));
+    ui.toggle(R::new(col(2), y, cw, 26), "дата в часах", "", s.clock_date, Act::SBool("clock_date"));
     // фишка в руке — поверх всего
     if let Some(d) = drag {
         let w = chip_w(ui, &d.name);
@@ -324,11 +330,29 @@ fn tab_bar(ui: &mut Ui, st: &State, b: R) {
     }
 }
 
+/// число в пикселях: ‹ значение › — щелчок по стрелке или колесо меняют на шаг
+fn num_btn(ui: &mut Ui, r: R, label: &str, v: i32, key: &'static str) {
+    let t = ui.t;
+    let hov = ui.hover(r);
+    ui.cv.pxbox(r, &BoxStyle::new(if hov { t.surface_hi } else { t.surface }, if hov { t.red } else { t.border }).bevel(true));
+    ui.text_in(PX, R::new(r.x + 8, r.y, r.w - 80, r.h), label, t.text_dim);
+    ui.zone(r, Act::SNum(key, 1), Cur::Pointer);
+    let (l, rr) = (R::new(r.right() - 72, r.y + 2, 16, r.h - 4), R::new(r.right() - 18, r.y + 2, 16, r.h - 4));
+    for (b, icon) in [(l, "left"), (rr, "right")] {
+        ui.cv.icon(icon, b.x + 1, b.cy() - 7, 2, if ui.hover(b) { t.ember } else { t.red });
+    }
+    ui.zone(l, Act::SNum(key, -1), Cur::Pointer);
+    ui.zone(rr, Act::SNum(key, 1), Cur::Pointer);
+    ui.cv.text_center(ui.f, PX, R::new(l.right(), r.y, rr.x - l.right(), r.h), &format!("{v}"), t.text);
+}
+
+/// кнопка выбора: подпись слева, значение справа; подписи — всё место, что значение не заняло
 pub fn opt_btn(ui: &mut Ui, r: R, label: &str, val: &str, act: Act) {
     let t = ui.t;
     let hov = ui.hover(r);
     ui.cv.pxbox(r, &BoxStyle::new(if hov { t.surface_hi } else { t.surface }, if hov { t.red } else { t.border }).bevel(true));
-    ui.text_in(PX, R::new(r.x + 8, r.y, r.w / 2, r.h), label, t.text_dim);
+    let vw = ui.f.width(PX, (ui.tr)(val));
+    ui.text_in(PX, R::new(r.x + 8, r.y, (r.w - 40 - vw).max(r.w / 3), r.h), label, t.text_dim);
     ui.text_right(PX, R::new(r.x, r.y, r.w - 24, r.h), val, t.text);
     ui.cv.icon("right", r.right() - 18, r.cy() - 7, 2, t.red);
     ui.zone(r, act, Cur::Pointer);
@@ -529,12 +553,21 @@ fn tab_dock(ui: &mut Ui, st: &State, b: R) {
 fn tab_windows(ui: &mut Ui, st: &State, b: R) {
     let s = &st.set;
     let half = (b.w - 20) / 2;
-    let mut y = title(ui, b.x, b.y, b.w, "плавающие окна");
+    // отступы окон: niri gaps/struts в yami-fx.kdl (применяются сразу)
+    let mut y = title(ui, b.x, b.y, b.w, "отступы окон: от краёв (сверху — от бара) и между");
+    let cw = (b.w - 24) / 3;
+    let col = |i: i32| b.x + i * (cw + 12);
+    for (i, (k, label)) in [("win_left", "слева"), ("win_right", "справа"), ("win_gap", "между"), ("win_top", "сверху"), ("win_bottom", "снизу")].into_iter().enumerate() {
+        let i = i as i32;
+        num_btn(ui, R::new(col(i % 3), y + i / 3 * 32, cw, 26), label, s.num(k), k);
+    }
+    y += 66;
+    y = title(ui, b.x, y, b.w, "плавающие окна");
     ui.toggle(R::new(b.x, y, half, 40), "фото и видео", "просмотр в Telegram, yami-view, mpv…", s.float_media, Act::SBool("float_media"));
     ui.toggle(R::new(b.x + half + 20, y, half, 40), "картинка в картинке", "в правом нижнем углу", s.float_pip, Act::SBool("float_pip"));
     y += 52;
     ui.slider(R::new(b.x, y, b.w, 40), "ширина", (s.float_w - 0.3) / 0.65, &format!("{:.0}%", s.float_w * 100.0), 13, Act::SSlider("float_w", 0.3, 0.95, 13));
-    y += 50;
+    y += 46;
     ui.slider(R::new(b.x, y, b.w, 40), "высота", (s.float_h - 0.3) / 0.65, &format!("{:.0}%", s.float_h * 100.0), 13, Act::SSlider("float_h", 0.3, 0.95, 13));
     y += 56;
     y = title(ui, b.x, y, b.w, "свои программы");
@@ -544,7 +577,7 @@ fn tab_windows(ui: &mut Ui, st: &State, b: R) {
     y += 40;
     let t = ui.t;
     ui.text_in(PX, R::new(b.x, y, b.w, 20), "app-id окна: niri msg windows · правила пишутся в niri/yami-fx.kdl", t.text_faint);
-    y += 34;
+    y += 28;
     y = title(ui, b.x, y, b.w, "курсор");
     let kind = match s.cursor.as_str() {
         "system" => "системный",
@@ -747,6 +780,10 @@ impl App {
                 self.st.hex.set(&format!("#{:06x}", PRESETS[*i].accent));
                 self.settings_changed();
             }
+            Act::SNum(k, d) => {
+                s.step_num(k, *d);
+                self.settings_changed();
+            }
             Act::SBool(k) => {
                 match *k {
                     "animations" => s.animations = !s.animations,
@@ -828,18 +865,6 @@ impl App {
                 }
                 "bar_sep_color" => {
                     s.bar_sep_color = cycle(&[("border", ""), ("accent", ""), ("dim", "")], &s.bar_sep_color).into();
-                    self.settings_changed();
-                }
-                "bar_sep_w" => {
-                    s.bar_sep_w = step_in(&[4, 6, 8, 10, 12, 16, 20, 24], s.bar_sep_w);
-                    self.settings_changed();
-                }
-                "bar_gap" => {
-                    s.bar_gap = step_in(&[4, 6, 8, 10, 12, 16], s.bar_gap);
-                    self.settings_changed();
-                }
-                "task_width" => {
-                    s.task_width = step_in(&[120, 150, 190, 230, 270, 300], s.task_width);
                     self.settings_changed();
                 }
                 "icon_theme" => {

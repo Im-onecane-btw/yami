@@ -327,8 +327,9 @@ yami-shell config check                # bad values and unknown keys
 yami-shell binds list                  # keybindings: id, keys, action
 ```
 
-- **Settings tabs**: color, wallpaper, look, fonts, bar (drag module chips and separators), widgets,
-  dock, windows (floating rules, cursor), keys, games, screenshots, screens, system, services
+- **Settings tabs**: color, wallpaper, look, fonts, bar (drag module chips and separators; spacing at the
+  edges, between modules and around the windows with arrows), widgets,
+  dock, windows (gaps between windows and from the screen edges, floating rules, cursor), keys, games, screenshots, screens, system, services
   (notifications, tray, polkit, portals, covers: each can be handed to another program), updates.
 - **niri**: the shell owns `yami-binds.kdl`, `yami-fx.kdl` (window rules, blur, games),
   `yami-colors.kdl`, `yami-cursor.kdl` and `yami-outputs.kdl`; `~/.config/niri/user.kdl` is

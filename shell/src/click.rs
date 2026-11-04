@@ -257,6 +257,10 @@ impl App {
                 crate::app::settings_set_f32(&mut self.st.set, key, (cur + if up { step } else { -step }).clamp(from, to));
                 self.settings_changed();
             }
+            Act::SNum(k, _) => {
+                self.st.set.step_num(k, if up { 1 } else { -1 });
+                self.settings_changed();
+            }
             _ => {}
         }
     }
