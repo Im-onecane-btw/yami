@@ -42,6 +42,14 @@ pub fn total() -> u64 {
     targets().iter().filter(|t| t.1.exists()).map(|t| size(&t.1)).sum()
 }
 
+/// папка исходников форка: в ней только yami-niri и yami-smithay. YAMI_NIRI_SRC, указавший по ошибке
+/// на дом или другую папку, не удаляется целиком
+fn niri_src(p: &Path) -> bool {
+    let Ok(rd) = std::fs::read_dir(p) else { return false };
+    let names: Vec<_> = rd.flatten().map(|e| e.file_name()).collect();
+    names.iter().all(|n| n == "yami-niri" || n == "yami-smithay")
+}
+
 /// дерево yami-niri с работой над патчами: правки или коммиты не из серии (их делает не yami@localhost)
 fn dev_tree(src: &Path) -> bool {
     let git = |d: &Path, a: &[&str]| Command::new("git").arg("-C").arg(d).args(a).output().map(|o| String::from_utf8_lossy(&o.stdout).to_string()).unwrap_or_default();
@@ -70,7 +78,9 @@ pub fn run(y: &Sty, a: &[&str]) -> i32 {
         found = true;
         let sz = size(&p);
         let line = |mark: String, note: &str| println!("   {mark} {:<22}{:>9}  {}", what, human(sz), y.dim(note));
-        if niri && !force && dev_tree(&p) {
+        if niri && !niri_src(&p) {
+            line(y.bad("✕"), &crate::tf!("это не папка исходников yami-niri (YAMI_NIRI_SRC?): не трогаю", "not a yami-niri source folder (YAMI_NIRI_SRC?): left alone"));
+        } else if niri && !force && dev_tree(&p) {
             line(y.warn("·"), &crate::tf!("в дереве твоя работа над патчами: оставлено (--force — всё равно)", "your patch work is in the tree: kept (--force to remove anyway)"));
         } else if dry {
             line(y.dim("·"), &crate::tf!("будет удалено", "would be removed"));
@@ -86,7 +96,7 @@ pub fn run(y: &Sty, a: &[&str]) -> i32 {
     }
     if !found {
         println!("   {} {}", y.ok("✓"), crate::tf!("кеша нет, чистить нечего", "no cache, nothing to clean"));
-    } else if !dry {
+    } else if !dry && freed > 0 {
         println!("\n {} {}", y.ok("✓"), crate::tf!("освобождено {}; следующее обновление соберёт заново (yami-niri уже стоит и этим не затронут)", "freed {}; the next update rebuilds (the installed yami-niri is untouched)", human(freed)));
     }
     println!();

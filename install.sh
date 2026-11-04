@@ -838,7 +838,15 @@ step() { # index
 }
 run_steps() {
   local i
-  for ((i = 0; i < ${#STEPS_T[@]}; i++)); do step "$i"; done
+  for ((i = 0; i < ${#STEPS_T[@]}; i++)); do
+    step "$i"
+    # an update whose build failed stops here: the old binaries stay with the configs they match,
+    # and the install record keeps the old version, so the update is offered again
+    if ((UPDATE)) && [[ ${STEPS_F[$i]%% *} == do_build_shell ]] && ((${#FAILED[@]})); then
+      warn "$(t "сборка не удалась — обновление остановлено, стоит прежняя версия" "the build failed: update stopped, the previous version stays")"
+      break
+    fi
+  done
   if [[ -t 1 ]] && ((!DRY)); then
     local f
     for ((f = 0; f < 22; f++)); do printf '\r'; progress "${#STEPS_T[@]}" "${#STEPS_T[@]}" $((f * 2)); nap 0.02; done
@@ -1062,7 +1070,13 @@ PY
     mkdir -p "$CFG/environment.d"
     printf '# YAMI: the shell lives in ~/.local/bin\nPATH=${HOME}/.local/bin:${PATH}\n' >"$CFG/environment.d/60-yami-path.conf"
   fi
-  if command -v niri >/dev/null; then niri validate -c "$n/config.kdl"; fi
+  if command -v niri >/dev/null && ! niri validate -c "$n/config.kdl"; then
+    # this niri does not load the new config: the previous one goes back, so the next login keeps working
+    if [[ $old == "$CACHE/config.kdl.prev" && -f $old ]]; then
+      cp "$old" "$n/config.kdl" && echo "niri: the new config.kdl did not validate, the previous one is back"
+    fi
+    return 1
+  fi
 }
 
 do_dotfiles() {
@@ -1134,15 +1148,25 @@ sddm_stale() {
 # Kept with --keep-build / YAMI_KEEP_BUILD, when this is not the updater's own clone (running from
 # any other checkout is development), and when the trees hold work: edits or commits not from the
 # patch series (those are made by yami@localhost, `git am` in yami-niri.sh)
-fork_tidy() {
-  ((KEEP_BUILD)) || [[ -n ${YAMI_KEEP_BUILD:-} ]] && return 0
-  local src="${YAMI_NIRI_SRC:-$CACHE/niri-src}" d sz
-  [[ -d $src && $ROOT == "${XDG_DATA_HOME:-$HOME/.local/share}/yami/src" ]] || return 0
+# the trees hold only what yami-niri.sh makes (no other folder by mistake via YAMI_NIRI_SRC) and no
+# work: no edits, no commits outside the patch series (those are made by yami@localhost, `git am`)
+niri_src_plain() {
+  local src=$1 e d
+  [[ -d $src ]] || return 1
+  for e in "$src"/* "$src"/.[!.]*; do
+    [[ -e $e ]] || continue
+    case ${e##*/} in yami-niri | yami-smithay) ;; *) return 1 ;; esac
+  done
   for d in "$src/yami-niri" "$src/yami-smithay"; do
     [[ -d $d/.git ]] || continue
-    [[ -z $(git -C "$d" status --porcelain 2>/dev/null) ]] || return 0
-    ! git -C "$d" log --format=%ce HEAD --not --remotes 2>/dev/null | grep -qvx 'yami@localhost' || return 0
+    [[ -z $(git -C "$d" status --porcelain 2>/dev/null) ]] || return 1
+    ! git -C "$d" log --format=%ce HEAD --not --remotes 2>/dev/null | grep -qvx 'yami@localhost' || return 1
   done
+}
+fork_tidy() {
+  ((KEEP_BUILD)) || [[ -n ${YAMI_KEEP_BUILD:-} ]] && return 0
+  local src="${YAMI_NIRI_SRC:-$CACHE/niri-src}" sz
+  [[ $ROOT == "${XDG_DATA_HOME:-$HOME/.local/share}/yami/src" ]] && niri_src_plain "$src" || return 0
   sz="$(du -sh "$src" 2>/dev/null | cut -f1)"
   rm -rf -- "$src" && note "$(t "исходники yami-niri удалены (${sz:-?}): бинарник стоит, следующая сборка скачает их заново (--keep-build — оставить)" "yami-niri sources removed (${sz:-?}): the binary stays, the next build fetches them again (--keep-build keeps them)")"
 }
@@ -1429,7 +1453,15 @@ uninstall() {
     "$CFG/xdg-desktop-portal/niri-portals.conf" "$CFG/niri/yami-cursor.kdl" "$CFG/btop/themes/yami.theme"
   find "$data/icons" -maxdepth 1 -type d -regextype posix-extended -regex '.*/yami-[0-9a-f]{6}' -exec rm -rf {} + 2>/dev/null
   rm -rf "$HOME/.local/share/fonts/yami" "$HOME/.local/share/yami" "$CFG/qt6ct/qss/yami"
-  rm -f "$STATE/packages-needed" "$STATE/components-known"
+  rm -f "$STATE/packages-needed" "$STATE/components-known" "$STATE/settings-newer.json"
+  # the build cache (gigabytes); yami-niri sources only without patch work in them
+  rm -rf -- "$CACHE/target" "$CACHE/sddm-yami" "$CACHE/update.log" "$CACHE/update.lock"
+  local src="${YAMI_NIRI_SRC:-$CACHE/niri-src}"
+  if niri_src_plain "$src"; then
+    rm -rf -- "$src"
+  elif [[ -d $src ]]; then
+    note "$(t "в $src твоя работа над патчами — оставил" "your patch work is in $src: kept")"
+  fi
   rm -f "$CFG/qt6ct/qss/yami.qss" "$CFG/qt6ct/colors/yami.conf"
   fc-cache -f >/dev/null 2>&1
   if [[ -f "$CFG/kitty/kitty.conf" ]]; then
@@ -1464,7 +1496,7 @@ if ((UPDATE)); then
   add "$(t "счётчик установок (один раз, без данных)" "install counter (once, no data)")" do_count
   ((RUNNING_NIRI)) && add "$(t "перезапуск шелла" "restart the shell")" do_restart_shell
   run_steps
-  if on fork && ((!DRY)) && fork_stale; then
+  if on fork && ((!DRY && ${#FAILED[@]} == 0)) && fork_stale; then
     say "$(t "yami-niri: новая серия патчей — сборка (5–25 минут)" "yami-niri: a new patch series, building (5–25 minutes)")"
     if need_rust && "$ROOT/fork/yami-niri.sh" build 2>&1 | tee -a "$LOG"; then fork_tidy; else FAILED+=("yami-niri"); fi
   fi

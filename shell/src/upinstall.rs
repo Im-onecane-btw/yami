@@ -123,10 +123,12 @@ pub(crate) fn build_install(i: &Info) -> Result<(), String> {
     let from = installed().version;
     progress(&crate::tf!("перехожу на {}", "switching to {}", i.reference));
     git(&dir, &["-c", "advice.detachedHead=false", "checkout", "-q", "--detach", &i.target]).map_err(explain)?;
-    // прежние бинари и запись об установке — для отката
-    let _ = std::fs::remove_dir_all(prev_dir());
-    copy_bins(&bin_dir(), &prev_dir()).map_err(|e| e.to_string())?;
-    let _ = std::fs::copy(stamp_path(), prev_dir().join("install.json"));
+    // прежние бинари и запись об установке — в сторону; точкой отката станут, только если установщик
+    // бинари заменил: упавшая сборка не стирает прежнюю точку отката
+    let stage = stage_dir();
+    let _ = std::fs::remove_dir_all(&stage);
+    copy_bins(&bin_dir(), &stage).map_err(|e| e.to_string())?;
+    let _ = std::fs::copy(stamp_path(), stage.join("install.json"));
     // старая версия не знает новых настроек и при сохранении их выкинет: снимок, вернутся при обновлении
     if older(&i.latest, &from) {
         snapshot_settings(&from);
@@ -155,6 +157,7 @@ pub(crate) fn build_install(i: &Info) -> Result<(), String> {
         }
     }
     let ok = ch.wait().map(|s| s.success()).unwrap_or(false);
+    keep_stage(&stage);
     // установщик выбранной версии мог не поднять шелл (у старых был такой баг): поднимаем сами
     ensure_shell();
     if !ok {
@@ -164,6 +167,27 @@ pub(crate) fn build_install(i: &Info) -> Result<(), String> {
         restore_settings(&i.latest);
     }
     Ok(())
+}
+
+fn stage_dir() -> PathBuf {
+    prev_dir().with_file_name("prev.new")
+}
+
+/// бинари в bin_dir уже не те, что отложены перед установкой: отложенные — новая точка отката;
+/// те же — установка до них не дошла, прежняя точка отката остаётся
+pub(crate) fn keep_stage(stage: &Path) {
+    let same = |a: &Path, b: &Path| match (std::fs::read(a), std::fs::read(b)) {
+        (Ok(x), Ok(y)) => x == y,
+        _ => false,
+    };
+    let old = stage.join("yami-shell");
+    if old.exists() && !same(&old, &bin_dir().join("yami-shell")) {
+        let _ = std::fs::remove_dir_all(prev_dir());
+        if std::fs::rename(stage, prev_dir()).is_ok() {
+            return;
+        }
+    }
+    let _ = std::fs::remove_dir_all(stage);
 }
 
 /// a старее b (по номерам версий; пустое — не старее)
@@ -257,7 +281,7 @@ pub fn rollback() -> Result<String, String> {
     let Some(_l) = lock() else { return Err(crate::tf!("обновление уже идёт", "an update is already running")) };
     let p = prev_dir();
     if !p.join("yami-shell").exists() {
-        return Err(crate::tf!("откатывать не на что: обновлений ещё не было", "nothing to roll back to: no update yet"));
+        return Err(crate::tf!("откатывать не на что: прежней сборки нет", "nothing to roll back to: no previous build"));
     }
     let from = installed().version;
     let to = prev_version().unwrap_or_default();

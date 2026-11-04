@@ -113,7 +113,13 @@ case "${1:-status}" in
   build) build ;;
   on) on ;;
   off) off ;;
-  clean) rm -rf -- "$SRC" && say "$(t "исходники и кеш сборки удалены" "sources and build cache removed")" ;;
+  clean)
+    # only the trees this script makes: a YAMI_NIRI_SRC pointing at another folder is never removed
+    for e in "$SRC"/* "$SRC"/.[!.]*; do
+      [[ -e $e ]] || continue
+      case ${e##*/} in yami-niri | yami-smithay) ;; *) echo "$(t "не папка исходников yami-niri, не трогаю:" "not a yami-niri source folder, left alone:") $SRC" >&2; exit 1 ;; esac
+    done
+    rm -rf -- "$SRC" && say "$(t "исходники и кеш сборки удалены" "sources and build cache removed")" ;;
   status)
     if [[ -f $DROPIN ]]; then
       echo "yami-niri: $("$LIB/current/niri" --version 2>/dev/null || echo "$(t "сломан" "broken")") — $(readlink -f "$LIB/current/niri")"
