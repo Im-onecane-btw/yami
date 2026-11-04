@@ -6,6 +6,8 @@ subjects when that section is empty).
 
 ## Unreleased
 
+## 2.4.2
+
 - Battery: a pixel icon on the 2 px grid like the other bar icons (notched case, six charge columns), «on AC power» and time left in the power popup, a notification at 10% and 5%
 - Wi-Fi: a saved network without its password (from the live session's KWallet, a changed password) now opens the password field instead of a dead «password required»; a wrong password asks again; passwords go to NetworkManager over D-Bus, not on the nmcli command line; WPA3-only and WEP networks; 802.1X networks point to «all connections»; works on a Russian-locale system
 - Bluetooth: new devices are paired and trusted before connecting, errors show in the popup, «device manager» opens blueman (or bluetoothctl) instead of the process monitor; «all connections» falls back to nmtui when nm-connection-editor is missing
