@@ -336,16 +336,20 @@ fn verify(dir: &Path, st: &Stamp, known: bool, policy: &str, what: &str, obj: &s
     let o = Command::new("git")
         .arg("-C")
         .arg(dir)
-        .args(["-c", "gpg.format=ssh", "-c", &format!("gpg.ssh.allowedSignersFile={kfs}"), what, "--", obj])
+        // minTrustLevel=fully: подпись ключом не из allowed_signers («No principal matched») — не «good»
+        .args(["-c", "gpg.format=ssh", "-c", &format!("gpg.ssh.allowedSignersFile={kfs}"), "-c", "gpg.minTrustLevel=fully", what, "--", obj])
         .env("LC_ALL", "C")
         .stdin(Stdio::null())
         .output();
     let Ok(o) = o else { return "bad".into() };
     let err = String::from_utf8_lossy(&o.stderr).to_string();
-    if o.status.success() {
-        // Good "git" signature for NAME with ED25519 key SHA256:…
-        let who = err.split("signature for ").nth(1).and_then(|s| s.split(" with ").next()).unwrap_or("?").trim().to_string();
-        format!("good:{who}")
+    // Good "git" signature for NAME with ED25519 key SHA256:… — без «for NAME» ключ не из списка
+    let who = err.split("Good \"git\" signature for ").nth(1).and_then(|s| s.split(" with ").next()).map(|s| s.trim().to_string());
+    if o.status.success() && !err.contains("No principal matched") {
+        match who {
+            Some(w) if !w.is_empty() => format!("good:{w}"),
+            _ => "bad".into(),
+        }
     } else if err.contains("no signature") || err.is_empty() || err.contains("cannot verify a non-tag") {
         "unsigned".into()
     } else {

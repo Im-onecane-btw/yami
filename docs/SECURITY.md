@@ -38,7 +38,9 @@ What yami trusts, what it exposes, and what was checked (audit of 2026-11-03).
 - Signatures: the trusted keys come from `keys/allowed_signers` of the version that is already
   installed (trust on first install, like the install itself). Once that file holds keys, a
   release whose tag is unsigned or signed by another key is refused (`updateVerify` `auto`), so
-  someone who gains push access to the repository still cannot ship an update. Releases are cut
+  someone who gains push access to the repository still cannot ship an update. A signature only
+  counts with a matching principal (`gpg.minTrustLevel=fully`, and «No principal matched» is
+  refused even where an old git would exit 0). Releases are cut
   with `tools/release.sh`, which refuses to make an unsigned tag once keys exist.
 - Installing: `install.sh --update` from the new tree as the user, no sudo; the previous binaries
   are kept for `yami update rollback`. A game in focus postpones the shell restart.
