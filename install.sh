@@ -153,8 +153,15 @@ SU=""
 if ((EUID == 0)); then SU=""; elif command -v sudo >/dev/null; then SU=sudo; elif command -v doas >/dev/null; then SU=doas; else SUDO=0; fi
 [[ -z $PM || $PM == nix ]] && SUDO=0
 
-NVIDIA=0 RUNNING_NIRI=0 SYSTEMD=0
+NVIDIA=0 HYBRID=0 RUNNING_NIRI=0 SYSTEMD=0
 { [[ -e /proc/driver/nvidia/version ]] || lspci 2>/dev/null | grep -qiE '(vga|3d).*nvidia'; } && NVIDIA=1
+# NVIDIA next to another GPU (Optimus laptops, an iGPU driving a screen): the driver's global env
+# (GBM, GLX, VA-API) would pull every app onto the NVIDIA card or break it, so it is left out
+if ((NVIDIA)); then
+  for v in /sys/class/drm/card[0-9]*/device/vendor; do
+    [[ -r $v && $v != *-* ]] && [[ $(cat "$v") != 0x10de ]] && HYBRID=1
+  done
+fi
 [[ -n "${NIRI_SOCKET:-}" ]] && RUNNING_NIRI=1
 [[ -d /run/systemd/system ]] && SYSTEMD=1
 # экран входа: по умолчанию — только если другого менеджера входа нет
@@ -898,13 +905,18 @@ do_fonts() {
 }
 
 # ── niri config ─────────────────────────────────────────────────────────────
+# the proprietary NVIDIA driver is loaded or installed (nouveau is not it)
+nv_driver() { [[ -e /proc/driver/nvidia/version ]] || modinfo nvidia_drm >/dev/null 2>&1; }
 write_local_kdl() {
   local env=()
   echo "// YAMI: written by install.sh for this machine. Re-run the installer to regenerate."
   # the polkit password window is yami-shell's own (no Qt/GTK agent)
-  ((NVIDIA)) && env+=('GBM_BACKEND "nvidia-drm"' '__GLX_VENDOR_LIBRARY_NAME "nvidia"' 'LIBVA_DRIVER_NAME "nvidia"'
-    'NVD_BACKEND "direct"' '__GL_GSYNC_ALLOWED "1"' '__GL_VRR_ALLOWED "1"' '__GL_MaxFramesAllowed "1"'
-    '__GL_SHADER_DISK_CACHE_SKIP_CLEANUP "1"')
+  # the proprietary driver only (nouveau has no nvidia-drm GBM) and only when NVIDIA is the one GPU;
+  # the __GL_ ones touch NVIDIA's own GL alone, so prime-run apps on a laptop keep them
+  if on nvidia && nv_driver; then
+    ((HYBRID)) || env+=('GBM_BACKEND "nvidia-drm"' '__GLX_VENDOR_LIBRARY_NAME "nvidia"' 'LIBVA_DRIVER_NAME "nvidia"' 'NVD_BACKEND "direct"')
+    env+=('__GL_GSYNC_ALLOWED "1"' '__GL_VRR_ALLOWED "1"' '__GL_MaxFramesAllowed "1"' '__GL_SHADER_DISK_CACHE_SKIP_CLEANUP "1"')
+  fi
   if ((${#env[@]})); then
     echo "environment {"
     printf '    %s\n' "${env[@]}"
