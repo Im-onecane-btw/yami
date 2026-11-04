@@ -44,7 +44,13 @@ pub struct AudioState {
 }
 
 fn pactl_json(args: &[&str]) -> Value {
-    let o = Command::new("pactl").arg("-f").arg("json").args(args).output();
+    // числа в JSON pactl пишет по локали (в ru_RU — «0,000000»): JSON ломается. Числа — по C,
+    // названия устройств остаются на языке системы (LC_ALL перекрыл бы LC_NUMERIC — переносим в LANG)
+    let mut c = Command::new("pactl");
+    if let Ok(all) = std::env::var("LC_ALL") {
+        c.env_remove("LC_ALL").env("LANG", all);
+    }
+    let o = c.env("LC_NUMERIC", "C").arg("-f").arg("json").args(args).output();
     o.ok().and_then(|o| serde_json::from_slice(&o.stdout).ok()).unwrap_or(Value::Null)
 }
 
