@@ -1472,7 +1472,7 @@ dependencies = [
 
 [[package]]
 name = "yami-play"
-version = "2.2.1"
+version = "2.3.0"
 dependencies = [
  "calloop",
  "calloop-wayland-source",

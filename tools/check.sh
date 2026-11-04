@@ -28,6 +28,16 @@ else
 fi
 BIN="$ROOT/shell/target/release/yami-shell"
 
+step "versions"
+want="$(cat "$ROOT/VERSION")"
+vbad=0
+for f in "$ROOT"/shell/Cargo.toml "$ROOT"/shell/*/Cargo.toml; do
+  [[ -f $f ]] || continue
+  v="$(sed -n '0,/^version = "\(.*\)"/s//\1/p' "$f")"
+  [[ $v == "$want" ]] || { echo "${f#"$ROOT"/}: $v, VERSION: $want"; vbad=1; }
+done
+((vbad)) && bad "crate versions differ from VERSION (tools/release.sh sets them)" || ok "every crate is $want"
+
 step "i18n"
 python3 -I "$ROOT/tools/check-i18n.py" || bad "static i18n"
 if [[ -x $BIN ]]; then

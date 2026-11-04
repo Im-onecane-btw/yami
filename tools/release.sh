@@ -116,7 +116,8 @@ if [[ -t 0 && -n ${EDITOR:-} ]]; then "$EDITOR" CHANGELOG.md; fi
 
 say "$(t "версия" "version") $cur → $ver"
 echo "$ver" >VERSION
-for f in shell/Cargo.toml shell/px/Cargo.toml shell/files/Cargo.toml shell/view/Cargo.toml; do
+crates=(shell/Cargo.toml shell/*/Cargo.toml)
+for f in "${crates[@]}"; do
   # only the [package] version (the first `version =` line of the file)
   sed -i "0,/^version = \".*\"/s//version = \"$ver\"/" "$f"
 done
@@ -124,7 +125,7 @@ cargo update --workspace --offline --manifest-path shell/Cargo.toml >/dev/null 2
 tools/check.sh --fast | tail -n 3
 tools/check.sh --fast >/dev/null 2>&1 || die "$(t "tools/check.sh не прошёл" "tools/check.sh failed")"
 
-git add VERSION CHANGELOG.md shell/Cargo.toml shell/Cargo.lock shell/px/Cargo.toml shell/files/Cargo.toml shell/view/Cargo.toml
+git add VERSION CHANGELOG.md shell/Cargo.lock "${crates[@]}"
 git commit -q -m "release: $ver"
 if ((signed)); then
   git tag -s "v$ver" -m "yami $ver"
