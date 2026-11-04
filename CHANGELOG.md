@@ -6,6 +6,10 @@ subjects when that section is empty).
 
 ## Unreleased
 
+- Disk: after a successful yami-niri build the installer removes its sources and build cache (~4 GB; the installed binary does not need them, the next build fetches them again). `--keep-build` or `YAMI_KEEP_BUILD=1` keeps them; a tree with your own edits or commits is never touched
+- `yami clean [--dry-run]` removes the build cache by hand (yami-niri sources, the shell's target) and `yami doctor` shows how big it is
+- `install.sh --no-monocraft` skips the 31 MB Monocraft font (the terminal uses Terminess; updates remember it, `--monocraft` brings it back)
+
 ## 2.4.2
 
 - Battery: a pixel icon on the 2 px grid like the other bar icons (notched case, six charge columns), «on AC power» and time left in the power popup, a notification at 10% and 5%

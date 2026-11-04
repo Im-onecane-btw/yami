@@ -378,8 +378,8 @@ pub fn sig_text(sig: &str) -> String {
 // ── установка и откат (процесс `yami update apply`, отдельно от шелла) ─────
 /// замок: две установки сразу не пойдут
 /// файл держится открытым, пока жив замок: закрытие снимает flock
-struct Lock(#[allow(dead_code)] std::fs::File);
-fn lock() -> Option<Lock> {
+pub struct Lock(#[allow(dead_code)] std::fs::File);
+pub fn lock() -> Option<Lock> {
     use std::os::unix::io::AsRawFd;
     let p = yami_px::paths::cache_dir().join("yami/update.lock");
     let _ = std::fs::create_dir_all(p.parent()?);

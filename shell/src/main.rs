@@ -16,6 +16,7 @@ mod screen;
 mod audio;
 mod bar;
 mod cli;
+mod clean;
 mod click;
 mod cmd;
 mod dbus;

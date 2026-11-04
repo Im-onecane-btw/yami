@@ -188,6 +188,12 @@ pub fn run(y: &Sty) -> i32 {
             line(y, &y.bad("✕"), "niri/config.kdl", &crate::tf!("не проходит: niri validate", "fails: niri validate"));
         }
     }
+    // кеш сборки лежит на диске, пока его не уберут: не проблема, но гигабайты стоит показать
+    let cache = crate::clean::total();
+    if cache >= 100 << 20 {
+        y.section(&crate::tf!("диск", "disk"));
+        line(y, &y.dim("·"), &crate::tf!("кеш сборки", "build cache"), &crate::tf!("{} — yami clean убирает (нужен только следующей сборке)", "{}: yami clean removes it (only the next build needs it)", crate::clean::human(cache)));
+    }
     println!();
     if problems == 0 {
         println!(" {} {}\n", y.ok("✓"), crate::tf!("всё в порядке", "all good"));

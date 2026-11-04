@@ -20,6 +20,8 @@
 #   ./install.sh --no-anim        no animations
 #   ./install.sh --dry-run        show the plan, change nothing
 #   ./install.sh --no-count       do not count this install (see docs/SECURITY.md, «Install count»)
+#   ./install.sh --keep-build     keep the yami-niri sources after building it (~4 GB; removed by default)
+#   ./install.sh --no-monocraft   skip the 31 MB Monocraft font: the terminal uses Terminess (--monocraft undoes it)
 #   ./install.sh --uninstall      remove the shell and dotfiles, restore backups
 #   ./install.sh --update         rebuild from this tree, keep every setting, no sudo (what
 #                                 `yami update apply` runs after checking the release)
@@ -73,7 +75,7 @@ MONOCRAFT_URL="https://github.com/IdreesInc/Monocraft/releases/download/v4.2.1/M
 MONOCRAFT_SHA256="67f88ff9e7c6560f6cf60fb062fd353a72f62dc2654462950c65b63ed53d9754"
 [[ -d $HOME/.cargo/bin ]] && export PATH="$HOME/.cargo/bin:$PATH"
 
-YES=0 SUDO=1 FORK_FLAG=1 LOGIN_FLAG="" PALETTE="" LOOK_OPT="" LANG_OPT="" FONT_OPT="" FETCH_OPT="" ANIM=1 DRY=0 UNINSTALL=0 UPDATE=0 COUNT=1
+YES=0 SUDO=1 FORK_FLAG=1 LOGIN_FLAG="" PALETTE="" LOOK_OPT="" LANG_OPT="" FONT_OPT="" FETCH_OPT="" ANIM=1 DRY=0 UNINSTALL=0 UPDATE=0 COUNT=1 KEEP_BUILD=0 MONO=""
 while (($#)); do
   case "$1" in
     -y | --yes) YES=1 ;;
@@ -90,6 +92,9 @@ while (($#)); do
     --no-anim) ANIM=0 ;;
     --dry-run) DRY=1 ;;
     --no-count) COUNT=0 ;;
+    --keep-build) KEEP_BUILD=1 ;;
+    --no-monocraft) MONO=0 ;;
+    --monocraft) MONO=1 ;;
     --uninstall) UNINSTALL=1 ;;
     --update) UPDATE=1 YES=1 ANIM=0 SUDO=0 ;;
     -h | --help) sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]:-$0}" | sed -e '$d' -e 's/^# \{0,1\}//'; exit 0 ;;
@@ -895,10 +900,17 @@ do_fonts() {
   local dir="$HOME/.local/share/fonts/yami"
   rm -f -- "$dir/Handjet.ttf" "$dir/OFL-handjet.txt"   # dropped: never used
   install -Dm644 -t "$dir" "$ROOT"/fonts/*.ttf "$ROOT"/fonts/OFL-*.txt || return 1
-  if [[ ! -s "$dir/Monocraft-nerd-fonts-patched.ttc" ]]; then
+  # Monocraft is 31 MB, the terminal's default font: --no-monocraft leaves it out (a marker keeps
+  # updates from bringing it back), theme.py then picks Terminess
+  local mono="$dir/Monocraft-nerd-fonts-patched.ttc" skip="$STATE/no-monocraft"
+  if [[ $MONO == 0 ]]; then mkdir -p "$STATE" && : >"$skip"; elif [[ $MONO == 1 ]]; then rm -f -- "$skip"; fi
+  if [[ -e $skip ]]; then
+    rm -f -- "$mono"
+    echo "Monocraft skipped (--no-monocraft): the terminal uses Terminess; --monocraft brings it back"
+  elif [[ ! -s $mono ]]; then
     curl -fsSL --proto '=https' --retry 2 -o "$CACHE/monocraft.ttc" "$MONOCRAFT_URL" &&
       echo "$MONOCRAFT_SHA256  $CACHE/monocraft.ttc" | sha256sum -c --quiet - &&
-      install -m644 "$CACHE/monocraft.ttc" "$dir/Monocraft-nerd-fonts-patched.ttc" ||
+      install -m644 "$CACHE/monocraft.ttc" "$mono" ||
       echo "Monocraft download failed or did not match its checksum, kitty falls back to Terminess"
     rm -f "$CACHE/monocraft.ttc"
   fi
@@ -1022,6 +1034,24 @@ sddm_stale() {
   for f in "$ROOT"/sddm/yami/*.qml; do cmp -s "$f" "/usr/share/sddm/themes/yami/${f##*/}" || return 0; done
   return 1
 }
+# the yami-niri sources and their build cache are ~4 GB and only the next fork build needs them (the
+# installed binary does not), so after a successful build they go; the next build clones them again.
+# Kept with --keep-build / YAMI_KEEP_BUILD, when this is not the updater's own clone (running from
+# any other checkout is development), and when the trees hold work: edits or commits not from the
+# patch series (those are made by yami@localhost, `git am` in yami-niri.sh)
+fork_tidy() {
+  ((KEEP_BUILD)) || [[ -n ${YAMI_KEEP_BUILD:-} ]] && return 0
+  local src="${YAMI_NIRI_SRC:-$CACHE/niri-src}" d sz
+  [[ -d $src && $ROOT == "${XDG_DATA_HOME:-$HOME/.local/share}/yami/src" ]] || return 0
+  for d in "$src/yami-niri" "$src/yami-smithay"; do
+    [[ -d $d/.git ]] || continue
+    [[ -z $(git -C "$d" status --porcelain 2>/dev/null) ]] || return 0
+    ! git -C "$d" log --format=%ce HEAD --not --remotes 2>/dev/null | grep -qvx 'yami@localhost' || return 0
+  done
+  sz="$(du -sh "$src" 2>/dev/null | cut -f1)"
+  rm -rf -- "$src" && note "$(t "исходники yami-niri удалены (${sz:-?}): бинарник стоит, следующая сборка скачает их заново (--keep-build — оставить)" "yami-niri sources removed (${sz:-?}): the binary stays, the next build fetches them again (--keep-build keeps them)")"
+}
+
 # the install counter: one download of a tiny release file per machine, ever. GitHub counts
 # downloads of release files; the request carries nothing about the machine (no id, no version, no
 # data: what any download from GitHub sends) and the file is thrown away. --no-count,
@@ -1245,7 +1275,7 @@ uninstall() {
   pgrep -x yami-shell >/dev/null && "$BIN/yami-shell" msg quit 2>/dev/null
   [[ -x $HOME/.local/lib/yami-niri/yami-niri.sh ]] && "$HOME/.local/lib/yami-niri/yami-niri.sh" off
   rm -rf "$HOME/.local/lib/yami-niri" "$HOME/.local/lib/yami"
-  rm -f "$BIN/yami-shell" "$BIN/yami" "$STATE/install.json" "$STATE/update.json" "$STATE/update-keys" "$CFG/environment.d/60-yami-path.conf" "$CFG/fontconfig/conf.d/50-yami-pixel.conf" \
+  rm -f "$BIN/yami-shell" "$BIN/yami" "$STATE/install.json" "$STATE/no-monocraft" "$STATE/update.json" "$STATE/update-keys" "$CFG/environment.d/60-yami-path.conf" "$CFG/fontconfig/conf.d/50-yami-pixel.conf" \
     "$CFG/niri/yami-binds.kdl" "$CFG/niri/yami-fx.kdl"
   local data="${XDG_DATA_HOME:-$HOME/.local/share}"
   pkill -f "$BIN/yami-files --portal" 2>/dev/null
@@ -1290,7 +1320,7 @@ if ((UPDATE)); then
   run_steps
   if on fork && ((!DRY)) && fork_stale; then
     say "$(t "yami-niri: новая серия патчей — сборка (5–25 минут)" "yami-niri: a new patch series, building (5–25 minutes)")"
-    need_rust && "$ROOT/fork/yami-niri.sh" build 2>&1 | tee -a "$LOG" || FAILED+=("yami-niri")
+    if need_rust && "$ROOT/fork/yami-niri.sh" build 2>&1 | tee -a "$LOG"; then fork_tidy; else FAILED+=("yami-niri"); fi
   fi
   if on login && [[ -d /usr/share/sddm/themes/yami ]] && sddm_stale; then
     note "$(t "экран входа обновился — поставь его: $ROOT/tools/sddm-install.sh (нужен sudo)" "the login screen changed, install it: $ROOT/tools/sddm-install.sh (needs sudo)")"
@@ -1379,6 +1409,7 @@ if on fork && ((!DRY)); then
     if [[ "$(ulimit -r)" == 0 ]] && ((SUDO)) && command -v setcap >/dev/null; then
       $SU setcap cap_sys_nice=ep "$(readlink -f "$HOME/.local/lib/yami-niri/current/niri")" || true
     fi
+    fork_tidy
   else
     FAILED+=("yami-niri")
   fi

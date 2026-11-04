@@ -91,6 +91,7 @@ fn help(y: &Sty, me: &str) {
     y.row("update rollback", &crate::tf!("вернуть то, что было до обновления", "go back to what was there before"));
     y.row("update status | log", &crate::tf!("что стоит, откуда, последний лог", "what is installed, from where, the last log"));
     y.row("doctor", &crate::tf!("проверить зависимости и службы, сказать, чего нет", "check dependencies and services, say what is missing"));
+    y.row("clean [--dry-run]", &crate::tf!("убрать кеш сборки: исходники yami-niri и target шелла (гигабайты)", "remove the build cache: yami-niri sources and the shell's target (gigabytes)"));
     y.row("version", &crate::tf!("версии всех частей", "versions of every part"));
     y.row("shot …", &crate::tf!("панели в PNG без Wayland (разработка)", "panels to PNG without Wayland (development)"));
     println!("\n {} {}", y.dim(&crate::tf!("подробнее:", "more:")), y.dim(&crate::tf!("yami help <команда> · docs/CONFIG.md · NO_COLOR=1 — без цвета", "yami help <command> · docs/CONFIG.md · NO_COLOR=1 for plain output")));
@@ -437,6 +438,7 @@ pub fn run(args: &[String], me: &str) -> i32 {
         Some("restart") => restart(&y, a.contains(&"--force")),
         Some("status") => status(&y),
         Some("doctor") => crate::doctor::run(&y),
+        Some("clean") => crate::clean::run(&y, &a[1..]),
         Some("palette") => palette(&y, &a[1..]),
         Some("wallpaper") => {
             // шелл живёт в другой папке: путь — абсолютный

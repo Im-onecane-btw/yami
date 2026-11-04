@@ -32,6 +32,7 @@ yami wallpaper ~/Pictures/x.png           # no path: the palette's pixel wallpap
 yami restart                              # restart the shell (refuses while a game has focus; --force)
 yami status                               # shell, portal, niri, last update check
 yami doctor                               # programs, D-Bus services, config: what is missing and what it costs
+yami clean [--dry-run]                    # remove the build cache (yami-niri sources, the shell's target: gigabytes); --force also drops a tree with your patch work
 yami version                              # every part with the installed commit
 yami update [check|apply|list|to X.Y.Z|rollback|status|log]
 yami msg <command>                        # raw shell command (yami help msg)
