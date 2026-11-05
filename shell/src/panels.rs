@@ -55,6 +55,7 @@ impl App {
             Modal::Power => self.st.power_cur = 0,
             Modal::Auth | Modal::Screen | Modal::Reply => {}
             Modal::Settings => {
+                self.tab_probe();
                 self.st.hex.set(&self.st.set.accent.clone());
                 if self.st.sel_widget == 0 {
                     self.st.sel_widget = self.st.set.widgets.first().map(|w| w.id).unwrap_or(0);

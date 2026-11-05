@@ -162,6 +162,8 @@ pub enum Msg {
     Curtain(u64, HashMap<String, crate::gfx::Img>),
     /// обои готовы (wall.rs): номер задания, картинка, акцент из неё
     Wall(u64, Option<crate::gfx::Img>, Option<u32>),
+    /// мониторы, где обои рисует skwd-paper (skwd.rs, слои niri)
+    SkwdLayers(Vec<String>),
     Snap(HashMap<String, crate::gfx::Img>, Vec<(String, R, String)>, crate::snap::Mode),
     /// распознанное со снимка: QR или текст, None — ничего не нашлось
     SnapText(bool, Option<String>),
@@ -240,6 +242,10 @@ pub struct State {
     /// модули бара из скриптов (~/.config/yami/modules)
     pub plugins: crate::plugins::Plugins,
     pub session: crate::session::Session,
+    /// skwd-wall: что выбрано, его палитра, где рисует сам (skwd.rs)
+    pub skwd: crate::skwd::Skwd,
+    /// skwd-wall стоит на машине (проверяется при открытии настроек)
+    pub skwd_here: bool,
     pub game_field: Field,
     /// окно ответа из уведомления
     pub reply: crate::reply::Reply,
@@ -392,6 +398,8 @@ impl State {
             night: Default::default(),
             plugins: Default::default(),
             session: Default::default(),
+            skwd: Default::default(),
+            skwd_here: false,
             game_field: Field::default(),
             reply: Default::default(),
             geo_field: Field::default(),
@@ -723,8 +731,13 @@ impl App {
         for id in gone {
             self.destroy(id);
         }
+        // обои на этом мониторе рисует skwd-paper — свои убрать
+        let skwd: Vec<u32> = self.surfs.iter().filter(|(_, s)| s.kind == SKind::Wall && self.skwd_draws(&s.output)).map(|(i, _)| *i).collect();
+        for id in skwd {
+            self.destroy(id);
+        }
         for n in names {
-            if self.find_on(&SKind::Wall, &n).is_none() {
+            if self.find_on(&SKind::Wall, &n).is_none() && !self.skwd_draws(&n) {
                 self.mk(SKind::Wall, &n, Layer::Background, "yami-wall", Anchor::all(), (0, 0), (0, 0, 0, 0), -1, KeyboardInteractivity::None);
                 // монитор появился: теперь известен его размер (обои режутся под него)
                 self.sync_wall();
@@ -1026,6 +1039,7 @@ impl App {
             }
             self.check_settings_file();
             self.need_tick();
+            self.skwd_tick();
             // ночной свет упал сам — значок в баре гаснет
             let n = self.st.night.running();
             if n != self.st.night.on {
@@ -1220,6 +1234,7 @@ impl App {
                 }
             }
             Msg::Wall(n, img, accent) => self.wall_ready(n, img, accent),
+            Msg::SkwdLayers(drawn) => self.skwd_layers(drawn),
             Msg::Curtain(n, imgs) => self.curtain_ready(n, imgs),
             Msg::Theme => {
                 self.sync_wall();
@@ -1339,6 +1354,8 @@ impl App {
         self.st.stab = t;
         if self.st.modal != Some(Modal::Settings) {
             self.toggle_modal(Modal::Settings, false);
+        } else {
+            self.tab_probe();
         }
         self.dirty(&SKind::Modal);
     }

@@ -136,6 +136,10 @@ pub struct Settings {
     pub wall_dim: f32,
     /// акцент (а с ним вся палитра) берётся из своих обоев
     pub wall_accent: bool,
+    /// обои выбирает skwd-wall (skwd.rs): рисует skwd-paper — свои прячутся, нет — картинку рисует шелл
+    pub wall_skwd: bool,
+    /// акцент и светлая / тёмная тема — из палитры skwd-wall
+    pub wall_skwd_colors: bool,
 
     // бар: модули по сторонам и их порядок
     pub bar_left: Vec<String>,
@@ -415,6 +419,8 @@ impl Default for Settings {
             wall_tone: String::new(),
             wall_dim: 0.0,
             wall_accent: false,
+            wall_skwd: false,
+            wall_skwd_colors: true,
             bar_left: v(&["launcher", "sep", "workspaces", "sep", "mode"]),
             bar_center: v(&["tasks"]),
             bar_right: v(&["tray", "sep", "net", "kb", "cpu", "ram", "bat", "profile", "sep", "vol", "sep", "clock", "sep", "settings", "power"]),
@@ -854,6 +860,7 @@ impl Settings {
         self.layout_kdl(&mut l);
         self.corners_kdl(&mut l);
         crate::games::kdl(self, lvl > 0, &mut l);
+        crate::skwd::kdl(self, &mut l);
         crate::curtain::kdl(lvl, curtain, self.notif_cast, &mut l);
         if !self.blur_term && !self.blur_shell {
             l.push("blur { off; }".into());

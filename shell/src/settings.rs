@@ -38,7 +38,7 @@ pub const TABS: &[(&str, &str, &str)] = &[
 /// слова для поиска настроек из лаунчера («vrr» → экраны): по-русски и по-английски
 pub const FIND: &[(&str, &str)] = &[
     ("color", "палитра акцент цвет тема светлая тёмная стекло прозрачность palette accent colour color theme light dark glass"), // i18n-ok
-    ("wall", "обои картинка фон wallpaper background image"), // i18n-ok
+    ("wall", "обои картинка фон skwd skwd-wall видео wallpaper background image video"), // i18n-ok
     ("look", "анимации эффекты появление развёртка размытие значки иконки курсор animation effects reveal scanlines blur icons cursor"), // i18n-ok
     ("fonts", "шрифт размер терминал fastfetch браузер fonts size terminal browser"), // i18n-ok
     ("bar", "бар модули часы разделитель плавающий плашка ширина центр bar modules clock separator floating pill width center"), // i18n-ok
@@ -591,6 +591,16 @@ pub(crate) fn cycle<'a>(list: &[(&'a str, &'a str)], cur: &str) -> &'a str {
 }
 
 impl App {
+    /// что есть в системе для открытой вкладки: игры (gamemode, ntsync…), skwd-wall для обоев.
+    /// При открытии вкладки и настроек — не в каждом кадре
+    pub fn tab_probe(&mut self) {
+        match self.st.stab {
+            "games" => self.st.game_probe = crate::gameboost::probe(),
+            "wall" => self.st.skwd_here = crate::skwd::installed(),
+            _ => {}
+        }
+    }
+
     /// клики внутри настроек; true — обработано
     pub fn settings_click(&mut self, a: &Act) -> bool {
         let s = &mut self.st.set;
@@ -602,9 +612,7 @@ impl App {
                 if *id == "screens" {
                     self.disp_open();
                 }
-                if *id == "games" {
-                    self.st.game_probe = crate::gameboost::probe();
-                }
+                self.tab_probe();
             }
             Act::SPreset(i) => {
                 s.palette = PRESETS[*i].id.into();
@@ -635,6 +643,19 @@ impl App {
                         self.sync_titles();
                     }
                     "wall_kanji" => s.wall_kanji = !s.wall_kanji,
+                    "wall_skwd" | "wall_skwd_colors" => {
+                        if *k == "wall_skwd" {
+                            s.wall_skwd = !s.wall_skwd;
+                        } else {
+                            s.wall_skwd_colors = !s.wall_skwd_colors;
+                        }
+                        self.settings_changed();
+                        // сразу, не ждать тика: обои и палитра skwd-wall
+                        self.skwd_tick();
+                        self.skwd_colors();
+                        self.dirty(&SKind::Modal);
+                        return true;
+                    }
                     "bar_float" => s.bar_float = !s.bar_float,
                     "blur_shell" => s.blur_shell = !s.blur_shell,
                     "blur_term" => s.blur_term = !s.blur_term,

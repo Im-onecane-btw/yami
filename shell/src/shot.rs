@@ -24,6 +24,7 @@ const TARGETS: &[&str] = &[
     "settings:color",
     "settings:bar",
     "settings:bar-look",
+    "settings:wall-skwd",
     "settings:widgets",
     "settings:look",
     "settings:wall",
@@ -190,7 +191,7 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
     st.locked = false;
     if st.wall.is_none() && (matches!(kind, "bar" | "lock") || target == "settings:wall") {
         // обои — как у шелла, только без нити
-        st.wall = crate::wall::prepare(&crate::wall::Job::new(&st.set, &st.t, 1920, 1080)).0.map(std::rc::Rc::new);
+        st.wall = crate::wall::prepare(&crate::wall::Job::new(&st.set, &st.t, 1920, 1080, crate::wall::source(&st))).0.map(std::rc::Rc::new);
     }
     let (w, h) = match kind {
         // бар как на мониторе 1920: с отступом и тенью, если он плашкой
@@ -206,6 +207,16 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
             }
             // вкладка «бар», раздел «вид»: форма бара, отступы
             st.bar_ed.look = arg == "bar-look";
+            // обои с skwd-wall: он стоит и включён, выбрано видео (здесь — его кадр)
+            st.skwd_here = arg == "wall-skwd";
+            if arg == "wall-skwd" {
+                st.stab = "wall";
+                st.set.wall_skwd = true;
+                st.skwd.pick = Some(("/home/you/Videos/wallpapers/neon-rain.jpg".into(), "video".into()));
+            } else if st.set.wall_skwd && st.skwd.pick.as_ref().is_some_and(|p| p.0.starts_with("/home/you")) {
+                st.set.wall_skwd = false;
+                st.skwd.pick = None;
+            }
             if arg == "bar-look" {
                 st.stab = "bar";
             }
@@ -342,7 +353,7 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
         "curtain" => {
             // то, что увидят зрители: кадр — обои, в стиле шторки (как с настоящим экраном)
             let mut c = crate::curtain::Curtain::default();
-            if let Some(i) = crate::wall::prepare(&crate::wall::Job::new(&st.set, &st.t, 1280, 720)).0 {
+            if let Some(i) = crate::wall::prepare(&crate::wall::Job::new(&st.set, &st.t, 1280, 720, crate::wall::source(&st))).0 {
                 c.imgs.insert("shot".into(), std::rc::Rc::new(crate::curtain::cover_of(&i, &st.set.curtain_style, st.set.curtain_cell / 2).unwrap_or(i)));
             }
             st.curtain = Some(c);

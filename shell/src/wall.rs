@@ -31,6 +31,19 @@ pub fn own(s: &Settings) -> Option<PathBuf> {
     Some(p.strip_prefix("~/").map(|r| config::home().join(r)).unwrap_or_else(|| PathBuf::from(p)))
 }
 
+/// что рисовать: картинка, выбранная в skwd-wall (если он включён и что-то выбрал), иначе своя
+pub fn source(st: &State) -> Option<PathBuf> {
+    match (&st.skwd.pick, st.set.wall_skwd) {
+        (Some((p, _)), true) => Some(p.clone()),
+        _ => own(&st.set),
+    }
+}
+
+/// акцент берётся из картинки: «палитра из обоев», если палитру не ведёт skwd-wall
+fn accent_from_image(s: &Settings) -> bool {
+    s.wall_accent && !(s.wall_skwd && s.wall_skwd_colors)
+}
+
 fn generated() -> PathBuf {
     config::state_dir().join("wallpaper.png")
 }
@@ -60,8 +73,9 @@ pub struct Job {
 }
 
 impl Job {
-    pub fn new(s: &Settings, t: &Theme, w: i32, h: i32) -> Job {
-        let own = own(s);
+    /// src — картинка (wall::source) или None: пиксельные из палитры
+    pub fn new(s: &Settings, t: &Theme, w: i32, h: i32, src: Option<PathBuf>) -> Job {
+        let own = src;
         Job {
             own: own.is_some(),
             path: own.unwrap_or_else(generated),
@@ -71,7 +85,7 @@ impl Job {
             fit: s.wall_fit == "fit",
             tone: s.wall_tone.clone(),
             dim: s.wall_dim.clamp(0.0, 0.8),
-            accent: s.wall_accent,
+            accent: accent_from_image(s),
             ramp: [t.bg.0, t.dim.0, t.blood.0, t.red.0, t.ember.0, t.text.0],
         }
     }
@@ -304,7 +318,8 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     ui.cv.pop_clip();
     let (rx, rw) = (pv.right() + 16, b.right() - pv.right() - 16);
     let mut ry = y + 2;
-    match own(s) {
+    let skwd = s.wall_skwd.then_some(st.skwd.pick.as_ref()).flatten();
+    match source(st) {
         Some(p) => {
             // имя файла — как есть, без перевода
             let name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
@@ -313,7 +328,14 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
             ui.cv.text(f, PX, rx, ry, &name, t.text);
             ui.cv.pop_clip();
             ry += 20;
-            ui.text_in(PX, R::new(rx, ry, rw, 18), if p.is_file() { "своя картинка" } else { "файл не найден" }, if p.is_file() { t.text_faint } else { t.warn });
+            let what = match skwd.map(|k| k.1.as_str()) {
+                Some("video") => "skwd-wall: видео, здесь — кадр",
+                Some("we") => "skwd-wall: сцена, здесь — кадр",
+                Some(_) => "выбрано в skwd-wall",
+                None if p.is_file() => "своя картинка",
+                None => "файл не найден",
+            };
+            ui.text_in(PX, R::new(rx, ry, rw, 18), what, if p.is_file() { t.text_faint } else { t.warn });
         }
         None => {
             ui.text_in(PX, R::new(rx, ry, rw, 20), "пиксельные из палитры", t.text);
@@ -339,10 +361,30 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     ui.slider(R::new(b.x, y, half, 40), "пиксельные клетки", (s.wall_pixel as f32 - 1.0) / 7.0, &ct, 7, Act::SSlider("wall_pixel", 1.0, 8.0, 7));
     ui.slider(R::new(b.x + half + 20, y, half, 40), "затемнение", s.wall_dim / 0.8, &format!("{:.0}%", s.wall_dim * 100.0), 16, Act::SSlider("wall_dim", 0.0, 0.8, 16));
     y += 54;
-    y = title(ui, b.x, y, b.w, "цвета");
-    ui.toggle(R::new(b.x, y, b.w, 40), "палитра из обоев", "акцент берётся из картинки, за ним перекрашивается всё", s.wall_accent, Act::SWall("accent"));
+    // skwd-wall: раздел виден, когда он стоит (или уже включён)
+    let has_skwd = s.wall_skwd || st.skwd_here;
+    y = title(ui, b.x, y, b.w, if has_skwd { "цвета и skwd-wall" } else { "цвета" });
+    let (lx, rx2) = (b.x, b.x + half + 20);
+    let ph = if s.wall_skwd && s.wall_skwd_colors { "палитру ведёт skwd-wall" } else { "акцент из картинки" };
+    ui.toggle(R::new(lx, y, half, 40), "палитра из обоев", ph, s.wall_accent, Act::SWall("accent"));
+    ui.toggle(R::new(rx2, y, half, 40), "иероглиф на обоях", "в правом нижнем углу", s.wall_kanji, Act::SBool("wall_kanji"));
     y += 46;
-    ui.toggle(R::new(b.x, y, b.w, 40), "иероглиф на обоях", "в правом нижнем углу", s.wall_kanji, Act::SBool("wall_kanji"));
+    if has_skwd {
+        // кто рисует: skwd-paper (видео, сцены, переходы) или шелл (картинка в клетках и тонах)
+        let hint = if !s.wall_skwd {
+            "выбор и видео-обои — в skwd-wall"
+        } else if st.skwd.pick.is_none() {
+            "ждёт выбора в skwd-wall"
+        } else if st.skwd.drawn.is_empty() {
+            "картинку рисует шелл"
+        } else {
+            "рисует skwd-paper"
+        };
+        ui.toggle(R::new(lx, y, half, 40), "обои из skwd-wall", hint, s.wall_skwd, Act::SBool("wall_skwd"));
+        if s.wall_skwd {
+            ui.toggle(R::new(rx2, y, half, 40), "его палитра", "акцент и светлая / тёмная тема", s.wall_skwd_colors, Act::SBool("wall_skwd_colors"));
+        }
+    }
 }
 
 impl App {
@@ -353,7 +395,7 @@ impl App {
             return;
         }
         let (w, h) = self.output_size(&self.focus_out());
-        let job = Job::new(&self.st.set, &self.st.t, w, h);
+        let job = Job::new(&self.st.set, &self.st.t, w, h, source(&self.st));
         let key = job.key();
         if key == self.wall_key {
             return;
@@ -388,7 +430,7 @@ impl App {
         }
         self.dirty(&SKind::Modal);
         let s = &mut self.st.set;
-        if let (Some(a), true, true) = (accent, s.wall_accent, own(s).is_some()) {
+        if let (Some(a), true) = (accent, accent_from_image(s)) {
             let hex = format!("#{a:06x}");
             if hex != s.accent {
                 s.accent = hex.clone();

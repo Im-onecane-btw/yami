@@ -53,6 +53,7 @@ mod report;
 mod popups;
 mod power;
 mod session;
+mod skwd;
 mod settings;
 mod shot;
 mod snap;
