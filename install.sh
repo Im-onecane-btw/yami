@@ -245,7 +245,7 @@ case "$FAM" in
     P_apps=(kitty fastfetch pavucontrol btop udisks2 ffmpegthumbnailer bsdtar libmpv2 gvfs gvfs-backends gvfs-backend-afc gvfs-fuse)
     P_look=(qt6ct gtk3-metatheme-adwaita papirus-icon-theme)
     P_games=(gamemode mangohud)
-    P_tools=(wlsunset tesseract-ocr tesseract-ocr-traineddata-english tesseract-ocr-traineddata-russian zbar)
+    P_tools=(wlsunset tesseract-ocr tesseract-ocr-traineddata-eng tesseract-ocr-traineddata-rus zbar)
     P_nirisrc=(git clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-1-devel systemd-devel
       libseat-devel pipewire-devel pango-devel cairo-devel libdisplay-info-devel) ;;
   void)
@@ -517,6 +517,10 @@ if ((UPDATE)) && [[ -f $INSTALLED ]]; then
       if [[ " $COMP " == *" ${C_ID[$i]} "* ]]; then C_ON[i]=1
       elif [[ " $known " == *" ${C_ID[$i]} "* ]]; then C_ON[i]=0; fi
     done
+  elif [[ ! -x $HOME/.local/lib/yami-niri/current/niri ]]; then
+    # no record of the choice (a home-only install of an old version): the fork, a 5–25 minute
+    # build and ~4 GB, only for those who already run it
+    for i in "${!C_ID[@]}"; do [[ ${C_ID[$i]} == fork ]] && C_ON[i]=0; done
   fi
 fi
 c_name() {
@@ -1451,7 +1455,10 @@ uninstall() {
   rm -f "$BIN/yami-files" "$BIN/yami-view" "$BIN/yami-play" "$data/applications/yami-files.desktop" "$data/applications/yami-view.desktop" "$data/applications/yami-play.desktop" "$data/xdg-desktop-portal/portals/yami.portal" \
     "$data/dbus-1/services/org.freedesktop.impl.portal.desktop.yami.service" "$data/dbus-1/services/org.freedesktop.FileManager1.service" \
     "$CFG/xdg-desktop-portal/niri-portals.conf" "$CFG/niri/yami-cursor.kdl" "$CFG/btop/themes/yami.theme"
-  find "$data/icons" -maxdepth 1 -type d -regextype posix-extended -regex '.*/yami-[0-9a-f]{6}' -exec rm -rf {} + 2>/dev/null
+  # pixel cursors: yami-<accent>, and yami-<accent>-l for the light theme
+  find "$data/icons" -maxdepth 1 -type d -regextype posix-extended -regex '.*/yami-[0-9a-f]{6}(-l)?' -exec rm -rf {} + 2>/dev/null
+  # the MangoHud config theme.py wrote (one without its mark is the user's own)
+  head -1 "$CFG/MangoHud/MangoHud.conf" 2>/dev/null | grep -q '^# yami: written by tools/theme.py' && rm -f "$CFG/MangoHud/MangoHud.conf"
   rm -rf "$HOME/.local/share/fonts/yami" "$HOME/.local/share/yami" "$CFG/qt6ct/qss/yami"
   rm -f "$STATE/packages-needed" "$STATE/components-known" "$STATE/settings-newer.json"
   # the build cache (gigabytes); yami-niri sources only without patch work in them
@@ -1493,6 +1500,9 @@ if ((UPDATE)); then
   add "$(t "niri: конфиг" "niri: config")" do_niri_config
   add "$(t "палитра: всё, что из неё выводится" "palette: everything derived from it")" do_refresh
   add "$(t "запись об установке" "install record")" do_stamp
+  # an update has no sudo: what the chosen components still miss goes to packages-needed, and the
+  # shell offers one command for it (settings → updates, yami doctor, yami update need)
+  add "$(t "каких пакетов ещё не хватает" "packages still missing")" do_need_pkgs
   add "$(t "счётчик установок (один раз, без данных)" "install counter (once, no data)")" do_count
   ((RUNNING_NIRI)) && add "$(t "перезапуск шелла" "restart the shell")" do_restart_shell
   run_steps

@@ -866,6 +866,10 @@ def mangohud(p):
     path = CFG / "MangoHud/MangoHud.conf"
     if path.exists() and not path.read_text(errors="replace").startswith(MANGO_MARK):
         return
+    # без MangoHud конфиг ему не нужен: папку в ~/.config не заводим
+    import shutil
+    if not path.exists() and not path.parent.is_dir() and not shutil.which("mangohud"):
+        return
     h = lambda k: p[k].lstrip("#")
     font = next((f for f in (HOME / ".local/share/fonts/yami/Tiny5.ttf", HOME / ".local/share/fonts/Tiny5.ttf") if f.exists()), None)
     lines = [
