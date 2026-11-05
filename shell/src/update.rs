@@ -44,13 +44,27 @@ pub struct Info {
     pub reference: String,
     pub target: String,
     pub available: bool,
+    /// что нового по-английски (CHANGELOG.md) и по-русски (CHANGELOG.ru.md): оба сразу, чтобы смена
+    /// языка интерфейса не ждала следующей проверки; показывать — `notes()`
     pub notes: Vec<String>,
+    pub notes_ru: Vec<String>,
     /// good:<кто> | unsigned | bad | nokeys | off
     pub sig: String,
     pub err: String,
     pub at: u64,
     /// последние выпуски (новые первыми) — на что можно перейти из вкладки и `yami update to`
     pub releases: Vec<Rel>,
+}
+
+impl Info {
+    /// что нового на языке интерфейса (старый update.json без русских строк — по-английски)
+    pub fn notes(&self) -> &[String] {
+        if crate::i18n::en() || self.notes_ru.is_empty() {
+            &self.notes
+        } else {
+            &self.notes_ru
+        }
+    }
 }
 
 /// выпуск: тег, версия, подпись (как Info::sig), дата тега
@@ -284,6 +298,9 @@ pub(crate) fn check_into(set: &Settings, i: &mut Info) -> Result<(), String> {
         st.version.is_empty() || ver(&i.latest) > ver(&st.version)
     };
     i.notes = notes(&dir, &st, i, known, main);
+    // по-русски — только CHANGELOG.ru.md: нет там выпуска — пусто, Info::notes() покажет английское
+    let ru = if main { Err(String::new()) } else { git(&dir, &["show", &format!("{}:CHANGELOG.ru.md", i.target)]) };
+    i.notes_ru = ru.map(|log| section(&log, &i.latest)).unwrap_or_default();
     i.sig = signature(&dir, &st, i, known, main, &set.update_verify);
     i.releases = releases(&dir, &st, known, &set.update_verify);
     Ok(())
@@ -339,13 +356,10 @@ pub(crate) fn section(log: &str, ver: &str) -> Vec<String> {
         .collect()
 }
 
-/// что нового: раздел CHANGELOG выпуска (CHANGELOG.ru.md при русском интерфейсе, если в нём
-/// есть этот выпуск), иначе заголовки коммитов
+/// что нового: раздел CHANGELOG.md выпуска, иначе заголовки коммитов (русский раздел — notes_ru)
 pub(crate) fn notes(dir: &Path, st: &Stamp, i: &Info, known: bool, main: bool) -> Vec<String> {
     if !main {
-        let files: &[&str] = if crate::i18n::en() { &["CHANGELOG.md"] } else { &["CHANGELOG.ru.md", "CHANGELOG.md"] };
-        for f in files {
-            let Ok(log) = git(dir, &["show", &format!("{}:{f}", i.target)]) else { continue };
+        if let Ok(log) = git(dir, &["show", &format!("{}:CHANGELOG.md", i.target)]) {
             let sec = section(&log, &i.latest);
             if !sec.is_empty() {
                 return sec;
@@ -460,7 +474,7 @@ impl App {
         self.st.upd.stamp = installed();
         // новое — карточкой, один раз на версию
         if i.available && i.target != was && i.err.is_empty() {
-            let body = i.notes.first().cloned().unwrap_or_default();
+            let body = i.notes().first().cloned().unwrap_or_default();
             let n = crate::dbus::Incoming {
                 id: NOTE_ID,
                 app: "yami-update".into(),

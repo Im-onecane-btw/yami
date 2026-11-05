@@ -226,7 +226,7 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     } else if let Some(i) = notes {
         // что нового: строки CHANGELOG выпуска на языке интерфейса (CHANGELOG.ru.md), мимо tr()
         y = title(ui, b.x, y, b.w, &crate::tf!("что нового в {}", "what is new in {}", i.latest));
-        for n in &i.notes {
+        for n in i.notes() {
             if y + 18 > by - 8 {
                 break;
             }

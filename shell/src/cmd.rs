@@ -285,7 +285,7 @@ fn update(y: &Sty, args: &[&str]) -> i32 {
                 return 0;
             }
             println!(" {} {}  {}", y.head(&crate::tf!("доступно {}", "{} is available", i.latest)), y.dim(&i.reference), crate::update::sig_text(&i.sig));
-            for n in &i.notes {
+            for n in i.notes() {
                 println!("   {} {}", y.acc("·"), n);
             }
             if !i.sig_ok(&set.update_verify) {
