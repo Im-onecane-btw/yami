@@ -36,21 +36,29 @@ impl Drop for Night {
     }
 }
 
-/// «55.75, 37.62» → (широта, долгота)
+/// «55.75, 37.62», «55.75 37.62», «55.75 ,37.62» → (широта, долгота)
 pub fn geo(s: &str) -> Option<(f64, f64)> {
-    let (a, b) = s.split_once([',', ' '])?;
-    let (lat, lon) = (a.trim().parse::<f64>().ok()?, b.trim().parse::<f64>().ok()?);
+    let mut it = s.split(|c: char| c == ',' || c == ';' || c.is_whitespace()).filter(|x| !x.is_empty());
+    let (a, b) = (it.next()?, it.next()?);
+    if it.next().is_some() {
+        return None;
+    }
+    let (lat, lon) = (a.parse::<f64>().ok()?, b.parse::<f64>().ok()?);
     ((-90.0..=90.0).contains(&lat) && (-180.0..=180.0).contains(&lon)).then_some((lat, lon))
 }
 
 /// аргументы wlsunset по настройкам
 pub fn args(set: &crate::config::Settings) -> Vec<String> {
-    let mut a = vec!["-t".to_string(), set.night_temp.clamp(1500, 6500).to_string(), "-T".into(), "6500".into()];
+    // ночная температура всегда ниже дневной (6500): иначе wlsunset не запустится
+    let mut a = vec!["-t".to_string(), set.num("night_temp").to_string(), "-T".into(), "6500".into()];
     match geo(&set.night_geo) {
         Some((lat, lon)) => a.extend(["-l".into(), format!("{lat}"), "-L".into(), format!("{lon}")]),
         None => {
-            let h = |x: i32| format!("{:02}:00", x.clamp(0, 23));
-            a.extend(["-S".into(), h(set.night_off_h), "-s".into(), h(set.night_on_h)]);
+            let (on, off) = (set.num("night_on_h"), set.num("night_off_h"));
+            // одинаковые часы — ночь в один час: включить на час позже, чем выключить
+            let on = if on == off { (off + 1) % 24 } else { on };
+            let h = |x: i32| format!("{x:02}:00");
+            a.extend(["-S".into(), h(off), "-s".into(), h(on)]);
         }
     }
     a
@@ -96,7 +104,21 @@ mod tests {
     fn coords() {
         assert_eq!(super::geo("55.75, 37.62"), Some((55.75, 37.62)));
         assert_eq!(super::geo("55.75 37.62"), Some((55.75, 37.62)));
+        assert_eq!(super::geo("55.75 ,37.62"), Some((55.75, 37.62)));
+        assert_eq!(super::geo("-33.9,18.4"), Some((-33.9, 18.4)));
+        assert_eq!(super::geo("1, 2, 3"), None);
         assert_eq!(super::geo("95, 0"), None);
         assert_eq!(super::geo(""), None);
+    }
+
+    #[test]
+    fn wlsunset_args() {
+        let mut s = crate::config::Settings { night_temp: 6500, ..Default::default() };
+        let a = super::args(&s);
+        assert_eq!(&a[..4], ["-t", "6000", "-T", "6500"]);
+        s.night_on_h = 7;
+        s.night_off_h = 7;
+        let a = super::args(&s);
+        assert_eq!(&a[4..], ["-S", "07:00", "-s", "08:00"]);
     }
 }

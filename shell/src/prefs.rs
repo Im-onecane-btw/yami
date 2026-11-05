@@ -115,7 +115,12 @@ impl App {
         self.st.plugins.sync(&on_bar, &self.tx);
     }
 
+    /// yami-fx.kdl — только если он другой: каждая запись — перечитывание конфига niri
     pub fn write_fx(&mut self) {
-        let _ = config::write_atomic(&config::config_dir().join("niri/yami-fx.kdl"), &self.st.set.fx_kdl(self.st.niri.level, self.st.curtain.is_some()));
+        let p = config::config_dir().join("niri/yami-fx.kdl");
+        let text = self.st.set.fx_kdl(self.st.niri.level, self.st.curtain.is_some());
+        if std::fs::read_to_string(&p).ok().as_deref() != Some(text.as_str()) {
+            let _ = config::write_atomic(&p, &text);
+        }
     }
 }

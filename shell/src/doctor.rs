@@ -82,7 +82,19 @@ fn owner(c: &zbus::blocking::Connection, name: &str) -> Option<String> {
     let n = zbus::names::BusName::try_from(name).ok()?;
     let o = p.get_name_owner(n.clone()).ok()?;
     let pid = p.get_connection_unix_process_id(zbus::names::BusName::from(o)).ok();
-    Some(pid.and_then(|pid| std::fs::read_to_string(format!("/proc/{pid}/comm")).ok()).map(|s| s.trim().to_string()).unwrap_or_else(|| "?".into()))
+    // имя программы: comm обрезан до 15 знаков («xdg-desktop-por»), тогда — из пути (свои
+    // процессы) или из argv[0], если comm — его начало (у системных exe не прочитать)
+    let prog = |pid: u32| {
+        let base = |s: &str| std::path::Path::new(s).file_name().map(|n| n.to_string_lossy().to_string());
+        let comm = std::fs::read_to_string(format!("/proc/{pid}/comm")).ok().map(|s| s.trim().to_string())?;
+        if comm.len() < 15 {
+            return Some(comm);
+        }
+        let exe = std::fs::read_link(format!("/proc/{pid}/exe")).ok().and_then(|p| base(&p.to_string_lossy()));
+        let arg0 = std::fs::read(format!("/proc/{pid}/cmdline")).ok().and_then(|c| c.split(|b| *b == 0).next().and_then(|a| base(&String::from_utf8_lossy(a))));
+        exe.or(arg0).filter(|n| n.starts_with(&comm)).or(Some(comm))
+    };
+    Some(pid.and_then(prog).unwrap_or_else(|| "?".into()))
 }
 fn activatable(c: &zbus::blocking::Connection, name: &str) -> bool {
     zbus::blocking::fdo::DBusProxy::new(c).ok().and_then(|p| p.list_activatable_names().ok()).map(|l| l.iter().any(|n| n.as_str() == name)).unwrap_or(false)

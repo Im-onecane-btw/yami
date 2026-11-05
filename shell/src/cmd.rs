@@ -147,6 +147,23 @@ fn help_update(y: &Sty) {
 }
 
 /// шелл не отвечает — понятная ошибка вместо молчания
+/// команда шеллу понятна ему (App::ipc): опечатка — ошибка здесь, а не молчаливое «ok»
+pub fn msg_ok(cmd: &str) -> bool {
+    let mut w = cmd.split_whitespace();
+    let head = w.next().unwrap_or("");
+    let one = |w: &mut std::str::SplitWhitespace| w.next().is_none();
+    match head {
+        "launcher" | "clipboard" | "power" | "lock" | "bar" | "stacking" | "minimize" | "restore" | "edit" | "reload" | "quit" | "ping" | "restart" | "profile" | "night" => one(&mut w),
+        "settings" => w.next().is_none_or(|t| crate::settings::TABS.iter().any(|x| x.0 == t)) && one(&mut w),
+        "popup" => matches!(w.next(), Some("cal" | "sound" | "net" | "bt" | "sys" | "profile")) && one(&mut w),
+        "screenshot" => w.next().is_none_or(|m| matches!(m, "area" | "window" | "screen")) && w.next().is_none_or(|d| d.parse::<u32>().is_ok()) && one(&mut w),
+        "curtain" => w.next().is_none_or(|a| matches!(a, "on" | "off" | "toggle")) && one(&mut w),
+        // путь к картинке (с пробелами) или пусто — пиксельные из палитры
+        "wallpaper" => true,
+        h => h.starts_with("update-"),
+    }
+}
+
 fn send(y: &Sty, cmd: &str) -> i32 {
     if crate::ipc::send(cmd) {
         0
@@ -435,6 +452,10 @@ pub fn run(args: &[String], me: &str) -> i32 {
                 help_msg(&y);
                 return 2;
             }
+            if !msg_ok(&cmd) {
+                eprintln!(" {} {}", y.bad("✕"), crate::tf!("шелл не знает такой команды: {} (yami help msg)", "the shell has no such command: {} (yami help msg)", cmd));
+                return 2;
+            }
             send(&y, &cmd)
         }
         Some("open") => match a.get(1) {
@@ -472,6 +493,27 @@ pub fn run(args: &[String], me: &str) -> i32 {
         Some(c) => {
             eprintln!(" {} {}", y.bad("✕"), crate::tf!("нет такой команды: {} (yami help)", "no such command: {} (yami help)", c));
             2
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn msg_commands() {
+        for ok in ["launcher", "popup cal", "screenshot window 3", "screenshot", "settings keys", "wallpaper /a b.png", "wallpaper", "curtain on", "update-progress 1/3 x", "night"] {
+            assert!(super::msg_ok(ok), "{ok}");
+        }
+        for bad in ["cal", "popup foo", "screenshot win", "settings nope", "launcher now", "curtain maybe", ""] {
+            assert!(!super::msg_ok(bad), "{bad}");
+        }
+        // каждая команда, что вешается на клавиши, шеллу понятна
+        for b in crate::keys::BINDS {
+            if let Some(i) = b.act.find("\"msg\"") {
+                let cmd: Vec<&str> = b.act[i + 5..].split('"').filter(|s| !s.trim().is_empty() && s.trim() != ";").collect();
+                let cmd = cmd.join(" ");
+                assert!(super::msg_ok(cmd.trim_end_matches(';').trim()), "{}: {cmd}", b.id);
+            }
         }
     }
 }

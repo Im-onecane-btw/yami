@@ -57,16 +57,43 @@ pub fn focus(set: &crate::config::Settings, b: &mut Boost, pid: Option<u32>) {
     if old == pid || !set.game_gamemode {
         return;
     }
-    std::thread::spawn(move || {
-        let Ok(c) = zbus::blocking::Connection::session() else { return };
-        let call = |m: &str, p: u32| {
-            let _ = c.call_method(Some("com.feralinteractive.GameMode"), "/com/feralinteractive/GameMode", Some("com.feralinteractive.GameMode"), m, &(p as i32));
-        };
-        if let Some(p) = old {
-            call("UnregisterGame", p);
-        }
-        if let Some(p) = pid {
-            call("RegisterGame", p);
+    let mut ops = vec![];
+    if let Some(p) = old {
+        ops.push(("UnregisterGame", p));
+    }
+    if let Some(p) = pid {
+        ops.push(("RegisterGame", p));
+    }
+    send(ops);
+}
+
+/// очередь вызовов GameMode и флаг «нить работает»: одна нить на очередь, в порядке смены фокуса
+/// (две нити могли бы снять игру раньше, чем зарегистрировать, и она осталась бы в GameMode)
+static QUEUE: std::sync::Mutex<(std::collections::VecDeque<(&'static str, u32)>, bool)> = std::sync::Mutex::new((std::collections::VecDeque::new(), false));
+
+fn send(ops: Vec<(&'static str, u32)>) {
+    let mut q = QUEUE.lock().unwrap_or_else(|e| e.into_inner());
+    q.0.extend(ops);
+    if std::mem::replace(&mut q.1, true) {
+        return;
+    }
+    drop(q);
+    std::thread::spawn(|| {
+        let c = zbus::blocking::Connection::session().ok();
+        loop {
+            let op = {
+                let mut q = QUEUE.lock().unwrap_or_else(|e| e.into_inner());
+                match q.0.pop_front() {
+                    Some(op) => op,
+                    None => {
+                        q.1 = false;
+                        return;
+                    }
+                }
+            };
+            if let Some(c) = &c {
+                let _ = c.call_method(Some("com.feralinteractive.GameMode"), "/com/feralinteractive/GameMode", Some("com.feralinteractive.GameMode"), op.0, &(op.1 as i32));
+            }
         }
     });
 }
