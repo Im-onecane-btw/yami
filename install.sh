@@ -14,7 +14,8 @@
 #   ./install.sh --theme light    dark (default) or light: the shell and every app it recolours
 #   ./install.sh --font sans      app font: sans (readable, default) or pixel (Tiny5 everywhere)
 #   ./install.sh --fetch mini     fastfetch: mini (who, system, desktop; default) or full (+ hardware)
-#   ./install.sh --no-fork        packaged niri instead of yami-niri (built from source, 5–25 min)
+#   ./install.sh --no-fork        packaged niri instead of yami-niri (built from source, 5–25 min;
+#                                 off by default with less than 6 GB of memory or 4 threads, --fork turns it on)
 #   ./install.sh --no-tools       skip night light, screen text recognition and QR (wlsunset, tesseract, zbar)
 #   ./install.sh --games          GameMode and MangoHud (on by default when Steam is here)
 #   ./install.sh --no-games       leave them out
@@ -80,7 +81,7 @@ MONOCRAFT_URL="https://github.com/IdreesInc/Monocraft/releases/download/v4.2.1/M
 MONOCRAFT_SHA256="67f88ff9e7c6560f6cf60fb062fd353a72f62dc2654462950c65b63ed53d9754"
 [[ -d $HOME/.cargo/bin ]] && export PATH="$HOME/.cargo/bin:$PATH"
 
-YES=0 SUDO=1 FORK_FLAG=1 LOGIN_FLAG="" GAMES_FLAG="" TOOLS_FLAG=1 PALETTE="" LOOK_OPT="" THEME_OPT="" LANG_OPT="" FONT_OPT="" FETCH_OPT="" ANIM=1 DRY=0 UNINSTALL=0 UPDATE=0 COUNT=1 KEEP_BUILD=0 MONO="" PRINT_PKGS=0
+YES=0 SUDO=1 FORK_FLAG="" LOGIN_FLAG="" GAMES_FLAG="" TOOLS_FLAG=1 PALETTE="" LOOK_OPT="" THEME_OPT="" LANG_OPT="" FONT_OPT="" FETCH_OPT="" ANIM=1 DRY=0 UNINSTALL=0 UPDATE=0 COUNT=1 KEEP_BUILD=0 MONO="" PRINT_PKGS=0
 while (($#)); do
   case "$1" in
     -y | --yes) YES=1 ;;
@@ -170,6 +171,74 @@ esac
 SU=""
 if ((EUID == 0)); then SU=""; elif command -v sudo >/dev/null; then SU=sudo; elif command -v doas >/dev/null; then SU=doas; else SUDO=0; fi
 [[ -z $PM || $PM == nix ]] && SUDO=0
+
+# ── root: one password for the whole install ────────────────────────────────
+# Every root command goes to one root shell started once (root_start): sudo or doas asks a single
+# time, even doas without `persist` and even when a step falls back to installing packages one by
+# one (it used to ask for each). The cached ticket is dropped right after, so nothing else run by
+# the install (the crates' build scripts, minutes of them) can use it; the channel to the root shell
+# is two pipes only this script holds: bash closes {var} descriptors in the programs it starts.
+# A command runs with the caller's stdin, stdout and stderr (through /proc), so pipes into `tee`
+# and the log work as before (a socket cannot be reopened: /dev/null instead); it returns the
+# command's exit code.
+ROOT_W="" ROOT_R=""
+root_start() {
+  local tool=$SU rc
+  [[ -n $tool ]] || return 0
+  coproc ROOTSH {
+    # shellcheck disable=SC2016
+    "$tool" bash -c 'while IFS= read -r p && IFS= read -r c; do
+      i=/proc/$p/fd/0 o=/proc/$p/fd/1 e=/proc/$p/fd/2
+      { : <"$i"; } 2>/dev/null || i=/dev/null
+      { : >>"$o"; } 2>/dev/null || o=/dev/null
+      { : >>"$e"; } 2>/dev/null || e=/dev/null
+      eval "$c" <"$i" >>"$o" 2>>"$e"; echo "$?"
+    done'
+  }
+  local w=${ROOTSH[1]} r=${ROOTSH[0]}
+  exec {ROOT_W}>&"$w" {ROOT_R}<&"$r"
+  # only the copies stay: closing them is the root shell's end of input
+  eval "exec $w>&- $r<&-"
+  SU=asroot
+  # the password prompt happens here, on the terminal; a wrong one ends the root shell
+  asroot true || { root_stop; SU=$tool; return 1; }
+  case $tool in sudo) sudo -k ;; doas) doas -L 2>/dev/null ;; esac
+  return 0
+}
+asroot() {
+  local q rc me=$BASHPID
+  [[ -n $ROOT_W ]] || return 1
+  printf -v q '%q ' "$@"
+  # the root shell opens this process's 0, 1 and 2 while it waits: a redirection here (`>&fd`,
+  # `<&fd`) would swap them for that moment, so the request is written from a subshell and the
+  # answer read with -u. A root shell that is gone must not take the installer with it (SIGPIPE).
+  (trap '' PIPE; printf '%s\n%s\n' "$me" "$q" >&"$ROOT_W") 2>/dev/null || { echo "the root shell is gone" >&2; return 1; }
+  IFS= read -r -u "$ROOT_R" rc || { echo "the root shell is gone" >&2; return 1; }
+  return "$rc"
+}
+root_stop() {
+  [[ -n $ROOT_W ]] && exec {ROOT_W}>&- {ROOT_R}<&-
+  ROOT_W="" ROOT_R=""
+}
+
+# ── this machine: memory and threads decide how hard to build and how much to show ──
+MEM_GB=$(awk '/^MemTotal:/{printf "%d", $2 / 1048576 + 0.5}' /proc/meminfo 2>/dev/null)
+THREADS=$(nproc 2>/dev/null || echo 2)
+[[ $MEM_GB =~ ^[0-9]+$ ]] || MEM_GB=8
+# a light machine (an old laptop, a small VM): yami-niri (an hour of building there) is off by
+# default, the packaged niri is the same desktop; the shell itself starts in lite mode (see
+# `yami-shell config lite-auto`)
+LIGHT=0
+((MEM_GB < 6 || THREADS < 4)) && LIGHT=1
+FORK_ON=$((1 - LIGHT))
+[[ -n $FORK_FLAG ]] && FORK_ON=$FORK_FLAG
+# rustc with fat LTO needs ~1.5 GB per job: on 4 GB four jobs swap for an hour, two finish
+if [[ -z ${CARGO_BUILD_JOBS:-} ]]; then
+  j=$((MEM_GB * 2 / 3))
+  ((j < 1)) && j=1
+  ((j > THREADS)) && j=$THREADS
+  export CARGO_BUILD_JOBS=$j
+fi
 
 NVIDIA=0 HYBRID=0 RUNNING_NIRI=0 SYSTEMD=0
 { [[ -e /proc/driver/nvidia/version ]] || lspci 2>/dev/null | grep -qiE '(vga|3d).*nvidia'; } && NVIDIA=1
@@ -502,7 +571,7 @@ screen() { printf '\e[H\e[J'; banner 0; }
 
 # ── components ──────────────────────────────────────────────────────────────
 C_ID=(core apps tools games look login nvidia fork)
-C_ON=(1 1 "$TOOLS_FLAG" "$GAMES_ON" 1 "$LOGIN_ON" "$NVIDIA" "$FORK_FLAG")
+C_ON=(1 1 "$TOOLS_FLAG" "$GAMES_ON" 1 "$LOGIN_ON" "$NVIDIA" "$FORK_ON")
 # components this installer offered last time: one that came later (games, tools) starts at its
 # default on an update instead of «off because it was not in the list»
 KNOWN_F="$STATE/components-known"
@@ -544,7 +613,9 @@ c_desc() {
     login) if [[ -n $OTHER_DM ]]; then t "пиксельная тема как экран блокировки; заменит $OTHER_DM" "pixel theme like the lock screen; replaces $OTHER_DM"; else t "пиксельная тема как экран блокировки, вход в niri" "pixel theme like the lock screen, logs into niri"; fi ;;
     look) t "qt6ct + adw-gtk3 + Papirus: Qt, KDE и GTK в палитре райса" "qt6ct + adw-gtk3 + Papirus: Qt, KDE and GTK in the rice palette" ;;
     nvidia) t "переменные драйвера, профиль против утечки VRAM, драйвер с начала загрузки (пароль диска виден и на DisplayPort), NVENC в OBS на старом драйвере" "driver env, a VRAM leak profile, the driver from the start of boot (disk password visible on DisplayPort too), NVENC in OBS on an old driver" ;;
-    fork) t "наш niri из исходников, 5–25 мин: под этот процессор, tearing и realtime для игр; пакетный niri — запасной" "our niri from source, 5–25 min: built for this CPU, tearing and realtime for games; packaged niri stays as a fallback" ;;
+    fork)
+      if ((LIGHT)); then t "наш niri из исходников: здесь ($MEM_GB ГБ, $THREADS потоков) сборка идёт около часа, поэтому выключен; пакетный niri — тот же стол" "our niri from source: here ($MEM_GB GB, $THREADS threads) the build takes about an hour, so it is off; the packaged niri is the same desktop"
+      else t "наш niri из исходников, 5–25 мин: под этот процессор, tearing и realtime для игр; пакетный niri — запасной" "our niri from source, 5–25 min: built for this CPU, tearing and realtime for games; packaged niri stays as a fallback"; fi ;;
   esac
 }
 needs_root() { [[ $1 != fork ]]; }
@@ -789,11 +860,6 @@ progress() { # done total frame
   done
   printf '  %s%s %s%d/%d%s' "$s" "$R" "$D" "$1" "$2" "$R"
 }
-# the step's function (or the package helpers) runs something as root
-uses_root() {
-  local f=${STEPS_F[$1]%% *}
-  [[ $f == pkgs || $f == pm_* ]] || declare -f "$f" 2>/dev/null | grep -q '\$SU'
-}
 elapsed() { local s=$1; ((s >= 60)) && printf '%dm%02ds' $((s / 60)) $((s % 60)) || printf '%ds' "$s"; }
 step() { # index
   local i=$1 title=${STEPS_T[$1]} n=${#STEPS_T[@]} t0=$SECONDS rc f=0
@@ -804,16 +870,16 @@ step() { # index
     printf '  %s·%s %s%s%s %s%s%s\n' "$A" "$R" "$T" "$title" "$R" "$F" "$cmd" "$R"
     return
   fi
-  if [[ ! -t 1 ]] || { [[ $SU == doas ]] && uses_root "$i"; }; then
-    # no terminal, or doas that may ask for a password: run in the foreground
-    # [k/n]: the shell's updates tab draws its progress from it
+  if [[ ! -t 1 || $SU == sudo || $SU == doas ]]; then
+    # no terminal, or root without the shared root shell (its prompts must be seen): run in the
+    # foreground; [k/n]: the shell's updates tab draws its progress from it
     printf '  %s▸%s %s[%d/%d] %s%s\n' "$A" "$R" "$T" $((i + 1)) "$n" "$title" "$R"
     eval "${STEPS_F[$i]}" 2>&1 | tee -a "$LOG" | sed 's/^/      /'
     rc=${PIPESTATUS[0]}
   else
-    # sudo reads the password from the terminal, not stdin: behind the spinner a prompt would be
-    # invisible and the step would hang. The ticket is kept alive; without it the step fails.
-    ([[ $SU == sudo ]] && SU="sudo -n"; eval "${STEPS_F[$i]}") >>"$LOG" 2>&1 </dev/null &
+    # root commands go to the root shell authorised before the steps (root_start): nothing here
+    # asks for a password, so every step can run behind the spinner
+    (eval "${STEPS_F[$i]}") >>"$LOG" 2>&1 </dev/null &
     local pid=$!
     printf '\e[?25l'
     while kill -0 "$pid" 2>/dev/null; do
@@ -887,9 +953,20 @@ pm_install() {
 pkgs() {
   (($#)) || return 0
   pm_install "$@" && return 0
+  # usually one name this release does not have (Alpine: cliphist, qt6ct): drop what the
+  # repositories lack and try the rest at once again; one by one only if that fails too
+  local p have=()
+  if pkg_avail_known; then
+    for p; do
+      if pkg_avail "$p"; then have+=("$p"); else echo "$p" >>"$MISSING_F"; echo "not in the repositories: $p"; fi
+    done
+    ((${#have[@]})) || return 0
+    pm_install "${have[@]}" && return 0
+  else
+    have=("$@")
+  fi
   echo "batch failed, installing one by one"
-  local p
-  for p; do pm_install "$p" || echo "$p" >>"$MISSING_F"; done
+  for p in "${have[@]}"; do pm_install "$p" || echo "$p" >>"$MISSING_F"; done
   return 0
 }
 
@@ -1121,6 +1198,9 @@ PY
   local lt=()
   ((theme == 1)) && lt=(--light)
   python3 -I "$ROOT/tools/theme.py" --accent "#${PAL_HEX[$pal]}" "${lt[@]}"
+  # a weak or virtual machine (old laptop, VM, no GPU acceleration) starts in lite mode: no blur,
+  # no animations; settings → look turns it off. A file that already says `lite` is left alone
+  "$BIN/yami-shell" config lite-auto
   # keybindings and the shell's window rules, before the first login (the shell keeps them current)
   "$BIN/yami-shell" binds write || return 1
   "$BIN/yami-shell" config kdl >"$CFG/niri/yami-fx.kdl" || return 1
@@ -1212,6 +1292,8 @@ pkg_has() {
     *) return 0 ;;
   esac
 }
+# pkg_avail can answer for this package manager (Gentoo and atomic Fedora: not without root/network)
+pkg_avail_known() { [[ $PM == pacman || $PM == dnf || $PM == apt || $PM == zypper || $PM == xbps || $PM == apk ]]; }
 pkg_avail() {
   case $PM in
     pacman) pacman -Si "$1" >/dev/null 2>&1 ;;
@@ -1539,11 +1621,14 @@ paint
 [[ -t 1 ]] && printf '\e[H\e[J'
 banner $((YES))
 
-if ((SUDO && !DRY)) && { on core || on apps || on look || on nvidia; } && [[ -n $SU ]]; then
-  say "$(t "нужен пароль для пакетов" "password needed for packages")"
-  if $SU true; then
-    # keep sudo alive while we work
-    [[ $SU == sudo ]] && (while kill -0 $$ 2>/dev/null; do sudo -n true; sleep 50; done) 2>/dev/null &
+if ((SUDO && !DRY)) && [[ -n $SU ]]; then
+  say "$(t "нужен пароль администратора — один раз на всю установку" "the administrator password, once for the whole install")"
+  if root_start; then
+    :
+  elif $SU true; then
+    # the password is right but the root shell did not come up (an unusual sudo setup): every root
+    # command asks on its own, the steps run in the foreground so the prompts are seen
+    warn "$(t "общий root-сеанс не поднялся — пароль может спрашиваться не раз" "the shared root session did not start: the password may be asked more than once")"
   else
     warn "$(t "без root — ставлю только домашнюю папку" "no root: home directory only")"
     SUDO=0
