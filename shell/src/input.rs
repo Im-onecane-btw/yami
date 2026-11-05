@@ -350,21 +350,18 @@ impl App {
             Keysym::End => f.end(),
             _ => {
                 if mods.ctrl {
-                    if e.keysym == Keysym::u {
-                        f.clear();
-                        return true;
-                    }
-                    if e.keysym == Keysym::a {
-                        f.select_all();
-                        return true;
-                    }
-                    if e.keysym == Keysym::v {
-                        if let Some(t) = yami_px::ui::paste() {
-                            f.insert(&t);
+                    // Ctrl+A/U/V — и в русской раскладке (по положению), и в AZERTY/Dvorak (по букве)
+                    match crate::keys::ctrl_letter(e) {
+                        Some('U') => f.clear(),
+                        Some('A') => f.select_all(),
+                        Some('V') => {
+                            if let Some(t) = yami_px::ui::paste() {
+                                f.insert(&t);
+                            }
                         }
-                        return true;
+                        _ => return false,
                     }
-                    return false;
+                    return true;
                 }
                 match &e.utf8 {
                     Some(s) if !s.is_empty() && !s.chars().any(|c| c.is_control()) => f.insert(s),

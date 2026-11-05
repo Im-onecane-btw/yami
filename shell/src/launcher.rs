@@ -557,12 +557,13 @@ impl App {
                 let c = l.cur;
                 self.launcher_del(c);
             }
-            Keysym::p if self.mods.ctrl && l.clip => {
+            // Ctrl+P и Ctrl+C — в любой раскладке (keys::ctrl_letter)
+            _ if self.mods.ctrl && l.clip && crate::keys::ctrl_letter(e) == Some('P') => {
                 let c = l.cur;
                 self.launcher_pin(c);
             }
             // Ctrl+C: выделенный поиск или ответ калькулятора
-            Keysym::c if self.mods.ctrl => {
+            _ if self.mods.ctrl && crate::keys::ctrl_letter(e) == Some('C') => {
                 let text = l.field.selected().map(String::from).or_else(|| match l.items.get(l.cur).map(|i| &i.kind) {
                     Some(Kind::Calc(s)) => Some(s.clone()),
                     _ => None,
