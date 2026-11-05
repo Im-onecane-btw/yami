@@ -744,10 +744,14 @@ impl Settings {
         }
     }
 
-    /// старый формат настроек: clockOn/clockX… → список виджетов
+    /// старый формат настроек: clockOn/clockX… → список виджетов. Только когда старые ключи есть:
+    /// файл установщика (палитра, язык) и написанный руками тоже без `widgets`, но они новые —
+    /// иначе barRight заменялся старым набором (без батареи, профиля и разделителей)
     fn migrate(&mut self, raw: &str) {
+        const MODS: &[(&str, &str)] = &[("tray", "barTray"), ("net", "barNet"), ("kb", "barKb"), ("cpu", "barCpu"), ("ram", "barRam"), ("vol", "barVol"), ("clock", "barClock")];
         let Ok(v) = serde_json::from_str::<serde_json::Value>(raw) else { return };
-        if v.get("widgets").is_some() {
+        let old = ["clockOn", "clockX", "clockY", "barTasks"].iter().chain(MODS.iter().map(|(_, k)| k)).any(|k| v.get(*k).is_some());
+        if v.get("widgets").is_some() || !old {
             return;
         }
         let num = |k: &str| v.get(k).and_then(|x| x.as_f64()).map(|x| x as i32);
@@ -760,7 +764,7 @@ impl Settings {
         ws.push(c);
         self.widgets = ws;
         let mut right = vec![];
-        for (m, k) in [("tray", "barTray"), ("net", "barNet"), ("kb", "barKb"), ("cpu", "barCpu"), ("ram", "barRam"), ("vol", "barVol"), ("clock", "barClock")] {
+        for &(m, k) in MODS {
             if flag(k).unwrap_or(true) {
                 right.push(m.to_string());
             }
@@ -906,5 +910,31 @@ impl Settings {
         // панели шелла niri размывает по региону, который шелл отдаёт через ext-background-effect:
         // правило на всю поверхность захватило бы и прозрачные поля под тенью
         l.join("\n") + "\n"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Settings;
+
+    fn load(raw: &str) -> Settings {
+        let mut s = Settings::lenient(raw);
+        s.migrate(raw);
+        s.migrate_seps();
+        s
+    }
+
+    #[test]
+    fn migrate_only_old_files() {
+        // файл установщика: бар по умолчанию, со всеми модулями и разделителями
+        let s = load(r#"{"palette": "ash", "lang": "en", "fontUi": ""}"#);
+        assert_eq!(s.bar_right, Settings::default().bar_right);
+        // свой barRight без widgets — как написан
+        assert_eq!(load(r#"{"barRight": ["vol", "settings"]}"#).bar_right, ["vol", "settings"]);
+        // настоящий старый формат: флаги модулей и часы → список
+        let s = load(r#"{"barKb": false, "barCpu": false, "clockX": 10}"#);
+        assert_eq!(s.widgets.len(), 1);
+        assert_eq!(s.widgets[0].x, 10);
+        assert!(!s.bar_right.iter().any(|m| m == "kb" || m == "cpu"));
     }
 }
