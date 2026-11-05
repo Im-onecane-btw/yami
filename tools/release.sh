@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Cut a release: VERSION and every crate version, the changelog section, tools/check.sh, a commit
-# «release: X.Y.Z» and a tag vX.Y.Z (signed when a signing key is set, refused unsigned when
-# keys/allowed_signers already holds keys, since clients would reject it), then push. Users get it
-# through settings → updates or `yami update`.
-# With gh logged in, the push also publishes the GitHub release (the changelog section + install).
+# Cut a release: VERSION and every crate version, the changelog section (CHANGELOG.md and
+# CHANGELOG.ru.md), tools/check.sh, a commit «release: X.Y.Z» and a tag vX.Y.Z (signed when a
+# signing key is set, refused unsigned when keys/allowed_signers already holds keys, since clients
+# would reject it), then push. Users get it through settings → updates or `yami update`.
+# With gh logged in, the push also publishes the GitHub release (the changelog sections + install).
 #   tools/release.sh X.Y.Z [--no-push]   release
 #   tools/release.sh --publish X.Y.Z     (re)publish the GitHub release of an existing tag
 #   tools/release.sh --keygen            make an ssh signing key and trust it in keys/allowed_signers
@@ -28,6 +28,18 @@ publish() { # ver
   git rev-parse -q --verify "refs/tags/v$v" >/dev/null || die "$(t "нет тега v$v" "no tag v$v")"
   notes="$(git show "v$v:CHANGELOG.md" | awk -v h="## $v" '$0 == h { on = 1; next } on && /^## / { exit } on' | sed -e '/./,$!d')"
   [[ -n $notes ]] || notes="- $(t "изменения — в истории коммитов" "see the commit history")"
+  # the Russian section (CHANGELOG.ru.md, from 2.5.1 on) folded under the English one
+  local ru
+  ru="$(git show "v$v:CHANGELOG.ru.md" 2>/dev/null | awk -v h="## $v" '$0 == h { on = 1; next } on && /^## / { exit } on' | sed -e '/./,$!d' || true)"
+  if [[ -n $ru ]]; then
+    notes="$notes
+
+<details><summary>По-русски</summary>
+
+$ru
+
+</details>"
+  fi
   local body
   body="$notes
 
@@ -97,31 +109,30 @@ signed=0
 [[ -n "$(git config user.signingkey || true)" ]] && signed=1
 ((signed)) || ! has_keys || die "$(t "в $KEYS есть ключи, а подписывать нечем: клиенты не поставят выпуск (tools/release.sh --keygen)" "$KEYS has keys but no signing key is set: clients would refuse the release (tools/release.sh --keygen)")"
 
-# changelog: «Unreleased» becomes the release; empty — commit subjects since the last tag
-last="$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)"
-python3 -I - "$ver" "$last" <<'PY'
-import re, subprocess, sys
+# the English and Russian docs must match before anything is changed (tools/check-docs.py)
+python3 -I tools/check-docs.py || die "$(t "документы EN и RU расходятся: поправь и запусти снова" "the EN and RU docs differ: fix them and run again")"
+
+# changelog, in both files: «Unreleased» («Не выпущено») becomes the release. Nothing is changed
+# unless both have lines there (or already the section): the notes are written as you go, in two
+# languages, and check-docs would stop an English placeholder in the Russian file anyway
+python3 -I - "$ver" <<'PY' || die "$(t "в «Unreleased» CHANGELOG.md или «Не выпущено» CHANGELOG.ru.md пусто: допиши, что изменилось" "«Unreleased» in CHANGELOG.md or «Не выпущено» in CHANGELOG.ru.md is empty: write what changed")"
+import re, sys
 from pathlib import Path
-ver, last = sys.argv[1], sys.argv[2]
-p = Path("CHANGELOG.md")
-s = p.read_text()
-if f"\n## {ver}\n" in s:
-    sys.exit(0)
-m = re.search(r"\n## Unreleased\n(.*?)(?=\n## |\Z)", s, re.S)
-body = m.group(1).strip() if m else ""
-if not body:
-    rng = f"{last}..HEAD" if last else "HEAD"
-    subj = subprocess.run(["git", "log", "--no-merges", "--format=- %s", rng], capture_output=True, text=True).stdout.strip()
-    body = subj or "- maintenance"
-sec = f"\n## {ver}\n\n{body}\n"
-if m:
-    s = s[: m.start()] + "\n## Unreleased\n" + sec + s[m.end():]
-else:
-    i = s.find("\n## ")
-    s = s + sec if i < 0 else s[:i] + sec + s[i:]
-p.write_text(s)
+ver = sys.argv[1]
+todo = []
+for name, head in (("CHANGELOG.md", "Unreleased"), ("CHANGELOG.ru.md", "Не выпущено")):
+    p = Path(name)
+    s = p.read_text()
+    if f"\n## {ver}\n" in s:
+        continue
+    m = re.search(rf"\n## {head}\n(.*?)(?=\n## |\Z)", s, re.S)
+    if not m or not m.group(1).strip():
+        sys.exit(3)
+    todo.append((p, s[: m.start()] + f"\n## {head}\n\n## {ver}\n\n{m.group(1).strip()}\n" + s[m.end():]))
+for p, s in todo:
+    p.write_text(s)
 PY
-if [[ -t 0 && -n ${EDITOR:-} ]]; then "$EDITOR" CHANGELOG.md; fi
+if [[ -t 0 && -n ${EDITOR:-} ]]; then "$EDITOR" CHANGELOG.md CHANGELOG.ru.md; fi
 
 say "$(t "версия" "version") $cur → $ver"
 echo "$ver" >VERSION
@@ -134,7 +145,7 @@ cargo update --workspace --offline --manifest-path shell/Cargo.toml >/dev/null 2
 tools/check.sh --fast | tail -n 3
 tools/check.sh --fast >/dev/null 2>&1 || die "$(t "tools/check.sh не прошёл" "tools/check.sh failed")"
 
-git add VERSION CHANGELOG.md shell/Cargo.lock "${crates[@]}"
+git add VERSION CHANGELOG.md CHANGELOG.ru.md shell/Cargo.lock "${crates[@]}"
 git commit -q -m "release: $ver"
 if ((signed)); then
   git tag -s "v$ver" -m "yami $ver"
