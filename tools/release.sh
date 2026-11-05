@@ -18,6 +18,11 @@ die() { printf '\e[31m✕ %s\e[0m\n' "$*" >&2; exit 1; }
 KEYS=keys/allowed_signers
 has_keys() { grep -qvE '^\s*(#|$)' "$KEYS" 2>/dev/null; }
 
+# the «## ver» section of a changelog file at tag vver, without the leading blank lines
+section() { # file ver
+  git show "v$2:$1" 2>/dev/null | awk -v h="## $2" '$0 == h { on = 1; next } on && /^## / { exit } on' | sed -e '/./,$!d' || true
+}
+
 # the GitHub release of tag vX.Y.Z: its CHANGELOG section, how to install, how to check the tag
 publish() { # ver
   local v=$1 notes
@@ -26,11 +31,11 @@ publish() { # ver
     return 0
   }
   git rev-parse -q --verify "refs/tags/v$v" >/dev/null || die "$(t "нет тега v$v" "no tag v$v")"
-  notes="$(git show "v$v:CHANGELOG.md" | awk -v h="## $v" '$0 == h { on = 1; next } on && /^## / { exit } on' | sed -e '/./,$!d')"
+  notes="$(section CHANGELOG.md "$v")"
   [[ -n $notes ]] || notes="- $(t "изменения — в истории коммитов" "see the commit history")"
   # the Russian section (CHANGELOG.ru.md, from 2.5.1 on) folded under the English one
   local ru
-  ru="$(git show "v$v:CHANGELOG.ru.md" 2>/dev/null | awk -v h="## $v" '$0 == h { on = 1; next } on && /^## / { exit } on' | sed -e '/./,$!d' || true)"
+  ru="$(section CHANGELOG.ru.md "$v")"
   if [[ -n $ru ]]; then
     notes="$notes
 
