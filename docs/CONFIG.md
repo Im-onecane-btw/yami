@@ -1,5 +1,7 @@
 # Configuration reference
 
+English · [Русский](CONFIG.ru.md)
+
 Everything the settings window changes is a key in a plain JSON file; editing the file by hand
 works the same and is picked up live. A key with a bad value falls back to its default (the rest
 of the file is kept), unknown keys are ignored: `yami-shell config check` lists both.
@@ -80,7 +82,7 @@ yami-shell binds list | print | write     # keybindings
 | `wallDim` | `0.0` | darken the wallpaper towards the background colour, 0…0.8 |
 | `wallAccent` | `false` | take the accent (and with it the whole palette) from your image; picking a colour by hand turns it off |
 | `wallKanji` | `true` | the 闇 glyph in the wallpaper corner |
-| `wallSkwd` | `false` | the wallpaper comes from [skwd-wall](https://github.com/liixini/skwd-wall): the shell reads what it writes (`~/.cache/skwd-wall-v2/last-wallpaper.json`, `colors.json`; `SKWD_WALL_V2_CACHE` and `paths.cache` respected) and changes nothing in its config. On a monitor where skwd-paper draws (video, scenes, transitions; seen from its niri layer) the shell hides its own wallpaper; otherwise (skwd-wall's pick-only mode) the shell draws the picked image itself in its cells and tones, a video or scene by its preview frame. The lock and login screens show the same picture. `yami-fx.kdl` gets the layer rule that puts skwd-paper's overview backdrop behind the workspaces |
+| `wallSkwd` | `false` | the wallpaper comes from [skwd-wall](https://github.com/liixini/skwd-wall): the shell reads what it writes (`~/.cache/skwd-wall-v2/last-wallpaper.json`, `colors.json`; `SKWD_WALL_V2_CACHE` and `paths.cache` respected) and changes nothing in its config. On a monitor where skwd-wall draws (pictures by skwd-paper, videos and scenes by skwd-wall-vk, transitions; seen from its niri layer) the shell hides its own wallpaper; otherwise (skwd-wall's pick-only mode) the shell draws the picked image itself in its cells and tones, a video or scene by its preview frame. The lock and login screens show the same picture. `yami-fx.kdl` gets the layer rule that puts skwd-paper's overview backdrop behind the workspaces |
 | `wallSkwdColors` | `true` | with `wallSkwd`: the accent is skwd-wall's `primary` and the theme follows its background (light or dark), so a palette made in its theme designer recolours the whole rice |
 | `iconTheme` | `""` | icon theme for app icons; empty: auto |
 | `iconPixel` | `true` | app icons redrawn as 16×16 pixel art in the palette tones |

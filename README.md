@@ -337,7 +337,7 @@ For maintainers:
 
 ```sh
 tools/release.sh --keygen     # once: an ssh signing key, trusted in keys/allowed_signers (commit it)
-tools/release.sh 2.1.0        # CHANGELOG «Unreleased» → 2.1.0, versions, check.sh, signed tag, push
+tools/release.sh 2.1.0        # CHANGELOG «Unreleased» → 2.1.0 (both languages), versions, check.sh, signed tag, push
 ```
 
 Updates come from this repository over HTTPS; set `updateRepo` to follow a fork instead.
@@ -390,9 +390,9 @@ yami-shell binds list                  # keybindings: id, keys, action
 | `tools/apply-theme.sh` | fonts and widget style for Qt and GTK |
 | `fonts/` | bundled pixel fonts (SIL OFL) |
 | `fork/` | yami-niri: patch series on upstream niri, build script, session wrapper |
-| `docs/` | configuration reference, security notes |
+| `docs/` | configuration reference, security notes (each also in Russian: `*.ru.md`) |
 | `keys/` | release signing keys (`allowed_signers`), read by `yami update` |
-| `VERSION`, `CHANGELOG.md` | the release version and what changed in each release |
+| `VERSION`, `CHANGELOG.md` | the release version and what changed in each release (`CHANGELOG.ru.md` in Russian) |
 | `system/nvidia/` | driver profile against VRAM growth in the compositor; modeset options for early KMS (the installer also puts the driver into the initramfs, and on Pascal-era drivers adds obs-gstreamer: OBS 33 needs NVENC API 13.1, driver 610+) |
 
 ## yami-niri
@@ -414,7 +414,7 @@ log in, `~/.local/lib/yami-niri/yami-niri.sh off`. Details: [fork/README.md](for
 
 | Command | Does |
 |---|---|
-| `tools/check.sh` | build without warnings, i18n checks, script syntax, niri config, installer dry run (CI runs it too) |
+| `tools/check.sh` | build without warnings, i18n checks, the English and Russian docs in step (`tools/check-docs.py`), script syntax, niri config, installer dry run (CI runs it too) |
 | `tools/map.sh [TEXT]` | every source file with its one-line description |
 | `yami-shell shot [TARGET…] --lang en [--transparent] [--frame PNG] -o DIR` | render panels to PNG without a compositor (`--frame`: a real screen under the screenshot overlay); fails on untranslated text |
 | `yami-files shot`, `yami-view shot`, `yami-play shot` | the same for the file manager, the viewer and the player |

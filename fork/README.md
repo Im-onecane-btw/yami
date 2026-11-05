@@ -1,5 +1,7 @@
 # yami-niri
 
+English · [Русский](README.ru.md)
+
 Our niri: upstream [niri](https://github.com/YaLTeR/niri) at a pinned release plus a short
 patch series, built on the machine it runs on. The installer builds and enables it by default;
 the packaged niri stays installed as the fallback.

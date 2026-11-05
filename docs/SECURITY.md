@@ -1,5 +1,7 @@
 # Security notes
 
+English · [Русский](SECURITY.ru.md)
+
 What yami trusts, what it exposes, and what was checked (audits of 2026-11-03 and 2026-11-04).
 
 ## Surfaces

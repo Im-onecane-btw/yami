@@ -7,13 +7,13 @@
 Пиксельный рабочий стол для niri — целыми пикселями.
 
 [![Release](https://img.shields.io/github/v/release/Trendorin/yami?label=release&color=a8a29c)](https://github.com/Trendorin/yami/releases/latest)
-[![Installs](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FTrendorin%2Fyami%2Fstats%2Fbadge.json)](docs/SECURITY.md#install-count)
+[![Installs](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FTrendorin%2Fyami%2Fstats%2Fbadge.json)](docs/SECURITY.ru.md#счётчик-установок)
 [![License](https://img.shields.io/badge/license-MIT-a8a29c)](LICENSE)
 ![Rust](https://img.shields.io/badge/rust-1.89%2B-a8a29c)
 ![niri](https://img.shields.io/badge/niri-26.04-a8a29c)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%C2%B7%20Wayland-a8a29c)
 
-[Установка](#установка) · [Скриншоты](#скриншоты) · [Настройки](docs/CONFIG.md) · [Изменения](CHANGELOG.md) · [English](README.md)
+[Установка](#установка) · [Скриншоты](#скриншоты) · [Настройки](docs/CONFIG.ru.md) · [Изменения](CHANGELOG.ru.md) · [English](README.md)
 
 </div>
 
@@ -42,8 +42,6 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
 - **Нативно и легко.** Программная отрисовка в разделяемую память через layer-shell: без
   GPU-контекста, тулкитов и JavaScript. Шрифты отображаются в память через mmap, перерисовка —
   только когда что-то изменилось.
-- **Показ экрана.** OBS, Discord/Equibop и браузеры получают пиксельное окно «что показать» из
-  шелла (мониторы и окна); сам поток отдаёт niri через портал yami.
 - **Полноценный шелл.** Бар, меню программ с историей буфера обмена, меню питания, экран
   блокировки (PAM), сервер уведомлений с историей и режимом «не беспокоить», OSD, трей
   (StatusNotifierItem с DBusMenu), календарь, всплывающие панели звука, сети, Bluetooth и системы,
@@ -67,6 +65,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
   конфликтами, отмена, перетаскивание, миниатюры, «открыть с помощью». Он же — **диалог выбора
   файлов** для всего, что идёт через портал (Firefox, LibreWolf, Chromium, Telegram, GTK/KDE), и
   отвечает на **«показать в папке»**.
+- **Показ экрана.** OBS, Discord/Equibop и браузеры получают пиксельное окно «что показать» из
+  шелла (мониторы и окна); сам поток отдаёт niri через портал yami.
 - **yami-view.** Быстрый просмотрщик и правка картинок (поворот, отражение, кадр, сохранить как,
   обои), честные пиксели при увеличении, анимация GIF/WebP. Просмотр фото открывается плавающим окном.
 - **yami-play.** Плеер видео и музыки в тех же пикселях: все форматы, что знает ffmpeg, аппаратное
@@ -82,7 +82,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
   процессор (fat LTO, `target-cpu=native`): tearing для полноэкранных игр (асинхронная смена
   кадра, меньше задержка ввода), realtime-поток композитора — игра, грузящая все ядра, не
   заставляет стол дёргаться. niri из пакета остаётся запасным, откат автоматический. Подробнее —
-  [fork/README.md](fork/README.md).
+  [fork/README.ru.md](fork/README.ru.md).
 - **Игры.** Настройки → игры: игровые окна сразу на весь экран с VRR (и tearing на yami-niri),
   большой кеш шейдеров; пока игра в фокусе, уведомления молча ждут в истории, профиль питания —
   «производительность», а шелл не перерисовывает то, что закрыто игрой. Сам находит и включает то,
@@ -128,7 +128,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
 - **Лаунчер умеет больше.** Набери `2+2*3` — получишь ответ; программу или заголовок окна; `vrr` —
   попадёшь прямо в эту настройку; `>команда` — выполнить её; `/имя` — найти файл в домашней папке.
 - **Свои модули бара.** Любой скрипт в `~/.config/yami/modules/`, что печатает текст или JSON,
-  становится модулем (погода, курсы, GitHub — что угодно); см. [docs/CONFIG.md](docs/CONFIG.md).
+  становится модулем (погода, курсы, GitHub — что угодно); см. [docs/CONFIG.ru.md](docs/CONFIG.ru.md).
 - **Мелкие удобства.** Ответ на сообщение прямо из уведомления, ночной свет (wlsunset), программы
   прошлого сеанса снова открываются при входе (по желанию), темы одним файлом
   (`yami theme export | import`) и переезд всех настроек на новую систему (`yami export | import`).
@@ -209,7 +209,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
 | `--login`, `--no-login` | SDDM с темой yami, даже если стоит другой менеджер входа / не трогать вход |
 | `--no-sudo` | только домашняя папка: без пакетов и системных файлов |
 | `--dry-run` | показать план, ничего не менять |
-| `--no-count` | не добавлять машину в счётчик «installs» (одно анонимное скачивание, [подробно](docs/SECURITY.md#install-count)) |
+| `--no-count` | не добавлять машину в счётчик «installs» (одно анонимное скачивание, [подробно](docs/SECURITY.ru.md#счётчик-установок)) |
 | `--uninstall` | удалить шелл и конфиги, вернуть резервные копии |
 | `--update` | пересобрать из этого дерева, все настройки остаются, без sudo (это запускает `yami update apply`) |
 | `--no-anim` | без анимаций установщика |
@@ -243,6 +243,17 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
 для `configuration.nix`.
 
 ### Сборка шелла вручную
+
+```sh
+cd shell
+cargo build --release --locked
+install -Dm755 target/release/yami-shell ~/.local/bin/yami-shell
+```
+
+Библиотеки во время работы: `libxkbcommon`, `libpam`. Необязательные помощники: `pactl`/`parec`
+(громкость, микшер, эквалайзер), `playerctl` (музыка), `nmcli` (Wi-Fi), BlueZ (Bluetooth),
+`cliphist` и `wl-clipboard` (буфер обмена), `python3` с Pillow (палитра для других программ).
+
 ## Сколько потребляет
 
 Замерено на этой машине (1920×1080, Arch; PSS — общие страницы библиотек делятся честно, в
@@ -335,7 +346,7 @@ yami update                   # что нового; apply | list | to X.Y.Z | r
 
 ```sh
 tools/release.sh --keygen     # один раз: ssh-ключ подписи, доверенный в keys/allowed_signers (закоммитить)
-tools/release.sh 2.1.0        # CHANGELOG «Unreleased» → 2.1.0, версии, check.sh, подписанный тег, push
+tools/release.sh 2.1.0        # CHANGELOG «Unreleased» → 2.1.0 (оба языка), версии, check.sh, подписанный тег, push
 ```
 
 Обновления приходят из этого репозитория по HTTPS; чтобы следить за своим форком — ключ `updateRepo`.
@@ -344,7 +355,7 @@ tools/release.sh 2.1.0        # CHANGELOG «Unreleased» → 2.1.0, версии
 
 Всё из настроек (`Mod+S`) — это ещё и ключи в `~/.config/yami-shell.json`; файл перечитывается на
 лету, если править его руками, а одно неверное значение заменяется значением по умолчанию, а не
-сбрасывает весь файл. Полный справочник — [docs/CONFIG.md](docs/CONFIG.md). Из терминала:
+сбрасывает весь файл. Полный справочник — [docs/CONFIG.ru.md](docs/CONFIG.ru.md). Из терминала:
 
 ```sh
 yami-shell config list                 # все ключи, * — то, что отличается от умолчания
@@ -390,9 +401,9 @@ yami-shell binds list                  # клавиши: id, сочетание,
 | `tools/apply-theme.sh` | шрифты и стиль Qt и GTK |
 | `fonts/` | пиксельные шрифты (SIL OFL) |
 | `fork/` | yami-niri: патчи поверх официального niri, сборка, обёртка сеанса |
-| `docs/` | справочник настроек, заметки по безопасности |
+| `docs/` | справочник настроек, заметки по безопасности (каждый и по-русски: `*.ru.md`) |
 | `keys/` | ключи подписи выпусков (`allowed_signers`), их читает `yami update` |
-| `VERSION`, `CHANGELOG.md` | версия выпуска и что менялось в каждом |
+| `VERSION`, `CHANGELOG.md` | версия выпуска и что менялось в каждом (`CHANGELOG.ru.md` — по-русски) |
 | `system/nvidia/` | профиль драйвера против роста VRAM у композитора; опции modeset для раннего KMS (установщик ещё кладёт драйвер в initramfs, а на драйверах эпохи Pascal ставит obs-gstreamer: OBS 33 нужен NVENC API 13.1, драйвер 610+) |
 
 ## yami-niri
@@ -408,13 +419,13 @@ fork/yami-niri.sh off       # вернуться на niri из пакета
 
 Сеанс запускает его через обёртку: если форк не принял конфиг или упал сразу после старта,
 запускается niri из пакета. Если сеанс всё равно не поднялся: `Ctrl+Alt+F3`, войти,
-`~/.local/lib/yami-niri/yami-niri.sh off`. Подробности — [fork/README.md](fork/README.md).
+`~/.local/lib/yami-niri/yami-niri.sh off`. Подробности — [fork/README.ru.md](fork/README.ru.md).
 
 ## Разработка
 
 | Команда | Что делает |
 |---|---|
-| `tools/check.sh` | сборка без предупреждений, проверки перевода, синтаксис скриптов, конфиг niri, пробный прогон установщика (то же гоняет CI) |
+| `tools/check.sh` | сборка без предупреждений, проверки перевода, английские и русские документы в одном виде (`tools/check-docs.py`), синтаксис скриптов, конфиг niri, пробный прогон установщика (то же гоняет CI) |
 | `tools/map.sh [ТЕКСТ]` | все исходники с описанием в одну строку |
 | `yami-shell shot [ЦЕЛЬ…] --lang en [--transparent] [--frame PNG] -o ПАПКА` | панели в PNG без композитора (`--frame` — настоящий экран под оверлеем скриншота); падает на непереведённых надписях |
 | `yami-files shot`, `yami-view shot`, `yami-play shot` | то же для файлов, просмотрщика и плеера |
