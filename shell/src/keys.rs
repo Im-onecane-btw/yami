@@ -304,10 +304,14 @@ pub fn kdl(set: &crate::config::Settings) -> String {
         if !b.opts.is_empty() {
             line += &format!(" {}", b.opts);
         }
+        // на «столе» все окна плавают, а maximize-column их не трогает: там Mod+F разворачивает
+        // само окно до краёв (niri ≥ 25.11; ниже 26.04 yami не ставится)
+        let desk_max = set.stacking && b.id == "maximize";
         if b.overlay {
-            line += &format!(" hotkey-overlay-title={}", kdl_str(title_of(b)));
+            let title = if desk_max { crate::tf!("развернуть окно", "Maximize window") } else { title_of(b).to_string() };
+            line += &format!(" hotkey-overlay-title={}", kdl_str(&title));
         }
-        line += &format!(" {{ {} }}", b.act);
+        line += &format!(" {{ {} }}", if desk_max { "maximize-window-to-edges;" } else { b.act });
         l.push(line);
     }
     for c in &set.custom_binds {

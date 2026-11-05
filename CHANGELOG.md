@@ -27,6 +27,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - yami-view and yami-play tick once a second while nothing on screen is about to change (four times a second only while their panels are about to hide, faster only while something moves).
 - Fix: `glass` set below 0.15 by hand (the slider stops there) made panels all but invisible, so their shadow and blur looked like broken frames (#8); lower values are raised to 0.15.
 - The settings window moves by its header (#8): drag it anywhere on the screen; it opens in the middle again next time.
+- Fix: Mod+F did nothing in desk mode (#8): it was `maximize-column`, which leaves floating windows alone; on the desk it now maximizes the window to the screen edges, and in tiling it still maximizes the column.
 
 ## 2.5.0
 
