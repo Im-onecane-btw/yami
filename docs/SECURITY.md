@@ -17,13 +17,13 @@ What yami trusts, what it exposes, and what was checked (audits of 2026-11-03 an
 | image viewer | files you open | animations are capped at 600 frames and 1 GB of decoded frames |
 | opening files | the user's clicks | `Exec=` lines are split into argv without a shell, file names are never interpolated into a command line |
 | custom keybindings | the user (settings → keys) | run with `sh -c` by niri, like any niri `spawn-sh` |
-| bar scripts (`~/.config/yami/modules`) | the user's own executables | run only while their module is on the bar, one process each, killed when it leaves; output read line by line (≤ 4 KB a line, ≤ 1 MB a run); a module's `click` runs with `sh -c` like a custom key |
+| bar scripts (`~/.config/yami/modules`) | the user's own executables | run only while their module is on the bar, each in its own process group led by a small `sh`: the whole group (the script and what it started) gets SIGTERM when the module leaves the bar or the shell dies (`PR_SET_PDEATHSIG` on the leader); output read line by line (a line over 4 KB is skipped); a module's `click` runs with `sh -c` like a custom key |
 | launcher `>` and `/` | what the user types | `>` runs the typed command in a terminal (like typing it there); `/` only walks the home folder (no hidden folders, no symlinked folders, ≤ 8 levels, ≤ 60 000 entries) and opens the choice with `xdg-open` |
 | inline reply | the notifying app | the text goes back only as `NotificationReplied` to that notification; the field is wiped after sending, nothing is stored or copied |
 | `yami theme import` | a file from anyone | only look keys (palette, effects, fonts, bar, widgets, dock look, gaps, cursor) and the wallpaper picture (saved as a plain file under `~/.local/share/yami/wallpapers`, name stripped of any path); never keybindings, commands, scripts or the update source. Before any import everything it may replace is copied to `~/.local/state/yami/before-import-*.json` (the same format, the last five kept; `yami import FILE --yes` puts it back) |
 | `yami import` | your own backup | as above plus every other setting; custom keybindings, `niri/user.kdl` and bar scripts are listed and written only with `--yes`; paths must be plain and relative inside `~/.config` (`..` and absolute paths refused); `updateRepo` and `updateVerify` are never imported |
 | `yami report` | you, for an issue | nothing is sent; lines with password, token, secret or key names are blanked, the home path, user and host name replaced; the archive is meant to be read before it is attached |
-| shell-owned processes | the user's settings | wlsunset (night light) is started with fixed arguments and `PR_SET_PDEATHSIG`, so it never outlives the shell |
+| shell-owned processes | the user's settings | wlsunset (night light) is started with fixed arguments; it and the music, sound and visualizer helpers (playerctl, pactl, parec) carry `PR_SET_PDEATHSIG`, so none outlives the shell or a restart |
 
 ## Installer
 

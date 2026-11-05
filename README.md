@@ -48,7 +48,8 @@ Everything it does and its flags: [Installation](#installation).
   (power-profiles-daemon) and its own **polkit password window** instead of a Qt/GTK agent.
 - **Desktop widgets.** Clock, calendar, music card with an audio-reactive equalizer, and graphs
   for CPU, RAM, temperature and rx/tx network traffic in five styles (bars, line, blocks, wave,
-  dots) and four animations. Drag them into place in edit mode, hide or resize them.
+  dots) and four animations. Drag them into place in edit mode, hide or resize them. Widgets
+  without a frame follow the wallpaper under them: dark text on a light spot, light on a dark one.
 - **Pixel dock.** Pinned apps and open windows on any edge, window markers, a hover animation to
   choose (grow, wave, lift or none) that steps in whole pixels, a stepped bounce on launch; never, smart (empty workspace) or always hidden.
 - **Screenshots.** `Print` freezes the screen under a pixel overlay: area, window or monitor, a
@@ -101,7 +102,12 @@ Everything it does and its flags: [Installation](#installation).
   (`show-only-in`, `hide-from`); on other niri the windows turn black in the stream instead.
 - **Your wallpaper.** Settings → wallpaper: pick an image (or «set as wallpaper» in yami-files and
   yami-view), fill or fit, pixel cells, recolour it into the accent or the palette tones, darken
-  it, or let the palette follow the image. The login screen gets the same picture.
+  it, or let the palette follow the image. The login screen gets the same picture. With
+  [skwd-wall](https://github.com/liixini/skwd-wall) its picks (videos and Wallpaper Engine scenes
+  too) become the wallpaper and its palette recolours the rice; nothing to configure on its side.
+- **Your bar shape.** Full-width strip, a centred panel of any width, or a floating pill with a gap
+  and a shadow; the centre modules sit dead centre. Windows can get rounded corners and any border
+  width (games stay square).
 - **Crisp on any screen.** The shell, yami-files and yami-view render at the monitor's real scale
   (fractional-scale + viewporter) and upscale their pixels by nearest neighbour, so a 4K screen at
   scale 2 shows sharp 2×2 pixels instead of a compositor-smeared image. Tiny5 is drawn on its 8 px
@@ -302,6 +308,7 @@ yami status                   # what runs: shell, portal, niri, the last update 
 yami doctor                   # which programs and D-Bus services are there, what is missing and what it costs
 yami doctor games             # ntsync, gamemode, MangoHud: what is there, how to add the rest
 yami report                   # an archive for an issue: versions, doctor, journal, configs without secrets
+yami ocr image.png            # text from an image (like «text» in the screenshot overlay)
 yami theme export ~/my.yami   # the look as one file (import: yami theme import FILE)
 yami export ~/all.yami        # every setting as one file for a new system (yami import FILE)
 yami version                  # every part, the installed commit, the update channel

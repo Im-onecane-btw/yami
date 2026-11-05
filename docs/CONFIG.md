@@ -34,6 +34,7 @@ yami status                               # shell, portal, niri, last update che
 yami doctor                               # programs, D-Bus services, config: what is missing and what it costs
 yami doctor games                         # ntsync, gamemode, MangoHud: what is there, one command for the rest
 yami report [-o FILE]                     # versions, doctor, this boot's journal, configs in a tar.gz for an issue (secrets scrubbed)
+yami ocr FILE                             # text from an image, the same recognition as «text» in the screenshot overlay (needs tesseract)
 yami theme export FILE | import FILE      # the look as one file: palette, effects, fonts, bar, widgets, wallpaper (never commands)
 yami export FILE | import FILE [--yes]    # every setting as one file; user.kdl, custom keys and bar scripts only with --yes; before an import the current state goes to ~/.local/state/yami/before-import-*.json (undo: yami import that file --yes)
 yami clean [--dry-run]                    # remove the build cache (yami-niri sources, the shell's target: gigabytes); --force also drops a tree with your patch work
@@ -79,6 +80,8 @@ yami-shell binds list | print | write     # keybindings
 | `wallDim` | `0.0` | darken the wallpaper towards the background colour, 0…0.8 |
 | `wallAccent` | `false` | take the accent (and with it the whole palette) from your image; picking a colour by hand turns it off |
 | `wallKanji` | `true` | the 闇 glyph in the wallpaper corner |
+| `wallSkwd` | `false` | the wallpaper comes from [skwd-wall](https://github.com/liixini/skwd-wall): the shell reads what it writes (`~/.cache/skwd-wall-v2/last-wallpaper.json`, `colors.json`; `SKWD_WALL_V2_CACHE` and `paths.cache` respected) and changes nothing in its config. On a monitor where skwd-paper draws (video, scenes, transitions; seen from its niri layer) the shell hides its own wallpaper; otherwise (skwd-wall's pick-only mode) the shell draws the picked image itself in its cells and tones, a video or scene by its preview frame. The lock and login screens show the same picture. `yami-fx.kdl` gets the layer rule that puts skwd-paper's overview backdrop behind the workspaces |
+| `wallSkwdColors` | `true` | with `wallSkwd`: the accent is skwd-wall's `primary` and the theme follows its background (light or dark), so a palette made in its theme designer recolours the whole rice |
 | `iconTheme` | `""` | icon theme for app icons; empty: auto |
 | `iconPixel` | `true` | app icons redrawn as 16×16 pixel art in the palette tones |
 | `fetchFull` | `false` | fastfetch with the hardware (kernel, packages, CPU, GPU, memory, disk, display); off: who, OS, wm, shell, terminal, uptime |
@@ -111,6 +114,10 @@ yami-shell binds list | print | write     # keybindings
 | `barGap` | `8` | gap between modules, px (0–32) |
 | `barPadL`, `barPadR` | `6`, `6` | from the left and right edge of the bar to the outermost modules, px (0–64) |
 | `barMid` | `12` | from the side modules to the window list (and the centre modules), px (0–64) |
+| `barFloat` | `false` | the bar as a separate panel: `barMargin` from the screen edges, a border all round, a hard shadow; windows keep clear of it |
+| `barWidthPc` | `100` | bar width, % of the monitor (30–100); below 100 the panel is centred (`barFloat` off: it hangs from the top edge) |
+| `barMargin` | `6` | gap between a floating bar and the screen edges, px (0–32) |
+| `barCenterAlign` | `"center"` | `barCenter` modules: `center` at the middle of the bar (a long left group only pushes them as far as needed), `after-left` right after the left group. With `tasks` in the middle it stretches either way |
 
 ### Windows, dock, screenshots, system
 
@@ -123,6 +130,8 @@ yami-shell binds list | print | write     # keybindings
 | `floatW`, `floatH` | `0.62`, `0.78` | their size, share of the screen |
 | `winGap` | `8` | gap between tiled windows, px (0–64): niri `gaps` in `yami-fx.kdl` |
 | `winLeft`, `winRight`, `winTop`, `winBottom` | `8` each | from the screen edge to the windows, px (0–128; the top one from the bar): niri `struts` = edge − gap. Struts in `user.kdl` replace these whole |
+| `winRadius` | `0` | window corner radius, px (0–24; 0 square, like pixels): niri `geometry-corner-radius` with `clip-to-geometry`, the border follows it. Games stay square; fullscreen and maximized windows are square anyway; in desk mode with title bars only the bottom corners of floating windows round, so the shell's title bar joins without a gap |
+| `winBorder` | `2` | window border width, px (0–8; 0: none); its colours come from the palette |
 | `cursor`, `cursorSize` | `"yami"`, `24` | `yami` (pixel, in the palette) or `system` |
 | `dock` | `true` | show the dock |
 | `dockSide` | `"bottom"` | `bottom` `top` `left` `right` |
@@ -236,6 +245,12 @@ printf '{"text":"%s","icon":"temp","color":"accent","click":"xdg-open https://wt
 `bolt` `leaf` `moon` `sun` `gauge` `chart` `drop` `folder` `image` `camera` `lock` `user` `gear`.
 
 ### Widgets
+
+`widgetContrast` (default `true`): widgets without a frame follow the wallpaper under them: on a light
+spot they are drawn with the light variant of the theme (dark text, a deeper accent), on a dark one
+with the dark variant, and every letter gets a hard one-font-pixel shadow in the opposite tone, so a
+clock stays readable on bright or busy wallpapers. Measured on the prepared wallpaper image after a
+new wallpaper, a move, or a settings change.
 
 `widgets` is a list of `{"id", "kind", "on", "x", "y", "source", "style", "anim", "size",
 "color", "frame", "label", "seconds", "date", "text"}`: `kind` is `clock` `graph` `net` `media`
