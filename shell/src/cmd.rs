@@ -110,7 +110,7 @@ fn help_msg(y: &Sty) {
         ("settings [tab]", "настройки (на вкладке)", "settings (on a tab)"),
         ("power | lock", "питание / заблокировать", "power menu / lock"),
         ("screenshot [area|window|screen] [s]", "скриншот, задержка в секундах", "screenshot, delay in seconds"),
-        ("popup cal|sound|media|net|bt|sys|profile|tray", "всплывашка бара", "a bar popup"),
+        (&format!("popup {}", crate::popups::KINDS.join("|")), "всплывашка бара", "a bar popup"),
         ("bar | edit | stacking", "бар / правка виджетов / режим «стол»", "bar / edit widgets / desk mode"),
         ("minimize | restore", "свернуть / вернуть окно", "minimize / restore a window"),
         ("wallpaper [path] | curtain [on|off]", "обои / шторка для трансляций", "wallpaper / privacy curtain"),
@@ -129,7 +129,7 @@ fn help_open(y: &Sty) {
     y.row("launcher clipboard power walls", "");
     y.row("settings[:tab]", &crate::settings::TABS.iter().map(|t| t.0).collect::<Vec<_>>().join(" "));
     y.row("screenshot[:area|window|screen]", "");
-    y.row("cal sound media net bt sys profile tray", &crate::tf!("всплывашки бара", "bar popups"));
+    y.row(&crate::popups::KINDS.join(" "), &crate::tf!("всплывашки бара", "bar popups"));
     println!();
 }
 
@@ -156,7 +156,7 @@ pub fn msg_ok(cmd: &str) -> bool {
     match head {
         "launcher" | "clipboard" | "power" | "lock" | "bar" | "stacking" | "minimize" | "restore" | "edit" | "reload" | "quit" | "ping" | "restart" | "profile" | "night" | "walls" => one(&mut w),
         "settings" => w.next().is_none_or(|t| crate::settings::TABS.iter().any(|x| x.0 == t)) && one(&mut w),
-        "popup" => matches!(w.next(), Some("cal" | "sound" | "media" | "net" | "bt" | "sys" | "profile" | "tray")) && one(&mut w),
+        "popup" => w.next().is_some_and(|k| crate::popups::KINDS.contains(&k)) && one(&mut w),
         "screenshot" => w.next().is_none_or(|m| matches!(m, "area" | "window" | "screen")) && w.next().is_none_or(|d| d.parse::<u32>().is_ok()) && one(&mut w),
         "curtain" => w.next().is_none_or(|a| matches!(a, "on" | "off" | "toggle")) && one(&mut w),
         // путь к картинке (с пробелами) или пусто — пиксельные из палитры
@@ -181,7 +181,7 @@ fn open(y: &Sty, what: &str) -> i32 {
         "settings" if b.is_empty() => "settings".into(),
         "settings" => format!("settings {b}"),
         "screenshot" => format!("screenshot {}", if b.is_empty() { "area" } else { b }).trim().to_string(),
-        "cal" | "sound" | "media" | "net" | "bt" | "sys" | "profile" | "tray" => format!("popup {a}"),
+        k if crate::popups::KINDS.contains(&k) => format!("popup {a}"),
         _ => {
             help_open(y);
             return 2;

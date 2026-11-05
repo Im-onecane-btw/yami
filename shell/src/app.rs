@@ -1421,16 +1421,7 @@ impl App {
             // следующий профиль питания (для хоткея)
             "profile" => self.prof_step(1),
             c if c.starts_with("popup ") => {
-                let kind: &'static str = match &c[6..] {
-                    "cal" => "cal",
-                    "sound" => "sound",
-                    "media" => "media",
-                    "net" => "net",
-                    "bt" => "bt",
-                    "profile" => "profile",
-                    "tray" => "tray",
-                    _ => "sys",
-                };
+                let kind = crate::popups::KINDS.iter().copied().find(|k| *k == &c[6..]).unwrap_or("sys");
                 // из терминала или хоткея: под правым краем бара
                 let out = self.focus_out();
                 let (ow, _) = self.output_size(&out);

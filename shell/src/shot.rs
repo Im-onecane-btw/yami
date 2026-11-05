@@ -340,7 +340,7 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
                 st.media = crate::media::MediaState { player: "mpv".into(), status: "Playing".into(), artist: "Ash Field".into(), title: "Pixel Rain".into(), art: String::new(), length: 245.0, pos: 83.0, at };
                 st.viz = (0..32).map(|i| ((i * 7 % 11) as f32 / 11.0) * 0.8 + 0.1).collect();
             }
-            let k = ["cal", "sound", "media", "net", "bt", "sys", "profile", "tray"].into_iter().find(|k| *k == arg).unwrap_or(if arg == "wifi" { "net" } else { "cal" });
+            let k = crate::popups::KINDS.iter().copied().find(|k| *k == arg).unwrap_or(if arg == "wifi" { "net" } else { "cal" });
             st.popup = Some(Popup { kind: k });
             crate::popups::size(k, st)
         }

@@ -10,6 +10,9 @@ use crate::ui::{Act, Cur, Tone, Ui};
 use crate::widgets;
 use smithay_client_toolkit::seat::keyboard::{KeyEvent, Keysym};
 
+/// виды всплывашек: `popup KIND`, `yami open KIND`, shot
+pub const KINDS: &[&str] = &["cal", "sound", "media", "net", "bt", "sys", "profile", "tray"];
+
 impl State {
     /// открыта всплывашка этого вида
     pub fn popup_is(&self, kind: &str) -> bool {

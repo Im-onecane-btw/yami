@@ -301,7 +301,7 @@ One command for the whole desktop (`~/.local/bin/yami`, the same binary as `yami
 `yami help` prints it in the palette's colours, `yami help <command>` explains one.
 
 ```sh
-yami open settings:keys       # launcher clipboard settings[:tab] power lock screenshot cal sound media net bt sys
+yami open settings:keys       # launcher clipboard settings[:tab] power lock walls screenshot cal sound media net bt sys profile tray
 yami palette ash              # list palettes without an argument; or a colour: yami palette '#3a9fd0'
 yami wallpaper ~/x.png        # own wallpaper; no path: the palette's pixel art
 yami restart                  # restart the shell (waits while a game has focus)
