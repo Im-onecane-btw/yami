@@ -206,7 +206,8 @@ pub fn run(mut v: V) {
             }
             app.ui_was = app.v.ui_visible();
             app.flush();
-            TimeoutAction::ToDuration(Duration::from_millis(if app.v.animating() { 20 } else { 250 }))
+            // панели не прячутся прямо сейчас и ничего не движется — раз в секунду (смена настроек, слайды)
+            TimeoutAction::ToDuration(Duration::from_millis(if app.v.animating() { 20 } else if app.v.hide_soon() { 250 } else { 1000 }))
         })
         .expect("timer");
     let _ = queue.roundtrip(&mut app);

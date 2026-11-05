@@ -228,6 +228,11 @@ impl V {
         self.cropping || self.over_ui || self.pic().is_none() || self.active_at.elapsed() < Duration::from_millis(1800)
     }
 
+    /// панели видны, но вот-вот спрячутся сами: тику надо успеть (иначе он раз в секунду)
+    pub fn hide_soon(&self) -> bool {
+        !self.cropping && !self.over_ui && self.pic().is_some() && self.active_at.elapsed() < Duration::from_millis(1800)
+    }
+
     // ── правка ─────────────────────────────────────────────────────────────
     pub fn edit(&mut self, f: impl Fn(&image::RgbaImage) -> image::RgbaImage) {
         let Some(p) = self.pic().cloned() else { return };

@@ -250,7 +250,8 @@ pub fn run(mut p: P) -> i32 {
     handle
         .insert_source(Timer::from_duration(Duration::from_millis(100)), |_, _, app: &mut App| {
             app.tick();
-            TimeoutAction::ToDuration(Duration::from_millis(if app.p.animating() { 40 } else { 250 }))
+            // прятать нечего — раз в секунду (кадры и время идут событиями mpv, не от тика)
+            TimeoutAction::ToDuration(Duration::from_millis(if app.p.animating() { 40 } else if app.p.hide_soon() { 250 } else { 1000 }))
         })
         .expect("timer");
     let _ = queue.roundtrip(&mut app);

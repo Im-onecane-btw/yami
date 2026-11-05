@@ -24,6 +24,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - yami-files looks for new drives, phones and network mounts only when the system's list of them changes (it used to start `lsblk` and `gio` every 4 seconds while a window was open), and an idle window ticks once a second; the D-Bus helper threads of the shell and yami-files no longer wake twice a second forever (zbus's `blocking` pool, held at 1.6).
 - Caches tidy themselves: the thumbnail cache shared by yami-files and the wallpaper picker drops thumbnails not opened for 120 days and stays under 512 MB, and yami-play forgets resume positions of files not played for a year.
 - Notification and OSD position (#8): settings → system → notifications: the cards go to any corner or the middle of the top or bottom edge (`notifPos`), the volume and brightness OSD to the bottom, the top or the centre (`osdPos`); cards keep clear of the bar and the dock.
+- yami-view and yami-play tick once a second while nothing on screen is about to change (four times a second only while their panels are about to hide, faster only while something moves).
 
 ## 2.5.0
 
