@@ -34,10 +34,12 @@ pub(crate) fn line(cv: &mut Canvas, a: (i32, i32), b: (i32, i32), size: i32, c: 
     }
 }
 
-/// метка m; координаты экрана → буфер: (p - o) * k
-pub fn paint(cv: &mut Canvas, fonts: &mut crate::font::Fonts, m: &Mark, base: &Img, o: (i32, i32), k: i32, on_accent: C) {
-    let tr = |p: (i32, i32)| ((p.0 - o.0) * k, (p.1 - o.1) * k);
-    let size = (m.size * k).max(1);
+/// метка m; координаты экрана → буфер: (p - o) · k. sb — пикселей снимка на точку экрана (масштаб
+/// монитора, бывает дробным: 1.25); на экране k = 1, в файле k = sb
+pub fn paint(cv: &mut Canvas, fonts: &mut crate::font::Fonts, m: &Mark, base: &Img, o: (i32, i32), k: f32, sb: f32, on_accent: C) {
+    let sc = |v: i32| (v as f32 * k).round() as i32;
+    let tr = |p: (i32, i32)| (sc(p.0 - o.0), sc(p.1 - o.1));
+    let size = sc(m.size).max(1);
     match m.tool {
         Tool::Pen => {
             for w in m.pts.windows(2) {
@@ -55,22 +57,23 @@ pub fn paint(cv: &mut Canvas, fonts: &mut crate::font::Fonts, m: &Mark, base: &I
                 Tool::Rect => cv.outline(r, m.color, size),
                 Tool::Marker => cv.fill(r, m.color.alpha(0.38)),
                 _ => {
-                    // мозаика: средний цвет клетки исходника (база — в своём масштабе: экран × k)
-                    let cell = 10 * k;
+                    // мозаика: средний цвет клетки исходника (база — в своём масштабе: экран × sb)
+                    let cell = sc(10).max(1);
                     let mut y = r.y;
                     while y < r.bottom() {
                         let mut x = r.x;
                         while x < r.right() {
                             let cw = cell.min(r.right() - x);
                             let ch = cell.min(r.bottom() - y);
-                            // точка исходника: буфер → экран·k → база
-                            let bx = (x + o.0 * k).clamp(0, base.w - 1);
-                            let by = (y + o.1 * k).clamp(0, base.h - 1);
+                            // точка исходника: буфер → экран (÷k + o) → база (×sb)
+                            let bx = (((x as f32 / k) + o.0 as f32) * sb).round().clamp(0.0, (base.w - 1) as f32) as i32;
+                            let by = (((y as f32 / k) + o.1 as f32) * sb).round().clamp(0.0, (base.h - 1) as f32) as i32;
+                            let (bw, bh) = ((cw as f32 / k * sb).round().max(1.0) as i32, (ch as f32 / k * sb).round().max(1.0) as i32);
                             let (mut rs, mut gs, mut bs, mut n) = (0u32, 0u32, 0u32, 0u32);
                             let mut yy = by;
-                            while yy < (by + ch).min(base.h) {
+                            while yy < (by + bh).min(base.h) {
                                 let mut xx = bx;
-                                while xx < (bx + cw).min(base.w) {
+                                while xx < (bx + bw).min(base.w) {
                                     let p = base.px[(yy * base.w + xx) as usize];
                                     rs += (p >> 16) & 255;
                                     gs += (p >> 8) & 255;
@@ -94,7 +97,7 @@ pub fn paint(cv: &mut Canvas, fonts: &mut crate::font::Fonts, m: &Mark, base: &I
             let (a, b) = (tr(*a), tr(*b));
             line(cv, a, b, size, m.color);
             let ang = ((b.1 - a.1) as f32).atan2((b.0 - a.0) as f32);
-            let len = (size as f32 * 4.0 + 10.0 * k as f32).min((((b.0 - a.0).pow(2) + (b.1 - a.1).pow(2)) as f32).sqrt());
+            let len = (size as f32 * 4.0 + 10.0 * k).min((((b.0 - a.0).pow(2) + (b.1 - a.1).pow(2)) as f32).sqrt());
             for d in [2.6f32, -2.6] {
                 let e = (b.0 + (len * (ang + d).cos()) as i32, b.1 + (len * (ang + d).sin()) as i32);
                 line(cv, b, e, size, m.color);
@@ -103,10 +106,10 @@ pub fn paint(cv: &mut Canvas, fonts: &mut crate::font::Fonts, m: &Mark, base: &I
         Tool::Count => {
             let Some(p) = m.pts.first() else { return };
             let p = tr(*p);
-            let s = 26 * k;
+            let s = sc(26);
             let r = R::new(p.0 - s / 2, p.1 - s / 2, s, s);
-            cv.pxbox(r, &BoxStyle::new(m.color, C::hex(0x0b0909)).shadow(2 * k));
-            let face = crate::font::px(16 * k as u16);
+            cv.pxbox(r, &BoxStyle::new(m.color, C::hex(0x0b0909)).shadow(sc(2)));
+            let face = crate::font::px((16.0 * k).round() as u16);
             let txt = m.n.to_string();
             let tc = if crate::theme::lightness(m.color) > 0.6 { C::hex(0x0b0909) } else { on_accent };
             cv.text_center(fonts, face, r, &txt, tc);
@@ -173,7 +176,7 @@ pub fn draw(ui: &mut Ui, st: &State, out: &str, w: i32, h: i32) {
     if let Some(r) = sel {
         ui.cv.push_clip(r);
         for m in &sn.marks {
-            paint(&mut ui.cv, ui.f, m, img, (0, 0), 1, t.on_accent);
+            paint(&mut ui.cv, ui.f, m, img, (0, 0), 1.0, img.w as f32 / w.max(1) as f32, t.on_accent);
         }
         ui.cv.pop_clip();
         ui.cv.ants(R::new(r.x - 1, r.y - 1, r.w + 2, r.h + 2), t.ember, 4, ph);

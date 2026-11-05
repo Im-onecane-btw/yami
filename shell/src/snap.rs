@@ -412,10 +412,11 @@ impl App {
                 }
                 let sel = sn.cur_sel(&out);
                 if sn.tool == Tool::Pick {
-                    // цвет точки снимка (снимок в физических пикселях)
+                    // цвет точки снимка: снимок в физических пикселях, масштаб бывает дробным (1.25)
                     if let Some(img) = sn.imgs.get(&out) {
-                        let k = (img.w / w.max(1)).max(1);
-                        let c = img.px[((yi * k).clamp(0, img.h - 1) * img.w + (xi * k).clamp(0, img.w - 1)) as usize] & 0xffffff;
+                        let px = ((x * img.w as f64 / w.max(1) as f64) as i32).clamp(0, img.w - 1);
+                        let py = ((y * img.h as f64 / h.max(1) as f64) as i32).clamp(0, img.h - 1);
+                        let c = img.px[(py * img.w + px) as usize] & 0xffffff;
                         copy_text(&format!("#{c:06x}"));
                         self.snap_hint(&crate::tf!("цвет #{:06x} скопирован", "colour #{:06x} copied", c));
                     }
@@ -658,19 +659,23 @@ impl App {
         let sn = self.st.snap.as_ref()?;
         let (out, r) = sn.sel.clone()?;
         let img = sn.imgs.get(&out)?.clone();
+        // снимок — в физических пикселях, выделение — в точках экрана; масштаб бывает дробным
+        // (1.25, 1.5): целая часть отношения вырезала бы не тот кусок
         let (ow, _) = self.output_size(&out);
-        let k = (img.w / ow.max(1)).max(1);
-        let r = r.inter(&R::new(0, 0, img.w / k, img.h / k));
-        if r.empty() {
+        let k = img.w as f32 / ow.max(1) as f32;
+        let px = |v: i32| (v as f32 * k).round() as i32;
+        let (x0, y0) = (px(r.x).clamp(0, img.w), px(r.y).clamp(0, img.h));
+        let (x1, y1) = (px(r.right()).clamp(0, img.w), px(r.bottom()).clamp(0, img.h));
+        let (w, h) = (x1 - x0, y1 - y0);
+        if w <= 0 || h <= 0 {
             return None;
         }
-        let (w, h) = (r.w * k, r.h * k);
         let mut buf = vec![0u32; (w * h) as usize];
         {
             let mut cv = Canvas::new(&mut buf, w, h);
-            cv.blit(&img, -r.x * k, -r.y * k);
+            cv.blit(&img, -x0, -y0);
             for m in &sn.marks {
-                paint(&mut cv, &mut self.res.fonts, m, &img, (r.x, r.y), k, self.st.t.on_accent);
+                paint(&mut cv, &mut self.res.fonts, m, &img, (r.x, r.y), k, k, self.st.t.on_accent);
             }
         }
         let mut rgba = Vec::with_capacity(buf.len() * 4);
