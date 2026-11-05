@@ -145,6 +145,19 @@ impl Icons {
         img
     }
 
+    /// значок из файла (IconThemePath у программ трея): кеш по пути и времени изменения, чтобы
+    /// не читать и не декодировать его на каждой перерисовке бара
+    pub fn file(&mut self, p: &Path, size: i32) -> Option<std::rc::Rc<Img>> {
+        let at = std::fs::metadata(p).ok()?.modified().ok()?;
+        let key = (format!("\u{1}{}\u{1}{at:?}", p.display()), size);
+        if let Some(i) = self.imgs.get(&key) {
+            return i.clone();
+        }
+        let img = load_file(p, size).map(std::rc::Rc::new);
+        self.imgs.insert(key, img.clone());
+        img
+    }
+
     /// включить/выключить пиксельные значки программ (тона палитры: обводка, тёмный → светлый)
     pub fn set_pixel(&mut self, ramp: Option<[u32; 5]>) {
         if self.pixel != ramp {

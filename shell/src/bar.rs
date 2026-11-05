@@ -191,8 +191,8 @@ pub fn tray_icon(ui: &mut Ui, it: &crate::dbus::TrayItem, x: i32, y: i32) {
         ui.cv.image(img, x, y, 1.0);
         return;
     }
-    let name = it.icon.clone();
-    let img = if name.is_empty() { None } else { ui.ic.get(&name, 16).or_else(|| it.theme_path.as_ref().and_then(|p| icons::load_file(&std::path::Path::new(p).join(format!("{name}.png")), 16).map(std::rc::Rc::new))) };
+    let name = &it.icon;
+    let img = if name.is_empty() { None } else { ui.ic.get(name, 16).or_else(|| it.theme_path.as_ref().and_then(|p| ui.ic.file(&std::path::Path::new(p).join(format!("{name}.png")), 16))) };
     match img {
         Some(img) => ui.cv.image(&img, x, y, 1.0),
         None => ui.cv.icon("dots", x + 1, y + 1, 2, t.text_dim),
@@ -256,19 +256,18 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
         }
         // трей стрелкой: одна кнопка, значки — во всплывашке (popups.rs `tray`); точка — кто-то зовёт
         "tray" if st.set.tray_mode == "arrow" => {
-            let items = crate::popups::tray_items(st);
-            if items.is_empty() {
+            if crate::popups::tray_items(st).next().is_none() {
                 return 0;
             }
             if !measure {
                 let r = R::new(x, cy - 11, 22, 22);
-                let open = st.popup.as_ref().is_some_and(|p| p.kind == "tray");
+                let open = st.popup_is("tray");
                 let hov = ui.hover(r);
                 if hov || open {
                     ui.cv.pxbox(r, &BoxStyle::new(t.surface_hi, if open { t.red } else { t.border }));
                 }
                 ui.cv.icon(if open { "up" } else { "down" }, x + 4, cy - 7, 2, if hov || open { t.text_hi } else { t.text_dim });
-                if items.iter().any(|i| i.status == "NeedsAttention") {
+                if crate::popups::tray_items(st).any(|i| i.status == "NeedsAttention") {
                     ui.cv.fill(R::new(x + 17, cy - 9, 4, 4), t.ember);
                 }
                 ui.zone(r, Act::Popup("tray"), Cur::Pointer);
@@ -276,13 +275,12 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
             22
         }
         "tray" => {
-            let items = crate::popups::tray_items(st);
-            let w = items.len() as i32 * 24 - 2;
-            if measure || items.is_empty() {
+            let w = crate::popups::tray_items(st).count() as i32 * 24 - 2;
+            if measure || w <= 0 {
                 return w.max(0);
             }
             let mut ix = x;
-            for it in items {
+            for it in crate::popups::tray_items(st) {
                 let r = R::new(ix, cy - 11, 22, 22);
                 if ui.hover(r) {
                     ui.cv.pxbox(r, &BoxStyle::new(t.surface_hi, t.red));
@@ -478,7 +476,7 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
             let w = tw + dw;
             if !measure {
                 let r = R::new(x - 4, 0, w + 8, H - 1);
-                let hov = ui.hover(r) || st.popup.as_ref().map(|p| p.kind == "cal").unwrap_or(false);
+                let hov = ui.hover(r) || st.popup_is("cal");
                 if hov {
                     ui.cv.fill(R::new(x - 4, H - 3, w + 8, 2), t.red);
                 }

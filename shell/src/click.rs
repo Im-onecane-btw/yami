@@ -43,7 +43,6 @@ impl App {
             Act::WallsBack => self.walls_back(),
             Act::WallsDir => self.walls_ask(true),
             Act::WallsFile => self.walls_ask(false),
-            Act::WallsScroll => {}
             // ── бар ─────────────────────────────────────────────────────────
             Act::Launcher => self.toggle_modal(Modal::Launcher, button == RMB),
             Act::Plug(cmd) => App::sh(&cmd),
@@ -67,8 +66,7 @@ impl App {
                 let (bus, path, menu, is_menu) = (it.bus.clone(), it.path.clone(), it.menu.clone(), it.is_menu);
                 // меню программы: под значком в баре или под её строкой во всплывашке трея
                 let in_popup = kind == Some(SKind::Popup);
-                let mx = self.surfs.get(&sid).map(|s| s.margin.0).unwrap_or(0);
-                self.tray_anchor = Some(if in_popup { (out.clone(), mx + zone.x + 8, ay + 2) } else { (out.clone(), ax - 20, self.bar_bottom(&out) + 2) });
+                self.tray_anchor = Some(if in_popup { (out.clone(), ax - zone.w / 2 + 8, ay + 2) } else { (out.clone(), ax - 20, self.bar_bottom(&out) + 2) });
                 if button == RMB || (button == LMB && is_menu) {
                     if !menu.is_empty() {
                         crate::dbus::tray_menu(&svc, &bus, &menu, self.tx.clone());
@@ -120,7 +118,7 @@ impl App {
             Act::CalMonth(d) => {
                 self.st.cal_month = if d == 0 { 0 } else { self.st.cal_month + d };
             }
-            Act::VolSlider | Act::MicSlider | Act::AppVol(_) | Act::MediaSeek => {}
+            Act::VolSlider | Act::MicSlider | Act::AppVol(_) => {}
             Act::VolMute => audio::toggle_mute(),
             Act::MicMute => audio::toggle_mic(),
             Act::AppMute(i) => audio::mute_stream(i),

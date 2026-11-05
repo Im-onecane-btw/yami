@@ -39,7 +39,7 @@ pub fn size(kind: &str, st: &State) -> (i32, i32) {
         }
         "bt" => (380, 44 + 40 + if st.bt.msg.is_empty() { 0 } else { 24 } + if st.bt.powered { st.bt.devices.len().clamp(1, 8) as i32 * 34 } else { 30 } + 50),
         "sys" => (440, 44 + 4 * 74 + 40 + 50),
-        "tray" => (300, 66 + tray_items(st).len().clamp(1, 12) as i32 * 32),
+        "tray" => (300, 66 + tray_items(st).count().clamp(1, 12) as i32 * 32),
         "profile" => (340, 44 + if st.sys.bat.is_some() { 40 } else { 0 } + if st.prof.present { 36 * 3 + if st.prof.degraded.is_empty() { 0 } else { 26 } } else { 60 } + 30),
         _ => (300, 200),
     }
@@ -218,20 +218,19 @@ fn media(ui: &mut Ui, st: &State, b: R) {
 // ── трей ────────────────────────────────────────────────────────────────────
 // trayMode = arrow: в баре одна стрелка, программы — здесь. ЛКМ, ПКМ, СКМ и колесо — как у значка
 // в баре; меню программы открывается под её строкой
-pub fn tray_items(st: &State) -> Vec<&crate::dbus::TrayItem> {
-    st.tray.iter().filter(|i| i.status != "Passive").collect()
+pub fn tray_items(st: &State) -> impl Iterator<Item = &crate::dbus::TrayItem> {
+    st.tray.iter().filter(|i| i.status != "Passive")
 }
 
 fn tray(ui: &mut Ui, st: &State, b: R) {
     let t = ui.t;
-    let items = tray_items(st);
-    let n = items.len().to_string();
-    let mut y = head(ui, b, "menu", "трей", &n);
-    if items.is_empty() {
+    let n = tray_items(st).count();
+    let mut y = head(ui, b, "menu", "трей", &n.to_string());
+    if n == 0 {
         ui.text_in(PX, R::new(b.x, y, b.w, 28), "в трее никого", t.text_faint);
         return;
     }
-    for it in items.into_iter().take(12) {
+    for it in tray_items(st).take(12) {
         let r = R::new(b.x, y, b.w, 28);
         ui.button(r, "", "", Tone::Ghost, false, true, Act::Tray(it.service.clone()));
         crate::bar::tray_icon(ui, it, r.x + 6, r.cy() - 8);

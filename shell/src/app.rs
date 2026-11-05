@@ -850,6 +850,11 @@ impl App {
         // окно на весь экран (игра): что под ним, не рисуем — останется грязным до выхода из него
         let covered = if self.st.game.fullscreen { Some(self.focus_out()) } else { None };
         let under = |s: &Surf| covered.as_deref() == Some(s.output.as_str()) && matches!(s.kind, SKind::Bar | SKind::Widget(_) | SKind::Dock | SKind::Wall | SKind::Title(_));
+        // всплывашка перерисовывается — значит, её данные поменялись, и размер (строки сетей, устройств,
+        // программ трея, время трека) мог тоже; resize_popup ничего не делает, если он тот же
+        if self.surfs.values().any(|s| s.kind == SKind::Popup && s.dirty && !s.closing) {
+            self.resize_popup();
+        }
         let ids: Vec<u32> = self.surfs.iter().filter(|(_, s)| s.dirty && s.configured && !s.frame_pending && !under(s)).map(|(i, _)| *i).collect();
         for id in ids {
             self.draw(id);
@@ -1164,7 +1169,7 @@ impl App {
 
     pub(crate) fn uses(&self, src: &str) -> bool {
         let s = &self.st.set;
-        s.widgets.iter().any(|w| w.on && w.kind == "graph" && w.source == src) || (src == "gpu" && self.st.popup.as_ref().map(|p| p.kind == "sys").unwrap_or(false))
+        s.widgets.iter().any(|w| w.on && w.kind == "graph" && w.source == src) || (src == "gpu" && self.st.popup_is("sys"))
     }
 
     // ── простой: замок и гашение экрана ─────────────────────────────────────
@@ -1231,8 +1236,18 @@ impl App {
                 self.dirty_where(|k| matches!(k, SKind::Bar | SKind::Popup | SKind::Osd));
             }
             Msg::Viz(v) => {
+                // ~30 раз в секунду: перерисовать только то, где эквалайзер (всплывашка с плеером,
+                // виджет музыки, бар с модулем media), а не все бары и виджеты на всех мониторах
                 self.st.viz = v;
-                self.dirty_where(|k| matches!(k, SKind::Popup | SKind::Widget(_) | SKind::Bar));
+                let (s, pop) = (&self.st.set, crate::popups::shows_media(&self.st));
+                let bar = s.on_bar("media");
+                let ws: Vec<u32> = s.widgets.iter().filter(|w| w.on && w.kind == "media").map(|w| w.id).collect();
+                self.dirty_where(|k| match k {
+                    SKind::Popup => pop,
+                    SKind::Bar => bar,
+                    SKind::Widget(id) => ws.contains(id),
+                    _ => false,
+                });
             }
             Msg::Media(m) => {
                 if !m.art.is_empty() && !self.st.art.contains_key(&m.art) {
@@ -1263,21 +1278,19 @@ impl App {
             Msg::Tray(e) => {
                 dbus::apply(&mut self.st.tray, e);
                 self.dirty(&SKind::Bar);
-                if self.st.popup.as_ref().is_some_and(|p| p.kind == "tray") {
-                    self.resize_popup();
+                if self.st.popup_is("tray") {
                     self.dirty(&SKind::Popup);
                 }
             }
             Msg::TrayMenu(svc, items) => self.open_tray_menu(&svc, items),
             Msg::Net(n) => {
                 // сети не хватило пароля — поле под ней, курсор в нём
-                if !n.ask.is_empty() && self.st.popup.as_ref().is_some_and(|p| p.kind == "net") {
+                if !n.ask.is_empty() && self.st.popup_is("net") {
                     self.st.wifi_target = n.ask.clone();
                     self.st.wifi_pass.clear();
                     self.st.field_focus = Some("wifi");
                 }
                 self.st.net = n;
-                self.resize_popup();
                 self.dirty(&SKind::Popup);
             }
             Msg::Bt(mut b) => {
@@ -1287,7 +1300,6 @@ impl App {
                     b.busy = std::mem::take(&mut self.st.bt.busy);
                 }
                 self.st.bt = b;
-                self.resize_popup();
                 self.dirty_where(|k| matches!(k, SKind::Popup | SKind::Bar));
             }
             Msg::Pam(ok) => self.on_pam(ok),

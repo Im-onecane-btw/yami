@@ -116,7 +116,7 @@ impl App {
 
     // ── всплывашки бара ─────────────────────────────────────────────────────
     pub fn open_popup(&mut self, kind: &'static str, out: &str, ax: i32) {
-        let same = self.st.popup.as_ref().map(|p| p.kind == kind).unwrap_or(false);
+        let same = self.st.popup_is(kind);
         self.close_popup();
         self.close_menu();
         if same {
@@ -124,6 +124,8 @@ impl App {
         }
         self.close_modal();
         self.st.popup = Some(Popup { kind });
+        // модули бара рисуют, открыта ли их всплывашка (стрелка трея, календарь)
+        self.dirty(&SKind::Bar);
         match kind {
             "net" => net::refresh_wifi(self.tx.clone()),
             "bt" => net::refresh_bt(self.tx.clone()),
@@ -155,6 +157,7 @@ impl App {
 
     pub fn close_popup(&mut self) {
         if self.st.popup.take().is_some() {
+            self.dirty(&SKind::Bar);
             self.st.field_focus = None;
             self.close_kind(&SKind::Popup);
             if self.st.menu.is_none() {

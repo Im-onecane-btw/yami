@@ -183,7 +183,7 @@ impl App {
             MAct::Tray(svc, path, item) => {
                 crate::dbus::tray_menu_click(&svc, &path, item);
                 // пункт выбран из меню во всплывашке трея — закрыть и её
-                if self.st.popup.as_ref().is_some_and(|p| p.kind == "tray") {
+                if self.st.popup_is("tray") {
                     self.close_popup();
                 }
             }
