@@ -303,12 +303,44 @@ pub(crate) fn releases(dir: &Path, st: &Stamp, known: bool, policy: &str) -> Vec
         .collect()
 }
 
+/// строка CHANGELOG как текст: [#5](ссылка) → #5, без ** и обратных кавычек
+pub(crate) fn plain(l: &str) -> String {
+    let mut out = String::with_capacity(l.len());
+    let mut rest = l;
+    while let Some(i) = rest.find('[') {
+        out.push_str(&rest[..i]);
+        let tail = &rest[i + 1..];
+        match tail.find("](").and_then(|j| tail[j + 2..].find(')').map(|k| (j, j + 2 + k))) {
+            Some((j, end)) => {
+                out.push_str(&tail[..j]);
+                rest = &tail[end + 1..];
+            }
+            None => {
+                out.push('[');
+                rest = tail;
+            }
+        }
+    }
+    out.push_str(rest);
+    out.replace("**", "").replace('`', "")
+}
+
 /// что нового: раздел CHANGELOG.md выпуска, иначе заголовки коммитов
 pub(crate) fn notes(dir: &Path, st: &Stamp, i: &Info, known: bool, main: bool) -> Vec<String> {
     if !main {
         if let Ok(log) = git(dir, &["show", &format!("{}:CHANGELOG.md", i.target)]) {
             let head = format!("## {}", i.latest);
-            let sec: Vec<String> = log.lines().skip_while(|l| !l.starts_with(&head)).skip(1).take_while(|l| !l.starts_with("## ")).map(|l| l.trim().trim_start_matches(['-', '*']).trim().to_string()).filter(|l| !l.is_empty()).take(12).collect();
+            // строки раздела без заголовков «### …» и без разметки: ссылки, **жирное**, `код`
+            let sec: Vec<String> = log
+                .lines()
+                .skip_while(|l| !l.starts_with(&head))
+                .skip(1)
+                .take_while(|l| !l.starts_with("## "))
+                .filter(|l| !l.trim_start().starts_with('#'))
+                .map(|l| plain(l.trim().trim_start_matches(['-', '*']).trim()))
+                .filter(|l| !l.is_empty())
+                .take(12)
+                .collect();
             if !sec.is_empty() {
                 return sec;
             }
@@ -566,4 +598,13 @@ pub(crate) fn spawn_detached(what: &[&str]) {
     let Ok(f) = std::fs::File::create(&log) else { return };
     let Ok(f2) = f.try_clone() else { return };
     let _ = Command::new("setsid").arg("-f").arg(yami_px::paths::self_exe()).arg("update").args(what).arg("--notify").stdin(Stdio::null()).stdout(f).stderr(f2).status();
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn notes_as_plain_text() {
+        assert_eq!(super::plain("**Bar shape** ([#5](https://github.com/Trendorin/yami/issues/5)): `barFloat`"), "Bar shape (#5): barFloat");
+        assert_eq!(super::plain("a [b] c"), "a [b] c");
+    }
 }
