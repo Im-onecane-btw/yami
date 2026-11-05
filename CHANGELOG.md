@@ -22,6 +22,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - One «pixel look» slider (asked in the same review: «a slider to set my pixelation lower»). Settings → look: smooth, softer, yami only, all pixel: the fonts of the shell, the apps and GTK/Qt, pixel icons and the cursor move together; the separate keys stay for fine tuning.
 - The installer asks for the administrator password once: every root step goes through one root shell opened at the start (sudo or doas), with no credential cache left for build scripts. Packages missing from the distro's repositories are dropped from the batch instead of installing the rest one by one (on Alpine with doas that meant a password prompt per package). On a machine with less than 6 GB of memory or 4 threads the niri fork is off by default and cargo builds with as many jobs as the memory allows.
 - yami-files looks for new drives, phones and network mounts only when the system's list of them changes (it used to start `lsblk` and `gio` every 4 seconds while a window was open), and an idle window ticks once a second; the D-Bus helper threads of the shell and yami-files no longer wake twice a second forever (zbus's `blocking` pool, held at 1.6).
+- Caches tidy themselves: the thumbnail cache shared by yami-files and the wallpaper picker drops thumbnails not opened for 120 days and stays under 512 MB, and yami-play forgets resume positions of files not played for a year.
 
 ## 2.5.0
 

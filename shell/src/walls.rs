@@ -282,6 +282,8 @@ impl App {
             let d = dir(&wd, cur.as_deref());
             let (files, more) = list(&d);
             let _ = tx.send(Msg::WallsListed(gen, d, files, more));
+            // кеш миниатюр общий с yami-files: убрать старое (раз в сутки), уже после списка
+            crate::icons::thumbs_tidy();
         });
         self.dirty(&SKind::Modal);
     }

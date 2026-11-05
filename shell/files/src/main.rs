@@ -108,6 +108,8 @@ fn main() {
     let look = look::Look::load();
     i18n::set(&look.lang);
     let cfg = cfg::Cfg::load();
+    // кеш миниатюр (общий с выбором обоев) — раз в сутки, не мешая открытию окна
+    std::thread::spawn(icons::thumbs_tidy);
     if args.get(1).map(|s| s == "--pick").unwrap_or(false) {
         let (pick, dirs) = pick_from_args(&args[2..]);
         let dirs: Vec<PathBuf> = dirs.into_iter().filter(|d| d.is_dir()).collect();

@@ -275,7 +275,7 @@ mouse: settings → widgets, edit mode.
 | `zoom` | `2` | icon size in the grid, 0…4 |
 | `hidden`, `foldersFirst` | `false`, `true` | |
 | `sort`, `desc` | `"name"`, `false` | `name` `size` `time` `type` |
-| `thumbs`, `thumbMaxMb` | `true`, `40` | thumbnails, and the largest image to thumbnail, MB |
+| `thumbs`, `thumbMaxMb` | `true`, `40` | thumbnails, and the largest image to thumbnail, MB. The cache `~/.cache/yami/thumbs` (shared with the wallpaper picker) tidies itself once a day: thumbnails not opened for 120 days go, and it stays under 512 MB |
 | `sidebar`, `info` | `true`, `false` | places on the left, details on the right |
 | `devices` | `true` | drives, USB sticks, phones and cameras in the sidebar |
 | `network` | `true` | the «network» section: mounted shares and «connect…» |

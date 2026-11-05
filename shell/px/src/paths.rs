@@ -139,6 +139,48 @@ pub fn read_capped(p: &Path, max: u64) -> Option<Vec<u8>> {
     Some(v)
 }
 
+/// уборка кеша (миниатюры, позиции плеера): не чаще раза в сутки (метка `.tidy` в самой папке)
+/// удаляет файлы старше `days` дней по времени изменения, а если папка всё равно больше
+/// `max_bytes` — самые старые, пока не влезет. Вложенные папки не трогаются. Зовётся из нити
+pub fn tidy(dir: &Path, days: u64, max_bytes: u64) {
+    use std::time::{Duration, SystemTime};
+    let now = SystemTime::now();
+    let stamp = dir.join(".tidy");
+    let fresh = std::fs::metadata(&stamp).and_then(|m| m.modified()).map(|t| now.duration_since(t).unwrap_or_default() < Duration::from_secs(86_400)).unwrap_or(false);
+    let Ok(rd) = std::fs::read_dir(dir) else { return };
+    if fresh {
+        return;
+    }
+    let _ = std::fs::write(&stamp, b"");
+    let old = now - Duration::from_secs(days * 86_400);
+    let mut kept: Vec<(SystemTime, u64, PathBuf)> = vec![];
+    for e in rd.flatten() {
+        let Ok(m) = e.metadata() else { continue };
+        if !m.is_file() || e.file_name() == ".tidy" {
+            continue;
+        }
+        let t = m.modified().unwrap_or(now);
+        if t < old {
+            let _ = std::fs::remove_file(e.path());
+        } else {
+            kept.push((t, m.len(), e.path()));
+        }
+    }
+    let mut total: u64 = kept.iter().map(|k| k.1).sum();
+    if total <= max_bytes {
+        return;
+    }
+    kept.sort_by_key(|k| k.0);
+    for (_, len, p) in kept {
+        if total <= max_bytes {
+            break;
+        }
+        if std::fs::remove_file(&p).is_ok() {
+            total -= len;
+        }
+    }
+}
+
 /// запись через временный файл: читатель никогда не увидит половину
 pub fn write_atomic(path: &Path, text: &str) -> std::io::Result<()> {
     if std::fs::read_to_string(path).map(|t| t == text).unwrap_or(false) {
@@ -175,7 +217,7 @@ pub fn lenient_json<T: serde::de::DeserializeOwned + serde::Serialize + Default>
 
 #[cfg(test)]
 mod tests {
-    use super::natural;
+    use super::{natural, private_tmp, tidy};
     use std::cmp::Ordering::*;
 
     #[test]
@@ -186,5 +228,31 @@ mod tests {
         assert_eq!(natural("file007", "file7"), "file007".cmp("file7"));
         assert_eq!(natural("x99999999999999999999999", "x100000000000000000000000"), Less);
         assert_eq!(natural("A", "a"), Less);
+    }
+
+    #[test]
+    fn tidy_ages_and_caps() {
+        use std::time::{Duration, SystemTime};
+        let d = private_tmp("tidy-test").unwrap();
+        let put = |name: &str, len: usize, age_days: u64| {
+            let p = d.join(name);
+            std::fs::write(&p, vec![0u8; len]).unwrap();
+            let f = std::fs::File::options().write(true).open(&p).unwrap();
+            f.set_modified(SystemTime::now() - Duration::from_secs(age_days * 86_400)).unwrap();
+        };
+        put("old", 10, 200);
+        put("mid", 100, 50);
+        put("new", 100, 1);
+        std::fs::create_dir(d.join("sub")).unwrap();
+        tidy(&d, 120, 150);
+        // старше 120 дней — прочь; потом самые старые, пока не влезет в 150 байт; папки не трогаются
+        assert!(!d.join("old").exists());
+        assert!(!d.join("mid").exists());
+        assert!(d.join("new").exists() && d.join("sub").is_dir());
+        // второй раз за сутки — ничего не делает
+        put("again", 10, 300);
+        tidy(&d, 120, 150);
+        assert!(d.join("again").exists());
+        let _ = std::fs::remove_dir_all(&d);
     }
 }

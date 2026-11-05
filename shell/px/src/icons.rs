@@ -269,6 +269,11 @@ pub fn decode(data: &[u8], max_alloc: u64) -> Option<image::DynamicImage> {
     rd.decode().ok()
 }
 
+/// кеш миниатюр: не открытые 120 дней уходят, и всего не больше 512 МБ (раз в сутки, из нити)
+pub fn thumbs_tidy() {
+    crate::paths::tidy(&crate::paths::cache_dir().join("yami/thumbs"), 120, 512 << 20);
+}
+
 /// где лежит миниатюра (~/.cache/yami/thumbs): ключ — путь, время изменения и размер
 pub fn thumb_path(path: &Path, mtime: i64, size: i32) -> PathBuf {
     let mut h: u64 = 0xcbf29ce484222325;
@@ -284,6 +289,13 @@ pub fn thumb_path(path: &Path, mtime: i64, size: i32) -> PathBuf {
 pub fn thumb(path: &Path, mtime: i64, size: i32) -> Option<image::RgbaImage> {
     let cp = thumb_path(path, mtime, size);
     if let Ok(img) = image::open(&cp) {
+        // нужная миниатюра молодеет (раз в неделю, не на каждое чтение): уборка кеша
+        // (paths::tidy) убирает по времени изменения только то, что давно не открывали
+        if let Ok(m) = std::fs::metadata(&cp).and_then(|m| m.modified()) {
+            if m.elapsed().map(|d| d.as_secs() > 7 * 86_400).unwrap_or(false) {
+                let _ = std::fs::File::options().write(true).open(&cp).and_then(|f| f.set_modified(std::time::SystemTime::now()));
+            }
+        }
         return Some(img.into_rgba8());
     }
     let rd = image::ImageReader::open(path).ok()?.with_guessed_format().ok()?;

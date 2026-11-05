@@ -104,8 +104,11 @@ pub fn run(mut p: P) -> i32 {
     // mpv будит цикл из своих нитей
     let (ping, ping_src) = calloop::ping::make_ping().expect("ping");
     handle.insert_source(ping_src, |_, _, app: &mut App| app.pump()).expect("ping source");
-    let state = crate::paths::home().join(".local/state/yami/play");
+    let state = crate::paths::state_dir().join("play");
     let _ = std::fs::create_dir_all(&state);
+    // позиции «продолжить с того же места» mpv не чистит сам: год не открывали — забыть
+    let wl = state.join("watch_later");
+    std::thread::spawn(move || crate::paths::tidy(&wl, 365, 64 << 20));
     let pics = pictures();
     let opts: Vec<(&str, String)> = vec![
         ("config", "no".into()),
