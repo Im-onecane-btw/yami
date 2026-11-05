@@ -89,8 +89,10 @@ fn wall_entry(set: &Map<String, Value>) -> Option<Value> {
 
 /// содержимое файла: тема (только вид) или все настройки; обои — картинкой, если with_wall
 fn bundle(theme: bool, with_wall: bool) -> Value {
-    // все ключи, и те, которых в файле ещё нет (значения по умолчанию): тема должна быть полной
-    let set = serde_json::to_value(crate::config::Settings::load()).ok().and_then(|v| v.as_object().cloned()).unwrap_or_else(settings_value);
+    // все ключи, и те, которых в файле ещё нет (значения по умолчанию): тема должна быть полной.
+    // Через текст, не to_value: f32 там становится f64 (0.78 → 0.7799999713897705), и импорт
+    // своего же файла показывал бы «изменения»
+    let set = serde_json::to_string(&crate::config::Settings::load()).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()).and_then(|v| v.as_object().cloned()).unwrap_or_else(settings_value);
     let mut s = Map::new();
     for (k, v) in &set {
         if (theme && is_look(k)) || (!theme && !is_policy(k) && k != "wallpaper") {
@@ -178,7 +180,14 @@ fn files_json(incoming: &str, yes: bool) -> Option<String> {
     Some(serde_json::to_string_pretty(&Value::Object(v)).unwrap_or_default() + "\n")
 }
 
+/// больше — не файл настроек и не тема (обои внутри — до 32 МБ, в base64 это ~43 МБ)
+const MAX_FILE: u64 = 64 << 20;
+
 pub fn import(y: &Sty, file: &str, theme_only: bool, yes: bool, dry: bool) -> i32 {
+    if std::fs::metadata(file).map(|m| m.len() > MAX_FILE).unwrap_or(false) {
+        eprintln!(" {} {}", y.bad("✕"), crate::tf!("слишком большой файл: {}", "file too large: {}", file));
+        return 2;
+    }
     let b: Value = match std::fs::read_to_string(file).ok().and_then(|t| serde_json::from_str(&t).ok()) {
         Some(v) => v,
         None => {
@@ -226,10 +235,7 @@ pub fn import(y: &Sty, file: &str, theme_only: bool, yes: bool, dry: bool) -> i3
     };
     if let Some(w) = wall {
         if let (Some(name), Some(data)) = (w["name"].as_str(), w["data"].as_str().and_then(unb64)) {
-            let dir = crate::config::data_dir().join("yami/wallpapers");
-            let name: String = Path::new(name).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "wallpaper.png".into());
-            let p = dir.join(name);
-            if std::fs::create_dir_all(&dir).is_ok() && std::fs::write(&p, data).is_ok() {
+            if let Some(p) = wall_file(name, &data) {
                 set.insert("wallpaper".into(), Value::String(p.to_string_lossy().to_string()));
             }
         }
@@ -280,7 +286,12 @@ pub fn import(y: &Sty, file: &str, theme_only: bool, yes: bool, dry: bool) -> i3
             }
         }
     }
-    let text = serde_json::to_string_pretty(&Value::Object(set)).unwrap_or_default() + "\n";
+    // через Settings: чужие строки чистятся (sanitize), негодные значения — по умолчанию, файл —
+    // в том же виде, что пишет шелл
+    let raw = serde_json::to_string(&Value::Object(set)).unwrap_or_default();
+    let mut merged = crate::config::Settings::lenient(&raw);
+    merged.sanitize();
+    let text = merged.to_json();
     if write_atomic(&settings_path(), &text).is_err() {
         eprintln!(" {} {}", y.bad("✕"), crate::tf!("не могу записать настройки", "cannot write the settings"));
         return 1;
@@ -290,6 +301,39 @@ pub fn import(y: &Sty, file: &str, theme_only: bool, yes: bool, dry: bool) -> i3
     0
 }
 
+/// картинка обоев из файла → ~/.local/share/yami/wallpapers: имя — только имя файла (без пути и
+/// скрытых), расширение — по содержимому (PNG, JPEG, WebP; другое не обои); чужую картинку с тем же
+/// именем не затирает
+fn wall_file(name: &str, data: &[u8]) -> Option<PathBuf> {
+    let ext = if data.starts_with(b"\x89PNG") {
+        "png"
+    } else if data.starts_with(&[0xff, 0xd8, 0xff]) {
+        "jpg"
+    } else if data.len() > 12 && &data[..4] == b"RIFF" && &data[8..12] == b"WEBP" {
+        "webp"
+    } else {
+        return None;
+    };
+    let stem: String = Path::new(name).file_stem().map(|n| n.to_string_lossy().to_string()).unwrap_or_default().chars().filter(|c| c.is_alphanumeric() || "._- ".contains(*c)).take(64).collect();
+    let stem = stem.trim_start_matches('.').trim();
+    let stem = if stem.is_empty() { "wallpaper" } else { stem };
+    let dir = crate::config::data_dir().join("yami/wallpapers");
+    std::fs::create_dir_all(&dir).ok()?;
+    let p = (0..100).map(|n| dir.join(if n == 0 { format!("{stem}.{ext}") } else { format!("{stem}-{n}.{ext}") })).find(|p| std::fs::read(p).map(|d| d == data).unwrap_or(true))?;
+    if !p.exists() {
+        std::fs::write(&p, data).ok()?;
+    }
+    Some(p)
+}
+
+/// номер копии из имени before-import-<секунды>[-<n>].json: по нему, а не по времени файла
+/// (копии за одну секунду получают одно и то же время изменения)
+fn backup_key(p: &Path) -> Option<(u64, u32)> {
+    let n = p.file_name()?.to_str()?.strip_prefix("before-import-")?.strip_suffix(".json")?;
+    let (a, b) = n.split_once('-').unwrap_or((n, "0"));
+    Some((a.parse().ok()?, b.parse().ok()?))
+}
+
 /// копия всех настроек перед импортом: ~/.local/state/yami/before-import-<время>.json, пять последних
 fn backup() -> Option<PathBuf> {
     let dir = state_dir();
@@ -297,13 +341,16 @@ fn backup() -> Option<PathBuf> {
     let mut b = bundle(false, false);
     b["restore"] = json!({ "wallpaper": settings_value().get("wallpaper").and_then(|w| w.as_str()).unwrap_or("") });
     let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-    // два импорта за секунду не затирают копию первого
-    let p = (0..100).map(|n| dir.join(if n == 0 { format!("before-import-{stamp}.json") } else { format!("before-import-{stamp}-{n}.json") })).find(|p| !p.exists())?;
+    // два импорта за секунду не затирают копию первого: номер — следующий за самым большим в эту
+    // секунду, так копии по имени идут ровно в том порядке, в каком их сняли
+    let n = std::fs::read_dir(&dir).ok()?.flatten().filter_map(|e| backup_key(&e.path())).filter(|k| k.0 == stamp).map(|k| k.1 + 1).max().unwrap_or(0);
+    let p = dir.join(if n == 0 { format!("before-import-{stamp}.json") } else { format!("before-import-{stamp}-{n}.json") });
     write_atomic(&p, &(serde_json::to_string_pretty(&b).ok()? + "\n")).ok()?;
-    let mut old: Vec<PathBuf> = std::fs::read_dir(&dir).ok()?.flatten().map(|e| e.path()).filter(|p| p.file_name().is_some_and(|n| n.to_string_lossy().starts_with("before-import-"))).collect();
-    old.sort_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok());
-    for o in old.iter().take(old.len().saturating_sub(5)) {
-        let _ = std::fs::remove_file(o);
+    let mut old: Vec<(PathBuf, (u64, u32))> = std::fs::read_dir(&dir).ok()?.flatten().map(|e| e.path()).filter_map(|p| backup_key(&p).map(|k| (p, k))).collect();
+    old.sort_by_key(|o| o.1);
+    // только что снятая копия — последняя по имени и никогда не удаляется
+    for o in old.iter().take(old.len().saturating_sub(5)).filter(|o| o.0 != p) {
+        let _ = std::fs::remove_file(&o.0);
     }
     Some(p)
 }
@@ -318,6 +365,20 @@ fn safe_rel(rel: &str) -> bool {
 pub fn run(y: &Sty, cmd: &str, args: &[&str]) -> i32 {
     let flags = |f: &str| args.contains(&f);
     let file = args.iter().find(|a| !a.starts_with("--")).copied();
+    // опечатка во флаге («--dryrun») не должна молча превратиться в настоящий импорт
+    let known: &[&str] = match cmd {
+        "import" => &["--yes", "--dry-run"],
+        "theme-import" => &["--dry-run"],
+        _ => &[],
+    };
+    if let Some(bad) = args.iter().find(|a| a.starts_with("--") && !known.contains(a)) {
+        eprintln!(" {} {}", y.bad("✕"), crate::tf!("неизвестный флаг: {}", "unknown flag: {}", bad));
+        return 2;
+    }
+    if args.iter().filter(|a| !a.starts_with("--")).count() > 1 {
+        eprintln!(" {} {}", y.bad("✕"), crate::tf!("нужен один файл", "one file, please"));
+        return 2;
+    }
     match (cmd, file) {
         ("theme-export", Some(f)) => export(y, f, true),
         ("export", Some(f)) => export(y, f, false),
@@ -326,7 +387,7 @@ pub fn run(y: &Sty, cmd: &str, args: &[&str]) -> i32 {
         _ => {
             y.section("yami theme / export / import");
             y.row("theme export FILE", &crate::tf!("вид в один файл: палитра, эффекты, шрифты, бар, виджеты, обои", "the look in one file: palette, effects, fonts, bar, widgets, wallpaper"));
-            y.row("theme import FILE", &crate::tf!("применить чужую тему: только вид, без команд", "apply someone's theme: the look only, no commands"));
+            y.row("theme import FILE [--dry-run]", &crate::tf!("применить чужую тему: только вид, без команд", "apply someone's theme: the look only, no commands"));
             y.row("export FILE", &crate::tf!("все настройки, user.kdl, скрипты бара, обои", "every setting, user.kdl, bar scripts, wallpaper"));
             y.row("import FILE [--yes] [--dry-run]", &crate::tf!("вернуть всё; команды и скрипты — только с --yes", "restore it all; commands and scripts only with --yes"));
             println!();
@@ -355,5 +416,8 @@ mod tests {
         assert_eq!(super::file_kind("yami/modules/w.sh"), Some(true));
         assert_eq!(super::file_kind("autostart/x.desktop"), None);
         assert_eq!(super::file_kind("yami/modules/../../fish/config.fish"), None);
+        assert_eq!(super::backup_key(std::path::Path::new("/s/before-import-1793885973-12.json")), Some((1793885973, 12)));
+        assert_eq!(super::backup_key(std::path::Path::new("/s/before-import-1793885973.json")), Some((1793885973, 0)));
+        assert_eq!(super::backup_key(std::path::Path::new("/s/other.json")), None);
     }
 }
