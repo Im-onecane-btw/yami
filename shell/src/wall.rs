@@ -92,7 +92,8 @@ impl Job {
 
     fn key(&self) -> String {
         let m = std::fs::metadata(&self.path).and_then(|m| m.modified()).ok();
-        format!("{:?}|{m:?}|{}|{}x{}|{}|{}|{}|{}|{:x?}", self.path, self.own, self.w, self.h, self.cell, self.fit, self.tone, self.dim, self.ramp)
+        // и «палитра из обоев»: включили её на той же картинке — акцент надо вычислить заново
+        format!("{:?}|{m:?}|{}|{}x{}|{}|{}|{}|{}|{:x?}|{}", self.path, self.own, self.w, self.h, self.cell, self.fit, self.tone, self.dim, self.ramp, self.accent)
     }
 }
 
@@ -461,6 +462,9 @@ impl App {
                 let title = crate::i18n::tr("обои").to_string();
                 let dir = std::env::var("XDG_PICTURES_DIR").map(PathBuf::from).unwrap_or_else(|_| config::home().join("Pictures"));
                 let from = own(s).and_then(|p| p.parent().map(Path::to_path_buf)).filter(|d| d.is_dir()).unwrap_or(dir);
+                // настройки — слой поверх всех окон с клавиатурой себе: окно выбора открылось бы под
+                // ними и без ввода. На время выбора они закрываются, после — открываются на обоях
+                self.close_modal();
                 std::thread::spawn(move || {
                     let o = std::process::Command::new("yami-files")
                         .args(["--pick", "open", "--title", &title, "--folder"])
@@ -472,6 +476,7 @@ impl App {
                             let _ = tx.send(Msg::Ipc(format!("wallpaper {p}")));
                         }
                     }
+                    let _ = tx.send(Msg::Ipc("settings wall".into()));
                 });
                 return true;
             }
