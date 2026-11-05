@@ -10,6 +10,16 @@ pub mod paths;
 pub mod theme;
 pub mod ui;
 
+/// время «1:05» или «1:02:03» (плееры: шелл, yami-play)
+pub fn clock(secs: f64) -> String {
+    let s = secs.max(0.0) as u64;
+    if s >= 3600 {
+        format!("{}:{:02}:{:02}", s / 3600, s / 60 % 60, s % 60)
+    } else {
+        format!("{}:{:02}", s / 60, s % 60)
+    }
+}
+
 /// вернуть системе свободную память кучи после большого декода. Только glibc: musl (Alpine) такого
 /// вызова не знает и свободные страницы отдаёт сам
 pub fn trim_heap() {

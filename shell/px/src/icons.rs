@@ -271,7 +271,7 @@ pub fn thumb_path(path: &Path, mtime: i64, size: i32) -> PathBuf {
 pub fn thumb(path: &Path, mtime: i64, size: i32) -> Option<image::RgbaImage> {
     let cp = thumb_path(path, mtime, size);
     if let Ok(img) = image::open(&cp) {
-        return Some(img.to_rgba8());
+        return Some(img.into_rgba8());
     }
     let rd = image::ImageReader::open(path).ok()?.with_guessed_format().ok()?;
     let (w, h) = rd.into_dimensions().ok()?;

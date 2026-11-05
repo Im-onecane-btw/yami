@@ -241,9 +241,8 @@ impl LState {
                 if self.files.0 != rest {
                     return Some(vec![]);
                 }
-                let home = config::home();
                 self.files.1.iter().map(|f| {
-                    let shown = f.strip_prefix(&home).map(|r| format!("~/{}", r.display())).unwrap_or_else(|_| f.display().to_string());
+                    let shown = yami_px::paths::pretty(f);
                     let name = f.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
                     Item { kind: Kind::File(f.clone()), name, sub: shown, icon: if f.is_dir() { "folder".into() } else { "copy".into() } }
                 }).collect()

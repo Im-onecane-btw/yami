@@ -50,7 +50,7 @@ fn colors_dir() -> PathBuf {
     match set {
         Some(s) => {
             let s = s.trim();
-            let p = s.strip_prefix("~/").map(|r| crate::config::home().join(r)).unwrap_or_else(|| PathBuf::from(s));
+            let p = yami_px::paths::expand(s);
             if p.is_absolute() {
                 p
             } else {

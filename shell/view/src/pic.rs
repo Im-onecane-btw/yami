@@ -15,38 +15,8 @@ pub fn is_image(p: &Path) -> bool {
 pub fn siblings(p: &Path) -> Vec<PathBuf> {
     let dir = if p.is_dir() { p.to_path_buf() } else { p.parent().map(|d| d.to_path_buf()).unwrap_or_default() };
     let mut v: Vec<PathBuf> = std::fs::read_dir(&dir).map(|r| r.flatten().map(|e| e.path()).filter(|p| p.is_file() && is_image(p)).collect()).unwrap_or_default();
-    v.sort_by(|a, b| natural(&a.file_name().unwrap_or_default().to_string_lossy(), &b.file_name().unwrap_or_default().to_string_lossy()));
+    v.sort_by(|a, b| yami_px::paths::natural(&a.file_name().unwrap_or_default().to_string_lossy(), &b.file_name().unwrap_or_default().to_string_lossy()));
     v
-}
-
-fn natural(a: &str, b: &str) -> std::cmp::Ordering {
-    let key = |s: &str| -> Vec<(u8, u64, String)> {
-        let mut out = vec![];
-        let mut num = String::new();
-        let mut txt = String::new();
-        for c in s.chars() {
-            if c.is_ascii_digit() {
-                if !txt.is_empty() {
-                    out.push((1, 0, std::mem::take(&mut txt).to_lowercase()));
-                }
-                num.push(c);
-            } else {
-                if !num.is_empty() {
-                    out.push((0, num.parse().unwrap_or(0), String::new()));
-                    num.clear();
-                }
-                txt.push(c);
-            }
-        }
-        if !num.is_empty() {
-            out.push((0, num.parse().unwrap_or(0), String::new()));
-        }
-        if !txt.is_empty() {
-            out.push((1, 0, txt.to_lowercase()));
-        }
-        out
-    };
-    key(a).cmp(&key(b))
 }
 
 pub struct Pic {

@@ -28,7 +28,7 @@ pub fn own(s: &Settings) -> Option<PathBuf> {
     if p.is_empty() {
         return None;
     }
-    Some(p.strip_prefix("~/").map(|r| config::home().join(r)).unwrap_or_else(|| PathBuf::from(p)))
+    Some(yami_px::paths::expand(p))
 }
 
 /// что рисовать: картинка, выбранная в skwd-wall (если он включён и что-то выбрал), иначе своя
@@ -446,7 +446,7 @@ impl App {
     /// новый путь (пусто — пиксельные из палитры): из настроек, IPC и диалога выбора
     pub fn set_wall(&mut self, p: &str) {
         let p = p.trim();
-        let p = p.strip_prefix("~/").map(|r| config::home().join(r).to_string_lossy().to_string()).unwrap_or_else(|| p.to_string());
+        let p = if p.is_empty() { String::new() } else { yami_px::paths::expand(p).to_string_lossy().to_string() };
         self.st.set.wallpaper = p.clone();
         self.st.wall_field.set(&p);
         self.st.field_focus = None;

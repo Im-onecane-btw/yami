@@ -243,18 +243,10 @@ pub(crate) fn handles(r: R) -> [R; 8] {
 pub fn shots_dir(set: &crate::config::Settings) -> PathBuf {
     let d = set.shot_dir.trim();
     if !d.is_empty() {
-        if let Some(r) = d.strip_prefix("~/") {
-            return crate::config::home().join(r);
-        }
-        return PathBuf::from(d);
+        return yami_px::paths::expand(d);
     }
     // XDG_PICTURES_DIR/Screenshots
-    let home = crate::config::home();
-    let pics = std::fs::read_to_string(crate::config::config_dir().join("user-dirs.dirs"))
-        .ok()
-        .and_then(|t| t.lines().find_map(|l| l.strip_prefix("XDG_PICTURES_DIR=").map(|v| PathBuf::from(v.trim_matches('"').replace("$HOME", &home.to_string_lossy())))))
-        .unwrap_or_else(|| home.join("Pictures"));
-    pics.join("Screenshots")
+    yami_px::paths::pictures().join("Screenshots")
 }
 
 pub(crate) fn copy_text(s: &str) {

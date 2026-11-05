@@ -293,17 +293,8 @@ pub fn free_name(dir: &Path, name: &str) -> PathBuf {
     p
 }
 
-/// главный путь «~/…» для показа
-pub fn pretty(p: &Path) -> String {
-    let h = crate::paths::home();
-    if p == h {
-        return "~".into();
-    }
-    match p.strip_prefix(&h) {
-        Ok(r) => format!("~/{}", r.display()),
-        Err(_) => p.display().to_string(),
-    }
-}
+/// путь «~/…» для показа (общее с шеллом, yami-px)
+pub use crate::paths::pretty;
 
 /// размер каталога целиком (файлы, папки) — для свойств, в отдельной нити
 pub fn du(p: &Path, stop: &std::sync::atomic::AtomicBool) -> (u64, u64, u64) {

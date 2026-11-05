@@ -40,38 +40,57 @@ pub fn xdg_dir(key: &str) -> Option<PathBuf> {
     None
 }
 
+/// «Изображения» (XDG_PICTURES_DIR), иначе ~/Pictures
+pub fn pictures() -> PathBuf {
+    xdg_dir("PICTURES").unwrap_or_else(|| home().join("Pictures"))
+}
+
+/// путь из настроек или поля: «~» и «~/…» — от домашней папки
+pub fn expand(p: &str) -> PathBuf {
+    let p = p.trim();
+    if p == "~" {
+        return home();
+    }
+    p.strip_prefix("~/").map(|r| home().join(r)).unwrap_or_else(|| PathBuf::from(p))
+}
+
+/// путь для показа: домашняя папка — «~»
+pub fn pretty(p: &Path) -> String {
+    let h = home();
+    if p == h {
+        return "~".into();
+    }
+    match p.strip_prefix(&h) {
+        Ok(r) => format!("~/{}", r.display()),
+        Err(_) => p.display().to_string(),
+    }
+}
+
 /// «естественное» сравнение имён: file2 < file10, без учёта регистра
 pub fn natural(a: &str, b: &str) -> std::cmp::Ordering {
-    let (mut ai, mut bi) = (a.chars().peekable(), b.chars().peekable());
+    // сортировки папок зовут это тысячи раз: числа — срезами строки (цифры ASCII), без выделений
+    let digits = |s: &str| s.bytes().take_while(u8::is_ascii_digit).count();
+    let (mut i, mut j) = (0, 0);
     loop {
-        match (ai.peek().copied(), bi.peek().copied()) {
+        match (a[i..].chars().next(), b[j..].chars().next()) {
             (None, None) => return a.cmp(b),
             (None, _) => return std::cmp::Ordering::Less,
             (_, None) => return std::cmp::Ordering::Greater,
             (Some(x), Some(y)) if x.is_ascii_digit() && y.is_ascii_digit() => {
-                let mut na = String::new();
-                while let Some(c) = ai.peek().copied().filter(|c| c.is_ascii_digit()) {
-                    na.push(c);
-                    ai.next();
-                }
-                let mut nb = String::new();
-                while let Some(c) = bi.peek().copied().filter(|c| c.is_ascii_digit()) {
-                    nb.push(c);
-                    bi.next();
-                }
-                let (ta, tb) = (na.trim_start_matches('0'), nb.trim_start_matches('0'));
+                let (ei, ej) = (i + digits(&a[i..]), j + digits(&b[j..]));
+                let (ta, tb) = (a[i..ei].trim_start_matches('0'), b[j..ej].trim_start_matches('0'));
                 let o = ta.len().cmp(&tb.len()).then(ta.cmp(tb));
                 if o != std::cmp::Ordering::Equal {
                     return o;
                 }
+                (i, j) = (ei, ej);
             }
             (Some(x), Some(y)) => {
                 let (lx, ly) = (x.to_lowercase().next().unwrap_or(x), y.to_lowercase().next().unwrap_or(y));
                 if lx != ly {
                     return lx.cmp(&ly);
                 }
-                ai.next();
-                bi.next();
+                (i, j) = (i + x.len_utf8(), j + y.len_utf8());
             }
         }
     }
@@ -152,4 +171,20 @@ pub fn lenient_json<T: serde::de::DeserializeOwned + serde::Serialize + Default>
         }
     }
     serde_json::from_value(base).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::natural;
+    use std::cmp::Ordering::*;
+
+    #[test]
+    fn natural_order() {
+        let mut v = ["ep10.mkv", "Ep2.mkv", "ep1.mkv", "ep02b.mkv", "ёж 3", "ёж 20", "a"];
+        v.sort_by(|a, b| natural(a, b));
+        assert_eq!(v, ["a", "ep1.mkv", "Ep2.mkv", "ep02b.mkv", "ep10.mkv", "ёж 3", "ёж 20"]);
+        assert_eq!(natural("file007", "file7"), "file007".cmp("file7"));
+        assert_eq!(natural("x99999999999999999999999", "x100000000000000000000000"), Less);
+        assert_eq!(natural("A", "a"), Less);
+    }
 }

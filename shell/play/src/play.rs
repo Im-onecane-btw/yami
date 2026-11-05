@@ -46,42 +46,8 @@ pub fn is_media(p: &Path) -> bool {
 pub fn siblings(p: &Path) -> Vec<PathBuf> {
     let dir = if p.is_dir() { p.to_path_buf() } else { p.parent().map(|d| d.to_path_buf()).unwrap_or_default() };
     let mut v: Vec<PathBuf> = std::fs::read_dir(&dir).map(|rd| rd.flatten().map(|e| e.path()).filter(|p| p.is_file() && is_media(p)).collect()).unwrap_or_default();
-    v.sort_by(|a, b| natural(&a.to_string_lossy().to_lowercase(), &b.to_string_lossy().to_lowercase()));
+    v.sort_by(|a, b| yami_px::paths::natural(&a.to_string_lossy(), &b.to_string_lossy()));
     v
-}
-
-fn natural(a: &str, b: &str) -> std::cmp::Ordering {
-    let (mut x, mut y) = (a.chars().peekable(), b.chars().peekable());
-    loop {
-        match (x.peek().copied(), y.peek().copied()) {
-            (None, None) => return std::cmp::Ordering::Equal,
-            (None, _) => return std::cmp::Ordering::Less,
-            (_, None) => return std::cmp::Ordering::Greater,
-            (Some(c), Some(d)) if c.is_ascii_digit() && d.is_ascii_digit() => {
-                let mut n = String::new();
-                while let Some(c) = x.peek().filter(|c| c.is_ascii_digit()) {
-                    n.push(*c);
-                    x.next();
-                }
-                let mut m = String::new();
-                while let Some(d) = y.peek().filter(|d| d.is_ascii_digit()) {
-                    m.push(*d);
-                    y.next();
-                }
-                let o = n.trim_start_matches('0').len().cmp(&m.trim_start_matches('0').len()).then(n.trim_start_matches('0').cmp(m.trim_start_matches('0')));
-                if o != std::cmp::Ordering::Equal {
-                    return o;
-                }
-            }
-            (Some(c), Some(d)) => {
-                if c != d {
-                    return c.cmp(&d);
-                }
-                x.next();
-                y.next();
-            }
-        }
-    }
 }
 
 const SPEEDS: &[f64] = &[0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 3.0, 4.0];
@@ -353,15 +319,6 @@ pub fn spawn(argv: &[String]) {
     let _ = std::process::Command::new("setsid").arg("-f").args(argv).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
 }
 
-pub fn clock(s: f64) -> String {
-    let s = s.max(0.0) as u64;
-    if s >= 3600 {
-        format!("{}:{:02}:{:02}", s / 3600, s / 60 % 60, s % 60)
-    } else {
-        format!("{}:{:02}", s / 60, s % 60)
-    }
-}
-
 fn human(b: i64) -> String {
     let b = b.max(0) as f64;
     let u = ["Б", "КБ", "МБ", "ГБ", "ТБ"]; // i18n-ok: английские — ниже
@@ -499,7 +456,7 @@ fn bottom(ui: &mut Ui, p: &P, w: i32, h: i32) {
     if let Some((mx, my)) = p.ptr {
         if p.dur > 0.0 && (sr.inset(-4).contains(mx, my) || p.seek_drag.is_some()) {
             let kk = p.seek_drag.unwrap_or(((mx - track.x as f64) / track.w as f64).clamp(0.0, 1.0));
-            let s = clock(kk * p.dur);
+            let s = yami_px::clock(kk * p.dur);
             let tw = ui.f.width(PX, &s) + 16;
             let tx = (track.x + (track.w as f64 * kk) as i32 - tw / 2).clamp(4, w - tw - 4);
             let tr = R::new(tx, r.y - 28, tw, 22);
@@ -517,7 +474,7 @@ fn bottom(ui: &mut Ui, p: &P, w: i32, h: i32) {
         x += bs + 2;
     }
     x += 8;
-    let tm = if p.dur > 0.0 { format!("{} / {}", clock(p.seek_drag.map(|k| k * p.dur).unwrap_or(p.pos)), clock(p.dur)) } else { clock(p.pos) };
+    let tm = if p.dur > 0.0 { format!("{} / {}", yami_px::clock(p.seek_drag.map(|k| k * p.dur).unwrap_or(p.pos)), yami_px::clock(p.dur)) } else { yami_px::clock(p.pos) };
     let tw = ui.cv.text_in(ui.f, PX, R::new(x, y, 160, bs), &tm, t.text_dim);
     let left_end = x + tw + 12;
     // справа налево: весь экран, сведения, кадр, пиксели, повтор, субтитры, звук, скорость
@@ -645,8 +602,8 @@ mod t {
     #[test]
     fn natural_order() {
         let mut v = vec!["ep10.mkv", "ep2.mkv", "ep1.mkv"];
-        v.sort_by(|a, b| super::natural(a, b));
+        v.sort_by(|a, b| yami_px::paths::natural(a, b));
         assert_eq!(v, ["ep1.mkv", "ep2.mkv", "ep10.mkv"]);
-        assert_eq!(super::clock(3725.0), "1:02:05");
+        assert_eq!(yami_px::clock(3725.0), "1:02:05");
     }
 }

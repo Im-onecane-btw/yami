@@ -77,17 +77,7 @@ pub fn edit(f: &mut Field, k: &Key) -> bool {
 }
 
 fn expand(s: &str) -> PathBuf {
-    let s = s.trim();
-    if s == "~" {
-        return crate::paths::home();
-    }
-    if let Some(r) = s.strip_prefix("~/") {
-        return crate::paths::home().join(r);
-    }
-    if let Some(p) = crate::icons::uri_path(s) {
-        return p;
-    }
-    PathBuf::from(s)
+    crate::icons::uri_path(s.trim()).unwrap_or_else(|| crate::paths::expand(s))
 }
 
 /// дополнение пути по Tab: общий префикс подходящих папок

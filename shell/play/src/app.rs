@@ -89,12 +89,7 @@ pub struct App {
 
 /// папка «изображения» из user-dirs.dirs: туда — сохранённые кадры
 fn pictures() -> std::path::PathBuf {
-    let home = crate::paths::home();
-    let t = std::fs::read_to_string(crate::paths::config_dir().join("user-dirs.dirs")).unwrap_or_default();
-    t.lines()
-        .find_map(|l| l.strip_prefix("XDG_PICTURES_DIR=").map(|v| std::path::PathBuf::from(v.trim().trim_matches('"').replace("$HOME", &home.to_string_lossy()))))
-        .filter(|p| p != &home)
-        .unwrap_or_else(|| home.join("Pictures"))
+    crate::paths::pictures()
 }
 
 pub fn run(mut p: P) -> i32 {

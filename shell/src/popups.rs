@@ -177,8 +177,8 @@ fn media(ui: &mut Ui, st: &State, b: R) {
     if m.length > 0.0 {
         // время: где сейчас (или куда тянут) и сколько всего
         let at = st.seek.map(|f| f as f64 * m.length).unwrap_or(m.now_pos());
-        ui.cv.text_in(ui.f, PX, R::new(b.x, y, b.w / 2, 20), &crate::media::clock(at), if st.seek.is_some() { t.red } else { t.text_dim });
-        ui.cv.text_right(ui.f, PX, R::new(b.x, y, b.w, 20), &crate::media::clock(m.length), t.text_faint);
+        ui.cv.text_in(ui.f, PX, R::new(b.x, y, b.w / 2, 20), &yami_px::clock(at), if st.seek.is_some() { t.red } else { t.text_dim });
+        ui.cv.text_right(ui.f, PX, R::new(b.x, y, b.w, 20), &yami_px::clock(m.length), t.text_faint);
     }
 }
 

@@ -27,13 +27,13 @@ fn has(cmd: &str) -> bool {
 }
 
 fn make(r: &Req) -> Option<Img> {
-    let cp = cache_path(r);
-    if let Ok(img) = image::open(&cp) {
-        return Some(crate::icons::from_rgba(&img.to_rgba8()));
-    }
     if !r.video {
         // картинки: общий с шеллом декод и кеш (yami-px)
         return crate::icons::thumb(&r.path, r.mtime, r.size).map(|t| crate::icons::from_rgba(&t));
+    }
+    let cp = cache_path(r);
+    if let Ok(img) = image::open(&cp) {
+        return Some(crate::icons::from_rgba(&img.to_rgba8()));
     }
     if !has("ffmpegthumbnailer") {
         return None;
