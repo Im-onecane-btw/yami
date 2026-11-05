@@ -21,6 +21,7 @@ import colorsys
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -373,7 +374,7 @@ def gtk(p):
     else:
         hues = [(0, "red"), (30, "orange"), (52, "yellow"), (120, "green"), (175, "teal"), (215, "blue"), (275, "purple"), (330, "pink"), (360, "red")]
         name = min(hues, key=lambda x: abs(x[0] - h * 360))[1]
-    if subprocess.run(["sh", "-c", "command -v gsettings"], capture_output=True).returncode == 0:
+    if shutil.which("gsettings"):
         subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "accent-color", name], check=False, capture_output=True)
 
 
@@ -399,7 +400,7 @@ def gtk_mode(is_light):
             out.append(ln)
         out += [f"{k}={v2}" for k, v2 in want.items()]
         write(ini, "\n".join(out) + "\n")
-    if subprocess.run(["sh", "-c", "command -v gsettings"], capture_output=True).returncode == 0:
+    if shutil.which("gsettings"):
         for k, v in (("gtk-theme", theme), ("color-scheme", "prefer-light" if is_light else "prefer-dark")):
             subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", k, v], check=False, capture_output=True)
         cur = subprocess.run(["gsettings", "get", "org.gnome.desktop.interface", "icon-theme"], capture_output=True, text=True).stdout.strip().strip("'")
@@ -531,7 +532,7 @@ def fonts(p=None):
         t = re.sub(r"^general=.*$", lambda _: f"general={q(fam, pt)}", t, flags=re.M)
         t = re.sub(r"^fixed=.*$", lambda _: f"fixed={q(mono, mono_pt)}", t, flags=re.M)
         write(qt, t)
-    if subprocess.run(["sh", "-c", "command -v gsettings"], capture_output=True).returncode == 0:
+    if shutil.which("gsettings"):
         for k, v in (("font-name", f"{fam} {pt}"), ("document-font-name", f"{fam} {pt}"),
                      ("monospace-font-name", f"{mono} {mono_pt}")):
             subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", k, v], check=False, capture_output=True)
@@ -1232,7 +1233,7 @@ def cursor(p):
         if (CFG / f"gtk-{v}/settings.ini").exists():
             _ini_set(CFG / f"gtk-{v}/settings.ini", "gtk-cursor-theme-name", name)
             _ini_set(CFG / f"gtk-{v}/settings.ini", "gtk-cursor-theme-size", str(size))
-    if subprocess.run(["sh", "-c", "command -v gsettings"], capture_output=True).returncode == 0:
+    if shutil.which("gsettings"):
         subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "cursor-theme", name], check=False, capture_output=True)
         subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "cursor-size", str(size)], check=False, capture_output=True)
 
