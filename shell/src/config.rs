@@ -204,6 +204,10 @@ pub struct Settings {
     pub win_right: i32,
     pub win_top: i32,
     pub win_bottom: i32,
+    /// скругление углов окон, px (0 — прямые); игры и окна на весь экран — всегда прямые
+    pub win_radius: i32,
+    /// рамка окна, px (0 — без рамки)
+    pub win_border: i32,
 
     // док
     pub dock: bool,
@@ -371,6 +375,8 @@ pub const NUMS: &[(&str, i32, i32, i32)] = &[
     ("task_width", 60, 400, 10),
     ("bar_width_pc", 30, 100, 5),
     ("bar_margin", 0, 32, 2),
+    ("win_radius", 0, 24, 2),
+    ("win_border", 0, 8, 1),
     ("reveal_grain", 1, 4, 1),
     ("night_temp", 2500, 6000, 250),
     ("night_on_h", 0, 23, 1),
@@ -451,6 +457,8 @@ impl Default for Settings {
             win_right: 8,
             win_top: 8,
             win_bottom: 8,
+            win_radius: 0,
+            win_border: 2,
             dock: true,
             dock_side: "bottom".into(),
             dock_hide: "smart".into(),
@@ -635,6 +643,8 @@ impl Settings {
             "win_bottom" => self.win_bottom,
             "bar_width_pc" => self.bar_width_pc,
             "bar_margin" => self.bar_margin,
+            "win_radius" => self.win_radius,
+            "win_border" => self.win_border,
             _ => 0,
         };
         NUMS.iter().find(|n| n.0 == k).map(|n| v.clamp(n.1, n.2)).unwrap_or(v)
@@ -663,6 +673,8 @@ impl Settings {
             "win_bottom" => self.win_bottom = v,
             "bar_width_pc" => self.bar_width_pc = v,
             "bar_margin" => self.bar_margin = v,
+            "win_radius" => self.win_radius = v,
+            "win_border" => self.win_border = v,
             _ => {}
         }
     }
@@ -745,7 +757,6 @@ impl Settings {
         self.widgets.iter_mut().find(|w| w.id == id)
     }
 
-    /// матовость через niri: размытие под терминалами и панелями шелла
     /// плавающие окна для просмотра фото и видео (settings → окна)
     fn float_kdl(&self, l: &mut Vec<String>) {
         let size = |l: &mut Vec<String>, w: f32, h: f32| {
@@ -790,15 +801,12 @@ impl Settings {
         }
     }
 
-    /// yami-fx.kdl для niri уровня `lvl` (0 — сток, иначе наш форк: allow-tearing; ≥ 4 —
-    /// `show-only-in`; ≥ 5 — `hide-from`); curtain — шторка опущена (без `show-only-in` тогда
-    /// прячутся окна)
-    /// отступы окон: gaps — между окнами и у краёв; struts добирают край до заданного
+    /// отступы и рамка окон: gaps — между окнами и у краёв; struts добирают край до заданного
     /// (бывают и отрицательными, если край уже промежутка). struts в niri не сливаются между
-    /// файлами: свои в user.kdl заменят эти целиком
-    fn gaps_kdl(&self, l: &mut Vec<String>) {
+    /// файлами: свои в user.kdl заменят эти целиком. Рамка — толщина (цвета — yami-colors.kdl)
+    fn layout_kdl(&self, l: &mut Vec<String>) {
         let g = self.num("win_gap");
-        l.push("// window gaps (settings → windows): between windows, and from the screen edges".into());
+        l.push("// window gaps and border (settings → windows): between windows, from the screen edges".into());
         l.push("layout {".into());
         l.push(format!("    gaps {g}"));
         l.push("    struts {".into());
@@ -806,14 +814,45 @@ impl Settings {
             l.push(format!("        {side} {}", self.num(k) - g));
         }
         l.push("    }".into());
+        match self.num("win_border") {
+            0 => l.push("    border { off; }".into()),
+            b => l.push(format!("    border {{ on; width {b}; }}")),
+        }
         l.push("}".into());
         l.push(String::new());
     }
 
+    /// углы окон: скругление по геометрии окна (рамка niri идёт по нему же). Окна на весь экран и
+    /// развёрнутые niri и так рисует прямыми, игры — прямые правилом games::kdl. В режиме «стол»
+    /// над плавающим окном — пиксельный заголовок шелла: у таких окон скруглены только нижние углы,
+    /// и заголовок прилегает без щели
+    fn corners_kdl(&self, l: &mut Vec<String>) {
+        let r = self.num("win_radius");
+        if r == 0 {
+            return;
+        }
+        l.push("// window corners (settings → windows)".into());
+        l.push("window-rule {".into());
+        l.push(format!("    geometry-corner-radius {r}"));
+        l.push("    clip-to-geometry true".into());
+        l.push("}".into());
+        if self.stacking && self.titlebars {
+            l.push("window-rule {".into());
+            l.push("    match is-floating=true".into());
+            l.push(format!("    geometry-corner-radius 0 0 {r} {r}"));
+            l.push("}".into());
+        }
+        l.push(String::new());
+    }
+
+    /// yami-fx.kdl для niri уровня `lvl` (0 — сток, иначе наш форк: allow-tearing; ≥ 4 —
+    /// `show-only-in`; ≥ 5 — `hide-from`); curtain — шторка опущена (без `show-only-in` тогда
+    /// прячутся окна). Матовость — размытие под терминалами (панели шелла — своим регионом)
     pub fn fx_kdl(&self, lvl: u32, curtain: bool) -> String {
         let mut l: Vec<String> = vec!["// yami: written by the shell (settings → look, windows, games, services). Do not edit by hand: it is rewritten.".into(), String::new()];
         self.float_kdl(&mut l);
-        self.gaps_kdl(&mut l);
+        self.layout_kdl(&mut l);
+        self.corners_kdl(&mut l);
         crate::games::kdl(self, lvl > 0, &mut l);
         crate::curtain::kdl(lvl, curtain, self.notif_cast, &mut l);
         if !self.blur_term && !self.blur_shell {

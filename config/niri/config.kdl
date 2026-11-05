@@ -169,7 +169,7 @@ recent-windows {
 prefer-no-csd
 
 window-rule {
-    geometry-corner-radius 0   // square pixel corners (stepped on the fork)
+    geometry-corner-radius 0   // square pixel corners; settings → windows can round them (yami-fx.kdl)
     clip-to-geometry true
     draw-border-with-background false
 }

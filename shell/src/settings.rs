@@ -44,7 +44,7 @@ pub const FIND: &[(&str, &str)] = &[
     ("bar", "бар модули часы разделитель плавающий плашка ширина центр bar modules clock separator floating pill width center"), // i18n-ok
     ("widgets", "виджеты график часы заметка widgets graph clock note"), // i18n-ok
     ("dock", "док закреплённые dock pinned"), // i18n-ok
-    ("windows", "окна отступы плавающие стол заголовки gaps floating stacking windows titlebars"), // i18n-ok
+    ("windows", "окна отступы плавающие стол заголовки углы скругление рамка gaps floating stacking windows titlebars corners rounded radius border"), // i18n-ok
     ("keys", "клавиши сочетания хоткеи раскладка keys shortcuts hotkeys layout keyboard"), // i18n-ok
     ("games", "игры steam proton разрывы gamemode ntsync tearing games shader"), // i18n-ok
     ("shots", "скриншоты снимок лупа screenshot loupe"), // i18n-ok
@@ -423,29 +423,31 @@ pub(crate) fn tab_dock(ui: &mut Ui, st: &State, b: R) {
 pub(crate) fn tab_windows(ui: &mut Ui, st: &State, b: R) {
     let s = &st.set;
     let half = (b.w - 20) / 2;
-    // отступы окон: niri gaps/struts в yami-fx.kdl (применяются сразу)
-    let mut y = title(ui, b.x, b.y, b.w, "отступы окон: от краёв (сверху — от бара) и между");
+    // отступы, углы и рамка окон: niri gaps/struts и правила в yami-fx.kdl (применяются сразу)
+    let mut y = title(ui, b.x, b.y, b.w, "окна: отступы от краёв и между, углы, рамка");
     let cw = (b.w - 24) / 3;
     let col = |i: i32| b.x + i * (cw + 12);
-    for (i, (k, label)) in [("win_left", "слева"), ("win_right", "справа"), ("win_gap", "между"), ("win_top", "сверху"), ("win_bottom", "снизу")].into_iter().enumerate() {
+    let nums = [("win_left", "слева"), ("win_right", "справа"), ("win_gap", "между"), ("win_top", "сверху"), ("win_bottom", "снизу"), ("win_radius", "углы"), ("win_border", "рамка окна")];
+    for (i, (k, label)) in nums.into_iter().enumerate() {
         let i = i as i32;
         num_btn(ui, R::new(col(i % 3), y + i / 3 * 32, cw, 26), label, s.num(k), k);
     }
-    y += 66;
+    let t = ui.t;
+    let corners = if s.num("win_radius") == 0 { "углы прямые, как пиксели" } else { "игры и окна на весь экран — с прямыми углами" };
+    ui.text_in(PX, R::new(col(1) + 4, y + 64, cw * 2 + 8, 26), corners, t.text_faint);
+    y += 100;
     y = title(ui, b.x, y, b.w, "плавающие окна");
     ui.toggle(R::new(b.x, y, half, 40), "фото и видео", "просмотр в Telegram, yami-view, mpv…", s.float_media, Act::SBool("float_media"));
     ui.toggle(R::new(b.x + half + 20, y, half, 40), "картинка в картинке", "в правом нижнем углу", s.float_pip, Act::SBool("float_pip"));
-    y += 52;
-    ui.slider(R::new(b.x, y, b.w, 40), "ширина", (s.float_w - 0.3) / 0.65, &format!("{:.0}%", s.float_w * 100.0), 13, Act::SSlider("float_w", 0.3, 0.95, 13));
     y += 46;
-    ui.slider(R::new(b.x, y, b.w, 40), "высота", (s.float_h - 0.3) / 0.65, &format!("{:.0}%", s.float_h * 100.0), 13, Act::SSlider("float_h", 0.3, 0.95, 13));
-    y += 56;
+    ui.slider(R::new(b.x, y, half, 40), "ширина", (s.float_w - 0.3) / 0.65, &format!("{:.0}%", s.float_w * 100.0), 13, Act::SSlider("float_w", 0.3, 0.95, 13));
+    ui.slider(R::new(b.x + half + 20, y, half, 40), "высота", (s.float_h - 0.3) / 0.65, &format!("{:.0}%", s.float_h * 100.0), 13, Act::SSlider("float_h", 0.3, 0.95, 13));
+    y += 50;
     y = title(ui, b.x, y, b.w, "свои программы");
     let focused = st.field_focus == Some("float_apps");
     ui.field(R::new(b.x, y, b.w - 130, 30), &st.float_field, "app-id через запятую: org.telegram.desktop, imv", focused, false, Act::SField("float_apps"));
     ui.button(R::new(b.right() - 120, y + 2, 120, 26), "применить", "check", Tone::Primary, false, true, Act::SCycle("float_apply"));
     y += 40;
-    let t = ui.t;
     ui.text_in(PX, R::new(b.x, y, b.w, 20), "app-id окна: niri msg windows · правила пишутся в niri/yami-fx.kdl", t.text_faint);
     y += 28;
     y = title(ui, b.x, y, b.w, "режим «стол»");

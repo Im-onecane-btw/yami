@@ -32,7 +32,9 @@ pub fn is_game(set: &crate::config::Settings, app_id: &str) -> bool {
 /// часть yami-fx.kdl: правило игровых окон и кеш шейдеров
 pub fn kdl(set: &crate::config::Settings, yami: bool, l: &mut Vec<String>) {
     let tearing = set.game_tearing && yami;
-    if set.game_fullscreen || set.game_vrr || tearing {
+    // скруглённые углы обрезали бы угол картинки и интерфейса игры
+    let square = set.num("win_radius") > 0;
+    if set.game_fullscreen || set.game_vrr || tearing || square {
         l.push("// games (settings → games)".into());
         l.push("window-rule {".into());
         for id in GAME_IDS {
@@ -55,6 +57,9 @@ pub fn kdl(set: &crate::config::Settings, yami: bool, l: &mut Vec<String>) {
         if tearing {
             // yami-niri: кадр — сразу, без ожидания vblank (меньше задержка, возможны разрывы)
             l.push("    allow-tearing true".into());
+        }
+        if square {
+            l.push("    geometry-corner-radius 0".into());
         }
         l.push("    border { off; }".into());
         l.push("}".into());

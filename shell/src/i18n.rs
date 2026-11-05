@@ -94,7 +94,6 @@ const PAIRS: &[(&str, &str)] = &[
     ("край справа", "right edge"),
     ("до окон", "to windows"),
     ("зазор окон", "window gap"),
-    ("отступы окон: от краёв (сверху — от бара) и между", "window gaps: from the edges (top: from the bar) and between"),
     ("между", "between"),
     ("цп/память", "cpu/memory"),
     ("кнопка окна", "window button"),
@@ -672,4 +671,9 @@ const PAIRS: &[(&str, &str)] = &[
     ("плашка у края", "a panel at the edge"),
     ("отступы и разделители", "spacing and separators"),
     ("как выглядит", "how it looks"),
+    ("окна: отступы от краёв и между, углы, рамка", "windows: gaps at the edges and between, corners, border"),
+    ("углы", "corners"),
+    ("рамка окна", "border"),
+    ("углы прямые, как пиксели", "square corners, like pixels"),
+    ("игры и окна на весь экран — с прямыми углами", "games and fullscreen windows keep square corners"),
 ];
