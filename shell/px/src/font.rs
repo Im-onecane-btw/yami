@@ -83,10 +83,18 @@ fn fc_find(pattern: &str, want: Option<&str>) -> Option<(String, u32)> {
     Some((file, idx))
 }
 
+/// уже отображённые файлы: отображение живёт до конца процесса, поэтому смена шрифта
+/// (Fonts::with заново) берёт те же страницы, а не отображает файлы ещё раз
+static MAPPED: std::sync::Mutex<Vec<(String, &'static [u8])>> = std::sync::Mutex::new(Vec::new());
+
 /// шрифт отображается в память, а не читается: в RSS попадают только страницы нужных
 /// глифов (CJK и эмодзи весят десятки мегабайт, а нужны из них единицы)
 fn load(file: &str, idx: u32) -> Option<FontRef<'static>> {
     use std::os::unix::io::AsRawFd;
+    let mut maps = MAPPED.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((_, data)) = maps.iter().find(|(f, _)| f == file) {
+        return FontRef::try_from_slice_and_index(data, idx).ok();
+    }
     let f = std::fs::File::open(file).ok()?;
     let len = f.metadata().ok()?.len() as usize;
     if len == 0 {
@@ -99,6 +107,7 @@ fn load(file: &str, idx: u32) -> Option<FontRef<'static>> {
         }
         std::slice::from_raw_parts(p as *const u8, len)
     };
+    maps.push((file.to_string(), data));
     FontRef::try_from_slice_and_index(data, idx).ok()
 }
 

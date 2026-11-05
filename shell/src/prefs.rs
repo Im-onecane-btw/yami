@@ -42,9 +42,10 @@ impl App {
     }
 
     pub(crate) fn save_settings_if_changed(&mut self) {
-        if self.press.is_some() {
+        if self.press.is_some() || self.st.set == self.set_seen {
             return;
         }
+        self.set_seen = self.st.set.clone();
         let j = self.st.set.to_json();
         if j != self.set_saved {
             let _ = config::write_atomic(&config::settings_path(), &j);
@@ -79,8 +80,7 @@ impl App {
         if changed || !config::state_dir().join("wallpaper.png").exists() {
             let tx = self.tx.clone();
             std::thread::spawn(move || {
-                let script = crate::app::theme_script();
-                let _ = std::process::Command::new("python3").arg("-I").arg(&script).arg(&p).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
+                let _ = crate::app::theme_py().arg(&p).status();
                 let _ = tx.send(Msg::Theme);
             });
         }
@@ -93,7 +93,7 @@ impl App {
         let _ = config::write_atomic(&config::settings_path(), &j);
         self.set_saved = j;
         std::thread::spawn(|| {
-            let _ = std::process::Command::new("python3").arg("-I").arg(crate::app::theme_script()).arg("--cursor").stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
+            let _ = crate::app::theme_py().arg("--cursor").status();
         });
     }
 
@@ -103,7 +103,7 @@ impl App {
         let _ = config::write_atomic(&config::settings_path(), &j);
         self.set_saved = j;
         std::thread::spawn(|| {
-            let _ = std::process::Command::new("python3").arg("-I").arg(crate::app::theme_script()).arg("--fonts").stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
+            let _ = crate::app::theme_py().arg("--fonts").status();
         });
     }
 

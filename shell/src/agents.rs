@@ -23,9 +23,11 @@ pub fn portals_conf(s: &Settings) -> String {
 /// переписать, если файла нет или он наш; свой (без «# yami:») — не трогаем
 pub fn write_portals(s: &Settings) {
     let p = crate::config::config_dir().join("xdg-desktop-portal/niri-portals.conf");
-    let ours = std::fs::read_to_string(&p).map(|t| t.starts_with("# yami:")).unwrap_or(true);
-    if ours {
-        let _ = crate::config::write_atomic(&p, &portals_conf(s));
+    // каждое изменение настроек (и каждый шаг ползунка) зовёт сюда: пишем, только если текст другой
+    let cur = std::fs::read_to_string(&p).ok();
+    let text = portals_conf(s);
+    if cur.as_deref().map(|t| t.starts_with("# yami:") && t != text).unwrap_or(true) {
+        let _ = crate::config::write_atomic(&p, &text);
     }
 }
 

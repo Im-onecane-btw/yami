@@ -696,7 +696,7 @@ impl App {
                         self.settings_changed();
                         self.save_now();
                         std::thread::spawn(|| {
-                            let _ = std::process::Command::new("python3").arg("-I").arg(crate::app::theme_script()).arg("--fetch").stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
+                            let _ = crate::app::theme_py().arg("--fetch").status();
                         });
                         self.dirty(&SKind::Modal);
                         return true;

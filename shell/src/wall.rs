@@ -289,7 +289,7 @@ fn to_login(w: i32, h: i32, raw: Option<Vec<u8>>, key: &str) {
     if let Some(rgb) = raw.and_then(|r| image::RgbImage::from_raw(w as u32, h as u32, r)) {
         let _ = rgb.save(dir.join("wallpaper-own.png"));
     }
-    let _ = std::process::Command::new("python3").arg("-I").arg(crate::app::theme_script()).arg("--login").stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
+    let _ = crate::app::theme_py().arg("--login").status();
     let _ = config::write_atomic(&dir.join("wallpaper-own.key"), key);
 }
 

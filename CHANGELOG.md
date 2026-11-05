@@ -16,6 +16,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - Wallpaper picker (#11): settings → wallpaper → «pick an image…» opens a grid of thumbnails of your wallpaper folder (`~/Pictures/Wallpapers` by default, `wallDir`, «folder…» to change it), the palette's pixel wallpaper first; a click sets it and goes back to the settings, arrows and Enter work too. Thumbnails are made in the background only for the rows on screen and share yami-files' cache. «another file…» keeps the old file dialog; `yami open walls` (or a key you bind in settings → keys) opens the picker on its own
 - Tray behind an arrow (#11): settings → bar → look → tray: `arrow` (`trayMode`) shows one arrow on the bar instead of every icon; it opens the tray apps as a list with their names, where clicks work as on the bar and an app's menu opens under its row. A dot on the arrow when an app asks for attention
 - Compact temperature (#11): settings → bar → look → temperature: `compact` (`tempStyle`) draws the `temp` module as a small thermometer column and the number, about a third of its usual width
+- Less work while idle: a panel whose new frame is the same as the last one is not sent to niri again (the bar redraws every second, its picture changes about once a minute), the sound state asks PipeWire only about what changed, the equalizer thread sleeps while nobody sees it and computes the spectrum once per frame, the settings file is compared only when the settings changed, font files are mapped once per process, and theme.py runs at a lower priority.
 
 ## 2.5.0
 

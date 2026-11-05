@@ -119,6 +119,26 @@ pub struct Surf {
     /// логический холст увеличивается ближайшим соседом — на HiDPI пиксели чёткие
     pub scale: f64,
     pub frac: Option<frac::WpFractionalScaleV1>,
+    /// отпечаток последнего отданного кадра (0 — не было): тот же кадр второй раз не отдаётся —
+    /// бар перерисовывается раз в секунду, а меняется обычно раз в минуту
+    pub drawn: u64,
+}
+
+/// отпечаток кадра: размер и пиксели (FNV по 64-битным словам — на бар ~30 мкс)
+fn frame_hash(px: &[u32], dims: [i32; 4]) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut eat = |v: u64| h = (h ^ v).wrapping_mul(0x0000_0100_0000_01b3);
+    for d in dims {
+        eat(d as u32 as u64);
+    }
+    let mut it = px.chunks_exact(2);
+    for c in &mut it {
+        eat(c[0] as u64 | (c[1] as u64) << 32);
+    }
+    for c in it.remainder() {
+        eat(*c as u64);
+    }
+    h | 1
 }
 
 pub struct LockSurf {
@@ -338,6 +358,9 @@ pub struct App {
     pub res: Res,
     pub st: State,
     pub set_saved: String,
+    /// настройки на момент последней сверки с файлом: пока они те же, JSON не собирается
+    /// (flush идёт на каждом проходе цикла — при эквалайзере 30 раз в секунду)
+    pub(crate) set_seen: Settings,
     pub(crate) set_mtime: Option<std::time::SystemTime>,
     pub(crate) last_sample: Instant,
     pub(crate) last_min: u32,
@@ -565,6 +588,7 @@ pub fn run() {
         res: Res { fonts: Fonts::with(&set_font), icons, font: set_font },
         st,
         set_saved,
+        set_seen: Settings::default(),
         set_mtime: std::fs::metadata(config::settings_path()).and_then(|m| m.modified()).ok(),
         last_sample: Instant::now(),
         last_min: 99,
@@ -708,6 +732,7 @@ impl App {
                 anchor_side: String::new(),
                 scale: 1.0,
                 frac,
+                drawn: 0,
             },
         );
         if over_curtain {
@@ -1010,6 +1035,16 @@ impl App {
             s.zones = std::mem::take(&mut ui.zones);
             s.anim = ui.anim;
         }
+        // тот же кадр, что уже у композитора (часы без секунд, датчики не сдвинулись): не отдавать —
+        // композитору нечего пересобирать. Обои, скриншот и шторка рисуются один раз и так
+        let hash = if s.anim || done_closing || matches!(s.kind, SKind::Wall | SKind::Snap | SKind::Curtain) { 0 } else { frame_hash(buf, [s.w, s.h, pw, ph]) };
+        if hash != 0 && hash == s.drawn && s.input == s.input_set && blur == s.blur_set {
+            drop(buffer);
+            self.scratch = if scratch.capacity() > 1 << 20 { Vec::new() } else { scratch };
+            self.surfs.insert(id, s);
+            return;
+        }
+        s.drawn = hash;
         if up {
             let dst = unsafe { std::slice::from_raw_parts_mut(out_ptr, out_len) };
             crate::gfx::upscale(&scratch, bw, bh, dst, pw, ph);
@@ -1222,8 +1257,9 @@ impl App {
                 self.sync_titles();
                 if !layout_only {
                     self.sync_dock();
-                    self.dirty(&SKind::Dock);
-                    self.dirty_where(|k| matches!(k, SKind::Bar | SKind::Menu | SKind::Popup | SKind::Widget(_)));
+                    // окна и столы видны только в баре и доке: виджеты и всплывашки их не рисуют,
+                    // а события niri идут на каждую смену фокуса
+                    self.dirty_where(|k| matches!(k, SKind::Bar | SKind::Dock));
                 }
             }
             Msg::Ipc(cmd) => self.ipc(&cmd),
@@ -1525,6 +1561,27 @@ pub fn settings_get_f32(s: &Settings, key: &str) -> f32 {
         "wall_dim" => s.wall_dim,
         "curtain_cell" => s.curtain_cell as f32,
         _ => 0.0,
+    }
+}
+
+/// tools/theme.py, тихо и с пониженным приоритетом: на слабой машине перекраска (обои, курсор,
+/// темы программ) идёт секунды и не должна отнимать процессор у стола
+pub fn theme_py() -> std::process::Command {
+    let mut c = std::process::Command::new("python3");
+    c.arg("-I").arg(theme_script()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    gentle(&mut c);
+    c
+}
+
+/// фоновая работа (theme.py, распознавание текста): nice 10 у процесса, шелл свой не меняет
+pub fn gentle(cmd: &mut std::process::Command) -> &mut std::process::Command {
+    use std::os::unix::process::CommandExt;
+    // SAFETY: между fork и exec только setpriority
+    unsafe {
+        cmd.pre_exec(|| {
+            libc::setpriority(libc::PRIO_PROCESS, 0, 10);
+            Ok(())
+        })
     }
 }
 

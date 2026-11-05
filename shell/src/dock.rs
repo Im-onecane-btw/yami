@@ -326,7 +326,6 @@ impl App {
 
     /// поверхности дока и полоски-ловца у края — по настройкам и окнам
     pub fn sync_dock(&mut self) {
-        self.st.trash_full = std::fs::read_dir(crate::config::data_dir().join("Trash/files")).map(|mut r| r.next().is_some()).unwrap_or(false);
         let out = self.focus_out();
         let on = self.st.set.dock && !self.st.locked && !out.is_empty() && self.st.snap.is_none();
         if !on {
@@ -336,6 +335,10 @@ impl App {
                 }
             }
             return;
+        }
+        // зовётся на каждое событие niri: корзину смотрим, только если док её показывает
+        if self.st.set.dock_trash {
+            self.st.trash_full = std::fs::read_dir(crate::config::data_dir().join("Trash/files")).map(|mut r| r.next().is_some()).unwrap_or(false);
         }
         let show = self.dock_shown(&out);
         let (w, h) = size(&self.st);

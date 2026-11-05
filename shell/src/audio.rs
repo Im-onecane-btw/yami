@@ -78,13 +78,18 @@ pub fn label(set: &crate::config::Settings, d: &Dev) -> String {
     set.audio_names.get(&d.name).filter(|s| !s.is_empty()).cloned().unwrap_or_else(|| d.desc.clone())
 }
 
-pub fn query() -> AudioState {
+fn defaults() -> (String, String) {
     let info = pactl_json(&["info"]);
-    let sink = info["default_sink_name"].as_str().unwrap_or("").to_string();
-    let source = info["default_source_name"].as_str().unwrap_or("").to_string();
-    let sinks: Vec<Dev> = pactl_json(&["list", "sinks"]).as_array().map(|a| a.iter().map(dev).collect()).unwrap_or_default();
-    let sources: Vec<Dev> = pactl_json(&["list", "sources"]).as_array().map(|a| a.iter().map(dev).filter(|d| !d.name.ends_with(".monitor")).collect()).unwrap_or_default();
-    let streams: Vec<Stream> = pactl_json(&["list", "sink-inputs"])
+    (info["default_sink_name"].as_str().unwrap_or("").to_string(), info["default_source_name"].as_str().unwrap_or("").to_string())
+}
+fn sinks() -> Vec<Dev> {
+    pactl_json(&["list", "sinks"]).as_array().map(|a| a.iter().map(dev).collect()).unwrap_or_default()
+}
+fn sources() -> Vec<Dev> {
+    pactl_json(&["list", "sources"]).as_array().map(|a| a.iter().map(dev).filter(|d| !d.name.ends_with(".monitor")).collect()).unwrap_or_default()
+}
+fn streams() -> Vec<Stream> {
+    pactl_json(&["list", "sink-inputs"])
         .as_array()
         .map(|a| {
             a.iter()
@@ -101,10 +106,50 @@ pub fn query() -> AudioState {
                 })
                 .collect()
         })
-        .unwrap_or_default();
-    let d = sinks.iter().find(|s| s.name == sink).cloned().unwrap_or_default();
-    let m = sources.iter().find(|s| s.name == source).cloned().unwrap_or_default();
-    AudioState { ready: true, volume: d.vol, muted: d.muted, sink, sinks, source, sources, mic: m.vol, mic_muted: m.muted, streams }
+        .unwrap_or_default()
+}
+
+/// что поменялось (по строкам `pactl subscribe`): переспрашивается только оно
+const SINK: u8 = 1;
+const SOURCE: u8 = 2;
+const STREAM: u8 = 4;
+const SERVER: u8 = 8;
+const ALL: u8 = SINK | SOURCE | STREAM | SERVER;
+
+/// «Event 'change' on sink-input #12» → что переспросить; записи программ (source-output),
+/// клиенты и модули шеллу не нужны — на них ни одного запуска pactl
+fn facility(l: &str) -> u8 {
+    match l.split(" on ").nth(1).and_then(|r| r.split_whitespace().next()) {
+        Some("sink") => SINK,
+        Some("source") => SOURCE,
+        Some("sink-input") => STREAM,
+        Some("server") | Some("card") => SERVER,
+        _ => 0,
+    }
+}
+
+/// переспросить отмеченное, остальное взять из прошлого состояния
+fn refresh(mut a: AudioState, what: u8) -> AudioState {
+    if what & SERVER != 0 {
+        (a.sink, a.source) = defaults();
+    }
+    if what & (SINK | SERVER) != 0 {
+        a.sinks = sinks();
+    }
+    if what & (SOURCE | SERVER) != 0 {
+        a.sources = sources();
+    }
+    if what & STREAM != 0 {
+        a.streams = streams();
+    }
+    let d = a.sinks.iter().find(|s| s.name == a.sink).cloned().unwrap_or_default();
+    let m = a.sources.iter().find(|s| s.name == a.source).cloned().unwrap_or_default();
+    (a.volume, a.muted, a.mic, a.mic_muted, a.ready) = (d.vol, d.muted, m.vol, m.muted, true);
+    a
+}
+
+pub fn query() -> AudioState {
+    refresh(AudioState::default(), ALL)
 }
 
 static SET: OnceLock<mpsc::Sender<Vec<String>>> = OnceLock::new();
@@ -163,40 +208,42 @@ pub fn spawn(tx: Sender<Msg>) {
     std::thread::Builder::new()
         .name("audio".into())
         .spawn(move || loop {
-            let _ = tx2.send(Msg::Audio(query()));
+            let t0 = std::time::Instant::now();
+            let mut last = query();
+            let _ = tx2.send(Msg::Audio(last.clone()));
             let Ok(mut c) = crate::app::owned(Command::new("pactl").arg("subscribe").stdout(Stdio::piped()).stderr(Stdio::null())).spawn() else {
-                std::thread::sleep(std::time::Duration::from_secs(5));
+                std::thread::sleep(std::time::Duration::from_secs(30));
                 continue;
             };
             let out = c.stdout.take().unwrap();
-            let (ltx, lrx) = mpsc::channel::<()>();
+            let (ltx, lrx) = mpsc::channel::<u8>();
             std::thread::spawn(move || {
                 for l in BufReader::new(out).lines() {
                     let Ok(l) = l else { break };
-                    if l.contains("sink") || l.contains("source") || l.contains("server") {
-                        let _ = ltx.send(());
+                    let f = facility(&l);
+                    if f != 0 {
+                        let _ = ltx.send(f);
                     }
                 }
             });
-            let mut last = AudioState::default();
-            loop {
-                match lrx.recv() {
-                    Ok(()) => {
-                        // пачка событий → один запрос
-                        std::thread::sleep(std::time::Duration::from_millis(40));
-                        while lrx.try_recv().is_ok() {}
-                        let a = query();
-                        if a != last {
-                            last = a.clone();
-                            let _ = tx2.send(Msg::Audio(a));
-                        }
-                    }
-                    Err(_) => break,
+            while let Ok(mut what) = lrx.recv() {
+                // пачка событий → один запрос того, что в ней задето
+                std::thread::sleep(std::time::Duration::from_millis(40));
+                while let Ok(f) = lrx.try_recv() {
+                    what |= f;
+                }
+                let a = refresh(last.clone(), what);
+                if a != last {
+                    last = a.clone();
+                    let _ = tx2.send(Msg::Audio(a));
                 }
             }
             let _ = c.kill();
             let _ = c.wait();
-            std::thread::sleep(std::time::Duration::from_secs(2));
+            // звукового сервера нет (сеанс без PipeWire): pactl сразу выходит — не дёргать его
+            // каждые две секунды, а ждать дольше, чем жил прошлый раз
+            let lived = t0.elapsed().as_secs();
+            std::thread::sleep(std::time::Duration::from_secs(if lived < 10 { 30 } else { 2 }));
         })
         .ok();
     viz_thread(tx);
@@ -204,9 +251,16 @@ pub fn spawn(tx: Sender<Msg>) {
 
 // ── эквалайзер ──────────────────────────────────────────────────────────────
 static VIZ_ON: AtomicBool = AtomicBool::new(false);
+/// нить эквалайзера спит (park), пока его никто не видит: ни одного пробуждения без музыки
+static VIZ_THREAD: OnceLock<std::thread::Thread> = OnceLock::new();
 
 pub fn viz_wanted(on: bool) {
     VIZ_ON.store(on, Ordering::SeqCst);
+    if on {
+        if let Some(t) = VIZ_THREAD.get() {
+            t.unpark();
+        }
+    }
 }
 
 pub const BANDS: usize = 24;
@@ -254,12 +308,16 @@ fn viz_thread(tx: Sender<Msg>) {
     std::thread::Builder::new()
         .name("viz".into())
         .spawn(move || {
+            let _ = VIZ_THREAD.set(std::thread::current());
             // границы полос: логарифмически от 40 Гц до 14 кГц
             let edges: Vec<usize> = (0..=BANDS).map(|i| ((40.0f32 * (14000.0f32 / 40.0).powf(i as f32 / BANDS as f32)) / RATE * N as f32).round() as usize).collect();
             let win: Vec<f32> = (0..N).map(|i| 0.5 - 0.5 * (2.0 * std::f32::consts::PI * i as f32 / (N - 1) as f32).cos()).collect();
+            const CHUNK: usize = 512;
+            let (mut ring, mut re, mut im) = (vec![0f32; N], vec![0f32; N], vec![0f32; N]);
+            let mut buf = vec![0u8; CHUNK * 2];
             loop {
                 if !VIZ_ON.load(Ordering::SeqCst) {
-                    std::thread::sleep(std::time::Duration::from_millis(300));
+                    std::thread::park();
                     continue;
                 }
                 let Ok(mut c) = crate::app::owned(
@@ -273,42 +331,47 @@ fn viz_thread(tx: Sender<Msg>) {
                     continue;
                 };
                 let mut out = c.stdout.take().unwrap();
-                let mut ring = vec![0f32; N];
-                let mut buf = vec![0u8; 512 * 2];
+                ring.fill(0.0);
                 let mut smooth = vec![0f32; BANDS];
+                let mut bands = [0f32; BANDS];
                 let mut peak = 1e-3f32;
                 let mut last_send = std::time::Instant::now();
                 while VIZ_ON.load(Ordering::SeqCst) {
                     if out.read_exact(&mut buf).is_err() {
                         break;
                     }
-                    let s: Vec<f32> = buf.chunks_exact(2).map(|b| i16::from_le_bytes([b[0], b[1]]) as f32 / 32768.0).collect();
-                    ring.drain(..s.len());
-                    ring.extend(s);
-                    let mut re: Vec<f32> = ring.iter().zip(&win).map(|(a, w)| a * w).collect();
-                    let mut im = vec![0f32; N];
+                    // кольцо: старое влево, новые отсчёты в хвост — без выделений на каждые 12 мс
+                    ring.copy_within(CHUNK.., 0);
+                    for (d, b) in ring[N - CHUNK..].iter_mut().zip(buf.chunks_exact(2)) {
+                        *d = i16::from_le_bytes([b[0], b[1]]) as f32 / 32768.0;
+                    }
+                    // спектр — раз в кадр (~30 мс), а не на каждый кусок: втрое меньше работы
+                    if last_send.elapsed().as_millis() < 30 {
+                        continue;
+                    }
+                    last_send = std::time::Instant::now();
+                    for i in 0..N {
+                        re[i] = ring[i] * win[i];
+                        im[i] = 0.0;
+                    }
                     fft(&mut re, &mut im);
-                    let mut bands = vec![0f32; BANDS];
                     for b in 0..BANDS {
                         let (lo, hi) = (edges[b].max(1), edges[b + 1].max(edges[b].max(1) + 1).min(N / 2));
                         let mut m = 0f32;
                         for k in lo..hi {
-                            m = m.max((re[k] * re[k] + im[k] * im[k]).sqrt());
+                            m = m.max(re[k] * re[k] + im[k] * im[k]);
                         }
                         // верхние полосы тише — подтягиваем
-                        bands[b] = m * (1.0 + b as f32 * 0.12);
+                        bands[b] = m.sqrt() * (1.0 + b as f32 * 0.12);
                     }
                     let mx = bands.iter().copied().fold(0.0, f32::max);
-                    peak = (peak * 0.995).max(mx).max(1e-3);
+                    peak = (peak * 0.987).max(mx).max(1e-3);
                     for b in 0..BANDS {
                         let v = (bands[b] / peak).sqrt().min(1.0);
                         // быстро вверх, медленно вниз — как стрелочные индикаторы
-                        smooth[b] = if v > smooth[b] { v } else { smooth[b] * 0.82 + v * 0.18 };
+                        smooth[b] = if v > smooth[b] { v } else { smooth[b] * 0.6 + v * 0.4 };
                     }
-                    if last_send.elapsed().as_millis() >= 30 {
-                        last_send = std::time::Instant::now();
-                        let _ = tx.send(Msg::Viz(smooth.clone()));
-                    }
+                    let _ = tx.send(Msg::Viz(smooth.clone()));
                 }
                 let _ = c.kill();
                 let _ = c.wait();

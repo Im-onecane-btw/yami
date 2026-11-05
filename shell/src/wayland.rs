@@ -91,6 +91,8 @@ impl LayerShellHandler for App {
             s.configured = true;
             s.dirty = true;
             s.frame_pending = false;
+            // после configure нужен коммит, даже если картинка та же
+            s.drawn = 0;
         }
     }
 }
