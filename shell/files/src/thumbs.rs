@@ -87,7 +87,7 @@ impl Thumbs {
             let img = make(&r);
             send(r.path, r.size, img);
             // большие картинки декодировались — вернуть память системе
-            unsafe { libc::malloc_trim(0) };
+            yami_px::trim_heap();
         });
         Thumbs { q }
     }

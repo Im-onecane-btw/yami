@@ -121,7 +121,7 @@ pub fn run(mut v: V) {
                 for p in q {
                     let r = crate::pic::load(&p);
                     let _ = tx.send(Ev::Loaded(p, r));
-                    unsafe { libc::malloc_trim(0) };
+                    yami_px::trim_heap();
                 }
             }
         });

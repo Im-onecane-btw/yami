@@ -235,7 +235,7 @@ pub struct Tm {
 
 pub fn local_tm(t: i64) -> Tm {
     let mut tm: libc::tm = unsafe { std::mem::zeroed() };
-    let tt = t as libc::time_t;
+    let tt = t as _;
     unsafe { libc::localtime_r(&tt, &mut tm) };
     Tm { year: tm.tm_year + 1900, mon: tm.tm_mon + 1, day: tm.tm_mday, hour: tm.tm_hour, min: tm.tm_min, yday: tm.tm_yday }
 }

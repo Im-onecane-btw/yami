@@ -9,3 +9,12 @@ pub mod look;
 pub mod paths;
 pub mod theme;
 pub mod ui;
+
+/// вернуть системе свободную память кучи после большого декода. Только glibc: musl (Alpine) такого
+/// вызова не знает и свободные страницы отдаёт сам
+pub fn trim_heap() {
+    #[cfg(target_env = "gnu")]
+    unsafe {
+        libc::malloc_trim(0);
+    }
+}

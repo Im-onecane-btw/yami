@@ -71,6 +71,8 @@ mod widgets;
 fn main() {
     // большие буферы (обои, скриншоты, обложки) — сразу через mmap и обратно системе при
     // освобождении: иначе glibc поднимает порог и держит их в куче нитей после каждого декода
+    // (musl так не делает, и настроек этих у него нет)
+    #[cfg(target_env = "gnu")]
     unsafe {
         libc::mallopt(libc::M_MMAP_THRESHOLD, 256 << 10);
         libc::mallopt(libc::M_ARENA_MAX, 2);

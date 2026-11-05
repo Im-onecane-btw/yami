@@ -64,7 +64,7 @@ fn dec(s: &str) -> PathBuf {
 fn stamp() -> String {
     let t = crate::fsx::local_tm(crate::fsx::now());
     let mut s: libc::tm = unsafe { std::mem::zeroed() };
-    let now = crate::fsx::now() as libc::time_t;
+    let now = crate::fsx::now() as _;
     unsafe { libc::localtime_r(&now, &mut s) };
     format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}", t.year, t.mon, t.day, t.hour, t.min, s.tm_sec)
 }

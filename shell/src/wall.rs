@@ -134,7 +134,7 @@ pub fn prepare(j: &Job) -> (Option<Img>, Option<u32>) {
     };
     dim(&mut out, bg, j.dim);
     // большой декод уже не нужен: вернуть память системе
-    unsafe { libc::malloc_trim(0) };
+    yami_px::trim_heap();
     (Some(crate::icons::from_rgba(&out)), accent)
 }
 

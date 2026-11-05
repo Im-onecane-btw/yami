@@ -33,6 +33,7 @@ subjects when that section is empty).
 - Fix: A dock at the top that never hides no longer leaves a double gap under the bar, and it moves when its side changes
 - Fix: Bar scripts stop together with everything they started and do not outlive a crashed shell; a long-running script is no longer cut off after 1 MB of output
 - Fix: Restarting the shell (`yami restart`, every update) no longer leaves another copy of the music, sound and visualizer helpers (playerctl, pactl, parec) running or finished-but-unreaped each time
+- Fix: yami builds on musl (Alpine): the glibc-only memory calls are made only with glibc
 - Fix: The night light starts with a temperature of 6500 K and with equal on and off hours
 - Fix: GameMode registration keeps the order of focus changes
 - Fix: `yami msg` reports a command the shell does not have (`yami msg cal` used to answer «ok» and do nothing)

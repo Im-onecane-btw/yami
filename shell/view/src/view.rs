@@ -768,7 +768,7 @@ fn info(ui: &mut Ui, v: &V, w: i32) {
     ui.text_in(PX, R::new(r.x + 24, r.y + 6, r.w - 30, 24), "сведения", t.text);
     let mtime = std::fs::metadata(&p.path).and_then(|m| m.modified()).ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| {
         let mut tm: libc::tm = unsafe { std::mem::zeroed() };
-        let s = d.as_secs() as libc::time_t;
+        let s = d.as_secs() as _;
         unsafe { libc::localtime_r(&s, &mut tm) };
         format!("{:02}.{:02}.{} {:02}:{:02}", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, tm.tm_hour, tm.tm_min)
     }).unwrap_or_default();
