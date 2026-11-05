@@ -42,6 +42,7 @@ impl App {
             Modal::Auth => crate::auth::SIZE,
             Modal::Screen => (0, 0),
             Modal::Reply => crate::reply::SIZE,
+            Modal::Walls => crate::walls::SIZE,
         };
         self.st.modal = Some(m);
         match m {
@@ -53,7 +54,7 @@ impl App {
                 }
             }
             Modal::Power => self.st.power_cur = 0,
-            Modal::Auth | Modal::Screen | Modal::Reply => {}
+            Modal::Auth | Modal::Screen | Modal::Reply | Modal::Walls => {}
             Modal::Settings => {
                 self.tab_probe();
                 self.st.hex.set(&self.st.set.accent.clone());
@@ -70,6 +71,7 @@ impl App {
             Modal::Auth => "yami-auth",
             Modal::Screen => "yami-screen",
             Modal::Reply => "yami-reply",
+            Modal::Walls => "yami-walls",
         }, Anchor::empty(), (w, h + 12), (0, 0, 0, 0), -1, KeyboardInteractivity::Exclusive);
     }
 
@@ -102,6 +104,9 @@ impl App {
                 use std::io::Write;
                 let _ = (&p.stream).write_all(b"cancel\n");
             }
+        }
+        if self.st.modal == Some(Modal::Walls) {
+            self.walls_free();
         }
         self.st.modal = None;
         self.st.field_focus = None;

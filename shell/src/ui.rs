@@ -43,6 +43,12 @@ pub enum Act {
     Curtain,
     /// вкладка «обои» (wall.rs)
     SWall(&'static str),
+    /// выбор обоев (walls.rs): клетка, колесо над сеткой, другая папка, другой файл, назад
+    WallPick(usize),
+    WallsScroll,
+    WallsDir,
+    WallsFile,
+    WallsBack,
     /// модуль бара во вкладке «бар»: тащить (сторона, индекс), новый, убрать
     SModDrag(usize, usize),
     SModNew(String),

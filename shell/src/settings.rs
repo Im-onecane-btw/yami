@@ -38,7 +38,7 @@ pub const TABS: &[(&str, &str, &str)] = &[
 /// слова для поиска настроек из лаунчера («vrr» → экраны): по-русски и по-английски
 pub const FIND: &[(&str, &str)] = &[
     ("color", "палитра акцент цвет тема светлая тёмная стекло прозрачность palette accent colour color theme light dark glass"), // i18n-ok
-    ("wall", "обои картинка фон skwd skwd-wall видео wallpaper background image video"), // i18n-ok
+    ("wall", "обои картинка фон папка миниатюры skwd skwd-wall видео wallpaper background image folder thumbnails picker video"), // i18n-ok
     ("look", "анимации эффекты появление развёртка размытие значки иконки курсор animation effects reveal scanlines blur icons cursor"), // i18n-ok
     ("fonts", "шрифт размер терминал fastfetch браузер fonts size terminal browser"), // i18n-ok
     ("bar", "бар модули часы разделитель плавающий плашка ширина центр трей стрелка температура bar modules clock separator floating pill width center tray arrow temperature"), // i18n-ok

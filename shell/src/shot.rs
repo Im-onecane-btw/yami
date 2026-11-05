@@ -49,6 +49,7 @@ const TARGETS: &[&str] = &[
     "popup:sys",
     "popup:profile",
     "popup:tray",
+    "walls",
     "menu:widget",
     "widget:clock",
     "widget:graph",
@@ -301,6 +302,11 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
             st.modal = Some(Modal::Power);
             crate::power::SIZE
         }
+        "walls" => {
+            st.modal = Some(Modal::Walls);
+            crate::walls::mock(st);
+            crate::walls::SIZE
+        }
         "popup" => {
             if arg == "profile" {
                 st.prof = crate::profile::Prof { present: true, active: "performance".into(), list: vec!["power-saver".into(), "balanced".into(), "performance".into()], degraded: String::new() };
@@ -460,6 +466,7 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
             "launcher" | "clipboard" => crate::launcher::draw(&mut ui, st, w, h),
             "reply" => crate::reply::draw(&mut ui, st, w, h),
             "power" => crate::power::draw(&mut ui, st, w, h),
+            "walls" => crate::walls::draw(&mut ui, st, w, h),
             "popup" => crate::popups::draw(&mut ui, st, w, h),
             "menu" => crate::menu::draw(&mut ui, st, w, h),
             "widget" => crate::widgets::draw(&mut ui, st, 900, w, h),

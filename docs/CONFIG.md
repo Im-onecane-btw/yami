@@ -28,7 +28,7 @@ of the file is kept), unknown keys are ignored: `yami-shell config check` lists 
 prints the help instead of starting the shell. `yami help <command>` explains one command.
 
 ```sh
-yami open settings:updates                # a panel: launcher clipboard settings[:tab] power lock screenshot cal sound media net bt sys
+yami open settings:updates                # a panel: launcher clipboard settings[:tab] power lock walls screenshot cal sound media net bt sys profile tray
 yami palette | yami palette ash | yami palette '#3a9fd0'
 yami wallpaper ~/Pictures/x.png           # no path: the palette's pixel wallpaper
 yami restart                              # restart the shell (refuses while a game has focus; --force)
@@ -76,6 +76,7 @@ yami-shell binds list | print | write     # keybindings
 | `animClose` | `true` | panels close with the reveal backwards; off: they vanish at once |
 | `scanlines` | `false` | every second line of the shell's panels a little darker, like an old monitor |
 | `wallpaper` | `""` | path to your own image (PNG, JPEG, WebP); empty: the generated pixel wallpaper |
+| `wallDir` | `""` | the folder the wallpaper picker shows as a grid (settings → wallpaper → pick, `yami open walls`; its «folder…» button sets it); empty: `~/Pictures/Wallpapers` (or `wallpapers`), else the folder of the current wallpaper, else `~/Pictures`. Thumbnails share yami-files' cache `~/.cache/yami/thumbs` |
 | `wallFit` | `"fill"` | `fill`: cover the screen, crop the rest; `fit`: the whole image, margins in the background colour |
 | `wallPixel` | `1` | pixel cells of your image: 1 as is, 2…8 → cells of 2, 3, 4, 6, 8, 12, 16 px |
 | `wallTone` | `""` | colouring of your image: `""` as is, `tint` the accent's shades, `palette` palette tones with Bayer dithering |

@@ -29,7 +29,7 @@
 справку, а не запускает шелл. `yami help <команда>` объясняет одну команду.
 
 ```sh
-yami open settings:updates                # панель: launcher clipboard settings[:вкладка] power lock screenshot cal sound media net bt sys
+yami open settings:updates                # панель: launcher clipboard settings[:вкладка] power lock walls screenshot cal sound media net bt sys profile tray
 yami palette | yami palette ash | yami palette '#3a9fd0'
 yami wallpaper ~/Pictures/x.png           # без пути: пиксельные обои палитры
 yami restart                              # перезапустить шелл (отказывается, пока в фокусе игра; --force)
@@ -77,6 +77,7 @@ yami-shell binds list | print | write     # сочетания клавиш
 | `animClose` | `true` | панели закрываются обратным проявлением; выключено — исчезают сразу |
 | `scanlines` | `false` | каждая вторая строка панелей шелла чуть темнее, как на старом мониторе |
 | `wallpaper` | `""` | путь к своей картинке (PNG, JPEG, WebP); пусто — сгенерированные пиксельные обои |
+| `wallDir` | `""` | папка, которую выбор обоев показывает сеткой (настройки → обои → выбрать, `yami open walls`; его кнопка «папка…» меняет её); пусто — `~/Pictures/Wallpapers` (или `wallpapers`), иначе папка текущих обоев, иначе `~/Pictures`. Миниатюры — в общем с yami-files кеше `~/.cache/yami/thumbs` |
 | `wallFit` | `"fill"` | `fill`: закрыть экран, обрезав лишнее; `fit`: вся картинка, поля цветом фона |
 | `wallPixel` | `1` | пиксельные клетки твоей картинки: 1 как есть, 2…8 → клетки 2, 3, 4, 6, 8, 12, 16 px |
 | `wallTone` | `""` | окраска твоей картинки: `""` как есть, `tint` оттенки акцента, `palette` тона палитры с байеровским сглаживанием |

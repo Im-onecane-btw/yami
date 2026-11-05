@@ -125,6 +125,8 @@ pub struct Settings {
     pub icon_pixel: bool,
     /// свои обои (путь); пусто — пиксельные обои из палитры
     pub wallpaper: String,
+    /// папка выбора обоев (walls.rs); пусто — папка текущих обоев, ~/Pictures/Wallpapers или ~/Pictures
+    pub wall_dir: String,
     /// пикселизация своих обоев: 1 — как есть, дальше клетки крупнее (wall::cell)
     pub wall_pixel: i32,
     pub wall_kanji: bool,
@@ -420,6 +422,7 @@ impl Default for Settings {
             icon_theme: String::new(),
             icon_pixel: true,
             wallpaper: String::new(),
+            wall_dir: String::new(),
             wall_pixel: 1,
             wall_kanji: true,
             wall_fit: "fill".into(),

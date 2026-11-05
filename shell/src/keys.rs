@@ -139,6 +139,8 @@ pub const BINDS: &[Bind] = &[
     b("files", "shell", "Mod+E", "", r#"spawn "yami-files";"#, "файлы", "Files", true),
     b("clipboard", "shell", "Mod+V", NR, r#"spawn "yami-shell" "msg" "clipboard";"#, "буфер обмена", "Clipboard", true),
     b("settings", "shell", "Mod+S", NR, r#"spawn "yami-shell" "msg" "settings";"#, "настройки шелла", "Shell settings", true),
+    // без клавиши по умолчанию: назначается в настройках → клавиши, ничьё сочетание не занимает
+    b("walls", "shell", "", NR, r#"spawn "yami-shell" "msg" "walls";"#, "выбор обоев", "Wallpaper picker", true),
     b("lock", "shell", "Mod+Escape", "repeat=false allow-when-locked=false", r#"spawn "yami-shell" "msg" "lock";"#, "заблокировать", "Lock screen", true),
     b("power", "shell", "Mod+Shift+E", NR, r#"spawn "yami-shell" "msg" "power";"#, "меню питания", "Power menu", true),
     b("power-2", "shell", "Ctrl+Alt+Delete", NR, r#"spawn "yami-shell" "msg" "power";"#, "меню питания (второе)", "Power menu (second)", false),

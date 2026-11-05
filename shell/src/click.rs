@@ -38,6 +38,12 @@ impl App {
                 }
             }
             Act::CloseModal => self.close_modal(),
+            // ── выбор обоев ─────────────────────────────────────────────────
+            Act::WallPick(i) => self.walls_pick(i),
+            Act::WallsBack => self.walls_back(),
+            Act::WallsDir => self.walls_ask(true),
+            Act::WallsFile => self.walls_ask(false),
+            Act::WallsScroll => {}
             // ── бар ─────────────────────────────────────────────────────────
             Act::Launcher => self.toggle_modal(Modal::Launcher, button == RMB),
             Act::Plug(cmd) => App::sh(&cmd),
@@ -232,6 +238,7 @@ impl App {
         let up = d < 0;
         match a {
             Act::Popup("sound" | "media") | Act::VolSlider | Act::VolMute => audio::step_volume(if up { 1 } else { -1 }),
+            Act::WallPick(_) | Act::WallsScroll => self.walls_scroll(if up { -1 } else { 1 }),
             Act::MicSlider | Act::MicMute => {
                 let v = (self.st.audio.mic + if up { 0.05 } else { -0.05 }).clamp(0.0, 1.0);
                 audio::set_mic(v);

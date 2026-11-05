@@ -586,6 +586,15 @@ const PAIRS: &[(&str, &str)] = &[
     ("рисуются заново при смене цвета", "redrawn when the colour changes"),
     ("выбрать картинку…", "choose an image…"),
     ("пиксельные из палитры", "pixel art from the palette"),
+    // выбор обоев (walls.rs)
+    ("папка…", "folder…"),
+    ("другой файл…", "another file…"),
+    ("из палитры", "from the palette"),
+    ("стрелки, Enter — поставить, Esc — назад", "arrows, Enter sets it, Esc goes back"),
+    ("в папке нет картинок (png, jpg, webp)", "no pictures in this folder (png, jpg, webp)"),
+    ("выбери другую папку", "pick another folder"),
+    ("обои ведёт skwd-wall: выбор здесь выключит его", "skwd-wall drives the wallpaper: a pick here turns it off"),
+    ("папка обоев", "wallpaper folder"),
     // трей и температура в баре (#11)
     ("в трее никого", "the tray is empty"),
     ("стрелкой", "arrow"),

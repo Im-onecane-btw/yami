@@ -23,7 +23,7 @@ fn is_look(k: &str) -> bool {
         "accent", "palette", "tint", "light", "glass", "lift", "inner", "dim", "blurShell", "blurTerm", "animations", "animSpeed", "animClose", "reveal", "revealGrain", "scanlines", "iconTheme", "iconPixel", "cursor", "cursorSize",
         "curtainStyle", "curtainCell", "cpuStyle", "tempStyle", "trayMode", "clockDate", "clockSeconds", "taskWidth", "widgets", "widgetContrast", "titlebars", "fetchFull", "winGap", "winLeft", "winRight", "winTop", "winBottom",
     ];
-    EXACT.contains(&k) || ((k.starts_with("bar") || k.starts_with("wall") || k.starts_with("font") || k.starts_with("dock")) && k != "dockPins" && k != "wallpaper")
+    EXACT.contains(&k) || ((k.starts_with("bar") || k.starts_with("wall") || k.starts_with("font") || k.starts_with("dock")) && !matches!(k, "dockPins" | "wallpaper" | "wallDir"))
 }
 
 /// ключи, которые никуда не переносятся: откуда обновления и проверяются ли они
@@ -410,6 +410,8 @@ mod tests {
     fn keys() {
         assert!(super::is_look("barLeft") && super::is_look("light") && super::is_look("fontShell"));
         assert!(!super::is_look("customBinds") && !super::is_look("updateRepo") && !super::is_look("dockPins"));
+        // папка выбора обоев — путь этой машины, в тему не идёт; вид трея и температуры — идёт
+        assert!(!super::is_look("wallDir") && !super::is_look("wallpaper") && super::is_look("trayMode") && super::is_look("tempStyle"));
         assert!(super::is_policy("updateRepo"));
         assert!(super::safe_rel("niri/user.kdl") && !super::safe_rel("../x") && !super::safe_rel("/etc/x"));
         assert_eq!(super::file_kind("yami-files.json"), Some(false));

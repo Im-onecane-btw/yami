@@ -114,6 +114,7 @@ fn help_msg(y: &Sty) {
         ("bar | edit | stacking", "бар / правка виджетов / режим «стол»", "bar / edit widgets / desk mode"),
         ("minimize | restore", "свернуть / вернуть окно", "minimize / restore a window"),
         ("wallpaper [path] | curtain [on|off]", "обои / шторка для трансляций", "wallpaper / privacy curtain"),
+        ("walls", "выбор обоев: картинки папки обоев", "wallpaper picker: the wallpaper folder's pictures"),
         ("profile", "следующий профиль питания", "next power profile"),
         ("night", "ночной свет вкл-выкл", "night light on-off"),
         ("reload | restart | quit", "перечитать настройки / перезапуск / выход", "reload settings / restart / quit"),
@@ -125,7 +126,7 @@ fn help_msg(y: &Sty) {
 
 fn help_open(y: &Sty) {
     y.section(&crate::tf!("что открыть", "what to open"));
-    y.row("launcher clipboard power", "");
+    y.row("launcher clipboard power walls", "");
     y.row("settings[:tab]", &crate::settings::TABS.iter().map(|t| t.0).collect::<Vec<_>>().join(" "));
     y.row("screenshot[:area|window|screen]", "");
     y.row("cal sound media net bt sys profile tray", &crate::tf!("всплывашки бара", "bar popups"));
@@ -153,7 +154,7 @@ pub fn msg_ok(cmd: &str) -> bool {
     let head = w.next().unwrap_or("");
     let one = |w: &mut std::str::SplitWhitespace| w.next().is_none();
     match head {
-        "launcher" | "clipboard" | "power" | "lock" | "bar" | "stacking" | "minimize" | "restore" | "edit" | "reload" | "quit" | "ping" | "restart" | "profile" | "night" => one(&mut w),
+        "launcher" | "clipboard" | "power" | "lock" | "bar" | "stacking" | "minimize" | "restore" | "edit" | "reload" | "quit" | "ping" | "restart" | "profile" | "night" | "walls" => one(&mut w),
         "settings" => w.next().is_none_or(|t| crate::settings::TABS.iter().any(|x| x.0 == t)) && one(&mut w),
         "popup" => matches!(w.next(), Some("cal" | "sound" | "media" | "net" | "bt" | "sys" | "profile" | "tray")) && one(&mut w),
         "screenshot" => w.next().is_none_or(|m| matches!(m, "area" | "window" | "screen")) && w.next().is_none_or(|d| d.parse::<u32>().is_ok()) && one(&mut w),
@@ -176,7 +177,7 @@ fn send(y: &Sty, cmd: &str) -> i32 {
 fn open(y: &Sty, what: &str) -> i32 {
     let (a, b) = what.split_once(':').unwrap_or((what, ""));
     let cmd = match a {
-        "launcher" | "clipboard" | "power" | "lock" => a.to_string(),
+        "launcher" | "clipboard" | "power" | "lock" | "walls" => a.to_string(),
         "settings" if b.is_empty() => "settings".into(),
         "settings" => format!("settings {b}"),
         "screenshot" => format!("screenshot {}", if b.is_empty() { "area" } else { b }).trim().to_string(),

@@ -457,27 +457,9 @@ impl App {
         let Act::SWall(k) = a else { return false };
         let s = &mut self.st.set;
         match *k {
+            // сетка картинок папки обоев (walls.rs); другой файл и папка — оттуда через yami-files
             "pick" => {
-                let tx = self.tx.clone();
-                let title = crate::i18n::tr("обои").to_string();
-                let dir = std::env::var("XDG_PICTURES_DIR").map(PathBuf::from).unwrap_or_else(|_| config::home().join("Pictures"));
-                let from = own(s).and_then(|p| p.parent().map(Path::to_path_buf)).filter(|d| d.is_dir()).unwrap_or(dir);
-                // настройки — слой поверх всех окон с клавиатурой себе: окно выбора открылось бы под
-                // ними и без ввода. На время выбора они закрываются, после — открываются на обоях
-                self.close_modal();
-                std::thread::spawn(move || {
-                    let o = std::process::Command::new("yami-files")
-                        .args(["--pick", "open", "--title", &title, "--folder"])
-                        .arg(&from)
-                        .args(["--filter", "Images|*.png;*.jpg;*.jpeg;*.webp|image/png;image/jpeg;image/webp"])
-                        .output();
-                    if let Ok(o) = o {
-                        if let Some(p) = String::from_utf8_lossy(&o.stdout).lines().next().filter(|_| o.status.success()) {
-                            let _ = tx.send(Msg::Ipc(format!("wallpaper {p}")));
-                        }
-                    }
-                    let _ = tx.send(Msg::Ipc("settings wall".into()));
-                });
+                self.walls_open(true);
                 return true;
             }
             "reset" => {

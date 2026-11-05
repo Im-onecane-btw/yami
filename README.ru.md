@@ -105,8 +105,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
   значок «скрыто». Отдельно показанное окно тоже закрыто, а уведомления в запись не попадают
   (настройки → службы). Настройки → скриншоты. Нужен yami-niri (`show-only-in`, `hide-from`);
   на другом niri окна в трансляции на это время становятся чёрными.
-- **Свои обои.** Настройки → обои: выбрать картинку (или «сделать обоями» в yami-files и
-  yami-view), заполнить экран или вписать, пиксельные клетки, окраска в оттенки акцента или тона
+- **Свои обои.** Настройки → обои: выбрать картинку из сетки миниатюр папки обоев (или «сделать
+  обоями» в yami-files и yami-view), заполнить экран или вписать, пиксельные клетки, окраска в оттенки акцента или тона
   палитры, затемнение, палитра из самих обоев. Экран входа получает ту же картинку. С
   [skwd-wall](https://github.com/liixini/skwd-wall) обоями становится то, что выбрано в нём (и
   видео, и сцены Wallpaper Engine), а его палитра перекрашивает весь райс; настраивать в нём
@@ -377,8 +377,8 @@ yami-shell binds list                  # клавиши: id, сочетание,
   главнее.
 - **IPC**: `yami-shell msg <команда>`, где команда — `launcher`, `clipboard`, `power`, `settings`,
   `lock`, `bar`, `stacking`, `minimize`, `restore`, `edit`, `reload`, `restart`, `quit`, `settings ВКЛАДКА`, `profile`
-  (следующий профиль питания), `popup cal|sound|media|net|bt|sys|profile`, `screenshot [area|window|screen]`,
-  `wallpaper [ПУТЬ]` (без пути — пиксельные обои из палитры), `curtain [on|off]` (шторка для трансляций), `night` (ночной свет вкл/выкл).
+  (следующий профиль питания), `popup cal|sound|media|net|bt|sys|profile|tray`, `screenshot [area|window|screen]`,
+  `walls` (выбор обоев), `wallpaper [ПУТЬ]` (без пути — пиксельные обои из палитры), `curtain [on|off]` (шторка для трансляций), `night` (ночной свет вкл/выкл).
 - **yami-files**: `~/.config/yami-files.json` (или ≡ → настройки). `yami-files --pick open|save|dir …`
   — диалог, который запускает портал; `yami-files --portal` — служба портала и FileManager1,
   её запускает D-Bus.

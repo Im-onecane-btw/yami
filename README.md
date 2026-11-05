@@ -100,8 +100,8 @@ Everything it does and its flags: [Installation](#installation).
   desktop and a small «hidden» badge. A single shared window is covered too, and notifications
   never reach a recording (settings → services). Settings → screenshots. Needs yami-niri
   (`show-only-in`, `hide-from`); on other niri the windows turn black in the stream instead.
-- **Your wallpaper.** Settings → wallpaper: pick an image (or «set as wallpaper» in yami-files and
-  yami-view), fill or fit, pixel cells, recolour it into the accent or the palette tones, darken
+- **Your wallpaper.** Settings → wallpaper: pick an image from a grid of your wallpaper folder's
+  thumbnails (or «set as wallpaper» in yami-files and yami-view), fill or fit, pixel cells, recolour it into the accent or the palette tones, darken
   it, or let the palette follow the image. The login screen gets the same picture. With
   [skwd-wall](https://github.com/liixini/skwd-wall) its picks (videos and Wallpaper Engine scenes
   too) become the wallpaper and its palette recolours the rice; nothing to configure on its side.
@@ -366,8 +366,8 @@ yami-shell binds list                  # keybindings: id, keys, action
   included after them and never overwritten, so your binds, rules and outputs there win.
 - **IPC**: `yami-shell msg <command>`, where the command is one of `launcher`, `clipboard`,
   `power`, `settings`, `lock`, `bar`, `stacking`, `minimize`, `restore`, `edit`, `reload`,
-  `restart`, `quit`, `settings TAB`, `profile` (next power profile), `popup cal|sound|media|net|bt|sys|profile`, `screenshot [area|window|screen]`,
-  `wallpaper [PATH]` (no path: the generated pixel wallpaper), `curtain [on|off]` (privacy curtain), `night` (night light on/off).
+  `restart`, `quit`, `settings TAB`, `profile` (next power profile), `popup cal|sound|media|net|bt|sys|profile|tray`, `screenshot [area|window|screen]`,
+  `walls` (the wallpaper picker), `wallpaper [PATH]` (no path: the generated pixel wallpaper), `curtain [on|off]` (privacy curtain), `night` (night light on/off).
 - **yami-files**: `~/.config/yami-files.json` (also from its ≡ menu → settings). `yami-files
   --pick open|save|dir …` is the dialog the portal runs; `yami-files --portal` is the portal and
   FileManager1 service, started by D-Bus.

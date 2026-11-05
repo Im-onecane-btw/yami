@@ -59,6 +59,8 @@ pub enum Modal {
     Screen,
     /// ответ из уведомления (reply.rs)
     Reply,
+    /// выбор обоев (walls.rs)
+    Walls,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -162,6 +164,10 @@ pub enum Msg {
     Curtain(u64, HashMap<String, crate::gfx::Img>),
     /// обои готовы (wall.rs): номер задания, картинка, акцент из неё
     Wall(u64, Option<crate::gfx::Img>, Option<u32>),
+    /// миниатюра для выбора обоев (walls.rs): номер открытия, клетка, картинка
+    WallThumb(u64, usize, Option<crate::gfx::Img>),
+    /// ответ окна выбора yami-files из выбора обоев: папка ли, что выбрано, вернуться ли в настройки
+    WallsAsked(bool, Option<String>, bool),
     /// мониторы, где обои рисует skwd-paper (skwd.rs, слои niri)
     SkwdLayers(Vec<String>),
     Snap(HashMap<String, crate::gfx::Img>, Vec<(String, R, String)>, crate::snap::Mode),
@@ -267,6 +273,8 @@ pub struct State {
     pub dock_hov: std::cell::Cell<(Option<usize>, Option<usize>, Instant)>,
     pub trash_full: bool,
     pub upd: crate::update::Upd,
+    /// выбор обоев: папка, клетки, миниатюры видимых строк
+    pub walls: crate::walls::Walls,
 }
 
 pub struct Press {
@@ -421,6 +429,7 @@ impl State {
             dock_hov: std::cell::Cell::new((None, None, Instant::now())),
             trash_full: false,
             upd: crate::update::Upd::load(),
+            walls: Default::default(),
             set,
         }
     }
@@ -928,7 +937,7 @@ impl App {
                 SKind::Bar => crate::bar::draw(&mut ui, st, &s.output, w),
                 SKind::Dim => {
                     // затемнение цветом фона темы, а не чёрным: стол остаётся виден
-                    let a = if matches!(st.modal, Some(crate::app::Modal::Settings)) { st.set.dim * 0.7 } else { st.set.dim };
+                    let a = if matches!(st.modal, Some(crate::app::Modal::Settings | crate::app::Modal::Walls)) { st.set.dim * 0.7 } else { st.set.dim };
                     ui.cv.opacity = 1.0;
                     ui.cv.oy = 0;
                     ui.cv.clear(st.t.bg.alpha(a * k));
@@ -941,6 +950,7 @@ impl App {
                     Some(Modal::Auth) => crate::auth::draw(&mut ui, st, w, h),
                     Some(Modal::Screen) => crate::screen::draw(&mut ui, st, w, h),
                     Some(Modal::Reply) => crate::reply::draw(&mut ui, st, w, h),
+                    Some(Modal::Walls) => crate::walls::draw(&mut ui, st, w, h),
                     None => {}
                 },
                 SKind::Popup => crate::popups::draw(&mut ui, st, w, h),
@@ -1289,6 +1299,8 @@ impl App {
                 }
             }
             Msg::Wall(n, img, accent) => self.wall_ready(n, img, accent),
+            Msg::WallThumb(gen, i, img) => self.walls_thumb(gen, i, img),
+            Msg::WallsAsked(folder, got, back) => self.walls_asked(folder, got, back),
             Msg::SkwdLayers(drawn) => self.skwd_layers(drawn),
             Msg::Curtain(n, imgs) => self.curtain_ready(n, imgs),
             Msg::Theme => {
@@ -1336,6 +1348,7 @@ impl App {
             "clipboard" => self.toggle_modal(Modal::Launcher, true),
             "power" => self.toggle_modal(Modal::Power, false),
             "settings" => self.toggle_modal(Modal::Settings, false),
+            "walls" => self.walls_open(false),
             "lock" => self.lock_now(),
             "bar" => self.toggle_bar(),
             "stacking" => {
