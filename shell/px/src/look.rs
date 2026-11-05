@@ -44,10 +44,11 @@ impl Look {
         Look {
             theme: Theme::new(accent, f("tint", 1.0), f("glass", 0.55), f("lift", 0.0), f("inner", 1.0), light.unwrap_or_else(|| b("light", false))).apply(),
             lang: s("lang"),
-            animations: b("animations", true),
+            // лёгкий режим шелла (слабая или виртуальная машина) выключает анимации и здесь
+            animations: b("animations", true) && !b("lite", false),
             anim_speed: f("animSpeed", 1.0),
             icon_theme: s("iconTheme"),
-            blur: b("blurShell", true),
+            blur: b("blurShell", true) && !b("lite", false),
             icon_pixel: b("iconPixel", true),
             font_shell: s("fontShell"),
             font_files: s("fontFiles"),

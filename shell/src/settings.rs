@@ -39,7 +39,7 @@ pub const TABS: &[(&str, &str, &str)] = &[
 pub const FIND: &[(&str, &str)] = &[
     ("color", "палитра акцент цвет тема светлая тёмная стекло прозрачность palette accent colour color theme light dark glass"), // i18n-ok
     ("wall", "обои картинка фон папка миниатюры skwd skwd-wall видео wallpaper background image folder thumbnails picker video"), // i18n-ok
-    ("look", "анимации эффекты появление развёртка размытие значки иконки курсор animation effects reveal scanlines blur icons cursor"), // i18n-ok
+    ("look", "пиксельность пиксели лёгкий режим слабый тормозит виртуалка анимации эффекты появление развёртка размытие значки иконки курсор pixel pixelation lite slow lag vm animation effects reveal scanlines blur icons cursor"), // i18n-ok
     ("fonts", "шрифт размер терминал fastfetch браузер fonts size terminal browser"), // i18n-ok
     ("bar", "бар модули часы разделитель плавающий плашка ширина центр трей стрелка температура bar modules clock separator floating pill width center tray arrow temperature"), // i18n-ok
     ("widgets", "виджеты график часы заметка widgets graph clock note"), // i18n-ok
@@ -278,13 +278,40 @@ pub(crate) fn tab_widgets(ui: &mut Ui, st: &State, b: R) {
     ui.toggle(R::new(px, y, pw, 40), "в тон обоям", "на светлом месте — тёмный текст, у букв тень", s.widget_contrast, Act::SBool("widget_contrast"));
 }
 
+/// пиксельность одним ползунком: 0 — гладко, 1 — мягче, 2 — только yami, 3 — всё пиксельное (по умолчанию)
+pub(crate) const PIXEL_LEVELS: [&str; 4] = ["гладко", "мягче", "только yami", "всё пиксельное"];
+
+/// где сейчас ползунок пиксельности: по шрифтам, значкам и курсору (свои сочетания — ближайшее)
+pub(crate) fn pixel_level(s: &crate::config::Settings) -> usize {
+    let smooth = |f: &str| !f.is_empty() && !font::is_pixel_family(f);
+    if smooth(&s.font_shell) {
+        0
+    } else if !s.icon_pixel || smooth(&s.font_files) || smooth(&s.font_view) {
+        1
+    } else if smooth(&s.font_ui) {
+        2
+    } else {
+        3
+    }
+}
+
 pub(crate) fn tab_look(ui: &mut Ui, st: &State, b: R) {
     let s = &st.set;
     let half = (b.w - 20) / 2;
-    let mut y = title(ui, b.x, b.y, b.w, "анимации");
-    ui.toggle(R::new(b.x, y, half, 40), "анимации", "ступенчатое появление панелей", s.animations, Act::SBool("animations"));
-    ui.toggle(R::new(b.x + half + 20, y, half, 40), "анимация закрытия", "иначе — исчезают сразу", s.anim_close, Act::SBool("anim_close"));
-    y += 50;
+    // пиксельность и лёгкий режим — первыми: их ищут, когда стиль надоел или стол тормозит
+    let mut y = title(ui, b.x, b.y, b.w, "пиксельность и нагрузка");
+    let lvl = pixel_level(s);
+    ui.slider(R::new(b.x, y, half, 40), "пиксельность", lvl as f32 / 3.0, PIXEL_LEVELS[lvl], 4, Act::SSlider("pixel_level", 0.0, 3.0, 3));
+    ui.toggle(R::new(b.x + half + 20, y, half, 40), "лёгкий режим", "слабый ПК, виртуалка: без размытия и анимаций", s.lite, Act::SBool("lite"));
+    y += 48;
+    // размытие рисует niri (ext-background-effect), каждый кадр
+    ui.toggle(R::new(b.x, y, half, 26), "размытие под панелями", "", s.blur_shell, Act::SBool("blur_shell"));
+    ui.toggle(R::new(b.x + half + 20, y, half, 26), "размытие под терминалами", "", s.blur_term, Act::SBool("blur_term"));
+    y += 38;
+    y = title(ui, b.x, y, b.w, "анимации");
+    ui.toggle(R::new(b.x, y, half, 26), "анимации", "", s.animations, Act::SBool("animations"));
+    ui.toggle(R::new(b.x + half + 20, y, half, 26), "анимация закрытия", "", s.anim_close, Act::SBool("anim_close"));
+    y += 34;
     ui.slider(R::new(b.x, y, b.w, 40), "скорость анимаций (меньше — быстрее)", (s.anim_speed - 0.3) / 1.7, &format!("×{:.1}", s.anim_speed), 17, Act::SSlider("anim_speed", 0.3, 2.0, 17));
     y += 50;
     // узор проявления и крупность клеток — во всех программах yami; развёртка — только шелл
@@ -293,10 +320,6 @@ pub(crate) fn tab_look(ui: &mut Ui, st: &State, b: R) {
     y += 34;
     ui.toggle(R::new(b.x, y, b.w, 26), "строки развёртки на панелях шелла (как на старом мониторе)", "", s.scanlines, Act::SBool("scanlines"));
     y += 38;
-    y = title(ui, b.x, y, b.w, "размытие (niri)");
-    ui.toggle(R::new(b.x, y, half, 26), "под панелями шелла", "", s.blur_shell, Act::SBool("blur_shell"));
-    ui.toggle(R::new(b.x + half + 20, y, half, 26), "под терминалами", "", s.blur_term, Act::SBool("blur_term"));
-    y += 40;
     y = title(ui, b.x, y, b.w, "значки");
     let it = if s.icon_theme.is_empty() { "авто" } else { &s.icon_theme };
     opt_btn(ui, R::new(b.x, y, half, 26), "значки программ", it, Act::SCycle("icon_theme"));
@@ -633,6 +656,7 @@ impl App {
             Act::SBool(k) => {
                 match *k {
                     "animations" => s.animations = !s.animations,
+                    "lite" => s.lite = !s.lite,
                     "anim_close" => s.anim_close = !s.anim_close,
                     "scanlines" => s.scanlines = !s.scanlines,
                     "icon_pixel" => s.icon_pixel = !s.icon_pixel,

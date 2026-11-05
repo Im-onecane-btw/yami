@@ -51,6 +51,7 @@ yami-shell config reset dockSide          # one key back to its default
 yami-shell config reset                   # the whole file (the old one is kept as .json.bak)
 yami-shell config check                   # bad values and unknown keys
 yami-shell config kdl                     # what the shell writes to yami-fx.kdl
+yami-shell config lite-auto               # lite mode on if this machine is weak or virtual (the installer runs it)
 yami-shell binds list | print | write     # keybindings
 ```
 
@@ -69,6 +70,7 @@ yami-shell binds list | print | write     # keybindings
 | `dim` | `0.5` | dim behind menus and settings |
 | `blurShell`, `blurTerm` | `true` | niri blur under the shell's panels / terminals |
 | `animations` | `true` | Bayer dissolve, panel motion; off everywhere when false |
+| `lite` | `false` | lite mode for weak and virtual machines (old laptops, VMs, software rendering): no blur, no shell or niri animations, opaque inactive windows; the settings above stay as they are and come back when it is off. A fresh install turns it on by itself on a VM, without GPU acceleration, on pre-2011 Intel graphics or with ≤ 4 GB and ≤ 4 threads (`config lite-auto`); `yami doctor` says why |
 | `animSpeed` | `1.0` | duration multiplier: 0.5 faster, 2 slower |
 | `light` | `false` | light theme: paper instead of graphite, the accent deepened until it reads; theme.py switches GTK (adw-gtk3, `prefer-light`), Qt, KDE, kitty, btop, the cursor and the light icon variant with it |
 | `reveal` | `"dither"` | how panels appear: `dither` (Bayer 4×4), `scan` (interlaced lines), `noise`, `wipe` (diagonal with a dithered edge), `blocks` (Bayer, double cells) |
@@ -91,6 +93,8 @@ yami-shell binds list | print | write     # keybindings
 | `lang` | `""` | `ru`, `en`, or empty for `$LANG` |
 
 ### Fonts
+
+Settings → look → «pixel look» moves these keys, `iconPixel` and `cursor` together in four steps: smooth (the system sans and cursor everywhere), softer (pixel shell panels only), yami only (GTK and Qt apps smooth, the installer's default) and all pixel.
 
 | Key | Default | Meaning |
 |---|---|---|

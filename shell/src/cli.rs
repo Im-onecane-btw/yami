@@ -12,6 +12,7 @@ const HELP: &str = "yami-shell config [list | get KEY | set KEY VALUE | reset [K
   check           keys with a bad value (ignored, default used) and unknown keys
   path            where the file is
   kdl [yami]      what the shell writes to ~/.config/niri/yami-fx.kdl (yami: as for yami-niri)
+  lite-auto       lite mode on when this machine is weak or virtual and the file has no `lite` yet
 Keys are camelCase, as in ~/.config/yami-shell.json. Reference: docs/CONFIG.md.
 
 yami-shell binds [list | print | write]
@@ -110,6 +111,20 @@ pub fn config(args: &[String]) -> i32 {
             // что шелл пишет в niri/yami-fx.kdl; `kdl yami` — как для yami-niri
             let lvl = if a.get(1) == Some(&"yami") { u32::MAX } else { crate::niri::fork_level() };
             print!("{}", Settings::load().fx_kdl(lvl, false));
+        }
+        // установщик, чистая установка: слабая или виртуальная машина — сразу лёгкий режим;
+        // ключ уже есть в файле (выбор человека) — не трогаем
+        ["lite-auto"] => {
+            if file_json().contains_key("lite") {
+                return 0;
+            }
+            let Some(why) = crate::lite::reason() else { return 0 };
+            let mut s = Settings::load();
+            s.lite = true;
+            if !save(&s) {
+                return 1;
+            }
+            println!("lite mode on: {why}");
         }
         ["check"] => {
             let (bad, unknown) = Settings::problems(&file_json());

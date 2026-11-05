@@ -47,7 +47,7 @@ struct Src {
 }
 
 /// пиксельный ли шрифт (по имени): такие рисуются без сглаживания и без подгонки кегля
-fn is_pixel_family(f: &str) -> bool {
+pub fn is_pixel_family(f: &str) -> bool {
     let f = f.to_lowercase();
     ["pixel", "tiny5", "monocraft", "terminess", "dotgothic", "silkscreen", "press start", "unifont", "bitmap", "tamzen", "cozette"].iter().any(|p| f.contains(p))
 }
@@ -127,7 +127,9 @@ impl Fonts {
             srcs.push(Src { font, pixel, k: 1.0 });
             Some(srcs.len() - 1)
         };
-        let custom = if family.is_empty() || family.eq_ignore_ascii_case("tiny5") { None } else { add(family, Some(family), is_pixel_family(family), &mut srcs) };
+        // общее семейство (sans, serif) — что fontconfig даст; имя найденного может быть любым
+        let generic = matches!(family.to_lowercase().as_str(), "sans" | "sans-serif" | "serif" | "monospace");
+        let custom = if family.is_empty() || family.eq_ignore_ascii_case("tiny5") { None } else { add(family, (!generic).then_some(family), !generic && is_pixel_family(family), &mut srcs) };
         let tiny = add("Tiny5", Some("tiny5"), true, &mut srcs);
         if let (Some(c), Some(t)) = (custom, tiny) {
             if !srcs[c].pixel {

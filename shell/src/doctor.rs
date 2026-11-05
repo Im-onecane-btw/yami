@@ -209,6 +209,13 @@ pub fn run(y: &Sty) -> i32 {
             line(y, &y.bad("✕"), "niri/config.kdl", &crate::tf!("не проходит: niri validate", "fails: niri validate"));
         }
     }
+    // слабая или виртуальная машина: эффекты съедают её, лёгкий режим их снимает
+    if let Some(why) = crate::lite::reason() {
+        let set = crate::config::Settings::load();
+        y.section(&crate::tf!("машина", "machine"));
+        let note = if set.lite { crate::tf!("лёгкий режим включён", "lite mode is on") } else { crate::tf!("включи лёгкий режим: yami config set lite true (настройки → вид)", "turn on lite mode: yami config set lite true (settings → look)") };
+        line(y, &if set.lite { y.ok("✓") } else { y.warn("·") }, &why, &note);
+    }
     // кеш сборки лежит на диске, пока его не уберут: не проблема, но гигабайты стоит показать
     let cache = crate::clean::total();
     if cache >= 100 << 20 {

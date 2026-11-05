@@ -117,6 +117,9 @@ pub struct Settings {
     pub anim_close: bool,
     /// строки развёртки поверх панелей шелла
     pub scanlines: bool,
+    /// лёгкий режим для слабых и виртуальных машин (lite.rs): без размытия, без анимаций шелла
+    /// и niri, неактивные окна непрозрачные; свои настройки эффектов при этом не меняются
+    pub lite: bool,
     /// режим «стол»: все окна плавают, у каждого заголовок как в DE
     pub stacking: bool,
     pub titlebars: bool,
@@ -417,6 +420,7 @@ impl Default for Settings {
             reveal_grain: 1,
             anim_close: true,
             scanlines: false,
+            lite: false,
             stacking: false,
             titlebars: true,
             icon_theme: String::new(),
@@ -887,6 +891,18 @@ impl Settings {
     /// yami-fx.kdl для niri уровня `lvl` (0 — сток, иначе наш форк: allow-tearing; ≥ 4 —
     /// `show-only-in`; ≥ 5 — `hide-from`); curtain — шторка опущена (без `show-only-in` тогда
     /// прячутся окна). Матовость — размытие под терминалами (панели шелла — своим регионом)
+    /// анимации на деле: выключены и сами, и в лёгком режиме
+    pub fn anim(&self) -> bool {
+        self.animations && !self.lite
+    }
+    /// размытие под панелями шелла и под терминалами на деле (лёгкий режим их снимает)
+    pub fn blur_on(&self) -> bool {
+        self.blur_shell && !self.lite
+    }
+    pub fn blur_term(&self) -> bool {
+        self.blur_term && !self.lite
+    }
+
     pub fn fx_kdl(&self, lvl: u32, curtain: bool) -> String {
         let mut l: Vec<String> = vec!["// yami: written by the shell (settings → look, windows, games, services). Do not edit by hand: it is rewritten.".into(), String::new()];
         self.float_kdl(&mut l);
@@ -895,14 +911,17 @@ impl Settings {
         crate::games::kdl(self, lvl > 0, &mut l);
         crate::skwd::kdl(self, &mut l);
         crate::curtain::kdl(lvl, curtain, self.notif_cast, &mut l);
-        if !self.blur_term && !self.blur_shell {
+        if self.lite {
+            crate::lite::kdl(&mut l);
+        }
+        if !self.blur_term() && !self.blur_on() {
             l.push("blur { off; }".into());
             return l.join("\n") + "\n";
         }
         for s in ["blur {", "    passes 3", "    offset 3", "    noise 0.03", "    saturation 1.2", "}", ""] {
             l.push(s.into());
         }
-        if self.blur_term {
+        if self.blur_term() {
             for s in ["window-rule {", "    match app-id=r#\"^(kitty|foot|Alacritty|org\\.wezfurlong\\.wezterm|com\\.mitchellh\\.ghostty)$\"#", "    background-effect { blur true; }", "}", ""] {
                 l.push(s.into());
             }

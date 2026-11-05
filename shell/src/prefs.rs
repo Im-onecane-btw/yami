@@ -86,6 +86,58 @@ impl App {
         }
     }
 
+    /// ползунок настроек: значение в настройки, всё зависящее — следом
+    pub fn slider_set(&mut self, key: &str, v: f32) {
+        if key == "pixel_level" {
+            self.set_pixel_level(v.round().clamp(0.0, 3.0) as usize);
+            return;
+        }
+        crate::app::settings_set_f32(&mut self.st.set, key, v);
+        self.settings_changed();
+    }
+
+    /// пиксельность одним ползунком (настройки → вид): шрифты шелла, файлов, просмотра и программ,
+    /// пиксельные значки и курсор. 3 — всё пиксельное (как по умолчанию), 2 — только yami (GTK и Qt
+    /// гладкие), 1 — мягче (пиксельные только панели шелла), 0 — гладко везде
+    pub fn set_pixel_level(&mut self, lvl: usize) {
+        if lvl == crate::settings::pixel_level(&self.st.set) {
+            return;
+        }
+        let (shell, apps, ui, icons, cursor) = match lvl {
+            0 => ("sans", "sans", "sans", false, "system"),
+            1 => ("", "sans", "sans", false, "yami"),
+            2 => ("", "", "sans", true, "yami"),
+            _ => ("", "", "", true, "yami"),
+        };
+        let s = &mut self.st.set;
+        let (ui_new, cur_new) = (s.font_ui != ui, s.cursor != cursor);
+        s.font_shell = shell.into();
+        s.font_files = apps.into();
+        s.font_view = apps.into();
+        s.font_ui = ui.into();
+        s.icon_pixel = icons;
+        s.cursor = cursor.into();
+        self.settings_changed();
+        // программы (GTK, Qt) и курсор перекрашивает theme.py — только если они правда сменились,
+        // и не на каждое деление, пока ползунок тянут: один раз при отпускании (look_apply)
+        self.look_pending.0 |= ui_new;
+        self.look_pending.1 |= cur_new;
+        if self.press.is_none() {
+            self.look_apply();
+        }
+    }
+
+    /// отложенное от ползунка пиксельности: шрифты программ и курсор
+    pub fn look_apply(&mut self) {
+        let (fonts, cursor) = std::mem::take(&mut self.look_pending);
+        if fonts {
+            self.apply_fonts();
+        }
+        if cursor {
+            self.apply_cursor();
+        }
+    }
+
     /// курсор сменили в настройках: theme.py --cursor (niri перечитает свой конфиг сам)
     pub fn apply_cursor(&mut self) {
         // настройки должны быть на диске до запуска скрипта

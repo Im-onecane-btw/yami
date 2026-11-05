@@ -197,7 +197,7 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
         (prev, cur, at) = (cur, now_hov, Instant::now());
         st.dock_hov.set((cur, prev, at));
     }
-    let dur = if st.set.animations { 140.0 * st.set.anim_speed.max(0.1) } else { 0.0 };
+    let dur = if st.set.anim() { 140.0 * st.set.anim_speed.max(0.1) } else { 0.0 };
     let k = if dur <= 0.0 { 1.0 } else { (at.elapsed().as_millis() as f32 / dur).min(1.0) };
     if k < 1.0 {
         ui.anim = true;
@@ -447,7 +447,7 @@ impl App {
         }
         App::spawn(&argv);
         self.st.dock_bounce.retain(|b| b.0 != it.id);
-        if self.st.set.dock_bounce && self.st.set.animations {
+        if self.st.set.dock_bounce && self.st.set.anim() {
             self.st.dock_bounce.push((it.id.clone(), Instant::now()));
         }
     }

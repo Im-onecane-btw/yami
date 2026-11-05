@@ -99,7 +99,7 @@ pub fn draw(ui: &mut Ui, st: &State, _w: i32, _h: i32) {
         let Some(n) = st.notifs.get(*id) else { continue };
         let ch = card_h(ui.f, n);
         // въезд справа ступенями по 8 px
-        let k = if st.set.animations { (n.born.elapsed().as_secs_f32() / (0.16 * st.set.anim_speed.max(0.1))).min(1.0) } else { 1.0 };
+        let k = if st.set.anim() { (n.born.elapsed().as_secs_f32() / (0.16 * st.set.anim_speed.max(0.1))).min(1.0) } else { 1.0 };
         let step = (k * 4.0).ceil() / 4.0;
         if k < 1.0 {
             ui.anim = true;

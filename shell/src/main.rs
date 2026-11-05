@@ -34,6 +34,7 @@ mod curtain;
 mod ipc;
 mod keys;
 mod launcher;
+mod lite;
 mod lock;
 mod media;
 mod menu;

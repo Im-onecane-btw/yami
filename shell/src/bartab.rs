@@ -120,7 +120,7 @@ pub(crate) fn tab_bar(ui: &mut Ui, st: &State, b: R) {
             if let Some((ts, ti)) = d.target {
                 if ts == si {
                     let full = chip_w(ui, &d.name);
-                    let dur = if s.animations { 110.0 * s.anim_speed.max(0.1) } else { 0.0 };
+                    let dur = if s.anim() { 110.0 * s.anim_speed.max(0.1) } else { 0.0 };
                     let k = if dur <= 0.0 { 1.0 } else { (d.at.elapsed().as_millis() as f32 / dur).min(1.0) };
                     if k < 1.0 {
                         ui.anim = true;

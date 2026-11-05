@@ -209,8 +209,7 @@ impl App {
         match act {
             Act::SSlider(key, from, to, seg) => {
                 let f = (frac * seg as f32).ceil() / seg as f32;
-                settings_set_f32(&mut self.st.set, key, from + f * (to - from));
-                self.settings_changed();
+                self.slider_set(key, from + f * (to - from));
             }
             Act::VolSlider => audio::set_volume(frac as f64 * 1.0),
             Act::MicSlider => audio::set_mic(frac as f64),
@@ -286,6 +285,9 @@ impl App {
     pub(crate) fn on_drag_end(&mut self, p: &Press) {
         if let Act::TDrag(win) | Act::TSize(win) = p.act {
             self.title_drag_end(win);
+        }
+        if let Act::SSlider("pixel_level", ..) = p.act {
+            self.look_apply();
         }
         if let Act::DispDrag(_) = p.act {
             self.disp_drag_end();

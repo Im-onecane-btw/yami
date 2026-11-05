@@ -377,7 +377,10 @@ pub struct App {
     pub restart: bool,
     /// где открыть меню программы трея: монитор, x, y
     pub tray_anchor: Option<(String, i32, i32)>,
+    /// окно, которое тянут за заголовок или угол, и сколько сдвига (размера) niri уже отправлено
     pub tdrag: Option<(u64, (f64, f64))>,
+    /// ползунок пиксельности сменил шрифт программ / курсор, theme.py ещё не звали
+    pub look_pending: (bool, bool),
 }
 
 pub(crate) const LOCK_BASE: u32 = u32::MAX - 64;
@@ -602,6 +605,7 @@ pub fn run() {
         restart: false,
         tray_anchor: None,
         tdrag: None,
+        look_pending: (false, false),
     };
 
     // нити: niri, IPC, D-Bus (уведомления, трей), звук, музыка
@@ -800,7 +804,7 @@ impl App {
     }
     /// закрыть с анимацией (или сразу, если анимации выключены)
     pub fn close(&mut self, id: u32) {
-        let anim = self.st.set.animations && self.st.set.anim_close;
+        let anim = self.st.set.anim() && self.st.set.anim_close;
         if let Some(s) = self.surfs.get_mut(&id) {
             if !anim || !s.configured {
                 self.destroy(id);
@@ -1028,7 +1032,7 @@ impl App {
                 ui.cv.dissolve(k, 2);
             }
             // размытие — когда панель проявилась целиком, иначе сквозь клетки видно пятно
-            blur = if !st.set.blur_shell || !finished || s.closing {
+            blur = if !st.set.blur_on() || !finished || s.closing {
                 vec![]
             } else if let SKind::Title(_) = s.kind {
                 s.input.clone().unwrap_or_else(|| vec![R::new(0, 0, s.w, s.h)])
@@ -1514,7 +1518,7 @@ impl App {
 }
 
 pub fn reveal_of(st: &State, s: &Surf, dur_ms: f32) -> (f32, bool) {
-    if !st.set.animations {
+    if !st.set.anim() {
         return (if s.closing { 0.0 } else { 1.0 }, true);
     }
     // закрытие быстрее открытия
@@ -1549,6 +1553,7 @@ pub fn settings_set_f32(s: &mut Settings, key: &str, v: f32) {
 
 pub fn settings_get_f32(s: &Settings, key: &str) -> f32 {
     match key {
+        "pixel_level" => crate::settings::pixel_level(s) as f32,
         "tint" => s.tint,
         "glass" => s.glass,
         "lift" => s.lift,
