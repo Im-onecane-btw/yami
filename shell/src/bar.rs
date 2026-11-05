@@ -421,7 +421,7 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
                 }
                 let label = if me.artist.is_empty() { me.title.clone() } else { format!("{} — {}", me.artist, me.title) };
                 ui.text_in(PX, R::new(x + 20, 0, w - 20, H - 1), &label, if hov { t.text_hi } else { t.text_dim });
-                ui.zone(r, Act::Popup("sound"), Cur::Pointer);
+                ui.zone(r, Act::Popup("media"), Cur::Pointer);
             }
             w
         }

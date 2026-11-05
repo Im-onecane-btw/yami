@@ -28,7 +28,7 @@ of the file is kept), unknown keys are ignored: `yami-shell config check` lists 
 prints the help instead of starting the shell. `yami help <command>` explains one command.
 
 ```sh
-yami open settings:updates                # a panel: launcher clipboard settings[:tab] power lock screenshot cal sound net bt sys
+yami open settings:updates                # a panel: launcher clipboard settings[:tab] power lock screenshot cal sound media net bt sys
 yami palette | yami palette ash | yami palette '#3a9fd0'
 yami wallpaper ~/Pictures/x.png           # no path: the palette's pixel wallpaper
 yami restart                              # restart the shell (refuses while a game has focus; --force)

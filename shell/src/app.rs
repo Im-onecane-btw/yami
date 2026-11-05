@@ -214,6 +214,8 @@ pub struct State {
     pub media: media::MediaState,
     pub art: HashMap<String, Option<std::rc::Rc<crate::gfx::Img>>>,
     pub viz: Vec<f32>,
+    /// куда тянут полосу позиции (доля трека); перемотка — когда отпустят
+    pub seek: Option<f32>,
     pub net: net::NetState,
     pub bt: net::BtState,
     pub wifi_pass: Field,
@@ -375,6 +377,7 @@ impl State {
             media: media::MediaState::default(),
             art: HashMap::new(),
             viz: vec![],
+            seek: None,
             net: net::NetState::default(),
             bt: net::BtState::default(),
             wifi_pass: Field::default(),
@@ -1291,7 +1294,7 @@ impl App {
     }
 
     pub fn media_visible(&self) -> bool {
-        self.st.popup.as_ref().map(|p| p.kind == "sound").unwrap_or(false)
+        self.st.popup.as_ref().map(|p| p.kind == "media").unwrap_or(false)
             || self.st.set.widgets.iter().any(|w| w.on && w.kind == "media")
             || self.st.set.bar_left.iter().chain(&self.st.set.bar_center).chain(&self.st.set.bar_right).any(|m| m == "media")
     }
@@ -1377,6 +1380,7 @@ impl App {
                 let kind: &'static str = match &c[6..] {
                     "cal" => "cal",
                     "sound" => "sound",
+                    "media" => "media",
                     "net" => "net",
                     "bt" => "bt",
                     "profile" => "profile",

@@ -44,7 +44,7 @@ Everything it does and its flags: [Installation](#installation).
   something changes.
 - **Complete desktop shell.** Bar, app launcher with clipboard history, power menu, lock screen
   (PAM), notification server with history and do-not-disturb, OSD, system tray (StatusNotifierItem
-  with DBusMenu), calendar, sound/network/Bluetooth/system popups, a power profile switch
+  with DBusMenu), calendar, sound/music/network/Bluetooth/system popups, a power profile switch
   (power-profiles-daemon) and its own **polkit password window** instead of a Qt/GTK agent.
 - **Desktop widgets.** Clock, calendar, music card with an audio-reactive equalizer, and graphs
   for CPU, RAM, temperature and rx/tx network traffic in five styles (bars, line, blocks, wave,
@@ -292,7 +292,8 @@ These are the defaults: change any of them in settings → keys (`yami-shell bin
 current set).
 
 In the bar: left click on a task focuses, minimizes and restores it, middle click closes, right
-click opens the window menu; scroll over workspaces to switch, over the volume to change it.
+click opens the window menu; scroll over workspaces to switch, over the volume to change it. The
+track opens the player (drag its position bar to seek), right click pauses, middle click skips.
 
 ## The `yami` command
 
@@ -300,7 +301,7 @@ One command for the whole desktop (`~/.local/bin/yami`, the same binary as `yami
 `yami help` prints it in the palette's colours, `yami help <command>` explains one.
 
 ```sh
-yami open settings:keys       # launcher clipboard settings[:tab] power lock screenshot cal sound net bt sys
+yami open settings:keys       # launcher clipboard settings[:tab] power lock screenshot cal sound media net bt sys
 yami palette ash              # list palettes without an argument; or a colour: yami palette '#3a9fd0'
 yami wallpaper ~/x.png        # own wallpaper; no path: the palette's pixel art
 yami restart                  # restart the shell (waits while a game has focus)
@@ -365,7 +366,7 @@ yami-shell binds list                  # keybindings: id, keys, action
   included after them and never overwritten, so your binds, rules and outputs there win.
 - **IPC**: `yami-shell msg <command>`, where the command is one of `launcher`, `clipboard`,
   `power`, `settings`, `lock`, `bar`, `stacking`, `minimize`, `restore`, `edit`, `reload`,
-  `restart`, `quit`, `settings TAB`, `profile` (next power profile), `popup cal|sound|net|bt|sys|profile`, `screenshot [area|window|screen]`,
+  `restart`, `quit`, `settings TAB`, `profile` (next power profile), `popup cal|sound|media|net|bt|sys|profile`, `screenshot [area|window|screen]`,
   `wallpaper [PATH]` (no path: the generated pixel wallpaper), `curtain [on|off]` (privacy curtain), `night` (night light on/off).
 - **yami-files**: `~/.config/yami-files.json` (also from its ≡ menu → settings). `yami-files
   --pick open|save|dir …` is the dialog the portal runs; `yami-files --portal` is the portal and

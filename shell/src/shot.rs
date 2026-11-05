@@ -41,6 +41,7 @@ const TARGETS: &[&str] = &[
     "power",
     "popup:cal",
     "popup:sound",
+    "popup:media",
     "popup:net",
     "popup:wifi",
     "popup:bt",
@@ -301,7 +302,13 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
             if arg == "bt" {
                 mock_bt(st);
             }
-            let k = ["cal", "sound", "net", "bt", "sys", "profile"].into_iter().find(|k| *k == arg).unwrap_or(if arg == "wifi" { "net" } else { "cal" });
+            if arg == "media" {
+                // играет: эквалайзер виден; за миг снимка позиция не сдвинется
+                let at = std::time::Instant::now();
+                st.media = crate::media::MediaState { player: "mpv".into(), status: "Playing".into(), artist: "Ash Field".into(), title: "Pixel Rain".into(), art: String::new(), length: 245.0, pos: 83.0, at };
+                st.viz = (0..32).map(|i| ((i * 7 % 11) as f32 / 11.0) * 0.8 + 0.1).collect();
+            }
+            let k = ["cal", "sound", "media", "net", "bt", "sys", "profile"].into_iter().find(|k| *k == arg).unwrap_or(if arg == "wifi" { "net" } else { "cal" });
             st.popup = Some(Popup { kind: k });
             crate::popups::size(k, st)
         }

@@ -442,15 +442,18 @@ pub fn media_card(ui: &mut Ui, st: &State, r: R, style: &str, c: C, label: bool)
     ui.button(R::new(x, by, 26, 22), "", "prev", Tone::Ghost, false, true, Act::MediaPrev);
     ui.button(R::new(x + 30, by, 30, 22), "", if m.playing() { "pause" } else { "play" }, Tone::Primary, false, true, Act::MediaPlay);
     ui.button(R::new(x + 64, by, 26, 22), "", "next", Tone::Ghost, false, true, Act::MediaNext);
-    // полоса позиции
+    // полоса позиции: щёлкнуть или потянуть — перемотка (пока тянут, бегунок там, где курсор)
     if m.length > 0.0 {
         let px0 = x + 100;
         let pw = r.right() - px0;
         if pw > 40 {
-            let k = (m.now_pos() / m.length) as f32;
-            ui.cv.fill(R::new(px0, by + 10, pw, 2), t.border);
+            let k = st.seek.unwrap_or((m.now_pos() / m.length) as f32).clamp(0.0, 1.0);
+            let zr = R::new(px0, by, pw, 22);
+            let hov = ui.hover(zr) || st.seek.is_some();
+            ui.cv.fill(R::new(px0, by + 10, pw, 2), if hov { t.text_faint } else { t.border });
             ui.cv.fill(R::new(px0, by + 10, (pw as f32 * k) as i32, 2), c);
-            ui.cv.fill(R::new(px0 + (pw as f32 * k) as i32 - 2, by + 8, 4, 6), t.ember);
+            ui.cv.fill(R::new(px0 + (pw as f32 * k) as i32 - 2, by + if hov { 7 } else { 8 }, 4, if hov { 8 } else { 6 }), t.ember);
+            ui.zone(zr, Act::MediaSeek, Cur::Pointer);
             if m.playing() {
                 ui.anim = false;
             }

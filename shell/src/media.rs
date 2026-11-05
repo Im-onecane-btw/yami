@@ -51,6 +51,24 @@ pub fn ctl(cmd: &str) {
     });
 }
 
+/// перемотать на позицию, с (плеер без CanSeek просто не послушается)
+pub fn seek(secs: f64) {
+    let at = format!("{:.2}", secs.max(0.0));
+    std::thread::spawn(move || {
+        let _ = Command::new("playerctl").args(["position", &at]).status();
+    });
+}
+
+/// «1:05» или «1:02:03»
+pub fn clock(secs: f64) -> String {
+    let s = secs.max(0.0) as u64;
+    if s >= 3600 {
+        format!("{}:{:02}:{:02}", s / 3600, s / 60 % 60, s % 60)
+    } else {
+        format!("{}:{:02}", s / 60, s % 60)
+    }
+}
+
 pub fn spawn(tx: Sender<Msg>) {
     std::thread::Builder::new()
         .name("media".into())

@@ -11,6 +11,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 
 - Fix: skwd-wall videos and Wallpaper Engine scenes (#3): yami now sees that skwd-wall draws them (its `skwd-wall-vk` layer) and no longer draws its own picture on that screen, which after a shell restart could cover the live wallpaper
 - Docs in Russian: CHANGELOG, docs/CONFIG, docs/SECURITY and fork/README have Russian twins (`*.ru.md`), linked at the top of each file and from README.ru.md (which also gets back its missing «building the shell by hand» part); `tools/check.sh` keeps every pair in step (the same structure, code, links and anchors), so neither falls behind. With a Russian interface, settings → updates shows the release notes in Russian
+- Media and sound are two popups (#10): the `media` module opens the player alone (cover, buttons, the equalizer, time; drag the position bar to seek, also in the media widget), `vol` the sound settings alone. Right click on the track pauses or plays, middle click skips to the next one; `yami open media` opens it from a key or the terminal
 
 ## 2.5.0
 

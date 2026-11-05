@@ -44,7 +44,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
   только когда что-то изменилось.
 - **Полноценный шелл.** Бар, меню программ с историей буфера обмена, меню питания, экран
   блокировки (PAM), сервер уведомлений с историей и режимом «не беспокоить», OSD, трей
-  (StatusNotifierItem с DBusMenu), календарь, всплывающие панели звука, сети, Bluetooth и системы,
+  (StatusNotifierItem с DBusMenu), календарь, всплывающие панели звука, музыки, сети, Bluetooth и системы,
   переключатель профиля питания (power-profiles-daemon) и своё **окно пароля polkit** вместо
   Qt/GTK-агента.
 - **Виджеты рабочего стола.** Часы, календарь, карточка музыки с эквалайзером по звуку, графики
@@ -301,7 +301,8 @@ install -Dm755 target/release/yami-shell ~/.local/bin/yami-shell
 текущие).
 
 В баре: ЛКМ по окну — фокус, свернуть, вернуть; СКМ — закрыть; ПКМ — меню окна. Колесо над
-рабочими столами — переключение, над звуком — громкость.
+рабочими столами — переключение, над звуком — громкость. Трек открывает плеер (полосу позиции
+можно тянуть — перемотка), ПКМ — пауза, СКМ — следующий.
 
 ## Команда `yami`
 
@@ -309,7 +310,7 @@ install -Dm755 target/release/yami-shell ~/.local/bin/yami-shell
 печатает справку в цветах палитры, `yami help <команда>` — про одну команду.
 
 ```sh
-yami open settings:keys       # launcher clipboard settings[:вкладка] power lock screenshot cal sound net bt sys
+yami open settings:keys       # launcher clipboard settings[:вкладка] power lock screenshot cal sound media net bt sys
 yami palette ash              # без аргумента — список палитр; или свой цвет: yami palette '#3a9fd0'
 yami wallpaper ~/x.png        # свои обои; без пути — пиксельные из палитры
 yami restart                  # перезапустить шелл (подождёт, пока в фокусе игра)
@@ -376,7 +377,7 @@ yami-shell binds list                  # клавиши: id, сочетание,
   главнее.
 - **IPC**: `yami-shell msg <команда>`, где команда — `launcher`, `clipboard`, `power`, `settings`,
   `lock`, `bar`, `stacking`, `minimize`, `restore`, `edit`, `reload`, `restart`, `quit`, `settings ВКЛАДКА`, `profile`
-  (следующий профиль питания), `popup cal|sound|net|bt|sys|profile`, `screenshot [area|window|screen]`,
+  (следующий профиль питания), `popup cal|sound|media|net|bt|sys|profile`, `screenshot [area|window|screen]`,
   `wallpaper [ПУТЬ]` (без пути — пиксельные обои из палитры), `curtain [on|off]` (шторка для трансляций), `night` (ночной свет вкл/выкл).
 - **yami-files**: `~/.config/yami-files.json` (или ≡ → настройки). `yami-files --pick open|save|dir …`
   — диалог, который запускает портал; `yami-files --portal` — служба портала и FileManager1,

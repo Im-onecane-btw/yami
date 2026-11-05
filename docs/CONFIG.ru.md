@@ -29,7 +29,7 @@
 справку, а не запускает шелл. `yami help <команда>` объясняет одну команду.
 
 ```sh
-yami open settings:updates                # панель: launcher clipboard settings[:вкладка] power lock screenshot cal sound net bt sys
+yami open settings:updates                # панель: launcher clipboard settings[:вкладка] power lock screenshot cal sound media net bt sys
 yami palette | yami palette ash | yami palette '#3a9fd0'
 yami wallpaper ~/Pictures/x.png           # без пути: пиксельные обои палитры
 yami restart                              # перезапустить шелл (отказывается, пока в фокусе игра; --force)

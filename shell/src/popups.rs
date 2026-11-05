@@ -1,5 +1,6 @@
 // Всплывашки бара (ЛКМ по модулю): календарь + история уведомлений, звук (выход, микрофон,
-// громкость программ, музыка с эквалайзером), сеть (график ↓↑, Wi-Fi), bluetooth, система.
+// громкость программ), музыка (обложка, кнопки, перемотка, эквалайзер), сеть (график ↓↑, Wi-Fi),
+// bluetooth, система.
 // Клик мимо — закрыть (ловец кликов в app.rs), Esc — тоже.
 
 use crate::app::{App, SKind, State};
@@ -15,9 +16,9 @@ pub fn size(kind: &str, st: &State) -> (i32, i32) {
         "sound" => {
             let apps = st.audio.streams.len().min(6) as i32;
             let sinks = if st.audio.sinks.len() > 1 { st.audio.sinks.len().min(5) as i32 * 26 + 30 } else { 0 };
-            let media = if st.media.title.is_empty() { 0 } else { 170 };
-            (420, 44 + 56 + sinks + 60 + if apps > 0 { 30 + apps * 46 } else { 0 } + media + 50)
+            (420, 44 + 56 + sinks + 60 + if apps > 0 { 30 + apps * 46 } else { 0 } + 50)
         }
+        "media" => (420, 44 + 36 + 150 + if st.media.length > 0.0 { 24 } else { 0 } + 4),
         "net" => {
             let msg = if st.net.msg.is_empty() { 0 } else { 24 };
             let wifi = if st.net.wifi_present { 40 + msg + if st.net.wifi_on { st.net.nets.len().min(8) as i32 * 28 + if st.wifi_target.is_empty() { 0 } else { 44 } } else { 0 } } else { 0 };
@@ -41,6 +42,7 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
     match p.kind {
         "cal" => cal(ui, st, body),
         "sound" => sound(ui, st, body),
+        "media" => media(ui, st, body),
         "net" => net(ui, st, body),
         "bt" => bt(ui, st, body),
         "sys" => sys(ui, st, body),
@@ -159,13 +161,23 @@ fn sound(ui: &mut Ui, st: &State, b: R) {
             y += 46;
         }
     }
-    // музыка
-    if !st.media.title.is_empty() {
-        ui.cv.fill(R::new(b.x, y, b.w, 1), t.border);
-        y += 10;
-        widgets::media_card(ui, st, R::new(b.x, y, b.w, 150), "bars", t.red, true);
-    }
     ui.button(R::new(b.x, b.bottom() - 28, b.w, 28), "микшер pavucontrol", "speaker", Tone::Plain, false, true, Act::Pavu);
+}
+
+// ── музыка ──────────────────────────────────────────────────────────────────
+// модуль `media`: только плеер; громкость — у модуля звука (#10)
+fn media(ui: &mut Ui, st: &State, b: R) {
+    let t = ui.t;
+    let m = &st.media;
+    let mut y = head(ui, b, "music", "музыка", &m.player);
+    widgets::media_card(ui, st, R::new(b.x, y, b.w, 150), "bars", t.red, true);
+    y += 156;
+    if m.length > 0.0 {
+        // время: где сейчас (или куда тянут) и сколько всего
+        let at = st.seek.map(|f| f as f64 * m.length).unwrap_or(m.now_pos());
+        ui.cv.text_in(ui.f, PX, R::new(b.x, y, b.w / 2, 20), &crate::media::clock(at), if st.seek.is_some() { t.red } else { t.text_dim });
+        ui.cv.text_right(ui.f, PX, R::new(b.x, y, b.w, 20), &crate::media::clock(m.length), t.text_faint);
+    }
 }
 
 // ── сеть ────────────────────────────────────────────────────────────────────

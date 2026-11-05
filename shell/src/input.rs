@@ -213,6 +213,10 @@ impl App {
             Act::VolSlider => audio::set_volume(frac as f64 * 1.0),
             Act::MicSlider => audio::set_mic(frac as f64),
             Act::AppVol(i) => audio::set_stream(i, frac as f64),
+            Act::MediaSeek => {
+                self.st.seek = Some(frac);
+                self.dirty_where(|k| matches!(k, SKind::Popup | SKind::Widget(_)));
+            }
             Act::TDrag(win) => {
                 if p.moved {
                     self.title_drag(win, sid, start, dx, dy);
@@ -277,6 +281,16 @@ impl App {
         }
         if matches!(p.act, Act::SModDrag(..) | Act::SModNew(_)) {
             self.bar_drop();
+        }
+        if let (Act::MediaSeek, Some(f)) = (&p.act, self.st.seek.take()) {
+            // одна перемотка на отпускание, а не процесс playerctl на каждое движение
+            let m = &mut self.st.media;
+            if m.length > 0.0 {
+                m.pos = f as f64 * m.length;
+                m.at = Instant::now();
+                crate::media::seek(m.pos);
+            }
+            self.dirty_where(|k| matches!(k, SKind::Popup | SKind::Widget(_)));
         }
         if let Act::SSlider(..) = p.act {
             // ползунок отпустили: теперь пересчитать обои (если это был их ползунок)

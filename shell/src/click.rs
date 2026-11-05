@@ -77,6 +77,9 @@ impl App {
             Act::Popup(k) => match (k, button) {
                 ("sound", RMB) => audio::toggle_mute(),
                 ("sound", MMB) => App::spawn(&["pavucontrol".into()]),
+                // музыка: ПКМ — пауза/играть, СКМ — следующий трек
+                ("media", RMB) => media::ctl("play-pause"),
+                ("media", MMB) => media::ctl("next"),
                 ("net", RMB) | ("bt", RMB) => App::spawn(&[if k == "net" { "nm-connection-editor" } else { "blueman-manager" }.into()]),
                 ("cal", RMB) => {
                     self.st.set.dnd = !self.st.set.dnd;
@@ -106,7 +109,7 @@ impl App {
             Act::CalMonth(d) => {
                 self.st.cal_month = if d == 0 { 0 } else { self.st.cal_month + d };
             }
-            Act::VolSlider | Act::MicSlider | Act::AppVol(_) => {}
+            Act::VolSlider | Act::MicSlider | Act::AppVol(_) | Act::MediaSeek => {}
             Act::VolMute => audio::toggle_mute(),
             Act::MicMute => audio::toggle_mic(),
             Act::AppMute(i) => audio::mute_stream(i),
@@ -223,7 +226,7 @@ impl App {
     pub fn on_wheel(&mut self, a: Act, d: i32) {
         let up = d < 0;
         match a {
-            Act::Popup("sound") | Act::VolSlider | Act::VolMute => audio::step_volume(if up { 1 } else { -1 }),
+            Act::Popup("sound" | "media") | Act::VolSlider | Act::VolMute => audio::step_volume(if up { 1 } else { -1 }),
             Act::MicSlider | Act::MicMute => {
                 let v = (self.st.audio.mic + if up { 0.05 } else { -0.05 }).clamp(0.0, 1.0);
                 audio::set_mic(v);

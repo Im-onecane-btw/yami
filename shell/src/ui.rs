@@ -73,6 +73,8 @@ pub enum Act {
     MediaPlay,
     MediaNext,
     MediaPrev,
+    /// перемотка по полосе позиции (тянуть; сама перемотка — при отпускании)
+    MediaSeek,
     Wifi(bool),
     WifiNet(String),
     WifiRescan,
@@ -125,7 +127,7 @@ pub enum Act {
 
 impl Act {
     pub fn is_drag(&self) -> bool {
-        matches!(self, Act::SSlider(..) | Act::VolSlider | Act::MicSlider | Act::AppVol(_) | Act::TDrag(_) | Act::WDrag(_) | Act::DispDrag(_) | Act::SModDrag(..) | Act::SModNew(_))
+        matches!(self, Act::SSlider(..) | Act::VolSlider | Act::MicSlider | Act::AppVol(_) | Act::MediaSeek | Act::TDrag(_) | Act::WDrag(_) | Act::DispDrag(_) | Act::SModDrag(..) | Act::SModNew(_))
     }
 }
 
