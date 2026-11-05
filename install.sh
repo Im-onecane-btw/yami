@@ -232,7 +232,7 @@ LIGHT=0
 ((MEM_GB < 6 || THREADS < 4)) && LIGHT=1
 FORK_ON=$((1 - LIGHT))
 [[ -n $FORK_FLAG ]] && FORK_ON=$FORK_FLAG
-# rustc with fat LTO needs ~1.5 GB per job: on 4 GB four jobs swap for an hour, two finish
+# rustc with fat LTO needs up to ~1.3 GB per job: on 4 GB four jobs swap for an hour, two finish
 if [[ -z ${CARGO_BUILD_JOBS:-} ]]; then
   j=$((MEM_GB * 2 / 3))
   ((j < 1)) && j=1
@@ -993,6 +993,10 @@ need_rust() {
 do_build_shell() {
   need_rust || return 1
   local cmd=(cargo build --release --locked --workspace --manifest-path "$ROOT/shell/Cargo.toml" --target-dir "$CACHE/target")
+  # a weak machine: thin LTO in 16 units instead of fat LTO in one. Measured with two jobs: the
+  # rustc peak is 1.3 GB instead of 2.4 GB (fat LTO links each binary with all its crates at once),
+  # so 4 GB does not swap; the binaries are ~20 % larger, the speed difference is not visible
+  ((LIGHT)) && cmd=(env CARGO_PROFILE_RELEASE_LTO=thin CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 "${cmd[@]}")
   if [[ $FAM == nixos ]] && ! rust_ok; then
     nix-shell -p cargo rustc pkg-config libxkbcommon pam --run "${cmd[*]}" || return 1
   else
