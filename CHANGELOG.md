@@ -6,6 +6,8 @@ subjects when that section is empty).
 
 ## Unreleased
 
+## 2.5.0
+
 - Floating, partial-width bar (#5, «Bar: floating (partial-width) bar option + geometric centering for barCenter modules»). Settings → bar → look: `barFloat` puts the bar on its own panel with a gap from the screen edges, a border all round and a hard pixel shadow; `barWidthPc` (30–100 %) makes it narrower and centred, docked to the top edge or floating; `barMargin` sets the gap. A live preview shows the shape. Popups, tray menus, a top dock, widgets, the stream badge and desk-mode title bars follow the bar, and windows keep clear of it
 - Centred middle modules (#5). `barCenterAlign`: `center` (the new default) puts the `barCenter` modules at the geometric middle of the bar and shifts them only as far as a long left group (a track title in `media`) requires; `after-left` keeps the old placement. A middle that holds the window list still stretches
 - skwd-wall support (#3, «skwd wall support»). Settings → wallpaper, shown when skwd-wall is installed: its picks become the wallpaper. Where skwd-paper draws (videos, Wallpaper Engine scenes, transitions) the shell steps aside on that monitor; in skwd-wall's pick-only mode the shell draws the picked image itself, in its cells and tones, a video or scene by its preview frame. With `wallSkwdColors` its palette, custom ones from its theme designer included, sets the accent and light or dark mode for the whole rice. The lock and login screens show the same picture. Everything is read from the files skwd-wall writes; its configuration is never touched

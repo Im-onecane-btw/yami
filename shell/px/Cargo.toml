@@ -1,6 +1,6 @@
 [package]
 name = "yami-px"
-version = "2.4.3"
+version = "2.5.0"
 edition = "2021"
 description = "Pixel canvas, fonts, theme and immediate-mode UI shared by the yami shell and apps"
 license = "MIT"
