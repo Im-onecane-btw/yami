@@ -189,7 +189,7 @@ MangoHud получает конфиг в палитре и пиксельном
 | `notifMax`, `notifHistory` | `4`, `50` | карточек на экране одновременно; сколько хранит история |
 | `notifImages` | `true` | картинки в карточках (значки и превью; не больше 1024², файлы ≤ 16 МБ) |
 | `notifCast` | `false` | уведомления видны в записях и трансляциях; выключено — зрители их не видят (yami-niri ≥ `.5` просто не рисует их туда, другой niri закрывает чёрным) |
-| `audioNames` | `{}` | твои имена звуковых устройств: имя PipeWire (`pactl list short sinks`) → подпись, например `{"alsa_output.usb-…-00.analog-stereo": "Headphones"}` |
+| `audioNames` | `{}` | твои имена звуковых устройств (выходов и микрофонов): имя PipeWire (`pactl list short sinks`, `pactl list short sources`) → подпись, например `{"alsa_output.usb-…-00.analog-stereo": "Headphones"}` |
 | `mediaArtNet` | `true` | обложки альбомов по веб-ссылкам плеера (`curl`, после переадресаций только https, ≤ 16 МБ); выключено — только локальные файлы |
 | `portalFiles`, `portalCast` | `true`, `true` | диалоги файлов от yami-files, выбор экрана для показа от шелла (иначе GTK / GNOME) |
 

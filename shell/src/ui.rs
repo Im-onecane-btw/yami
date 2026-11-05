@@ -72,6 +72,8 @@ pub enum Act {
     VolSlider,
     VolMute,
     Sink(String),
+    /// микрофон по умолчанию (всплывашка звука, #10)
+    Source(String),
     MicSlider,
     MicMute,
     AppVol(u32),

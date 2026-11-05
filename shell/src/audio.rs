@@ -140,6 +140,9 @@ pub fn mute_stream(idx: u32) {
 pub fn set_sink(name: &str) {
     run_pactl(vec!["set-default-sink".into(), name.into()]);
 }
+pub fn set_source(name: &str) {
+    run_pactl(vec!["set-default-source".into(), name.into()]);
+}
 
 pub fn spawn(tx: Sender<Msg>) {
     let (stx, srx) = mpsc::channel::<Vec<String>>();

@@ -10,13 +10,26 @@ use crate::ui::{Act, Cur, Tone, Ui};
 use crate::widgets;
 use smithay_client_toolkit::seat::keyboard::{KeyEvent, Keysym};
 
+impl State {
+    /// открыта всплывашка этого вида
+    pub fn popup_is(&self, kind: &str) -> bool {
+        self.popup.as_ref().is_some_and(|p| p.kind == kind)
+    }
+}
+
+/// открытая всплывашка рисует плеер (ей нужен эквалайзер)
+pub fn shows_media(st: &State) -> bool {
+    st.popup_is("media") || (st.popup_is("sound") && sound_media(st))
+}
+
 pub fn size(kind: &str, st: &State) -> (i32, i32) {
     match kind {
         "cal" => (660, 372),
         "sound" => {
             let apps = st.audio.streams.len().min(6) as i32;
-            let sinks = if st.audio.sinks.len() > 1 { st.audio.sinks.len().min(5) as i32 * 26 + 30 } else { 0 };
-            (420, 44 + 56 + sinks + 60 + if apps > 0 { 30 + apps * 46 } else { 0 } + 50)
+            let list = |n: usize| if n > 1 { n.min(5) as i32 * 26 + 30 } else { 0 };
+            let media = if sound_media(st) { 170 } else { 0 };
+            (420, 44 + 56 + list(st.audio.sinks.len()) + 60 + list(st.audio.sources.len()) + if apps > 0 { 30 + apps * 46 } else { 0 } + media + 50)
         }
         "media" => (420, 44 + 36 + 150 + if st.media.length > 0.0 { 24 } else { 0 } + 4),
         "net" => {
@@ -131,24 +144,13 @@ fn sound(ui: &mut Ui, st: &State, b: R) {
     let v = if a.muted { "тишина".to_string() } else { format!("{:.0}%", a.volume * 100.0) };
     ui.slider(R::new(b.x + 34, y, b.w - 34, 40), "громкость", a.volume.min(1.0) as f32, &v, 20, Act::VolSlider);
     y += 50;
-    if a.sinks.len() > 1 {
-        ui.text_in(PX, R::new(b.x, y, b.w, 20), "выход", t.text_dim);
-        y += 24;
-        for s in a.sinks.iter().take(5) {
-            let on = s.name == a.sink;
-            let r = R::new(b.x, y, b.w, 24);
-            ui.button(r, "", "", Tone::Ghost, on, true, Act::Sink(s.name.clone()));
-            ui.cv.fill(R::new(r.x + 8, r.cy() - 3, 6, 6), if on { t.ember } else { t.border });
-            ui.text_in(PX, R::new(r.x + 22, r.y, r.w - 26, r.h), &crate::audio::label(&st.set, s), if on { t.text_hi } else { t.text });
-            y += 26;
-        }
-        y += 6;
-    }
+    y = devices(ui, st, b, y, "выход", &a.sinks, &a.sink, Act::Sink);
     // микрофон
     ui.button(R::new(b.x, y + 18, 26, 22), "", if a.mic_muted { "mute" } else { "mic" }, Tone::Ghost, a.mic_muted, true, Act::MicMute);
     let mv = if a.mic_muted { "выкл".to_string() } else { format!("{:.0}%", a.mic * 100.0) };
     ui.slider(R::new(b.x + 34, y, b.w - 34, 40), "микрофон", a.mic.min(1.0) as f32, &mv, 20, Act::MicSlider);
     y += 54;
+    y = devices(ui, st, b, y, "вход", &a.sources, &a.source, Act::Source);
     // программы
     if !a.streams.is_empty() {
         ui.text_in(PX, R::new(b.x, y, b.w, 20), "программы", t.text_dim);
@@ -163,7 +165,38 @@ fn sound(ui: &mut Ui, st: &State, b: R) {
             y += 46;
         }
     }
+    // музыка — здесь, только если ей больше негде быть (бар по умолчанию без `media`)
+    if sound_media(st) {
+        ui.cv.fill(R::new(b.x, y, b.w, 1), t.border);
+        y += 10;
+        widgets::media_card(ui, st, R::new(b.x, y, b.w, 150), "bars", t.red, true);
+    }
     ui.button(R::new(b.x, b.bottom() - 28, b.w, 28), "микшер pavucontrol", "speaker", Tone::Plain, false, true, Act::Pavu);
+}
+
+/// выбор устройства (выход или микрофон), когда их больше одного: не больше пяти строк
+fn devices(ui: &mut Ui, st: &State, b: R, mut y: i32, title: &str, list: &[crate::audio::Dev], cur: &str, act: fn(String) -> Act) -> i32 {
+    if list.len() < 2 {
+        return y;
+    }
+    let t = ui.t;
+    ui.text_in(PX, R::new(b.x, y, b.w, 20), title, t.text_dim);
+    y += 24;
+    for d in list.iter().take(5) {
+        let on = d.name == cur;
+        let r = R::new(b.x, y, b.w, 24);
+        ui.button(r, "", "", Tone::Ghost, on, true, act(d.name.clone()));
+        ui.cv.fill(R::new(r.x + 8, r.cy() - 3, 6, 6), if on { t.ember } else { t.border });
+        ui.text_in(PX, R::new(r.x + 22, r.y, r.w - 26, r.h), &crate::audio::label(&st.set, d), if on { t.text_hi } else { t.text });
+        y += 26;
+    }
+    y + 6
+}
+
+/// плеер во всплывашке звука: что-то играет, а модуля `media` в баре и виджета музыки нет (#10
+/// развёл их, но у бара по умолчанию плеер был только здесь)
+pub fn sound_media(st: &State) -> bool {
+    !st.media.title.is_empty() && !st.set.media_placed()
 }
 
 // ── музыка ──────────────────────────────────────────────────────────────────

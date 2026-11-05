@@ -750,9 +750,15 @@ impl App {
             if self.kb_surf == Some(id) {
                 self.kb_surf = None;
             }
-            if self.press.as_ref().map(|p| p.sid) == Some(id) {
-                self.press = None;
-            }
+            self.drop_press(id);
+        }
+    }
+
+    /// поверхность ушла: нажатие на ней больше ни к чему, и перемотка, которую там тянули, не залипнет
+    fn drop_press(&mut self, id: u32) {
+        if self.press.as_ref().is_some_and(|p| p.sid == id) {
+            self.press = None;
+            self.st.seek = None;
         }
     }
     /// закрыть с анимацией (или сразу, если анимации выключены)
@@ -775,6 +781,11 @@ impl App {
                 }
                 s.layer.commit();
             }
+        }
+        // закрывается посреди перемотки (Esc): бегунок — назад к игре; само нажатие живёт до
+        // отпускания (тянуть заголовок окна можно и через пересоздание его поверхности)
+        if self.press.as_ref().is_some_and(|p| p.sid == id) {
+            self.st.seek = None;
         }
     }
     pub fn close_kind(&mut self, k: &SKind) {
@@ -1114,7 +1125,7 @@ impl App {
                 self.session_tick();
             }
             // профиль могли сменить снаружи (powerprofilesctl, другой апплет)
-            if self.st.started.elapsed().as_secs() % 15 == 0 && self.bar_has("profile") {
+            if self.st.started.elapsed().as_secs() % 15 == 0 && self.st.set.on_bar("profile") {
                 crate::profile::refresh(None, self.tx.clone());
             }
         }
@@ -1139,12 +1150,6 @@ impl App {
                 self.close_kind(&SKind::Osd);
             }
         }
-    }
-
-    /// какой-то модуль или виджет показывает этот источник
-    pub fn bar_has(&self, m: &str) -> bool {
-        let s = &self.st.set;
-        s.bar_left.iter().chain(&s.bar_center).chain(&s.bar_right).any(|x| x == m)
     }
 
     pub(crate) fn uses(&self, src: &str) -> bool {
@@ -1311,9 +1316,7 @@ impl App {
     }
 
     pub fn media_visible(&self) -> bool {
-        self.st.popup.as_ref().map(|p| p.kind == "media").unwrap_or(false)
-            || self.st.set.widgets.iter().any(|w| w.on && w.kind == "media")
-            || self.st.set.bar_left.iter().chain(&self.st.set.bar_center).chain(&self.st.set.bar_right).any(|m| m == "media")
+        self.st.set.media_placed() || crate::popups::shows_media(&self.st)
     }
 
     pub(crate) fn on_new_window(&mut self, id: u64) {

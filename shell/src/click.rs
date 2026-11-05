@@ -125,6 +125,7 @@ impl App {
             Act::MicMute => audio::toggle_mic(),
             Act::AppMute(i) => audio::mute_stream(i),
             Act::Sink(name) => audio::set_sink(&name),
+            Act::Source(name) => audio::set_source(&name),
             Act::MediaPlay => media::ctl("play-pause"),
             Act::MediaNext => media::ctl("next"),
             Act::MediaPrev => media::ctl("previous"),

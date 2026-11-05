@@ -704,6 +704,16 @@ impl Settings {
         }
     }
 
+    /// модуль m есть в баре (с любой стороны)
+    pub fn on_bar(&self, m: &str) -> bool {
+        self.bar_left.iter().chain(&self.bar_center).chain(&self.bar_right).any(|x| x == m)
+    }
+
+    /// плеер виден и без всплывашки звука: модуль `media` в баре или виджет музыки
+    pub fn media_placed(&self) -> bool {
+        self.on_bar("media") || self.widgets.iter().any(|w| w.on && w.kind == "media")
+    }
+
     /// модули стороны бара: 0 — слева, 1 — по центру, 2 — справа
     pub fn side_mut(&mut self, i: usize) -> &mut Vec<String> {
         match i {

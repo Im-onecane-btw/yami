@@ -317,8 +317,25 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
             if arg == "bt" {
                 mock_bt(st);
             }
-            if arg == "media" {
-                // играет: эквалайзер виден; за миг снимка позиция не сдвинется
+            if arg == "sound" {
+                // два выхода и два микрофона: видны оба списка выбора (#10)
+                use crate::audio::{AudioState, Dev, Stream};
+                let dev = |n: &str, d: &str| Dev { name: n.into(), desc: d.into(), vol: 0.6, muted: false };
+                st.audio = AudioState {
+                    ready: true,
+                    volume: 0.62,
+                    sink: "speakers".into(),
+                    sinks: vec![dev("speakers", "Built-in Audio Analog Stereo"), dev("hdmi", "HDMI / DisplayPort")],
+                    source: "usb-mic".into(),
+                    sources: vec![dev("built-in", "Built-in Audio Analog Stereo"), dev("usb-mic", "USB Microphone")],
+                    mic: 0.8,
+                    streams: vec![Stream { idx: 1, app: "mpv".into(), title: "Pixel Rain".into(), icon: "mpv".into(), vol: 1.0, muted: false }],
+                    ..Default::default()
+                };
+            }
+            if arg == "media" || arg == "sound" {
+                // играет: эквалайзер виден; за миг снимка позиция не сдвинется (во всплывашке звука
+                // плеер виден, только когда модуля media в баре нет: --defaults)
                 let at = std::time::Instant::now();
                 st.media = crate::media::MediaState { player: "mpv".into(), status: "Playing".into(), artist: "Ash Field".into(), title: "Pixel Rain".into(), art: String::new(), length: 245.0, pos: 83.0, at };
                 st.viz = (0..32).map(|i| ((i * 7 % 11) as f32 / 11.0) * 0.8 + 0.1).collect();

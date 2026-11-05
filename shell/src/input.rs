@@ -214,8 +214,11 @@ impl App {
             Act::MicSlider => audio::set_mic(frac as f64),
             Act::AppVol(i) => audio::set_stream(i, frac as f64),
             Act::MediaSeek => {
-                self.st.seek = Some(frac);
-                self.dirty_where(|k| matches!(k, SKind::Popup | SKind::Widget(_)));
+                // остальные карточки плеера догонят при отпускании (on_drag_end)
+                if self.st.seek != Some(frac) {
+                    self.st.seek = Some(frac);
+                    self.mark(sid);
+                }
             }
             Act::TDrag(win) => {
                 if p.moved {
