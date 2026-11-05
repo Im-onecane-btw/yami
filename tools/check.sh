@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One command before every commit: build without warnings, i18n (static + every panel rendered
-# in English), shell and Python syntax, niri config, installer dry run
-# in a throwaway HOME.
+# in English), the English and Russian docs in step, shell and Python syntax, niri config,
+# installer dry run in a throwaway HOME.
 # Touches nothing outside the repo and the temp dir. Usage: tools/check.sh [--fast]
 #   --fast  skip the installer dry run
 set -uo pipefail
@@ -40,6 +40,8 @@ done
 
 step "i18n"
 python3 -I "$ROOT/tools/check-i18n.py" || bad "static i18n"
+# README, CHANGELOG, docs/*, fork/README and their .ru.md twins: one skeleton, links, anchors
+python3 -I "$ROOT/tools/check-docs.py" && ok "docs: English and Russian in step" || bad "docs EN/RU (tools/check-docs.py)"
 if [[ -x $BIN ]]; then
   # every panel drawn offscreen in English: any Russian text left on screen fails
   "$BIN" shot --defaults --lang en -o "$TMP/en" | grep untranslated
