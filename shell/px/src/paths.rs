@@ -24,6 +24,59 @@ pub fn data_dir() -> PathBuf {
 pub fn cache_dir() -> PathBuf {
     xdg("XDG_CACHE_HOME").unwrap_or_else(|| home().join(".cache"))
 }
+/// папка XDG из ~/.config/user-dirs.dirs (PICTURES, DOWNLOAD…); равная домашней — как не заданная
+pub fn xdg_dir(key: &str) -> Option<PathBuf> {
+    let t = std::fs::read_to_string(config_dir().join("user-dirs.dirs")).ok()?;
+    let home = home();
+    for l in t.lines() {
+        if let Some(v) = l.strip_prefix(&format!("XDG_{key}_DIR=")) {
+            let v = v.trim().trim_matches('"').replace("$HOME", &home.to_string_lossy());
+            let p = PathBuf::from(v);
+            if p != home {
+                return Some(p);
+            }
+        }
+    }
+    None
+}
+
+/// «естественное» сравнение имён: file2 < file10, без учёта регистра
+pub fn natural(a: &str, b: &str) -> std::cmp::Ordering {
+    let (mut ai, mut bi) = (a.chars().peekable(), b.chars().peekable());
+    loop {
+        match (ai.peek().copied(), bi.peek().copied()) {
+            (None, None) => return a.cmp(b),
+            (None, _) => return std::cmp::Ordering::Less,
+            (_, None) => return std::cmp::Ordering::Greater,
+            (Some(x), Some(y)) if x.is_ascii_digit() && y.is_ascii_digit() => {
+                let mut na = String::new();
+                while let Some(c) = ai.peek().copied().filter(|c| c.is_ascii_digit()) {
+                    na.push(c);
+                    ai.next();
+                }
+                let mut nb = String::new();
+                while let Some(c) = bi.peek().copied().filter(|c| c.is_ascii_digit()) {
+                    nb.push(c);
+                    bi.next();
+                }
+                let (ta, tb) = (na.trim_start_matches('0'), nb.trim_start_matches('0'));
+                let o = ta.len().cmp(&tb.len()).then(ta.cmp(tb));
+                if o != std::cmp::Ordering::Equal {
+                    return o;
+                }
+            }
+            (Some(x), Some(y)) => {
+                let (lx, ly) = (x.to_lowercase().next().unwrap_or(x), y.to_lowercase().next().unwrap_or(y));
+                if lx != ly {
+                    return lx.cmp(&ly);
+                }
+                ai.next();
+                bi.next();
+            }
+        }
+    }
+}
+
 /// новый личный каталог для временных файлов: в $XDG_RUNTIME_DIR (он только наш) или в /tmp, с
 /// правами 0700 и всегда новый — заготовка другого пользователя в /tmp со ссылками внутри
 /// перенаправила бы наши записи в чужие файлы, а снимок экрана в /tmp иначе читали бы все

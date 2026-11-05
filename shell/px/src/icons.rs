@@ -256,6 +256,38 @@ pub fn decode(data: &[u8], max_alloc: u64) -> Option<image::DynamicImage> {
     rd.decode().ok()
 }
 
+/// где лежит миниатюра (~/.cache/yami/thumbs): ключ — путь, время изменения и размер
+pub fn thumb_path(path: &Path, mtime: i64, size: i32) -> PathBuf {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in format!("{}|{}|{}", path.display(), mtime, size).bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    crate::paths::cache_dir().join("yami/thumbs").join(format!("{h:016x}.png"))
+}
+
+/// миниатюра картинки, не больше size по большей стороне. Кеш общий у yami-files и выбора обоев:
+/// второй раз картинка не декодируется. Гигантские (больше 40 Мпикс) не декодируются вовсе
+pub fn thumb(path: &Path, mtime: i64, size: i32) -> Option<image::RgbaImage> {
+    let cp = thumb_path(path, mtime, size);
+    if let Ok(img) = image::open(&cp) {
+        return Some(img.to_rgba8());
+    }
+    let rd = image::ImageReader::open(path).ok()?.with_guessed_format().ok()?;
+    let (w, h) = rd.into_dimensions().ok()?;
+    if (w as u64) * (h as u64) > 40_000_000 {
+        return None;
+    }
+    let mut rd = image::ImageReader::open(path).ok()?.with_guessed_format().ok()?;
+    let mut lim = image::Limits::default();
+    lim.max_alloc = Some(256 << 20);
+    rd.limits(lim);
+    let t = rd.decode().ok()?.thumbnail(size as u32, size as u32).to_rgba8();
+    let _ = std::fs::create_dir_all(cp.parent()?);
+    let _ = t.save(&cp);
+    Some(t)
+}
+
 pub fn load_file(p: &Path, size: i32) -> Option<Img> {
     let data = crate::paths::read_capped(p, MAX_FILE)?;
     if p.extension().map(|e| e == "svg" || e == "svgz").unwrap_or(false) {

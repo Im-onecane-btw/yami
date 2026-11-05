@@ -125,42 +125,8 @@ impl Sort {
     }
 }
 
-/// «естественное» сравнение: file2 < file10, без учёта регистра
-pub fn natural(a: &str, b: &str) -> std::cmp::Ordering {
-    let (mut ai, mut bi) = (a.chars().peekable(), b.chars().peekable());
-    loop {
-        match (ai.peek().copied(), bi.peek().copied()) {
-            (None, None) => return a.cmp(b),
-            (None, _) => return std::cmp::Ordering::Less,
-            (_, None) => return std::cmp::Ordering::Greater,
-            (Some(x), Some(y)) if x.is_ascii_digit() && y.is_ascii_digit() => {
-                let mut na = String::new();
-                while let Some(c) = ai.peek().copied().filter(|c| c.is_ascii_digit()) {
-                    na.push(c);
-                    ai.next();
-                }
-                let mut nb = String::new();
-                while let Some(c) = bi.peek().copied().filter(|c| c.is_ascii_digit()) {
-                    nb.push(c);
-                    bi.next();
-                }
-                let (ta, tb) = (na.trim_start_matches('0'), nb.trim_start_matches('0'));
-                let o = ta.len().cmp(&tb.len()).then(ta.cmp(tb));
-                if o != std::cmp::Ordering::Equal {
-                    return o;
-                }
-            }
-            (Some(x), Some(y)) => {
-                let (lx, ly) = (x.to_lowercase().next().unwrap_or(x), y.to_lowercase().next().unwrap_or(y));
-                if lx != ly {
-                    return lx.cmp(&ly);
-                }
-                ai.next();
-                bi.next();
-            }
-        }
-    }
-}
+/// «естественное» сравнение: file2 < file10 (общее с шеллом, yami-px)
+pub use crate::paths::natural;
 
 pub fn sort(v: &mut [Entry], by: Sort, desc: bool, dirs_first: bool) {
     v.sort_by(|a, b| {

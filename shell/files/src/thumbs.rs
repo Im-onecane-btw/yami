@@ -18,17 +18,8 @@ pub struct Thumbs {
     q: Arc<(Mutex<Vec<Req>>, Condvar)>,
 }
 
-fn fnv(s: &str) -> u64 {
-    let mut h: u64 = 0xcbf29ce484222325;
-    for b in s.bytes() {
-        h ^= b as u64;
-        h = h.wrapping_mul(0x100000001b3);
-    }
-    h
-}
-
 fn cache_path(r: &Req) -> PathBuf {
-    crate::paths::cache_dir().join("yami/thumbs").join(format!("{:016x}.png", fnv(&format!("{}|{}|{}", r.path.display(), r.mtime, r.size))))
+    crate::icons::thumb_path(&r.path, r.mtime, r.size)
 }
 
 fn has(cmd: &str) -> bool {
@@ -40,34 +31,19 @@ fn make(r: &Req) -> Option<Img> {
     if let Ok(img) = image::open(&cp) {
         return Some(crate::icons::from_rgba(&img.to_rgba8()));
     }
-    let src = if r.video {
-        if !has("ffmpegthumbnailer") {
-            return None;
-        }
-        let _ = std::fs::create_dir_all(cp.parent()?);
-        let ok = std::process::Command::new("ffmpegthumbnailer").arg("-i").arg(&r.path).arg("-o").arg(&cp).args(["-s", &r.size.to_string(), "-c", "png", "-q", "6"]).stderr(std::process::Stdio::null()).status().map(|s| s.success()).unwrap_or(false);
-        if !ok {
-            return None;
-        }
-        image::open(&cp).ok()?
-    } else {
-        // гигантские картинки не декодируем целиком: память важнее миниатюры
-        let rd = image::ImageReader::open(&r.path).ok()?.with_guessed_format().ok()?;
-        let (w, h) = rd.into_dimensions().ok()?;
-        if (w as u64) * (h as u64) > 40_000_000 {
-            return None;
-        }
-        let mut rd = image::ImageReader::open(&r.path).ok()?.with_guessed_format().ok()?;
-        let mut lim = image::Limits::default();
-        lim.max_alloc = Some(256 << 20);
-        rd.limits(lim);
-        rd.decode().ok()?
-    };
-    let t = src.thumbnail(r.size as u32, r.size as u32).to_rgba8();
     if !r.video {
-        let _ = std::fs::create_dir_all(cp.parent()?);
-        let _ = t.save(&cp);
+        // картинки: общий с шеллом декод и кеш (yami-px)
+        return crate::icons::thumb(&r.path, r.mtime, r.size).map(|t| crate::icons::from_rgba(&t));
     }
+    if !has("ffmpegthumbnailer") {
+        return None;
+    }
+    let _ = std::fs::create_dir_all(cp.parent()?);
+    let ok = std::process::Command::new("ffmpegthumbnailer").arg("-i").arg(&r.path).arg("-o").arg(&cp).args(["-s", &r.size.to_string(), "-c", "png", "-q", "6"]).stderr(std::process::Stdio::null()).status().map(|s| s.success()).unwrap_or(false);
+    if !ok {
+        return None;
+    }
+    let t = image::open(&cp).ok()?.thumbnail(r.size as u32, r.size as u32).to_rgba8();
     Some(crate::icons::from_rgba(&t))
 }
 

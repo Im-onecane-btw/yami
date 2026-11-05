@@ -13,21 +13,8 @@ pub struct Place {
     pub user: bool,
 }
 
-/// папка XDG из ~/.config/user-dirs.dirs
-pub fn xdg_dir(key: &str) -> Option<PathBuf> {
-    let t = std::fs::read_to_string(crate::paths::config_dir().join("user-dirs.dirs")).ok()?;
-    let home = crate::paths::home();
-    for l in t.lines() {
-        if let Some(v) = l.strip_prefix(&format!("XDG_{key}_DIR=")) {
-            let v = v.trim().trim_matches('"').replace("$HOME", &home.to_string_lossy());
-            let p = PathBuf::from(v);
-            if p != home {
-                return Some(p);
-            }
-        }
-    }
-    None
-}
+/// папка XDG из ~/.config/user-dirs.dirs (общее с шеллом, yami-px)
+pub use crate::paths::xdg_dir;
 
 pub fn special_of(p: &Path) -> Special {
     let home = crate::paths::home();
