@@ -1399,7 +1399,13 @@ impl App {
         self.st.osd = Some((kind, Instant::now()));
         if fresh || self.find(&SKind::Osd).is_empty() {
             let out = self.focus_out();
-            let id = self.mk(SKind::Osd, &out, Layer::Overlay, "yami-osd", Anchor::BOTTOM, (308, 64 + 8), (0, 0, 64, 0), -1, KeyboardInteractivity::None);
+            // osdPos: снизу над доком, сверху под баром, по центру экрана
+            let (anchor, margin) = match self.st.set.osd_pos.as_str() {
+                "top" => (Anchor::TOP, (self.bar_bottom(&out) + 24, 0, 0, 0)),
+                "center" => (Anchor::empty(), (0, 0, 0, 0)),
+                _ => (Anchor::BOTTOM, (0, 0, 64, 0)),
+            };
+            let id = self.mk(SKind::Osd, &out, Layer::Overlay, "yami-osd", anchor, (308, 64 + 8), margin, -1, KeyboardInteractivity::None);
             if let Some(s) = self.surfs.get(&id) {
                 if let Ok(r) = Region::new(&self.compositor) {
                     s.layer.wl_surface().set_input_region(Some(r.wl_region()));

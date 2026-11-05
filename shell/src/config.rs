@@ -191,6 +191,10 @@ pub struct Settings {
     pub screen_off_after: u32,
     pub dnd: bool,
     pub notif_timeout: u32,
+    /// где карточки уведомлений: top-right | top-left | top | bottom-right | bottom-left | bottom
+    pub notif_pos: String,
+    /// где OSD громкости и яркости: bottom | top | center
+    pub osd_pos: String,
 
     // скриншоты: папка ("" — Изображения/Screenshots), куда класть, лупа, таймер
     pub shot_dir: String,
@@ -461,6 +465,8 @@ impl Default for Settings {
             screen_off_after: 15,
             dnd: false,
             notif_timeout: 7,
+            notif_pos: "top-right".into(),
+            osd_pos: "bottom".into(),
             shot_dir: String::new(),
             shot_copy: true,
             shot_save: true,

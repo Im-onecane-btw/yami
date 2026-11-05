@@ -190,6 +190,8 @@ polkit change after a shell restart (`yami restart`), portals from the next logi
 | `agentTray` | `true` | the tray (`org.kde.StatusNotifierWatcher`, at most 64 items) |
 | `agentPolkit` | `true` | the polkit password window |
 | `notifMax`, `notifHistory` | `4`, `50` | cards on screen at once; how many the history keeps |
+| `notifPos` | `"top-right"` | where the cards appear: `top-right`, `top-left`, `top`, `bottom-right`, `bottom-left`, `bottom` (settings → system); they keep clear of the bar and the dock |
+| `osdPos` | `"bottom"` | the volume and brightness OSD: `bottom`, `top` (under the bar) or `center` |
 | `notifImages` | `true` | pictures in cards (icons and previews; at most 1024², files ≤ 16 MB) |
 | `notifCast` | `false` | notifications show in recordings and streams; off: viewers never see them (yami-niri ≥ `.5` simply leaves them out, other niri blacks them out) |
 | `audioNames` | `{}` | your names for sound devices (outputs and microphones): PipeWire name (`pactl list short sinks`, `pactl list short sources`) → label, e.g. `{"alsa_output.usb-…-00.analog-stereo": "Headphones"}` |

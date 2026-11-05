@@ -49,7 +49,7 @@ pub const FIND: &[(&str, &str)] = &[
     ("games", "игры steam proton разрывы gamemode ntsync tearing games shader"), // i18n-ok
     ("shots", "скриншоты снимок лупа screenshot loupe"), // i18n-ok
     ("screens", "экраны монитор разрешение частота масштаб vrr hz герц поворот display monitor resolution refresh scale rotation"), // i18n-ok
-    ("system", "система язык сон блокировка ожидание system language idle sleep lock"), // i18n-ok
+    ("system", "система язык сон блокировка ожидание уведомления место osd громкость system language idle sleep lock notifications position osd volume"), // i18n-ok
     ("agents", "службы уведомления трей polkit порталы обложки services notifications tray portals"), // i18n-ok
     ("updates", "обновления версия откат updates version rollback"), // i18n-ok
     ("about", "о шелле версия память about version memory"), // i18n-ok
@@ -352,7 +352,10 @@ pub(crate) fn tab_system(ui: &mut Ui, st: &State, b: R) {
     y = title(ui, b.x, y, b.w, "уведомления");
     ui.toggle(R::new(lx, y, half, 40), "не беспокоить", "только срочные", s.dnd, Act::SBool("dnd"));
     ui.slider(R::new(rx, y, half, 40), "сколько висит", (s.notif_timeout as f32 - 2.0) / 28.0, &crate::tf!("{} с", "{} s", s.notif_timeout), 12, Act::SSlider("notif_timeout", 2.0, 30.0, 14));
-    y += 52;
+    y += 48;
+    opt_btn(ui, R::new(lx, y, half, 26), "место", crate::notif::pos_name(&s.notif_pos), Act::SCycle("notif_pos"));
+    opt_btn(ui, R::new(rx, y, half, 26), "громкость и яркость", crate::notif::osd_name(&s.osd_pos), Act::SCycle("osd_pos"));
+    y += 38;
     // ночной свет: wlsunset; по координатам — от заката до восхода, иначе по часам
     y = title(ui, b.x, y, b.w, "ночной свет: по солнцу или по часам");
     let has = crate::doctor::which("wlsunset");
@@ -748,6 +751,22 @@ impl App {
             Act::SCycle(k) => match *k {
                 "cpu_style" => {
                     s.cpu_style = cycle(&[("gauge", ""), ("graph", ""), ("number", "")], &s.cpu_style).into();
+                    self.settings_changed();
+                }
+                "notif_pos" => {
+                    s.notif_pos = cycle(&crate::notif::POS.map(|p| (p, "")), &s.notif_pos).into();
+                    // карточки — на новое место сразу
+                    for id in self.find(&SKind::Notifs) {
+                        self.destroy(id);
+                    }
+                    self.sync_notifs();
+                    self.settings_changed();
+                }
+                "osd_pos" => {
+                    s.osd_pos = cycle(&[("bottom", ""), ("top", ""), ("center", "")], &s.osd_pos).into();
+                    for id in self.find(&SKind::Osd) {
+                        self.destroy(id);
+                    }
                     self.settings_changed();
                 }
                 "tray_mode" => {

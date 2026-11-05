@@ -287,6 +287,19 @@ impl App {
         !gone.is_empty()
     }
 
+    /// карточки на своём месте (notifPos): у края, с отступом 10; исключённые зоны бара и дока
+    /// niri учитывает сам (exclusive 0), поэтому сверху — под баром, снизу — над доком
+    fn notif_place(&self) -> (Anchor, (i32, i32, i32, i32)) {
+        match self.st.set.notif_pos.as_str() {
+            "top-left" => (Anchor::TOP | Anchor::LEFT, (10, 0, 0, 6)),
+            "top" => (Anchor::TOP, (10, 0, 0, 0)),
+            "bottom-right" => (Anchor::BOTTOM | Anchor::RIGHT, (0, 6, 10, 0)),
+            "bottom-left" => (Anchor::BOTTOM | Anchor::LEFT, (0, 0, 10, 6)),
+            "bottom" => (Anchor::BOTTOM, (0, 0, 10, 0)),
+            _ => (Anchor::TOP | Anchor::RIGHT, (10, 6, 0, 0)),
+        }
+    }
+
     pub fn sync_notifs(&mut self) {
         let empty = self.st.notifs.popups.is_empty() || self.st.locked;
         let ids = self.find(&SKind::Notifs);
@@ -300,7 +313,8 @@ impl App {
         let (w, h) = size(&self.st, &mut self.res.fonts);
         if ids.is_empty() {
             let out = self.focus_out();
-            self.mk(SKind::Notifs, &out, Layer::Overlay, "yami-notif", Anchor::TOP | Anchor::RIGHT, (w, h), (10, 10 - 4, 0, 0), 0, KeyboardInteractivity::None);
+            let (anchor, margin) = self.notif_place();
+            self.mk(SKind::Notifs, &out, Layer::Overlay, "yami-notif", anchor, (w, h), margin, 0, KeyboardInteractivity::None);
         } else {
             for id in ids {
                 if let Some(s) = self.surfs.get_mut(&id) {
@@ -325,5 +339,27 @@ impl App {
         self.st.notifs.remove(id, false);
         crate::dbus::notif_closed(id, 2);
         self.sync_notifs();
+    }
+}
+
+/// места карточек уведомлений (notifPos), по кругу в настройках
+pub const POS: [&str; 6] = ["top-right", "top-left", "top", "bottom-right", "bottom-left", "bottom"];
+
+pub fn pos_name(p: &str) -> &'static str {
+    match p {
+        "top-left" => "слева сверху",
+        "top" => "сверху по центру",
+        "bottom-right" => "справа снизу",
+        "bottom-left" => "слева снизу",
+        "bottom" => "снизу по центру",
+        _ => "справа сверху",
+    }
+}
+
+pub fn osd_name(p: &str) -> &'static str {
+    match p {
+        "top" => "сверху",
+        "center" => "по центру",
+        _ => "снизу",
     }
 }
