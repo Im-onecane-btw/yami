@@ -238,9 +238,10 @@ impl App {
                     let nx = snap(start.0 as f64 + dx);
                     let ny = snap(start.1 as f64 + dy);
                     let (ow, oh) = self.surfs.get(&sid).map(|s| self.output_size(&s.output)).unwrap_or((1920, 1080));
+                    let top = self.surfs.get(&sid).map(|s| self.bar_bottom(&s.output)).unwrap_or(BAR_H);
                     let (ww, wh) = self.surfs.get(&sid).map(|s| (s.w, s.h)).unwrap_or((0, 0));
                     let nx = nx.clamp(0, (ow - ww).max(0));
-                    let ny = ny.clamp(BAR_H, (oh - wh).max(BAR_H));
+                    let ny = ny.clamp(top, (oh - wh).max(top));
                     if let Some(w) = self.st.set.widget_mut(id) {
                         w.x = nx;
                         w.y = ny;

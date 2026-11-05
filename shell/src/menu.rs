@@ -298,6 +298,7 @@ impl App {
         }
         let (out, x) = self.tray_anchor.clone().unwrap_or_else(|| (self.focus_out(), 100));
         let title = self.st.tray.iter().find(|t| t.service == svc).map(|t| t.title.clone()).unwrap_or_default();
-        self.open_menu(MenuState::new(&out, x, crate::app::BAR_H + 2, &title, items));
+        let y = self.bar_bottom(&out) + 2;
+        self.open_menu(MenuState::new(&out, x, y, &title, items));
     }
 }

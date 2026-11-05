@@ -19,8 +19,11 @@ use std::time::Instant;
 
 const TARGETS: &[&str] = &[
     "bar",
+    "bar:pill",
+    "bar:float",
     "settings:color",
     "settings:bar",
+    "settings:bar-look",
     "settings:widgets",
     "settings:look",
     "settings:wall",
@@ -158,6 +161,27 @@ pub fn run(args: &[String]) -> i32 {
 
 fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
     let (kind, arg) = target.split_once(':').unwrap_or((target, ""));
+    // образцы формы бара: свои настройки — только на этот снимок
+    if kind == "bar" && !arg.is_empty() {
+        let (set, media) = (st.set.clone(), st.media.title.clone());
+        let v = |xs: &[&str]| xs.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        st.set.bar_float = true;
+        st.set.bar_center_align = "center".into();
+        if arg == "pill" {
+            // как в issue: плашка 60 %, столы и длинный трек слева, часы ровно по центру
+            st.set.bar_width_pc = 60;
+            st.set.bar_left = v(&["workspaces", "sep", "media"]);
+            st.set.bar_center = v(&["clock"]);
+            st.set.bar_right = v(&["settings", "net", "vol", "temp"]);
+            st.media.title = "a very long track title that pushes the clock".into();
+        } else {
+            st.set.bar_width_pc = 100;
+        }
+        shoot(st, res, "bar", path);
+        st.set = set;
+        st.media.title = media;
+        return;
+    }
     st.modal = None;
     st.popup = None;
     st.menu = None;
@@ -169,12 +193,21 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
         st.wall = crate::wall::prepare(&crate::wall::Job::new(&st.set, &st.t, 1920, 1080)).0.map(std::rc::Rc::new);
     }
     let (w, h) = match kind {
-        "bar" => (1920, BAR_H),
+        // бар как на мониторе 1920: с отступом и тенью, если он плашкой
+        "bar" => {
+            let (top, _, sh) = crate::bar::geo(&st.set, 1920);
+            (1920, (top + sh + 6).max(BAR_H))
+        }
         "settings" => {
             st.modal = Some(Modal::Settings);
             st.stab = crate::settings::TABS.iter().find(|t| t.0 == arg).map(|t| t.0).unwrap_or("color");
             if st.sel_widget == 0 {
                 st.sel_widget = st.set.widgets.first().map(|w| w.id).unwrap_or(0);
+            }
+            // вкладка «бар», раздел «вид»: форма бара, отступы
+            st.bar_ed.look = arg == "bar-look";
+            if arg == "bar-look" {
+                st.stab = "bar";
             }
             if arg == "bar-drag" {
                 // фишка «часы» в руке над правым рядом, щель раскрыта
@@ -389,7 +422,12 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
         match kind {
             "bar" => {
                 crate::wall::draw(&mut ui, st, w, h);
-                crate::bar::draw(&mut ui, st, "", w);
+                let (top, side, _) = crate::bar::geo(&st.set, w);
+                ui.cv.ox = side;
+                ui.cv.oy = top;
+                crate::bar::draw(&mut ui, st, "", w - 2 * side);
+                ui.cv.ox = 0;
+                ui.cv.oy = 0;
             }
             "settings" => crate::settings::draw(&mut ui, st, w, h),
             "launcher" | "clipboard" => crate::launcher::draw(&mut ui, st, w, h),

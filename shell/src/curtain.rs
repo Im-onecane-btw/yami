@@ -5,7 +5,7 @@
 // для тебя (`block-out-from`). На niri без `show-only-in` (сток, старый форк) слой показался бы и
 // тебе, поэтому там вместо шторки окна на время закрываются в трансляции чёрным.
 
-use crate::app::{App, Msg, SKind, State, BAR_H};
+use crate::app::{App, Msg, SKind, State};
 use crate::font::PX;
 use crate::gfx::{BoxStyle, Img, R};
 use crate::ui::{Act, Cur, Ui};
@@ -136,7 +136,8 @@ impl App {
         self.show_osd("curtain");
         let out = self.focus_out();
         let (bw, bh) = (badge_w(&mut self.res.fonts), 34);
-        self.mk(SKind::CurtainBadge, &out, Layer::Overlay, BADGE_NS, Anchor::TOP, (bw, bh), (BAR_H + 8, 0, 0, 0), -1, KeyboardInteractivity::None);
+        let top = self.bar_bottom(&out) + 8;
+        self.mk(SKind::CurtainBadge, &out, Layer::Overlay, BADGE_NS, Anchor::TOP, (bw, bh), (top, 0, 0, 0), -1, KeyboardInteractivity::None);
         if !self.st.niri.cast_only {
             return;
         }

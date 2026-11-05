@@ -164,6 +164,14 @@ pub struct Settings {
     /// версия раскладки бара: 0 — разделители ещё ставились сами по группам (переносим)
     #[serde(default)]
     pub bar_v: u32,
+    /// бар отдельной плашкой: отступ от краёв экрана, рамка со всех сторон, тень
+    pub bar_float: bool,
+    /// ширина бара в процентах ширины монитора (100 — во всю ширину; меньше — по центру)
+    pub bar_width_pc: i32,
+    /// отступ плавающего бара от краёв экрана, px
+    pub bar_margin: i32,
+    /// модули середины: "center" — по центру бара, "after-left" — сразу за левыми
+    pub bar_center_align: String,
 
     // система
     pub lock_after: u32,
@@ -361,6 +369,8 @@ pub const NUMS: &[(&str, i32, i32, i32)] = &[
     ("bar_mid", 0, 64, 2),
     ("bar_task_gap", 0, 16, 2),
     ("task_width", 60, 400, 10),
+    ("bar_width_pc", 30, 100, 5),
+    ("bar_margin", 0, 32, 2),
     ("reveal_grain", 1, 4, 1),
     ("night_temp", 2500, 6000, 250),
     ("night_on_h", 0, 23, 1),
@@ -415,6 +425,10 @@ impl Default for Settings {
             bar_mid: 12,
             bar_task_gap: 4,
             bar_v: 1,
+            bar_float: false,
+            bar_width_pc: 100,
+            bar_margin: 6,
+            bar_center_align: "center".into(),
             lock_after: 10,
             screen_off_after: 15,
             dnd: false,
@@ -553,6 +567,9 @@ impl Settings {
         for l in [&mut self.bar_left, &mut self.bar_center, &mut self.bar_right] {
             l.retain(|m| m != "rec" && m.strip_prefix("x:").map_or(true, crate::plugins::name_ok));
         }
+        if self.bar_center_align != "after-left" {
+            self.bar_center_align = "center".into();
+        }
     }
 
     /// разбор, прощающий ошибки: ключ с негодным значением берётся по умолчанию, а не весь
@@ -616,6 +633,8 @@ impl Settings {
             "win_right" => self.win_right,
             "win_top" => self.win_top,
             "win_bottom" => self.win_bottom,
+            "bar_width_pc" => self.bar_width_pc,
+            "bar_margin" => self.bar_margin,
             _ => 0,
         };
         NUMS.iter().find(|n| n.0 == k).map(|n| v.clamp(n.1, n.2)).unwrap_or(v)
@@ -642,6 +661,8 @@ impl Settings {
             "win_right" => self.win_right = v,
             "win_top" => self.win_top = v,
             "win_bottom" => self.win_bottom = v,
+            "bar_width_pc" => self.bar_width_pc = v,
+            "bar_margin" => self.bar_margin = v,
             _ => {}
         }
     }

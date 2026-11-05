@@ -3,7 +3,7 @@
 // двойной клик — развернуть, ПКМ — меню окна. Части, закрытые окнами выше, не рисуются и
 // не ловят клики (порядок — по времени фокуса, активное сверху).
 
-use crate::app::{App, SKind, State, BAR_H, TITLE_H};
+use crate::app::{App, SKind, State, TITLE_H};
 use crate::font::PX;
 use crate::gfx::{BoxStyle, R};
 use crate::icons;
@@ -118,7 +118,7 @@ impl App {
                 for (i, w) in wins.iter().enumerate() {
                     let tr = tile(w);
                     // во весь экран — без заголовка
-                    if tr.w >= ow && tr.h >= oh - BAR_H {
+                    if tr.w >= ow && tr.h >= oh - self.bar_bottom(&out) {
                         continue;
                     }
                     let bar = R::new(tr.x, tr.y - TITLE_H, tr.w, TITLE_H);
@@ -210,8 +210,8 @@ impl App {
             self.tdrag = None;
         }
         // заголовок не должен уехать под бар: окно — ниже
-        let top = BAR_H + TITLE_H;
         if let Some(w) = self.st.niri.win(win) {
+            let top = self.win_top(w);
             if let Some((_, y)) = w.layout.pos {
                 if (y as i32) < top {
                     self.st.niri.act(json!({"MoveFloatingWindow": {"id": win, "x": {"AdjustFixed": 0.0}, "y": {"AdjustFixed": (top - y as i32) as f64}}}));
@@ -221,13 +221,19 @@ impl App {
         self.sync_titles();
     }
 
+    /// выше этого y заголовок окна залез бы под бар (бар может плавать с отступом)
+    fn win_top(&self, w: &Win) -> i32 {
+        let out = self.st.niri.ws.iter().find(|x| Some(x.id) == w.ws).map(|x| x.output.clone()).unwrap_or_else(|| self.focus_out());
+        self.bar_bottom(&out) + TITLE_H
+    }
+
     /// новое плавающее окно под самым баром — сдвинуть, чтобы заголовок поместился
     pub fn fit_title(&mut self, id: u64) {
         if !(self.st.niri.stacking && self.st.set.titlebars) {
             return;
         }
-        let top = BAR_H + TITLE_H;
         if let Some(w) = self.st.niri.win(id) {
+            let top = self.win_top(w);
             if let Some((_, y)) = w.layout.pos {
                 if (y as i32) < top && w.floating {
                     self.st.niri.act(json!({"MoveFloatingWindow": {"id": id, "x": {"AdjustFixed": 0.0}, "y": {"AdjustFixed": (top - y as i32) as f64}}}));

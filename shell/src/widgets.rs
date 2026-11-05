@@ -2,7 +2,7 @@
 // настройками (вид графика, анимация, размер, цвет, подложка…): ПКМ по виджету или
 // настройки → виджеты. В режиме расстановки таскаются мышью по сетке 8 px.
 
-use crate::app::{local_now, App, SKind, State, BAR_H, RU_DAY_FULL, RU_MON, RU_MON_NOM};
+use crate::app::{local_now, App, SKind, State, RU_DAY_FULL, RU_MON, RU_MON_NOM};
 use crate::config::Widget;
 use crate::font::{self, PX};
 use crate::gfx::{BoxStyle, C, R};
@@ -526,7 +526,8 @@ impl App {
                 self.close(*sid);
             }
         }
-        let mut auto_y = BAR_H + 40;
+        let top = self.bar_bottom(&out);
+        let mut auto_y = top + 40;
         for w in want {
             let (ww, wh) = size_of(&w);
             let (mut x, mut y) = (w.x, w.y);
@@ -537,7 +538,7 @@ impl App {
                 auto_y += wh + 16;
             }
             x = x.clamp(0, (ow - ww).max(0));
-            y = y.clamp(BAR_H, (oh - wh).max(BAR_H));
+            y = y.clamp(top, (oh - wh).max(top));
             let raised = self.st.editing;
             let sid = have.iter().find(|(_, id)| *id == w.id).map(|(s, _)| *s);
             match sid {
@@ -572,7 +573,8 @@ impl App {
         if on {
             let out = self.focus_out();
             if self.find(&SKind::EditBar).is_empty() {
-                self.mk(SKind::EditBar, &out, Layer::Overlay, "yami-menu", Anchor::TOP, (520, 52), (BAR_H + 12, 0, 0, 0), -1, KeyboardInteractivity::Exclusive);
+                let top = self.bar_bottom(&out) + 12;
+                self.mk(SKind::EditBar, &out, Layer::Overlay, "yami-menu", Anchor::TOP, (520, 52), (top, 0, 0, 0), -1, KeyboardInteractivity::Exclusive);
             }
         } else {
             self.close_kind(&SKind::EditBar);

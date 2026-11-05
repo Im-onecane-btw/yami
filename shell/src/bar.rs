@@ -1,7 +1,8 @@
 // Верхний бар: тёмная матовая панель, тонкая линия снизу.
 // Модули и их порядок — в настройках (bar_left / bar_center / bar_right).
 
-use crate::app::{local_now, State, BAR_H, RU_DAY};
+use crate::app::{local_now, App, SKind, State, BAR_H, RU_DAY};
+use crate::config::Settings;
 use crate::font::{self, PX};
 use crate::gfx::{BoxStyle, R};
 use crate::icons;
@@ -10,51 +11,99 @@ use crate::ui::{Act, Cur, Tone, Ui};
 
 const H: i32 = BAR_H;
 
+/// тень плашки бара (плавает или уже экрана), px
+pub const SHADE: i32 = 3;
+
+/// где бар на мониторе шириной ow: (отступ сверху, отступ по бокам, высота поверхности). Якорь
+/// всегда сверху-слева-справа, ширина — отступами по бокам: так бар остаётся первым у niri и не
+/// сужается чужими исключёнными зонами. Полоса во всю ширину — вплотную к краю, как раньше;
+/// плашка (плавает или уже экрана) — с тенью, поверхность выше на её размер
+pub fn geo(s: &Settings, ow: i32) -> (i32, i32, i32) {
+    let m = if s.bar_float { s.num("bar_margin") } else { 0 };
+    let pc = s.num("bar_width_pc");
+    if strip(s) {
+        return (0, 0, H);
+    }
+    let side = if pc >= 100 {
+        m
+    } else {
+        // ширина плашки — доля монитора, не уже 240 px и не шире места между отступами
+        // (на узком мониторе с большим отступом нижняя граница уступает верхней)
+        let hi = (ow - 2 * m).max(1);
+        let w = (ow * pc / 100).clamp(240.min(hi), hi);
+        ((ow - w - SHADE) / 2).max(m)
+    };
+    (m, side, H + SHADE)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn shapes() {
+        let mut s = crate::config::Settings::default();
+        assert_eq!(super::geo(&s, 1920), (0, 0, super::H));
+        s.bar_float = true;
+        assert_eq!(super::geo(&s, 1920), (6, 6, super::H + super::SHADE));
+        s.bar_width_pc = 60;
+        let (top, side, _) = super::geo(&s, 1920);
+        // 60 % монитора; поля по бокам одинаковые, поэтому ±1 px
+        assert_eq!(top, 6);
+        assert!((1920 - 2 * side - super::SHADE - 1152).abs() <= 1);
+        // узкий монитор и большой отступ — без паники, плашка в пределах экрана
+        s.bar_margin = 32;
+        s.bar_width_pc = 30;
+        for ow in [0, 1, 100, 250, 300] {
+            assert!(super::geo(&s, ow).1 >= 0);
+        }
+        for ow in [640, 1280, 3840] {
+            let (_, side, _) = super::geo(&s, ow);
+            assert!(side >= 32 && 2 * side + 240 <= ow, "{ow}");
+        }
+    }
+}
+
+/// бар — полоса во всю ширину вплотную к краю (не плашка)
+pub fn strip(s: &Settings) -> bool {
+    !s.bar_float && s.num("bar_width_pc") >= 100
+}
+
 pub fn draw(ui: &mut Ui, st: &State, out: &str, w: i32) {
     let t = ui.t;
-    ui.cv.blur_rect(R::new(0, 0, w, H), 0);
-    ui.cv.fill(R::new(0, 0, w, H), t.glass_panel());
-    ui.cv.fill(R::new(0, H - 1, w, 1), t.border);
     let set = &st.set;
+    let w = if strip(set) {
+        ui.cv.blur_rect(R::new(0, 0, w, H), 0);
+        ui.cv.fill(R::new(0, 0, w, H), t.glass_panel());
+        ui.cv.fill(R::new(0, H - 1, w, 1), t.border);
+        w
+    } else {
+        // плашка: рамка со всех сторон, фаска на углах, жёсткая тень (место под неё — справа и снизу)
+        let pw = w - SHADE;
+        ui.cv.pxbox(R::new(0, 0, pw, H), &BoxStyle::new(t.glass_panel(), t.border).shadow(SHADE));
+        pw
+    };
 
     let gap = set.num("bar_gap");
     let sw = set.num("bar_sep_w");
     let mid = set.num("bar_mid");
-    // разделитель рисуется только между двумя видимыми модулями: без пар и висячих по краям.
-    // Возвращает внешний край последнего модуля (x0, если модулей нет)
-    let row = |ui: &mut Ui, list: &mut dyn Iterator<Item = &String>, x0: i32, dir: i32| -> i32 {
-        let mut x = x0;
-        let (mut pending, mut any) = (false, false);
-        for m in list {
-            if m == "sep" {
-                pending = any;
-                continue;
-            }
-            let mw = module(ui, st, out, m, 0, true);
-            if mw == 0 {
-                continue;
-            }
-            if any {
-                x += dir * gap;
-            }
-            if pending {
-                let sx = if dir > 0 { x } else { x - sw };
-                sep(ui, st, sx, sw);
-                x += dir * (sw + gap);
-                pending = false;
-            }
-            module(ui, st, out, m, if dir > 0 { x } else { x - mw }, false);
-            x += dir * mw;
-            any = true;
-        }
-        x
-    };
-    let left_end = row(ui, &mut set.bar_left.iter(), set.num("bar_pad_l"), 1);
-    let right_start = row(ui, &mut set.bar_right.iter().rev(), w - set.num("bar_pad_r"), -1);
+    let (pad_l, pad_r) = (set.num("bar_pad_l"), set.num("bar_pad_r"));
+    let left_end = row(ui, st, out, &mut set.bar_left.iter(), pad_l, 1, true);
+    let right_start = row(ui, st, out, &mut set.bar_right.iter().rev(), w - pad_r, -1, true);
 
-    // в середине — окна стола (и всё, что в bar_center)
-    let x0 = if left_end > set.num("bar_pad_l") { left_end + mid } else { left_end };
-    let x1 = if right_start < w - set.num("bar_pad_r") { right_start - mid } else { right_start };
+    // середина: между левыми и правыми модулями
+    let x0 = if left_end > pad_l { left_end + mid } else { left_end };
+    let x1 = if right_start < w - pad_r { right_start - mid } else { right_start };
+    let stretch = set.bar_center.iter().any(|m| m == "tasks");
+    if !stretch && set.bar_center_align != "after-left" {
+        // по центру бара, как часы в большинстве шеллов; длинная левая группа (трек в «музыке»)
+        // сдвигает середину ровно настолько, чтобы не наехать
+        let gw = row(ui, st, out, &mut set.bar_center.iter(), 0, 1, false);
+        let cx = (w / 2 - gw / 2).clamp(x0, (x1 - gw).max(x0));
+        ui.cv.push_clip(R::new(x0, 0, (x1 - x0).max(0), H));
+        row(ui, st, out, &mut set.bar_center.iter(), cx, 1, true);
+        ui.cv.pop_clip();
+        return;
+    }
+    // окна стола (растягиваются до правых модулей) и модули середины — сразу за левыми
     let mut cx = x0;
     let mut pending = false;
     for m in set.bar_center.iter() {
@@ -77,6 +126,41 @@ pub fn draw(ui: &mut Ui, st: &State, out: &str, w: i32) {
             }
         }
     }
+}
+
+/// ряд модулей от x0 в сторону dir (1 — вправо, -1 — влево). Разделитель — только между двумя
+/// видимыми модулями: без пар и висячих по краям. Возвращает внешний край последнего модуля (x0,
+/// если модулей нет); draw = false — только меряет
+fn row(ui: &mut Ui, st: &State, out: &str, list: &mut dyn Iterator<Item = &String>, x0: i32, dir: i32, draw: bool) -> i32 {
+    let (gap, sw) = (st.set.num("bar_gap"), st.set.num("bar_sep_w"));
+    let mut x = x0;
+    let (mut pending, mut any) = (false, false);
+    for m in list {
+        if m == "sep" {
+            pending = any;
+            continue;
+        }
+        let mw = module(ui, st, out, m, 0, true);
+        if mw == 0 {
+            continue;
+        }
+        if any {
+            x += dir * gap;
+        }
+        if pending {
+            if draw {
+                sep(ui, st, if dir > 0 { x } else { x - sw }, sw);
+            }
+            x += dir * (sw + gap);
+            pending = false;
+        }
+        if draw {
+            module(ui, st, out, m, if dir > 0 { x } else { x - mw }, false);
+        }
+        x += dir * mw;
+        any = true;
+    }
+    x
 }
 
 /// разделитель шириной w от x: точки, черта, клетки или просто место
@@ -468,4 +552,60 @@ fn tasks(ui: &mut Ui, st: &State, out: &str, area: R) {
         x += iw + tg;
     }
     ui.cv.pop_clip();
+}
+
+impl App {
+    /// поверхность бара на мониторе
+    pub fn mk_bar(&mut self, out: &str) {
+        use smithay_client_toolkit::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer};
+        let (ow, _) = self.output_size(out);
+        let (top, side, h) = geo(&self.st.set, ow);
+        let id = self.mk(SKind::Bar, out, Layer::Top, "yami-bar", Anchor::TOP | Anchor::LEFT | Anchor::RIGHT, (0, h), (top, side, 0, side), H, KeyboardInteractivity::None);
+        if let Some(s) = self.surfs.get_mut(&id) {
+            s.anchor_side = format!("{top} {side} {h}");
+        }
+    }
+
+    /// форма бара сменилась (настройки, размер монитора): поверхность меняется на месте, не
+    /// пересоздаётся — у niri бар остаётся первым и не уступает место доку сбоку
+    pub fn sync_bar(&mut self) {
+        use smithay_client_toolkit::shell::WaylandSurface;
+        let mut moved = false;
+        for id in self.find(&SKind::Bar) {
+            let out = self.surfs.get(&id).map(|s| s.output.clone()).unwrap_or_default();
+            let (ow, _) = self.output_size(&out);
+            let (top, side, h) = geo(&self.st.set, ow);
+            let key = format!("{top} {side} {h}");
+            let Some(s) = self.surfs.get_mut(&id) else { continue };
+            if s.anchor_side == key {
+                continue;
+            }
+            s.anchor_side = key;
+            s.layer.set_size(0, h as u32);
+            s.layer.set_margin(top, side, 0, side);
+            s.layer.set_exclusive_zone(H);
+            s.layer.commit();
+            s.margin = (side, top);
+            s.applied = (side, top);
+            s.dirty = true;
+            moved = true;
+        }
+        if moved {
+            // всё, что встаёт под баром, — на новое место
+            self.close_popup();
+            self.close_menu();
+            self.sync_dock();
+            self.sync_widgets();
+        }
+    }
+
+    /// нижний край бара на мониторе (0 — бара нет): всплывашки, меню, док сверху, виджеты и
+    /// заголовки окон — ниже него
+    pub fn bar_bottom(&self, out: &str) -> i32 {
+        if self.st.bar_hidden {
+            return 0;
+        }
+        let (ow, _) = self.output_size(out);
+        geo(&self.st.set, ow).0 + H
+    }
 }

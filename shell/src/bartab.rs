@@ -6,7 +6,7 @@ use crate::config::ALL_MODULES;
 use crate::font::PX;
 use crate::gfx::{BoxStyle, R};
 use crate::settings::*;
-use crate::ui::{Act, Cur, Ui};
+use crate::ui::{Act, Cur, Tone, Ui};
 
 pub(crate) fn side_name(i: usize) -> &'static str {
     ["слева", "по центру", "справа"][i]
@@ -20,6 +20,8 @@ pub struct BarEd {
     pub rects: std::cell::RefCell<Vec<(usize, usize, R)>>,
     /// ряды сторон (куда можно бросить)
     pub areas: std::cell::Cell<[R; 3]>,
+    /// раздел вкладки: false — модули, true — вид (форма, отступы, разделители)
+    pub look: bool,
 }
 
 pub struct BDrag {
@@ -92,7 +94,15 @@ pub(crate) fn tab_bar(ui: &mut Ui, st: &State, b: R) {
     let s = &st.set;
     let ed = &st.bar_ed;
     let drag = ed.drag.as_ref();
-    let mut y = title(ui, b.x, b.y, b.w, "модули бара — тащи мышкой, × убрать");
+    // два раздела: модули (перетаскивание) и вид (форма бара, отступы, разделители)
+    let bw = 86;
+    ui.button(R::new(b.right() - 2 * bw - 6, b.y - 3, bw, 22), "модули", "menu", Tone::Ghost, !ed.look, true, Act::SCycle("bar_page_mods"));
+    ui.button(R::new(b.right() - bw, b.y - 3, bw, 22), "вид", "eye", Tone::Ghost, ed.look, true, Act::SCycle("bar_page_look"));
+    if ed.look {
+        tab_bar_look(ui, st, b);
+        return;
+    }
+    let mut y = title(ui, b.x, b.y, b.w - 2 * bw - 12, "модули бара — тащи мышкой, × убрать");
     let sides = [&s.bar_left, &s.bar_center, &s.bar_right];
     let mut areas = [R::new(0, 0, 0, 0); 3];
     let mut hit = vec![];
@@ -164,9 +174,37 @@ pub(crate) fn tab_bar(ui: &mut Ui, st: &State, b: R) {
         ui.cv.icon("plus", r.right() - 17, r.cy() - 7, 2, t.text_faint);
         ui.zone(*r, Act::SModNew(id.to_string()), Cur::Grab);
     }
-    y = rs.iter().map(|r| r.bottom()).max().unwrap_or(y) + 12;
-    // отступы, разделители, вид
-    y = title(ui, b.x, y, b.w, "отступы и вид");
+    // фишка в руке — поверх всего
+    if let Some(d) = drag {
+        let w = chip_w(ui, &d.name);
+        chip(ui, R::new(d.x - d.off.0, d.y - d.off.1 - 2, w, 24), &d.name, true);
+    }
+}
+
+/// вкладка «бар» → вид: форма бара, отступы, разделители, вид часов и процессора
+fn tab_bar_look(ui: &mut Ui, st: &State, b: R) {
+    let t = ui.t;
+    let s = &st.set;
+    // форма: полоса во всю ширину, плашка уже экрана, плавающая с отступом от краёв
+    let mut y = title(ui, b.x, b.y, b.w - 2 * 86 - 12, "форма бара");
+    let cw = (b.w - 24) / 3;
+    let col = |i: i32| b.x + i * (cw + 12);
+    ui.toggle(R::new(col(0), y, cw, 40), "плавает", "отступ от краёв, тень", s.bar_float, Act::SBool("bar_float"));
+    num_btn(ui, R::new(col(1), y + 6, cw, 26), "ширина, %", s.num("bar_width_pc"), "bar_width_pc");
+    num_btn(ui, R::new(col(2), y + 6, cw, 26), "отступ", s.num("bar_margin"), "bar_margin");
+    y += 46;
+    let align = if s.bar_center_align == "after-left" { "за левыми" } else { "по центру" };
+    opt_btn(ui, R::new(col(0), y, cw * 2 + 12, 26), "модули середины", align, Act::SCycle("bar_center_align"));
+    let shape = if crate::bar::strip(s) {
+        "полоса во всю ширину"
+    } else if s.bar_float {
+        "плашка с отступом"
+    } else {
+        "плашка у края"
+    };
+    ui.text_in(PX, R::new(col(2) + 4, y, cw - 4, 26), shape, t.text_faint);
+    y += 40;
+    y = title(ui, b.x, y, b.w, "отступы и разделители");
     let style = match s.bar_sep.as_str() {
         "line" => "черта",
         "blocks" => "клетки",
@@ -184,8 +222,6 @@ pub(crate) fn tab_bar(ui: &mut Ui, st: &State, b: R) {
         _ => "шкала",
     };
     // три столбца: разделитель, края и модули, окна; числа — стрелками или колесом
-    let cw = (b.w - 24) / 3;
-    let col = |i: i32| b.x + i * (cw + 12);
     opt_btn(ui, R::new(col(0), y, cw, 26), "разделитель", style, Act::SCycle("bar_sep"));
     opt_btn(ui, R::new(col(1), y, cw, 26), "цвет", color, Act::SCycle("bar_sep_color"));
     num_btn(ui, R::new(col(2), y, cw, 26), "ширина", s.num("bar_sep_w"), "bar_sep_w");
@@ -201,11 +237,57 @@ pub(crate) fn tab_bar(ui: &mut Ui, st: &State, b: R) {
     opt_btn(ui, R::new(col(0), y, cw, 26), "цп/память", cpu, Act::SCycle("cpu_style"));
     ui.toggle(R::new(col(1), y, cw, 26), "часы с секундами", "", s.clock_seconds, Act::SBool("clock_seconds"));
     ui.toggle(R::new(col(2), y, cw, 26), "дата в часах", "", s.clock_date, Act::SBool("clock_date"));
-    // фишка в руке — поверх всего
-    if let Some(d) = drag {
-        let w = chip_w(ui, &d.name);
-        chip(ui, R::new(d.x - d.off.0, d.y - d.off.1 - 2, w, 24), &d.name, true);
+    y += 40;
+    y = title(ui, b.x, y, b.w, "как выглядит");
+    shape_preview(ui, st, R::new(b.x, y, b.w, (b.bottom() - y).clamp(40, 96)));
+}
+
+/// схема верха экрана 1920 px: бар (полоса, плашка или плавающий), его модули и окна под ним —
+/// всё в масштабе, тем же расчётом, что у настоящего бара (bar::geo)
+fn shape_preview(ui: &mut Ui, st: &State, r: R) {
+    let t = ui.t;
+    let s = &st.set;
+    ui.cv.pxbox(r, &BoxStyle::new(t.code_bg, t.border));
+    let inner = r.inset(3);
+    ui.cv.push_clip(inner);
+    ui.cv.fill(inner, t.bg);
+    let k = inner.w as f32 / 1920.0;
+    let sc = |v: i32| (v as f32 * k).round() as i32;
+    let (top, side, _) = crate::bar::geo(s, 1920);
+    let strip = crate::bar::strip(s);
+    let bh = sc(crate::app::BAR_H).max(8);
+    let bar = R::new(inner.x + sc(side), inner.y + sc(top), sc(1920 - 2 * side - if strip { 0 } else { crate::bar::SHADE }), bh);
+    // окна под баром — с отступами из «окон»
+    let wy = bar.bottom() + sc(s.num("win_top")).max(2);
+    let (wl, wg) = (sc(s.num("win_left")).max(1), sc(s.num("win_gap")).max(1));
+    let ww = (inner.w - 2 * wl - wg) / 2;
+    for i in 0..2 {
+        let wr = R::new(inner.x + wl + i * (ww + wg), wy, ww, inner.bottom() - wy + 4);
+        ui.cv.fill(wr, t.surface);
+        ui.cv.fill(R::new(wr.x, wr.y, wr.w, 1), if i == 0 { t.red } else { t.border });
     }
+    if strip {
+        ui.cv.fill(bar, t.panel);
+        ui.cv.fill(R::new(bar.x, bar.bottom() - 1, bar.w, 1), t.border);
+    } else {
+        ui.cv.pxbox(bar, &BoxStyle::new(t.panel, t.border).shadow(1));
+    }
+    // модули: слева — акцентные клетки, справа — тусклые, в середине — часы или окна
+    let cy = bar.y + bar.h / 2 - 1;
+    for i in 0..3 {
+        ui.cv.fill(R::new(bar.x + 4 + i * 6, cy - 1, 4, 4), if i == 0 { t.red } else { t.dim });
+    }
+    for i in 0..4 {
+        ui.cv.fill(R::new(bar.right() - 8 - i * 6, cy - 1, 4, 4), t.text_faint);
+    }
+    if s.bar_center.iter().any(|m| m == "tasks") {
+        ui.cv.fill(R::new(bar.x + 26, cy - 1, (bar.w / 6).max(8), 4), t.text_dim);
+    } else if !s.bar_center.is_empty() {
+        let cw = 18;
+        let cx = if s.bar_center_align == "after-left" { bar.x + 26 } else { bar.x + bar.w / 2 - cw / 2 };
+        ui.cv.fill(R::new(cx, cy - 1, cw, 4), t.text);
+    }
+    ui.cv.pop_clip();
 }
 
 impl App {

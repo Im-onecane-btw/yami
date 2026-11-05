@@ -41,7 +41,7 @@ pub const FIND: &[(&str, &str)] = &[
     ("wall", "обои картинка фон wallpaper background image"), // i18n-ok
     ("look", "анимации эффекты появление развёртка размытие значки иконки курсор animation effects reveal scanlines blur icons cursor"), // i18n-ok
     ("fonts", "шрифт размер терминал fastfetch браузер fonts size terminal browser"), // i18n-ok
-    ("bar", "бар модули часы разделитель bar modules clock separator"), // i18n-ok
+    ("bar", "бар модули часы разделитель плавающий плашка ширина центр bar modules clock separator floating pill width center"), // i18n-ok
     ("widgets", "виджеты график часы заметка widgets graph clock note"), // i18n-ok
     ("dock", "док закреплённые dock pinned"), // i18n-ok
     ("windows", "окна отступы плавающие стол заголовки gaps floating stacking windows titlebars"), // i18n-ok
@@ -633,6 +633,7 @@ impl App {
                         self.sync_titles();
                     }
                     "wall_kanji" => s.wall_kanji = !s.wall_kanji,
+                    "bar_float" => s.bar_float = !s.bar_float,
                     "blur_shell" => s.blur_shell = !s.blur_shell,
                     "blur_term" => s.blur_term = !s.blur_term,
                     "clock_seconds" => s.clock_seconds = !s.clock_seconds,
@@ -695,6 +696,14 @@ impl App {
             Act::SCycle(k) => match *k {
                 "cpu_style" => {
                     s.cpu_style = cycle(&[("gauge", ""), ("graph", ""), ("number", "")], &s.cpu_style).into();
+                    self.settings_changed();
+                }
+                "bar_page_mods" | "bar_page_look" => {
+                    self.st.bar_ed.look = *k == "bar_page_look";
+                    self.dirty(&SKind::Modal);
+                }
+                "bar_center_align" => {
+                    s.bar_center_align = if s.bar_center_align == "after-left" { "center" } else { "after-left" }.into();
                     self.settings_changed();
                 }
                 "bar_sep" => {

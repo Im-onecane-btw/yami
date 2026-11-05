@@ -732,9 +732,11 @@ impl App {
                 self.curtain_show();
             }
             if self.find_on(&SKind::Bar, &n).is_none() && !self.st.bar_hidden {
-                self.mk(SKind::Bar, &n, Layer::Top, "yami-bar", Anchor::TOP | Anchor::LEFT | Anchor::RIGHT, (0, BAR_H), (0, 0, 0, 0), BAR_H, KeyboardInteractivity::None);
+                self.mk_bar(&n);
             }
         }
+        // монитор сменил размер: ширина бара в процентах — от новой
+        self.sync_bar();
         self.sync_widgets();
         self.sync_dock();
         self.sync_lock_surfs();
@@ -1318,9 +1320,11 @@ impl App {
                     "profile" => "profile",
                     _ => "sys",
                 };
+                // из терминала или хоткея: под правым краем бара
                 let out = self.focus_out();
                 let (ow, _) = self.output_size(&out);
-                self.open_popup(kind, &out, ow - 260);
+                let side = crate::bar::geo(&self.st.set, ow).1;
+                self.open_popup(kind, &out, ow - side - 260);
             }
             // свои обои: путь; без пути — пиксельные из палитры
             c if c == "wallpaper" || c.starts_with("wallpaper ") => self.set_wall(&c["wallpaper".len()..]),

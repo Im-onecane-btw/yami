@@ -341,7 +341,19 @@ impl App {
         let (w, h) = size(&self.st);
         let anchor = self.dock_anchor();
         let vert = vertical(&self.st);
-        let top_m = if self.st.set.dock_side == "top" && !self.st.bar_hidden { crate::app::BAR_H } else { 0 };
+        // сверху — под баром (он может плавать с отступом)
+        let top_m = if self.st.set.dock_side == "top" { self.bar_bottom(&out) } else { 0 };
+        // отступ от края: док с исключённой зоной niri ставит уже под баром, без неё — от края экрана
+        let side = self.st.set.dock_side.clone();
+        let margin_of = |excl: i32| {
+            let m = MARGIN;
+            match side.as_str() {
+                "top" => (m + if excl > 0 { 0 } else { top_m }, 0, 0, 0),
+                "left" => (0, 0, 0, m),
+                "right" => (0, m, 0, 0),
+                _ => (0, 0, m, 0),
+            }
+        };
         // на другом мониторе — пересоздать
         for k in [SKind::Dock, SKind::DockEdge] {
             for id in self.find(&k) {
@@ -361,11 +373,15 @@ impl App {
             match dock {
                 Some(id) => {
                     if let Some(s) = self.surfs.get_mut(&id) {
-                        if s.w != w || s.h != h || s.anchor_side != self.st.set.dock_side {
+                        let mg = margin_of(excl);
+                        if s.w != w || s.h != h || s.anchor_side != self.st.set.dock_side || s.margin != (mg.3, mg.0) {
                             s.layer.set_size(w as u32, h as u32);
                             s.layer.set_anchor(anchor);
+                            s.layer.set_margin(mg.0, mg.1, mg.2, mg.3);
                             s.layer.set_exclusive_zone(excl);
                             s.layer.commit();
+                            s.margin = (mg.3, mg.0);
+                            s.applied = s.margin;
                             s.anchor_side = self.st.set.dock_side.clone();
                         }
                         s.input = Some(vec![p]);
@@ -373,13 +389,7 @@ impl App {
                     }
                 }
                 None => {
-                    let m = MARGIN;
-                    let margin = match self.st.set.dock_side.as_str() {
-                        "top" => (m + top_m, 0, 0, 0),
-                        "left" => (0, 0, 0, m),
-                        "right" => (0, m, 0, 0),
-                        _ => (0, 0, m, 0),
-                    };
+                    let margin = margin_of(excl);
                     let id = self.mk(SKind::Dock, &out, Layer::Top, "yami-dock", anchor, (w, h), margin, excl, KeyboardInteractivity::None);
                     if let Some(s) = self.surfs.get_mut(&id) {
                         s.input = Some(vec![p]);
@@ -488,7 +498,7 @@ impl App {
     fn dock_origin(&self, sid: u32) -> (String, i32, i32, R) {
         let Some(s) = self.surfs.get(&sid) else { return (self.focus_out(), 0, 0, R::default()) };
         let (ow, oh) = self.output_size(&s.output);
-        let top_m = if self.st.set.dock_side == "top" && !self.st.bar_hidden { crate::app::BAR_H } else { 0 };
+        let top_m = if self.st.set.dock_side == "top" { self.bar_bottom(&s.output) } else { 0 };
         let (x, y) = match self.st.set.dock_side.as_str() {
             "top" => ((ow - s.w) / 2, MARGIN + top_m),
             "left" => (MARGIN, (oh - s.h) / 2),
