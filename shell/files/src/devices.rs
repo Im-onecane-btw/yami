@@ -9,8 +9,20 @@ use std::time::Instant;
 
 impl Fm {
     // ── устройства ─────────────────────────────────────────────────────────
+    /// из tick, раз в 4 секунды: опросить устройства, только если что-то изменилось
+    pub fn poll_devices(&mut self) {
+        self.dev_tick = Instant::now();
+        let s = sig();
+        if s == self.dev_sig && self.dev_full.elapsed().as_secs() < 60 {
+            return;
+        }
+        self.refresh_devices();
+    }
+
     pub fn refresh_devices(&mut self) {
         self.dev_tick = Instant::now();
+        self.dev_sig = sig();
+        self.dev_full = Instant::now();
         if !self.cfg.devices && !self.cfg.network {
             self.devs.clear();
             return;
@@ -221,4 +233,27 @@ impl Fm {
             self.cfg_saved = self.cfg.clone();
         }
     }
+}
+
+/// отпечаток устройств без запуска программ: разделы (/proc/partitions), точки монтирования
+/// (mountinfo), USB (телефоны и камеры появляются там раньше, чем у gio) и подключения gvfs
+fn sig() -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut eat = |b: &[u8]| {
+        for x in b {
+            h = (h ^ *x as u64).wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    };
+    for f in ["/proc/partitions", "/proc/self/mountinfo"] {
+        eat(&std::fs::read(f).unwrap_or_default());
+    }
+    let gvfs = std::env::var_os("XDG_RUNTIME_DIR").map(|d| std::path::PathBuf::from(d).join("gvfs"));
+    for d in [Some(std::path::PathBuf::from("/sys/bus/usb/devices")), gvfs].into_iter().flatten() {
+        let mut names: Vec<_> = std::fs::read_dir(&d).map(|r| r.flatten().map(|e| e.file_name()).collect()).unwrap_or_default();
+        names.sort();
+        for n in names {
+            eat(n.as_encoded_bytes());
+        }
+    }
+    h
 }

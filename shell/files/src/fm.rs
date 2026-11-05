@@ -378,6 +378,10 @@ pub struct Fm {
     pub watch_dirty: bool,
     pub changed: HashMap<PathBuf, Instant>,
     pub dev_tick: Instant,
+    /// отпечаток того, что видно без запуска программ (devices::sig): пока он тот же,
+    /// lsblk и gio не запускаются; раз в минуту — всё равно
+    pub dev_sig: u64,
+    pub dev_full: Instant,
     /// опрос устройств идёт в нити
     pub dev_busy: Arc<AtomicBool>,
     pub open_list: RefCell<Vec<(usize, bool)>>,
@@ -423,6 +427,8 @@ impl Fm {
             watch_dirty: true,
             changed: HashMap::new(),
             dev_tick: Instant::now(),
+            dev_sig: 0,
+            dev_full: Instant::now(),
             dev_busy: Arc::new(AtomicBool::new(false)),
             open_list: RefCell::new(vec![]),
         };

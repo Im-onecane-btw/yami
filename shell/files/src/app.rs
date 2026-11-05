@@ -122,6 +122,8 @@ pub struct App {
     pub(crate) quit: bool,
     pub(crate) blink: bool,
     pub(crate) blink_at: Instant,
+    /// ничего не мигает, не ждёт перечитывания и не исчезает: тик раз в секунду, а не 4 раза
+    pub(crate) idle: bool,
     pub(crate) title: String,
 }
 
@@ -227,6 +229,7 @@ pub fn run(fm_init: impl FnOnce(Option<calloop::channel::Sender<Msg>>) -> Fm) ->
         quit: false,
         blink: true,
         blink_at: Instant::now(),
+        idle: false,
         title: String::new(),
     };
     app.fm.w = w;
@@ -253,7 +256,7 @@ pub fn run(fm_init: impl FnOnce(Option<calloop::channel::Sender<Msg>>) -> Fm) ->
                 }
             }
             app.tick();
-            TimeoutAction::ToDuration(Duration::from_millis(if app.anim { 50 } else { 250 }))
+            TimeoutAction::ToDuration(Duration::from_millis(if app.anim { 50 } else if app.idle { 1000 } else { 250 }))
         })
         .expect("timer");
     let _ = queue.roundtrip(&mut app);
@@ -314,13 +317,14 @@ impl App {
             self.dirty = true;
         }
         if self.fm.dev_tick.elapsed().as_secs() >= 4 {
-            self.fm.refresh_devices();
+            self.fm.poll_devices();
         }
         if self.fm.toast.as_ref().map(|t| t.1.elapsed().as_millis() > 3300).unwrap_or(false) {
             self.fm.toast = None;
             self.dirty = true;
         }
         self.fm.save_cfg();
+        self.idle = !typing && self.fm.changed.is_empty() && self.fm.toast.is_none();
     }
 
     pub(crate) fn on_ev(&mut self, e: Ev) {
@@ -329,6 +333,14 @@ impl App {
                 Msg::Listed { view, gen, res } => self.fm.on_listed(view, gen, res),
                 Msg::Changed(p) => {
                     self.fm.changed.insert(p, Instant::now());
+                    // тик сейчас редкий: перечитать через 150 мс, а не через секунду
+                    if self.idle {
+                        self.idle = false;
+                        let _ = self.handle.insert_source(Timer::from_duration(Duration::from_millis(150)), |_, _, app: &mut App| {
+                            app.tick();
+                            TimeoutAction::Drop
+                        });
+                    }
                 }
                 Msg::Thumb(p, s, img) => {
                     self.fm.thumbs.insert((p, s), match img {
