@@ -246,6 +246,8 @@ pub struct State {
     pub skwd: crate::skwd::Skwd,
     /// skwd-wall стоит на машине (проверяется при открытии настроек)
     pub skwd_here: bool,
+    /// виджет без подложки стоит на светлых обоях (widgets.rs, widget_contrast)
+    pub widget_bg: HashMap<u32, bool>,
     pub game_field: Field,
     /// окно ответа из уведомления
     pub reply: crate::reply::Reply,
@@ -400,6 +402,7 @@ impl State {
             session: Default::default(),
             skwd: Default::default(),
             skwd_here: false,
+            widget_bg: HashMap::new(),
             game_field: Field::default(),
             reply: Default::default(),
             geo_field: Field::default(),

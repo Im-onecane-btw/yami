@@ -272,6 +272,10 @@ pub(crate) fn tab_widgets(ui: &mut Ui, st: &State, b: R) {
     ui.button(R::new(px, y, bw, 28), "расставить", "drag", Tone::Primary, false, true, Act::SEdit);
     ui.button(R::new(px + bw + 6, y, bw, 28), "на место", "reboot", Tone::Plain, false, true, Act::SResetPos);
     ui.button(R::new(px + 2 * (bw + 6), y, bw, 28), "убрать", "trash", Tone::Danger, false, true, Act::SWidgetDel(id));
+    y += 44;
+    // для всех виджетов без подложки: читаемы на любых обоях
+    y = title(ui, px, y, pw, "без подложки");
+    ui.toggle(R::new(px, y, pw, 40), "в тон обоям", "на светлом месте — тёмный текст, у букв тень", s.widget_contrast, Act::SBool("widget_contrast"));
 }
 
 pub(crate) fn tab_look(ui: &mut Ui, st: &State, b: R) {
@@ -657,6 +661,7 @@ impl App {
                         return true;
                     }
                     "bar_float" => s.bar_float = !s.bar_float,
+                    "widget_contrast" => s.widget_contrast = !s.widget_contrast,
                     "blur_shell" => s.blur_shell = !s.blur_shell,
                     "blur_term" => s.blur_term = !s.blur_term,
                     "clock_seconds" => s.clock_seconds = !s.clock_seconds,

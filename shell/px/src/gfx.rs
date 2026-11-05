@@ -110,6 +110,9 @@ pub struct Canvas<'a> {
     pub blur: Vec<R>,
     /// цвет жёсткой тени (из темы, set_shade)
     pub shade: C,
+    /// тень у букв (виджеты прямо на обоях): каждая буква сначала этим цветом на «пиксель
+    /// шрифта» ниже и правее
+    pub text_shade: Option<C>,
 }
 
 /// цвет тени для всех новых холстов процесса: тема одна на процесс, а холстов много
@@ -173,7 +176,7 @@ fn hash(x: i32, y: i32) -> u32 {
 
 impl<'a> Canvas<'a> {
     pub fn new(buf: &'a mut [u32], w: i32, h: i32) -> Canvas<'a> {
-        Canvas { buf, w, h, ox: 0, oy: 0, clip: R::new(0, 0, w, h), clips: vec![], opacity: 1.0, blur: vec![], shade: C(SHADE.load(std::sync::atomic::Ordering::Relaxed)) }
+        Canvas { buf, w, h, ox: 0, oy: 0, clip: R::new(0, 0, w, h), clips: vec![], opacity: 1.0, blur: vec![], shade: C(SHADE.load(std::sync::atomic::Ordering::Relaxed)), text_shade: None }
     }
 
     /// проявление панели: при k клетка видна, если её порог ниже k. Узор — из настроек
@@ -547,6 +550,12 @@ impl<'a> Canvas<'a> {
     // ── текст ───────────────────────────────────────────────────────────────
     /// строка от левого края; y — верх строки высотой face.line(). Возвращает ширину.
     pub fn text(&mut self, fonts: &mut Fonts, face: Face, x: i32, y: i32, s: &str, c: C) -> i32 {
+        if let Some(sh) = self.text_shade.take() {
+            // сдвиг — на «пиксель» шрифта: у Tiny5 это 1/8 кегля, у мелкого текста — 1 px
+            let d = (fonts.line(face) / 16).max(1);
+            self.text(fonts, face, x + d, y + d, s, sh);
+            self.text_shade = Some(sh);
+        }
         let col = self.eff(c);
         let mut pen = x;
         let base = y + fonts.ascent(face);

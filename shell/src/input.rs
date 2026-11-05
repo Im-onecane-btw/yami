@@ -282,6 +282,10 @@ impl App {
             // ползунок отпустили: теперь пересчитать обои (если это был их ползунок)
             self.sync_wall();
         }
+        if let Act::WDrag(_) = p.act {
+            // виджет переставили: обои под ним другие
+            self.widget_contrast();
+        }
     }
 
     pub(crate) fn on_hover(&mut self, a: &Act) {

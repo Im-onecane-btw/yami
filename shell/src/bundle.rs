@@ -21,7 +21,7 @@ const FORMAT: &str = "yami-bundle";
 fn is_look(k: &str) -> bool {
     const EXACT: &[&str] = &[
         "accent", "palette", "tint", "light", "glass", "lift", "inner", "dim", "blurShell", "blurTerm", "animations", "animSpeed", "animClose", "reveal", "revealGrain", "scanlines", "iconTheme", "iconPixel", "cursor", "cursorSize",
-        "curtainStyle", "curtainCell", "cpuStyle", "clockDate", "clockSeconds", "taskWidth", "widgets", "titlebars", "fetchFull", "winGap", "winLeft", "winRight", "winTop", "winBottom",
+        "curtainStyle", "curtainCell", "cpuStyle", "clockDate", "clockSeconds", "taskWidth", "widgets", "widgetContrast", "titlebars", "fetchFull", "winGap", "winLeft", "winRight", "winTop", "winBottom",
     ];
     EXACT.contains(&k) || ((k.starts_with("bar") || k.starts_with("wall") || k.starts_with("font") || k.starts_with("dock")) && k != "dockPins" && k != "wallpaper")
 }

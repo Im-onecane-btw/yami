@@ -262,8 +262,48 @@ fn panel(ui: &mut Ui, w: &Widget, r: R) {
     }
 }
 
+/// средняя яркость обоев (0..1) под прямоугольником r монитора ow×oh. Картинка обоев ложится на
+/// монитор «как обложка» (wall::cover) — тем же пересчётом; берётся сетка ~48×24 точек
+pub fn wall_luma(img: &crate::gfx::Img, ow: i32, oh: i32, r: R) -> Option<f32> {
+    if img.w <= 0 || img.h <= 0 || r.w <= 0 || r.h <= 0 {
+        return None;
+    }
+    let k = (ow as f32 / img.w as f32).max(oh as f32 / img.h as f32);
+    let (offx, offy) = ((ow as f32 - img.w as f32 * k) / 2.0, (oh as f32 - img.h as f32 * k) / 2.0);
+    let (sx, sy) = ((r.w / 48).max(1), (r.h / 24).max(1));
+    let (mut sum, mut n) = (0.0f32, 0u32);
+    for y in (r.y..r.bottom()).step_by(sy as usize) {
+        for x in (r.x..r.right()).step_by(sx as usize) {
+            let ix = (((x as f32 - offx) / k) as i32).clamp(0, img.w - 1);
+            let iy = (((y as f32 - offy) / k) as i32).clamp(0, img.h - 1);
+            let p = img.px[(iy * img.w + ix) as usize];
+            let (rr, g, b) = ((p >> 16) & 255, (p >> 8) & 255, p & 255);
+            sum += (0.299 * rr as f32 + 0.587 * g as f32 + 0.114 * b as f32) / 255.0;
+            n += 1;
+        }
+    }
+    (n > 0).then(|| sum / n as f32)
+}
+
+/// виджет прямо на обоях: тема под их яркость (светлая — тёмный текст) и тень у букв в
+/// противоположный тон. Решает замер App::widget_contrast; с подложкой — тема шелла как есть
 pub fn draw(ui: &mut Ui, st: &State, id: u32, sw: i32, sh: i32) {
     let Some(w) = st.set.widgets.iter().find(|x| x.id == id) else { return };
+    let (saved, bright) = (ui.t, st.widget_bg.get(&id).copied().filter(|_| !w.frame && st.set.widget_contrast));
+    if let Some(light) = bright {
+        let s = &st.set;
+        if light != saved.light {
+            ui.t = Theme::new(s.accent_rgb(), s.tint, s.glass, s.lift, s.inner, light);
+        }
+        ui.cv.text_shade = Some(if light { C(0xffffffff).alpha(0.55) } else { C(0xff000000).alpha(0.6) });
+    }
+    draw_widget(ui, st, w, sw, sh);
+    ui.t = saved;
+    ui.cv.text_shade = None;
+}
+
+fn draw_widget(ui: &mut Ui, st: &State, w: &Widget, sw: i32, sh: i32) {
+    let id = w.id;
     let t = ui.t;
     let r = R::new(0, 0, sw - 4, sh - 4);
     let c = color(&t, &w.color);
@@ -511,6 +551,35 @@ impl State {
 }
 
 impl App {
+    /// какие виджеты без подложки стоят на светлых обоях: замер по готовой картинке обоев под
+    /// каждым (после новых обоев, перестановки, смены настроек). Порог с запасом в обе стороны,
+    /// чтобы виджет на границе не мигал темой при каждом пересчёте
+    pub fn widget_contrast(&mut self) {
+        let out = self.focus_out();
+        let (ow, oh) = self.output_size(&out);
+        let mut res = std::collections::HashMap::new();
+        for s in self.surfs.values() {
+            let SKind::Widget(id) = s.kind else { continue };
+            let r = R::new(s.margin.0, s.margin.1, s.w, s.h);
+            let luma = match &self.st.wall {
+                Some(img) => wall_luma(img, ow, oh, r),
+                None => Some(if self.st.t.light { 0.9 } else { 0.1 }),
+            };
+            let Some(l) = luma else { continue };
+            let was = self.st.widget_bg.get(&id).copied();
+            let light = match was {
+                Some(true) => l > 0.45,
+                Some(false) => l > 0.58,
+                None => l > 0.52,
+            };
+            res.insert(id, light);
+        }
+        if res != self.st.widget_bg {
+            self.st.widget_bg = res;
+            self.dirty_where(|k| matches!(k, SKind::Widget(_)));
+        }
+    }
+
     /// поверхности виджетов — по списку из настроек
     pub fn sync_widgets(&mut self) {
         let out = self.focus_out();
@@ -566,6 +635,7 @@ impl App {
                 }
             }
         }
+        self.widget_contrast();
     }
 
     pub fn set_editing(&mut self, on: bool) {

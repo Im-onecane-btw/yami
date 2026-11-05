@@ -688,4 +688,7 @@ const PAIRS: &[(&str, &str)] = &[
     ("рамка окна", "border"),
     ("углы прямые, как пиксели", "square corners, like pixels"),
     ("игры и окна на весь экран — с прямыми углами", "games and fullscreen windows keep square corners"),
+    ("без подложки", "without a frame"),
+    ("в тон обоям", "match the wallpaper"),
+    ("на светлом месте — тёмный текст, у букв тень", "dark text on a light spot, a shadow under the letters"),
 ];

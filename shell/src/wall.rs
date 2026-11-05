@@ -429,6 +429,8 @@ impl App {
             l.dirty = true;
         }
         self.dirty(&SKind::Modal);
+        // новые обои: виджеты на них — в тон
+        self.widget_contrast();
         let s = &mut self.st.set;
         if let (Some(a), true) = (accent, accent_from_image(s)) {
             let hex = format!("#{a:06x}");

@@ -254,6 +254,9 @@ pub struct Settings {
 
     // виджеты рабочего стола
     pub widgets: Vec<Widget>,
+    /// виджеты без подложки — в тон обоям под ними: на светлом месте тёмный текст, на тёмном
+    /// светлый, и жёсткая тень у букв (widgets.rs)
+    pub widget_contrast: bool,
 
     /// клавиши: id из keys::BINDS → сочетание ("" — выключено); чего нет — по умолчанию
     pub binds: std::collections::BTreeMap<String, String>,
@@ -490,6 +493,7 @@ impl Default for Settings {
             widgets: vec![
                 Widget { id: 1, x: 48, y: 72, frame: false, ..Widget::new(1, "clock") },
             ],
+            widget_contrast: true,
             binds: Default::default(),
             custom_binds: vec![],
             fetch_full: false,
