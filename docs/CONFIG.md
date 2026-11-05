@@ -64,7 +64,7 @@ yami-shell binds list | print | write     # keybindings
 | `palette` | `"blood"` | preset: `blood` `ash` `sakura` `amber` `venom` `ice` `dusk` |
 | `accent` | `""` | own accent `#rrggbb`; empty: the preset's |
 | `tint` | `1.0` | how strongly the graphite takes the accent's hue |
-| `glass` | `0.78` | panel opacity (0 glass … 1 solid) |
+| `glass` | `0.78` | panel opacity, 0.15 (glass) … 1 (solid); lower values are raised to 0.15, where panels would be all but invisible |
 | `lift` | `0.0` | panel brightness: 0 near-black graphite, 1 noticeably lighter |
 | `inner` | `1.0` | opacity of cards, graphs and fields inside panels |
 | `dim` | `0.5` | dim behind menus and settings |

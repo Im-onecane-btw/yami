@@ -597,6 +597,8 @@ impl Settings {
         ids(&mut self.game_apps);
         self.kb_switch.retain(|c| c.is_ascii_alphanumeric() || "_:,()-".contains(c));
         self.cursor_size = self.cursor_size.clamp(16, 96);
+        // как у ползунка: ниже 0.15 панели почти невидимы, а тень и размытие под ними — «битые рамки» (#8)
+        self.glass = self.glass.clamp(0.15, 1.0);
         self.font_pt = self.font_pt.clamp(0, 48);
         self.binds.retain(|_, k| k.is_empty() || crate::keys::key_ok(k));
         self.custom_binds.retain(|c| c.key.is_empty() || crate::keys::key_ok(&c.key));
