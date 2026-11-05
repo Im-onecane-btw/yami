@@ -684,13 +684,21 @@ impl App {
         Some((png, thumb?))
     }
 
-    /// распознать выделенное: текст (tesseract, русский и английский, если есть) или QR (zbarimg);
-    /// результат — в буфер обмена и уведомлением. Оверлей закрывается сразу, работа — в нити.
+    /// распознать выделенное: текст (ocr.rs: подготовка картинки и три прогона tesseract) или QR
+    /// (zbarimg); результат — в буфер обмена и уведомлением. Оверлей закрывается сразу, работа — в нити.
     pub fn snap_read(&mut self, qr: bool) {
         let Some((png, _)) = self.snap_render() else { return };
         self.snap_close();
         let tx = self.tx.clone();
         std::thread::spawn(move || {
+            if !qr {
+                let text = image::load_from_memory(&png).ok().and_then(|i| crate::ocr::recognize(&i));
+                if let Some(t) = &text {
+                    copy_text(t);
+                }
+                let _ = tx.send(Msg::SnapText(false, text));
+                return;
+            }
             // снимок экрана — только в свой каталог 0700, не в общий /tmp
             let Ok(dir) = yami_px::paths::private_tmp("yami-read") else {
                 let _ = tx.send(Msg::SnapText(qr, None));
@@ -702,14 +710,7 @@ impl App {
                 let _ = tx.send(Msg::SnapText(qr, None));
                 return;
             }
-            let out = if qr {
-                std::process::Command::new("zbarimg").args(["--raw", "-q"]).arg(&tmp).output()
-            } else {
-                let langs = std::process::Command::new("tesseract").arg("--list-langs").output().map(|o| String::from_utf8_lossy(&o.stdout).to_string()).unwrap_or_default();
-                let l: Vec<&str> = ["eng", "rus"].into_iter().filter(|x| langs.lines().any(|y| y.trim() == *x)).collect();
-                let l = if l.is_empty() { "eng".to_string() } else { l.join("+") };
-                std::process::Command::new("tesseract").arg(&tmp).arg("stdout").args(["-l", &l]).output()
-            };
+            let out = std::process::Command::new("zbarimg").args(["--raw", "-q"]).arg(&tmp).output();
             let _ = std::fs::remove_dir_all(&dir);
             let text = out.ok().filter(|o| o.status.success()).map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).filter(|t| !t.is_empty());
             if let Some(t) = &text {

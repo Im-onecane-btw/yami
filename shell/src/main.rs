@@ -42,6 +42,7 @@ mod niri;
 mod notif;
 mod need;
 mod night;
+mod ocr;
 mod pam;
 mod panels;
 mod input;

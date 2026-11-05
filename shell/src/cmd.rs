@@ -94,6 +94,7 @@ fn help(y: &Sty, me: &str) {
     y.row("update status | log", &crate::tf!("что стоит, откуда, последний лог", "what is installed, from where, the last log"));
     y.row("doctor", &crate::tf!("проверить зависимости и службы, сказать, чего нет", "check dependencies and services, say what is missing"));
     y.row("doctor games", &crate::tf!("ntsync, gamemode, MangoHud: что есть и как добавить", "ntsync, gamemode, MangoHud: what is there, how to add it"));
+    y.row("ocr FILE", &crate::tf!("текст с картинки (как «текст» на скриншоте)", "text from an image (like «text» in screenshots)"));
     y.row("report [-o FILE]", &crate::tf!("архив для issue: версии, doctor, журнал, конфиги без секретов", "an archive for an issue: versions, doctor, journal, configs without secrets"));
     y.row("clean [--dry-run]", &crate::tf!("убрать кеш сборки: исходники yami-niri и target шелла (гигабайты)", "remove the build cache: yami-niri sources and the shell's target (gigabytes)"));
     y.row("version", &crate::tf!("версии всех частей", "versions of every part"));
@@ -448,6 +449,7 @@ pub fn run(args: &[String], me: &str) -> i32 {
         Some("doctor") if a.get(1) == Some(&"games") => crate::gameboost::doctor(&y),
         Some("doctor") => crate::doctor::run(&y),
         Some("report") => crate::report::run(&y, &a[1..]),
+        Some("ocr") => crate::ocr::cli(&y, &a[1..]),
         Some("theme") => match a.get(1) {
             Some(&"export") => crate::bundle::run(&y, "theme-export", &a[2..]),
             Some(&"import") => crate::bundle::run(&y, "theme-import", &a[2..]),
