@@ -206,7 +206,7 @@ case "$FAM" in
     P_base=(polkit gnome-keyring pipewire pipewire-pulse wireplumber libpulse networkmanager bluez bluez-utils
       cliphist wl-clipboard grim slurp brightnessctl playerctl python python-pillow noto-fonts noto-fonts-cjk noto-fonts-emoji
       power-profiles-daemon libxkbcommon pam fontconfig curl xz libcap)
-    P_build=(rust gcc pkgconf)
+    P_build=(rust gcc pkgconf libxkbcommon pam)
     P_apps=(kitty fastfetch pavucontrol btop udisks2 ffmpegthumbnailer libarchive mpv gvfs gvfs-mtp gvfs-gphoto2 gvfs-afc gvfs-smb)
     P_look=(qt6ct adw-gtk-theme papirus-icon-theme)
     P_games=(gamemode mangohud)
