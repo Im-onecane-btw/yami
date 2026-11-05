@@ -22,6 +22,20 @@ pub fn cell(p: i32) -> u32 {
     [1, 2, 3, 4, 6, 8, 12, 16][(p.clamp(1, 8) - 1) as usize]
 }
 
+/// картинки, которые шелл декодирует сам: обои, выбор обоев, кадры skwd-wall
+pub const IMAGES: &[&str] = &["png", "jpg", "jpeg", "webp"];
+
+pub fn decodable(p: &Path) -> bool {
+    p.extension().is_some_and(|e| IMAGES.contains(&e.to_string_lossy().to_ascii_lowercase().as_str()))
+}
+
+/// «как обложка»: наибольший кусок из середины картинки sw×sh с пропорциями tw×th — x, y, ширина, высота
+pub fn cover_rect(sw: u32, sh: u32, tw: u32, th: u32) -> (u32, u32, u32, u32) {
+    let (cw, ch) = if sw as u64 * th as u64 > sh as u64 * tw as u64 { ((sh as u64 * tw as u64 / th as u64) as u32, sh) } else { (sw, (sw as u64 * th as u64 / tw as u64) as u32) };
+    let (cw, ch) = (cw.clamp(1, sw.max(1)), ch.clamp(1, sh.max(1)));
+    ((sw - cw.min(sw)) / 2, (sh - ch.min(sh)) / 2, cw, ch)
+}
+
 /// своя картинка (с раскрытым ~) или None — пиксельные из палитры
 pub fn own(s: &Settings) -> Option<PathBuf> {
     let p = s.wallpaper.trim();
@@ -44,7 +58,7 @@ fn accent_from_image(s: &Settings) -> bool {
     s.wall_accent && !(s.wall_skwd && s.wall_skwd_colors)
 }
 
-fn generated() -> PathBuf {
+pub fn generated() -> PathBuf {
     config::state_dir().join("wallpaper.png")
 }
 
@@ -125,8 +139,8 @@ pub fn prepare(j: &Job) -> (Option<Img>, Option<u32>) {
         o
     } else {
         // «как обложка»: вырезать из середины кусок с пропорциями экрана
-        let (cw, ch) = if sw as u64 * th as u64 > sh as u64 * tw as u64 { ((sh as u64 * tw as u64 / th as u64) as u32, sh) } else { (sw, (sw as u64 * th as u64 / tw as u64) as u32) };
-        let crop = image::imageops::crop_imm(&src, (sw - cw) / 2, (sh - ch) / 2, cw.max(1), ch.max(1));
+        let (cx, cy, cw, ch) = cover_rect(sw, sh, tw, th);
+        let crop = image::imageops::crop_imm(&src, cx, cy, cw, ch);
         let mut o = image::imageops::resize(&*crop, tw, th, filt);
         drop(src);
         tone(&mut o, j);

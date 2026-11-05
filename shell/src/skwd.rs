@@ -7,7 +7,7 @@
 // клетках и тонах (у видео и сцен — кадр-превью). Та же картинка — на экране блокировки и входа.
 // i18n: inline pairs
 
-use crate::app::{App, Msg, SKind};
+use crate::app::{App, Msg, SKind, State};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime};
@@ -67,10 +67,15 @@ pub fn installed() -> bool {
     w("skwd-wall-v2") || w("skwd-walld") || w("skwd-paper-v2") || cache().is_dir() || config_dir().is_dir()
 }
 
-/// картинку этого типа шелл декодирует сам (png, jpeg, webp)
+impl State {
+    /// обои сейчас ведёт skwd-wall (его выбор есть и он включён)
+    pub fn skwd_drives(&self) -> bool {
+        self.set.wall_skwd && self.skwd.pick.is_some()
+    }
+}
+
 fn decodable(p: &str) -> bool {
-    let e = Path::new(p).extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
-    matches!(e.as_str(), "png" | "jpg" | "jpeg" | "webp")
+    crate::wall::decodable(Path::new(p))
 }
 
 /// last-wallpaper.json → картинка для шелла и тип. Картинка — сама; видео, сцена и форматы, которых

@@ -164,6 +164,8 @@ pub enum Msg {
     Curtain(u64, HashMap<String, crate::gfx::Img>),
     /// обои готовы (wall.rs): номер задания, картинка, акцент из неё
     Wall(u64, Option<crate::gfx::Img>, Option<u32>),
+    /// папка выбора обоев прочитана (walls.rs): номер открытия, папка, картинки, сколько сверх MAX
+    WallsListed(u64, std::path::PathBuf, Vec<std::path::PathBuf>, usize),
     /// миниатюра для выбора обоев (walls.rs): номер открытия, клетка, картинка
     WallThumb(u64, usize, Option<crate::gfx::Img>),
     /// ответ окна выбора yami-files из выбора обоев: папка ли, что выбрано, вернуться ли в настройки
@@ -447,6 +449,14 @@ pub fn owned(cmd: &mut std::process::Command) -> &mut std::process::Command {
             Ok(())
         })
     }
+}
+
+/// окно выбора yami-files (`--pick MODE`, папка, свои ключи): первая строка ответа или None
+/// (отмена). Ждёт, пока окно открыто, — только из нити; окно закрывается вместе с нитью (owned)
+pub fn files_pick(mode: &str, folder: &std::path::Path, args: &[&str]) -> Option<String> {
+    let mut c = std::process::Command::new("yami-files");
+    c.args(["--pick", mode]).args(args).arg("--folder").arg(folder);
+    owned(&mut c).output().ok().filter(|o| o.status.success()).and_then(|o| String::from_utf8_lossy(&o.stdout).lines().next().map(str::to_string))
 }
 
 /// дети, доставшиеся от образа до перезапуска: их Child остались в старых нитях, ждать их некому.
@@ -1304,6 +1314,7 @@ impl App {
                 }
             }
             Msg::Wall(n, img, accent) => self.wall_ready(n, img, accent),
+            Msg::WallsListed(gen, dir, files, more) => self.walls_listed(gen, dir, files, more),
             Msg::WallThumb(gen, i, img) => self.walls_thumb(gen, i, img),
             Msg::WallsAsked(folder, got, back) => self.walls_asked(folder, got, back),
             Msg::SkwdLayers(drawn) => self.skwd_layers(drawn),

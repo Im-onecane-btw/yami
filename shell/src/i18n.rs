@@ -593,6 +593,7 @@ const PAIRS: &[(&str, &str)] = &[
     ("из палитры", "from the palette"),
     ("стрелки, Enter — поставить, Esc — назад", "arrows, Enter sets it, Esc goes back"),
     ("в папке нет картинок (png, jpg, webp)", "no pictures in this folder (png, jpg, webp)"),
+    ("читаю папку…", "reading the folder…"),
     ("выбери другую папку", "pick another folder"),
     ("обои ведёт skwd-wall: выбор здесь выключит его", "skwd-wall drives the wallpaper: a pick here turns it off"),
     ("папка обоев", "wallpaper folder"),

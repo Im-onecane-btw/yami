@@ -150,6 +150,7 @@ impl App {
                 } else {
                     // клик мимо панели — по затемнению или ловцу: закрыть
                     match self.surf_kind(sid) {
+                        Some(SKind::Dim) if self.st.modal == Some(Modal::Walls) => self.walls_back(),
                         Some(SKind::Dim) => self.close_modal(),
                         Some(SKind::Catcher) => {
                             self.close_popup();

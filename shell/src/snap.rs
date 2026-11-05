@@ -751,10 +751,9 @@ impl App {
             let mut err = None;
             if ask {
                 let _ = std::fs::create_dir_all(&dir);
-                let o = std::process::Command::new("yami-files").args(["--pick", "save", "--name", &name, "--folder"]).arg(&dir).args(["--filter", "PNG|*.png"]).output();
-                match o {
-                    Ok(o) if o.status.success() => path = String::from_utf8_lossy(&o.stdout).lines().next().map(PathBuf::from),
-                    _ => return,
+                match crate::app::files_pick("save", &dir, &["--name", &name, "--filter", "PNG|*.png"]) {
+                    Some(p) => path = Some(PathBuf::from(p)),
+                    None => return,
                 }
             } else if save {
                 path = Some(dir.join(&name));

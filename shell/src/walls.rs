@@ -1,11 +1,11 @@
 // Выбор обоев (Modal::Walls, #11): сетка миниатюр папки обоев (wallDir; пусто — ~/Pictures/Wallpapers,
-// папка текущих обоев или ~/Pictures), первая клетка — пиксельные из палитры. Миниатюры делает
-// нить через общий с yami-files кеш (yami-px icons::thumb), только для видимых строк и соседних:
-// в памяти их не больше нескольких десятков. Щелчок ставит обои и возвращает в настройки, если
-// выбор открыли оттуда; закрылся — миниатюры отпущены.
+// папка текущих обоев или ~/Pictures), первая клетка — пиксельные из палитры. Папку читает одна
+// нить, миниатюры — другая, через общий с yami-files кеш (yami-px icons::thumb): сперва видимые
+// строки, потом по две соседних, в памяти — не больше нескольких десятков. Щелчок ставит обои и
+// возвращает в настройки, если выбор открыли оттуда; закрылся — миниатюры отпущены.
 
 use crate::app::{App, Modal, Msg, SKind, State};
-use crate::config::{self, Settings};
+use crate::config;
 use crate::font::PX;
 use crate::gfx::{BoxStyle, Img, R};
 use crate::ui::{Act, Cur, Tone, Ui};
@@ -28,11 +28,12 @@ const GX: i32 = 25;
 const GY: i32 = 76;
 /// больше картинок из одной папки не показываем
 const MAX: usize = 500;
-const EXT: &[&str] = &["png", "jpg", "jpeg", "webp"];
+/// строк про запас сверху и снизу видимых
+const SPARE: usize = 2;
 
-/// очередь нити миниатюр: с какой клетки окно видимого, что уже сделано, пора ли выйти
+/// очередь нити миниатюр: первая видимая строка, что уже сделано, пора ли выйти
 struct Q {
-    from: usize,
+    top: usize,
     have: Vec<bool>,
     stop: bool,
 }
@@ -50,11 +51,12 @@ impl Drop for Worker {
 
 #[derive(Default)]
 pub struct Walls {
-    /// номер открытия: миниатюры прошлого открытия выбрасываются
+    /// номер открытия: ответы прошлого открытия выбрасываются
     pub gen: u64,
     pub dir: PathBuf,
-    /// клетки: 0 — пиксельные из палитры (state/yami/wallpaper.png), дальше картинки папки
-    pub tiles: Vec<PathBuf>,
+    /// клетки: 0 — пиксельные из палитры (state/yami/wallpaper.png), дальше картинки папки; пусто,
+    /// пока нить читает папку. Тот же список у нити миниатюр
+    pub tiles: Arc<[PathBuf]>,
     pub thumbs: HashMap<usize, Option<Rc<Img>>>,
     /// клетка под клавиатурой
     pub cur: usize,
@@ -67,22 +69,18 @@ pub struct Walls {
     worker: Option<Worker>,
 }
 
-fn expand(p: &str) -> PathBuf {
-    p.strip_prefix("~/").map(|r| config::home().join(r)).unwrap_or_else(|| PathBuf::from(p))
-}
-
-/// папка обоев: своя из настроек, иначе Wallpapers в «Изображениях», папка текущих обоев,
-/// сами «Изображения», дом
-pub fn dir(s: &Settings) -> PathBuf {
-    let own = expand(s.wall_dir.trim());
-    if !s.wall_dir.trim().is_empty() && own.is_dir() {
+/// папка обоев: своя из настроек (wallDir), иначе Wallpapers в «Изображениях», папка текущих
+/// обоев, сами «Изображения», дом. Трогает диск (сетевая папка может думать): только в нити
+fn dir(wall_dir: &str, cur: Option<&Path>) -> PathBuf {
+    let own = yami_px::paths::expand(wall_dir);
+    if !wall_dir.trim().is_empty() && own.is_dir() {
         return own;
     }
-    let pics = yami_px::paths::xdg_dir("PICTURES").filter(|d| d.is_dir()).unwrap_or_else(|| config::home().join("Pictures"));
+    let pics = Some(yami_px::paths::pictures()).filter(|d| d.is_dir()).unwrap_or_else(|| config::home().join("Pictures"));
     if let Some(d) = ["Wallpapers", "wallpapers", "Wallpaper", "wallpaper"].iter().map(|n| pics.join(n)).find(|d| d.is_dir()) {
         return d;
     }
-    if let Some(d) = crate::wall::own(s).and_then(|p| p.parent().map(Path::to_path_buf)).filter(|d| d.is_dir()) {
+    if let Some(d) = cur.and_then(Path::parent).map(Path::to_path_buf).filter(|d| d.is_dir()) {
         return d;
     }
     if pics.is_dir() {
@@ -92,29 +90,25 @@ pub fn dir(s: &Settings) -> PathBuf {
     }
 }
 
-/// картинки папки (без скрытых), по имени «естественно»; сколько отброшено сверх MAX
+fn file_name(p: &Path) -> String {
+    p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()
+}
+
+/// картинки папки, которые шелл декодирует сам (без скрытых), по имени «естественно»; сколько
+/// отброшено сверх MAX
 fn list(dir: &Path) -> (Vec<PathBuf>, usize) {
     let mut v: Vec<PathBuf> = std::fs::read_dir(dir)
-        .map(|rd| {
-            rd.flatten()
-                .map(|e| e.path())
-                .filter(|p| {
-                    let name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-                    let ext = p.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
-                    !name.starts_with('.') && EXT.contains(&ext.as_str()) && p.is_file()
-                })
-                .collect()
-        })
+        .map(|rd| rd.flatten().map(|e| e.path()).filter(|p| !file_name(p).starts_with('.') && crate::wall::decodable(p) && p.is_file()).collect())
         .unwrap_or_default();
-    v.sort_by(|a, b| yami_px::paths::natural(&a.file_name().unwrap_or_default().to_string_lossy(), &b.file_name().unwrap_or_default().to_string_lossy()));
+    v.sort_by(|a, b| yami_px::paths::natural(&file_name(a), &file_name(b)));
     let more = v.len().saturating_sub(MAX);
     v.truncate(MAX);
     (v, more)
 }
 
-/// клетки, которые держим в памяти: видимые строки и по две соседних
-fn window(top: usize, n: usize) -> std::ops::Range<usize> {
-    (top.saturating_sub(2) * COLS).min(n)..((top + ROWS + 2) * COLS).min(n)
+/// клетки строк top.. (видимых) и по spare строк сверху и снизу
+fn window(top: usize, n: usize, spare: usize) -> std::ops::Range<usize> {
+    (top.saturating_sub(spare) * COLS).min(n)..((top + ROWS + spare) * COLS).min(n)
 }
 
 /// миниатюра под клетку: обрезка по центру до 16:9 и уменьшение ровно до размера окна клетки
@@ -122,17 +116,16 @@ fn make(p: &Path) -> Option<Img> {
     let mtime = std::fs::metadata(p).ok()?.mtime();
     let t = crate::icons::thumb(p, mtime, 192)?;
     let (w, h) = ((TW - 6) as u32, (TH - 6) as u32);
-    let (sw, sh) = (t.width().max(1), t.height().max(1));
-    // наибольший кусок с пропорциями клетки
-    let (cw, ch) = if sw * h > sh * w { (sh * w / h, sh) } else { (sw, sw * h / w) };
-    let crop = image::imageops::crop_imm(&t, (sw - cw.min(sw)) / 2, (sh - ch.min(sh)) / 2, cw.max(1), ch.max(1)).to_image();
+    // наибольший кусок с пропорциями клетки, как обои «заполнить»
+    let (x, y, cw, ch) = crate::wall::cover_rect(t.width(), t.height(), w, h);
+    let crop = image::imageops::crop_imm(&t, x, y, cw, ch).to_image();
     let r = image::imageops::resize(&crop, w, h, image::imageops::FilterType::Triangle);
     Some(crate::icons::from_rgba(&r))
 }
 
-/// нить миниатюр: берёт несделанную клетку из окна видимого, ждёт, когда окно сдвинут; send —
-/// отдать готовую (false — получателя нет, выйти)
-fn spawn(tiles: Vec<PathBuf>, q: Arc<(Mutex<Q>, Condvar)>, send: impl Fn(usize, Option<Img>) -> bool + Send + 'static) {
+/// нить миниатюр: берёт несделанную клетку (видимые строки, потом запасные), ждёт, когда окно
+/// сдвинут; send — отдать готовую (false — получателя нет, выйти)
+fn spawn(tiles: Arc<[PathBuf]>, q: Arc<(Mutex<Q>, Condvar)>, send: impl Fn(usize, Option<Img>) -> bool + Send + 'static) {
     let _ = std::thread::Builder::new().name("walls".into()).spawn(move || {
         let mut made = 0;
         loop {
@@ -144,10 +137,15 @@ fn spawn(tiles: Vec<PathBuf>, q: Arc<(Mutex<Q>, Condvar)>, send: impl Fn(usize, 
                         yami_px::trim_heap();
                         return;
                     }
-                    let w = window(g.from / COLS, tiles.len());
-                    if let Some(i) = w.clone().find(|&i| !g.have[i]) {
+                    let (top, n) = (g.top, tiles.len());
+                    if let Some(i) = window(top, n, 0).chain(window(top, n, SPARE)).find(|&i| !g.have[i]) {
                         g.have[i] = true;
                         break i;
+                    }
+                    // делать нечего: память больших декодов — системе, пока ждём
+                    if made > 0 {
+                        made = 0;
+                        yami_px::trim_heap();
                     }
                     let Ok(n) = cv.wait(g) else { return };
                     g = n;
@@ -173,13 +171,10 @@ fn tile_rect(i: usize, top: usize) -> Option<R> {
     Some(R::new(GX + c * (TW + GAP), GY + r * (TH + GAP), TW, TH))
 }
 
-fn file_name(p: &Path) -> String {
-    p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()
-}
-
 pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
     let t = ui.t;
     let wl = &st.walls;
+    let loading = wl.tiles.is_empty();
     let fr = R::new(0, 0, w - 6, h - 6);
     ui.frame(fr, false);
     ui.header(R::new(1, 1, fr.w - 2, 30), "image", "обои", "");
@@ -187,21 +182,17 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
     // папка — как есть (путь не переводится), кнопки справа
     let (b1, b2) = (126, 156);
     let bx = fr.right() - GX - b1 - b2 - 8;
-    let home = config::home();
-    let shown = wl.dir.strip_prefix(&home).map(|r| format!("~/{}", r.display())).unwrap_or_else(|_| wl.dir.display().to_string());
     ui.cv.icon("folder", GX, 44, 2, t.text_faint);
-    ui.cv.push_clip(R::new(GX + 22, 38, bx - GX - 30, 26));
-    ui.cv.text_in(ui.f, PX, R::new(GX + 22, 38, bx - GX - 30, 26), &shown, t.text_dim);
-    ui.cv.pop_clip();
+    ui.cv.text_in(ui.f, PX, R::new(GX + 22, 38, bx - GX - 30, 26), &yami_px::paths::pretty(&wl.dir), t.text_dim);
     ui.button(R::new(bx, 39, b1, 24), "папка…", "folder", Tone::Plain, false, true, Act::WallsDir);
     ui.button(R::new(bx + b1 + 8, 39, b2, 24), "другой файл…", "image", Tone::Plain, false, true, Act::WallsFile);
     // сетка: под клетками — зона для колеса
     let grid = R::new(GX, GY, COLS as i32 * (TW + GAP) - GAP, ROWS as i32 * (TH + GAP) - GAP);
     ui.zone(grid, Act::WallsScroll, Cur::Default);
     let own = crate::wall::own(&st.set);
-    let skwd = st.set.wall_skwd && st.skwd.pick.is_some();
+    let skwd = st.skwd_drives();
     let mut hovered = None;
-    for i in window(wl.top, wl.tiles.len()) {
+    for i in window(wl.top, wl.tiles.len(), 0) {
         let Some(r) = tile_rect(i, wl.top) else { continue };
         let on = !skwd && if i == 0 { own.is_none() } else { own.as_deref() == Some(wl.tiles[i].as_path()) };
         let hov = ui.hover(r);
@@ -213,8 +204,8 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
         match wl.thumbs.get(&i) {
             Some(Some(img)) => ui.cv.image(img, inner.x, inner.y, 1.0),
             // не вышло (битая или огромная): значок, щёлкнуть всё равно можно
-            Some(None) => ui.cv.icon("image", inner.x + inner.w / 2 - 7, inner.y + inner.h / 2 - 7, 2, t.text_faint),
-            None => ui.cv.icon("image", inner.x + inner.w / 2 - 7, inner.y + inner.h / 2 - 7, 2, t.border),
+            Some(None) => ui.cv.icon_in("image", inner, 2, t.text_faint),
+            None => ui.cv.icon_in("image", inner, 2, t.border),
         }
         if i == 0 {
             // пиксельные: подпись на полосе внизу
@@ -231,7 +222,9 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
         }
         ui.zone(r, Act::WallPick(i), Cur::Pointer);
     }
-    if wl.tiles.len() <= 1 {
+    if loading {
+        ui.text_center(PX, R::new(grid.x, GY + TH + GAP, grid.w, 24), "читаю папку…", t.text_faint);
+    } else if wl.tiles.len() == 1 {
         ui.text_center(PX, R::new(grid.x, GY + TH + GAP, grid.w, 24), "в папке нет картинок (png, jpg, webp)", t.text_faint);
         ui.text_center(PX, R::new(grid.x, GY + TH + GAP + 24, grid.w, 24), "выбери другую папку", t.text_faint);
     }
@@ -247,14 +240,12 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
     // низ: имя картинки под курсором (или под клавиатурой), подсказка
     let fy = fr.bottom() - 34;
     ui.cv.fill(R::new(1, fy - 8, fr.w - 2, 1), t.border);
-    let at = hovered.unwrap_or(wl.cur);
-    let name = match at {
+    let name = match hovered.unwrap_or(wl.cur) {
+        _ if loading => String::new(),
         0 => crate::i18n::tr("пиксельные из палитры").to_string(),
         i => wl.tiles.get(i).map(|p| file_name(p)).unwrap_or_default(),
     };
-    ui.cv.push_clip(R::new(GX, fy, fr.w / 2, 24));
     ui.cv.text_in(ui.f, PX, R::new(GX, fy, fr.w / 2, 24), &name, t.text);
-    ui.cv.pop_clip();
     let hint = if skwd {
         crate::i18n::tr("обои ведёт skwd-wall: выбор здесь выключит его").to_string()
     } else if wl.more > 0 {
@@ -272,23 +263,44 @@ impl App {
             self.walls_back();
             return;
         }
-        self.toggle_modal(Modal::Walls, false);
+        self.walls_start(back);
+    }
+
+    /// открыть (уже открытый — заново, на новой папке): папку читает нить, клетки придут в
+    /// walls_listed. Wayland-нить диск не ждёт: в ~/Pictures бывают тысячи фото, папка — сетевой
+    fn walls_start(&mut self, back: bool) {
         if self.st.modal != Some(Modal::Walls) {
-            return;
+            self.toggle_modal(Modal::Walls, false);
+            if self.st.modal != Some(Modal::Walls) {
+                return;
+            }
         }
         let gen = self.st.walls.gen + 1;
-        let dir = dir(&self.st.set);
-        let (files, more) = list(&dir);
-        let mut tiles = vec![config::state_dir().join("wallpaper.png")];
-        tiles.extend(files);
+        self.st.walls = Walls { gen, back, ..Default::default() };
+        let (wd, cur, tx) = (self.st.set.wall_dir.clone(), crate::wall::own(&self.st.set), self.tx.clone());
+        let _ = std::thread::Builder::new().name("walls-list".into()).spawn(move || {
+            let d = dir(&wd, cur.as_deref());
+            let (files, more) = list(&d);
+            let _ = tx.send(Msg::WallsListed(gen, d, files, more));
+        });
+        self.dirty(&SKind::Modal);
+    }
+
+    /// папка прочитана: клетки, текущие обои под клавиатурой и видны, нить миниатюр — с их строк
+    pub fn walls_listed(&mut self, gen: u64, dir: PathBuf, files: Vec<PathBuf>, more: usize) {
+        if gen != self.st.walls.gen || self.st.modal != Some(Modal::Walls) {
+            return;
+        }
+        let tiles: Arc<[PathBuf]> = std::iter::once(crate::wall::generated()).chain(files).collect();
         let own = crate::wall::own(&self.st.set);
         let cur = own.and_then(|p| tiles.iter().skip(1).position(|t| *t == p).map(|i| i + 1)).unwrap_or(0);
-        let n = tiles.len();
-        let q = Arc::new((Mutex::new(Q { from: 0, have: vec![false; n], stop: false }), Condvar::new()));
+        let top = (cur / COLS + 1).saturating_sub(ROWS);
+        let q = Arc::new((Mutex::new(Q { top, have: vec![false; tiles.len()], stop: false }), Condvar::new()));
         let tx = self.tx.clone();
         spawn(tiles.clone(), q.clone(), move |i, img| tx.send(Msg::WallThumb(gen, i, img)).is_ok());
-        self.st.walls = Walls { gen, dir, tiles, cur, back, more, worker: Some(Worker(q)), ..Default::default() };
-        self.walls_show(cur);
+        let back = self.st.walls.back;
+        self.st.walls = Walls { gen, dir, tiles, cur, top, back, more, worker: Some(Worker(q)), ..Default::default() };
+        self.dirty(&SKind::Modal);
     }
 
     /// закрыть; открыт из настроек — вернуться на вкладку «обои»
@@ -312,9 +324,12 @@ impl App {
         if gen != wl.gen || self.st.modal != Some(Modal::Walls) {
             return;
         }
-        if window(wl.top, wl.tiles.len()).contains(&i) {
+        if window(wl.top, wl.tiles.len(), SPARE).contains(&i) {
             wl.thumbs.insert(i, img.map(Rc::new));
-            self.dirty(&SKind::Modal);
+            // запасные строки не видны: перерисовывать нечего
+            if tile_rect(i, wl.top).is_some() {
+                self.dirty(&SKind::Modal);
+            }
         } else if let Some(w) = &wl.worker {
             // пока делалась, её прокрутили из виду: понадобится — сделается снова
             if let Ok(mut q) = w.0 .0.lock() {
@@ -323,7 +338,7 @@ impl App {
         }
     }
 
-    /// прокрутить так, чтобы клетка i была видна; лишние миниатюры — отпустить, нити — новое окно
+    /// прокрутить так, чтобы клетка i была видна
     fn walls_show(&mut self, i: usize) {
         let wl = &mut self.st.walls;
         let row = i / COLS;
@@ -335,16 +350,17 @@ impl App {
         self.walls_sync();
     }
 
+    /// окно сдвинулось: лишние миниатюры — отпустить, нити — новое окно
     fn walls_sync(&mut self) {
         let wl = &mut self.st.walls;
-        let win = window(wl.top, wl.tiles.len());
+        let win = window(wl.top, wl.tiles.len(), SPARE);
         let gone: Vec<usize> = wl.thumbs.keys().copied().filter(|i| !win.contains(i)).collect();
         for i in &gone {
             wl.thumbs.remove(i);
         }
         if let Some(w) = &wl.worker {
             if let Ok(mut q) = w.0 .0.lock() {
-                q.from = wl.top * COLS;
+                q.top = wl.top;
                 for i in gone {
                     q.have[i] = false;
                 }
@@ -357,17 +373,25 @@ impl App {
     pub fn walls_scroll(&mut self, d: i32) {
         let wl = &mut self.st.walls;
         let max = wl.tiles.len().div_ceil(COLS).saturating_sub(ROWS);
-        wl.top = (wl.top as i32 + d).clamp(0, max as i32) as usize;
-        self.walls_sync();
+        let top = (wl.top as i32 + d).clamp(0, max as i32) as usize;
+        if top != wl.top {
+            wl.top = top;
+            self.walls_sync();
+        }
     }
 
-    /// клетка выбрана: пиксельные (0) или картинка; выбор здесь главнее skwd-wall
-    pub fn walls_pick(&mut self, i: usize) {
-        let Some(p) = self.st.walls.tiles.get(i).cloned() else { return };
-        if self.st.set.wall_skwd && self.st.skwd.pick.is_some() {
+    /// поставить обои отсюда (пусто — пиксельные): выбор здесь главнее skwd-wall
+    fn walls_set(&mut self, p: &str) {
+        if self.st.skwd_drives() {
             self.st.set.wall_skwd = false;
         }
-        self.set_wall(&if i == 0 { String::new() } else { p.to_string_lossy().to_string() });
+        self.set_wall(p);
+    }
+
+    /// клетка выбрана: пиксельные (0) или картинка
+    pub fn walls_pick(&mut self, i: usize) {
+        let Some(p) = self.st.walls.tiles.get(i).cloned() else { return };
+        self.walls_set(&if i == 0 { String::new() } else { p.to_string_lossy().to_string() });
         self.walls_back();
     }
 
@@ -380,35 +404,32 @@ impl App {
         let tx = self.tx.clone();
         let title = crate::i18n::tr(if folder { "папка обоев" } else { "обои" }).to_string();
         std::thread::spawn(move || {
-            let mut c = std::process::Command::new("yami-files");
-            c.args(["--pick", if folder { "dir" } else { "open" }, "--title", &title, "--folder"]).arg(&from);
-            if !folder {
-                c.args(["--filter", "Images|*.png;*.jpg;*.jpeg;*.webp|image/png;image/jpeg;image/webp"]);
-            }
-            let got = c.output().ok().filter(|o| o.status.success()).and_then(|o| String::from_utf8_lossy(&o.stdout).lines().next().map(str::to_string));
+            let got = if folder {
+                crate::app::files_pick("dir", &from, &["--title", &title])
+            } else {
+                let pats: Vec<String> = crate::wall::IMAGES.iter().map(|e| format!("*.{e}")).collect();
+                let filter = format!("Images|{}|image/png;image/jpeg;image/webp", pats.join(";"));
+                crate::app::files_pick("open", &from, &["--title", &title, "--filter", &filter])
+            };
             let _ = tx.send(Msg::WallsAsked(folder, got, back));
         });
     }
 
-    /// ответ окна выбора: папка — открыть выбор на ней, файл — поставить обои
+    /// ответ окна выбора: папка — открыть выбор на ней, файл — поставить обои, отмена — назад в выбор
     pub fn walls_asked(&mut self, folder: bool, got: Option<String>, back: bool) {
         match (folder, got) {
             (true, Some(d)) => {
+                // сохранится само (flush); пересобирать тему и обои ради папки незачем
                 self.st.set.wall_dir = d;
-                self.settings_changed();
-                self.walls_open(back);
+                self.walls_start(back);
             }
-            (true, None) => self.walls_open(back),
             (false, Some(p)) => {
-                if self.st.set.wall_skwd && self.st.skwd.pick.is_some() {
-                    self.st.set.wall_skwd = false;
-                }
-                self.set_wall(&p);
+                self.walls_set(&p);
                 if back {
                     self.open_settings_tab("wall");
                 }
             }
-            (false, None) => self.walls_open(back),
+            (_, None) => self.walls_start(back),
         }
     }
 
@@ -439,8 +460,7 @@ pub fn mock(st: &mut State) {
     let t = st.t;
     let names = ["dusk-field.png", "pixel-rain.jpg", "ash-city.png", "night-train.webp", "tokyo-2.jpg", "tokyo-10.jpg", "lantern.png", "snow-dither.png", "neon-alley.jpg", "moon-sea.png"];
     let dir = config::home().join("Pictures/Wallpapers");
-    let mut tiles = vec![PathBuf::from("/shot/wallpaper.png")];
-    tiles.extend(names.iter().map(|n| dir.join(n)));
+    let tiles: Arc<[PathBuf]> = std::iter::once(PathBuf::from("/shot/wallpaper.png")).chain(names.iter().map(|n| dir.join(n))).collect();
     let (w, h) = (TW - 6, TH - 6);
     let tones = [t.bg, t.panel, t.surface_hi, t.dim, t.red, t.ember, t.text_dim];
     let mut thumbs = HashMap::new();
@@ -458,7 +478,7 @@ pub fn mock(st: &mut State) {
         }
         thumbs.insert(i, if i == 7 { None } else { Some(Rc::new(Img { w, h, px })) });
     }
-    st.walls = Walls { gen: 1, dir, tiles, thumbs, cur: 2, top: 0, back: true, more: 0, worker: None };
+    st.walls = Walls { gen: 1, dir, tiles, thumbs, cur: 2, back: true, ..Default::default() };
 }
 
 #[cfg(test)]
@@ -474,16 +494,19 @@ mod tests {
 
     #[test]
     fn window_bounds() {
-        assert_eq!(window(0, 100), 0..24);
-        assert_eq!(window(5, 100), 12..44);
-        assert_eq!(window(5, 30), 12..30);
-        assert_eq!(window(9, 3), 3..3);
+        assert_eq!(window(0, 100, SPARE), 0..24);
+        assert_eq!(window(5, 100, SPARE), 12..44);
+        assert_eq!(window(5, 30, SPARE), 12..30);
+        assert_eq!(window(9, 3, SPARE), 3..3);
+        assert_eq!(window(5, 100, 0), 20..36);
     }
 
     #[test]
     fn list_and_thumbs() {
         let d = tmp("list");
-        // кеш миниатюр — во временной папке, не в настоящем ~/.cache
+        // кеш миниатюр — во временной папке, не в настоящем ~/.cache. Другие тесты кеш не читают;
+        // переменная возвращается в конце
+        let was = std::env::var_os("XDG_CACHE_HOME");
         std::env::set_var("XDG_CACHE_HOME", d.join("cache"));
         image::RgbaImage::from_pixel(400, 300, image::Rgba([200, 40, 30, 255])).save(d.join("b10.png")).unwrap();
         image::RgbImage::from_pixel(1000, 200, image::Rgb([20, 40, 200])).save(d.join("b2.jpg")).unwrap();
@@ -503,25 +526,33 @@ mod tests {
         assert!(make(&v[3]).is_none());
         // второй раз — из кеша
         assert!(std::fs::read_dir(d.join("cache/yami/thumbs")).unwrap().count() >= 3);
+        match was {
+            Some(v) => std::env::set_var("XDG_CACHE_HOME", v),
+            None => std::env::remove_var("XDG_CACHE_HOME"),
+        }
         let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]
     fn worker_follows_the_window() {
         let d = tmp("worker");
-        let tiles: Vec<PathBuf> = (0..60).map(|i| d.join(format!("{i}.png"))).collect();
-        let q = Arc::new((Mutex::new(Q { from: 0, have: vec![false; tiles.len()], stop: false }), Condvar::new()));
+        let tiles: Arc<[PathBuf]> = (0..60).map(|i| d.join(format!("{i}.png"))).collect();
+        let q = Arc::new((Mutex::new(Q { top: 0, have: vec![false; tiles.len()], stop: false }), Condvar::new()));
         let (tx, rx) = std::sync::mpsc::channel();
         spawn(tiles, q.clone(), move |i, _| tx.send(i).is_ok());
         let w = Worker(q.clone());
         let got = |n: usize| -> Vec<usize> { (0..n).map(|_| rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap()).collect() };
-        // сначала только окно у начала: строки 0..6
-        let mut a = got(24);
-        a.sort();
-        assert_eq!(a, (0..24).collect::<Vec<_>>());
+        // сначала видимые строки 0..4, потом запасные 4..6
+        let a = got(24);
+        let mut first = a[..16].to_vec();
+        first.sort();
+        assert_eq!(first, (0..16).collect::<Vec<_>>());
+        let mut all = a;
+        all.sort();
+        assert_eq!(all, (0..24).collect::<Vec<_>>());
         assert!(rx.recv_timeout(std::time::Duration::from_millis(200)).is_err());
         // прокрутили к строке 8: окно 24..56, сделанное заново не делается
-        q.0.lock().unwrap().from = 8 * COLS;
+        q.0.lock().unwrap().top = 8;
         q.1.notify_all();
         let mut b = got(32);
         b.sort();
