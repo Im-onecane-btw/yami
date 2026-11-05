@@ -6,6 +6,8 @@ subjects when that section is empty).
 
 ## Unreleased
 
+- Fix: skwd-wall videos and Wallpaper Engine scenes (#3): yami now sees that skwd-wall draws them (its `skwd-wall-vk` layer) and no longer draws its own picture on that screen, which after a shell restart could cover the live wallpaper
+
 ## 2.5.0
 
 - Floating, partial-width bar (#5, «Bar: floating (partial-width) bar option + geometric centering for barCenter modules»). Settings → bar → look: `barFloat` puts the bar on its own panel with a gap from the screen edges, a border all round and a hard pixel shadow; `barWidthPc` (30–100 %) makes it narrower and centred, docked to the top edge or floating; `barMargin` sets the gap. A live preview shows the shape. Popups, tray menus, a top dock, widgets, the stream badge and desk-mode title bars follow the bar, and windows keep clear of it

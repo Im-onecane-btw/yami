@@ -113,8 +113,10 @@ fn mtime(p: &Path) -> Option<SystemTime> {
     std::fs::metadata(p).and_then(|m| m.modified()).ok()
 }
 
-/// слои niri → мониторы, где обои рисует skwd-paper (или awww, если skwd-wall настроен на него).
-/// Фон в обзоре (skwd-paper-backdrop) — не обои стола
+/// слои niri → мониторы, где обои рисует skwd-wall: картинки — skwd-paper (skwd-wall-still,
+/// «skwd-paper-stationary»), видео и сцены Wallpaper Engine — skwd-wall-vk (демон не задаёт ему
+/// SKWD_PAPER_NAMESPACE), или awww, если skwd-wall настроен на него. Фон в обзоре
+/// (skwd-paper-backdrop) и окно самого выбора (skwd-wall-v2.<uid>) — не обои стола
 pub fn drawn_on(layers: &Value) -> Vec<String> {
     let mut v: Vec<String> = layers
         .as_array()
@@ -122,7 +124,7 @@ pub fn drawn_on(layers: &Value) -> Vec<String> {
             a.iter()
                 .filter(|l| {
                     let ns = l.get("namespace").and_then(Value::as_str).unwrap_or("");
-                    (ns.starts_with("skwd-paper") || ns.starts_with("awww")) && !ns.ends_with("-backdrop")
+                    (ns.starts_with("skwd-paper") || ns.starts_with("skwd-wall-vk") || ns.starts_with("awww")) && !ns.ends_with("-backdrop")
                 })
                 .filter_map(|l| l.get("output").and_then(Value::as_str).map(str::to_string))
                 .collect()
@@ -262,7 +264,11 @@ mod tests {
             {"namespace": "skwd-paper", "output": "DP-2", "layer": "Background"},
             {"namespace": "skwd-paper-backdrop", "output": "DP-1", "layer": "Background"},
             {"namespace": "skwd-paper", "output": "DP-2", "layer": "Bottom"},
+            // видео и сцены: свой рендер, своё имя слоя
+            {"namespace": "skwd-wall-vk", "output": "HDMI-A-1", "layer": "Background"},
+            // окно выбора skwd-wall — не обои
+            {"namespace": "skwd-wall-v2.1000", "output": "DP-3", "layer": "Overlay"},
         ]);
-        assert_eq!(super::drawn_on(&l), vec!["DP-2".to_string()]);
+        assert_eq!(super::drawn_on(&l), vec!["DP-2".to_string(), "HDMI-A-1".to_string()]);
     }
 }
