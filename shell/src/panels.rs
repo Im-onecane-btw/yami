@@ -130,7 +130,10 @@ impl App {
         let (ow, _) = self.output_size(out);
         let x = (ax - w / 2).clamp(6, (ow - w - 6).max(6));
         self.mk_catcher(out);
-        self.mk(SKind::Popup, out, Layer::Top, "yami-popup", Anchor::TOP | Anchor::LEFT, (w, h + 12), (if self.st.bar_hidden { 6 } else { 4 }, 0, 0, x), -1, KeyboardInteractivity::OnDemand);
+        // видимый верх — на 6 px ниже бара (где бы он ни был); содержимое всплывашки внутри
+        // поверхности опущено на высоту подъёма (12), поэтому сама поверхность — выше
+        let top = (self.bar_bottom(out) + 6 - 12).max(0);
+        self.mk(SKind::Popup, out, Layer::Top, "yami-popup", Anchor::TOP | Anchor::LEFT, (w, h + 12), (top, 0, 0, x), -1, KeyboardInteractivity::OnDemand);
     }
 
     pub fn resize_popup(&mut self) {
@@ -159,10 +162,17 @@ impl App {
     pub fn mk_catcher(&mut self, out: &str) {
         if self.find(&SKind::Catcher).is_empty() {
             let id = self.mk(SKind::Catcher, out, Layer::Top, "yami-catch", Anchor::all(), (0, 0), (0, 0, 0, 0), -1, KeyboardInteractivity::None);
+            // ловит всё, кроме самого бара: бар живой, а поля вокруг плавающего — нет
             let (w, h) = self.output_size(out);
-            let top = if self.st.bar_hidden { 0 } else { BAR_H };
+            let mut rs = vec![R::new(0, 0, w, h)];
+            if !self.st.bar_hidden {
+                let (top, side, _) = crate::bar::geo(&self.st.set, w);
+                let bot = top + BAR_H;
+                rs = vec![R::new(0, 0, w, top), R::new(0, top, side, BAR_H), R::new(w - side, top, side, BAR_H), R::new(0, bot, w, h - bot)];
+                rs.retain(|r| r.w > 0 && r.h > 0);
+            }
             if let Some(s) = self.surfs.get_mut(&id) {
-                s.input = Some(vec![R::new(0, top, w, h - top)]);
+                s.input = Some(rs);
             }
         }
     }
