@@ -33,6 +33,7 @@ impl App {
             Cur::Pointer => Shape::Pointer,
             Cur::Grab => Shape::Grabbing,
             Cur::Text => Shape::Text,
+            Cur::Resize => Shape::SeResize,
         };
         if self.cursor_now == Some(shape) {
             return;
@@ -145,7 +146,7 @@ impl App {
                         self.on_drag(x, y);
                     }
                     if z.act.is_drag() {
-                        self.set_cursor(Cur::Grab);
+                        self.set_cursor(if matches!(z.act, Act::TSize(_)) { Cur::Resize } else { Cur::Grab });
                     }
                 } else {
                     // клик мимо панели — по затемнению или ловцу: закрыть
@@ -227,6 +228,12 @@ impl App {
                 }
                 return;
             }
+            Act::TSize(win) => {
+                if p.moved {
+                    self.grip_drag(win, sid, start, dx, dy);
+                }
+                return;
+            }
             Act::SModDrag(..) | Act::SModNew(_) => {
                 if p.moved {
                     let press = (p.x, p.y);
@@ -277,7 +284,7 @@ impl App {
     }
 
     pub(crate) fn on_drag_end(&mut self, p: &Press) {
-        if let Act::TDrag(win) = p.act {
+        if let Act::TDrag(win) | Act::TSize(win) = p.act {
             self.title_drag_end(win);
         }
         if let Act::DispDrag(_) = p.act {

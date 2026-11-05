@@ -13,6 +13,8 @@ pub enum Cur {
     Pointer,
     Grab,
     Text,
+    /// угол окна: тянуть — размер
+    Resize,
 }
 
 #[derive(Clone, Debug)]

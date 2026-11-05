@@ -129,7 +129,7 @@ yami-shell binds list | print | write     # keybindings
 | Key | Default | Meaning |
 |---|---|---|
 | `stacking` | `false` | «desk» mode: every window floats, the shell draws title bars |
-| `titlebars` | `true` | title bars in desk mode |
+| `titlebars` | `true` | title bars and the resize corner in desk mode. Desk mode focuses a window on click (and raises it); focus follows the mouse only in tiling |
 | `floatMedia`, `floatPip` | `true` | photo/video viewers and picture-in-picture open floating |
 | `floatApps` | `""` | more app-ids to open floating, comma separated |
 | `floatW`, `floatH` | `0.62`, `0.78` | their size, share of the screen |

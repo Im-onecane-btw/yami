@@ -104,6 +104,8 @@ pub enum Act {
     TMin(u64),
     TMax(u64),
     TClose(u64),
+    /// угол плавающего окна на «столе»: тянуть — размер
+    TSize(u64),
     // виджеты
     WDrag(u32),
     WMenu(u32),
@@ -135,7 +137,7 @@ pub enum Act {
 
 impl Act {
     pub fn is_drag(&self) -> bool {
-        matches!(self, Act::SSlider(..) | Act::VolSlider | Act::MicSlider | Act::AppVol(_) | Act::MediaSeek | Act::TDrag(_) | Act::WDrag(_) | Act::DispDrag(_) | Act::SModDrag(..) | Act::SModNew(_))
+        matches!(self, Act::SSlider(..) | Act::VolSlider | Act::MicSlider | Act::AppVol(_) | Act::MediaSeek | Act::TDrag(_) | Act::TSize(_) | Act::WDrag(_) | Act::DispDrag(_) | Act::SModDrag(..) | Act::SModNew(_))
     }
 }
 

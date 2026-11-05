@@ -17,6 +17,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - Tray behind an arrow (#11): settings → bar → look → tray: `arrow` (`trayMode`) shows one arrow on the bar instead of every icon; it opens the tray apps as a list with their names, where clicks work as on the bar and an app's menu opens under its row. A dot on the arrow when an app asks for attention
 - Compact temperature (#11): settings → bar → look → temperature: `compact` (`tempStyle`) draws the `temp` module as a small thermometer column and the number, about a third of its usual width
 - Less work while idle: a panel whose new frame is the same as the last one is not sent to niri again (the bar redraws every second, its picture changes about once a minute), the sound state asks PipeWire only about what changed, the equalizer thread sleeps while nobody sees it and computes the spectrum once per frame, the settings file is compared only when the settings changed, font files are mapped once per process, and theme.py runs at a lower priority.
+- Desk mode behaves like a desktop: a window gets focus on click and comes to the front with it (focus follows the mouse only in tiling now), so a title bar of a window behind no longer shows over the window in front, and every floating window has a resize corner at the bottom right (with niri's `prefer-no-csd` most apps had no edge to drag).
 
 ## 2.5.0
 

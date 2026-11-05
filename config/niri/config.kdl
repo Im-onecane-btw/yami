@@ -25,7 +25,8 @@ input {
         tap
         natural-scroll
     }
-    focus-follows-mouse max-scroll-amount="0%"
+    // focus follows the mouse in tiling only: the shell writes it into yami-binds.kdl, and leaves
+    // it out in desk mode (there a click focuses and raises, as on any desktop)
     workspace-auto-back-and-forth
 }
 

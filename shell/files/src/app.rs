@@ -574,6 +574,7 @@ impl App {
             Cur::Pointer => Shape::Pointer,
             Cur::Grab => Shape::Grabbing,
             Cur::Text => Shape::Text,
+            Cur::Resize => Shape::SeResize,
         };
         if self.cursor_now == Some(shape) {
             return;

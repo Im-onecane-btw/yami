@@ -76,6 +76,8 @@ pub enum SKind {
     Osd,
     Widget(u32),
     Title(u64),
+    /// ручка размера в правом нижнем углу плавающего окна (titles.rs)
+    Grip(u64),
     EditBar,
     Snap,
     /// шторка для трансляций и значок «скрыто» (curtain.rs)
@@ -874,7 +876,7 @@ impl App {
     pub fn flush(&mut self) {
         // окно на весь экран (игра): что под ним, не рисуем — останется грязным до выхода из него
         let covered = if self.st.game.fullscreen { Some(self.focus_out()) } else { None };
-        let under = |s: &Surf| covered.as_deref() == Some(s.output.as_str()) && matches!(s.kind, SKind::Bar | SKind::Widget(_) | SKind::Dock | SKind::Wall | SKind::Title(_));
+        let under = |s: &Surf| covered.as_deref() == Some(s.output.as_str()) && matches!(s.kind, SKind::Bar | SKind::Widget(_) | SKind::Dock | SKind::Wall | SKind::Title(_) | SKind::Grip(_));
         // всплывашка перерисовывается — значит, её данные поменялись, и размер (строки сетей, устройств,
         // программ трея, время трека) мог тоже; resize_popup ничего не делает, если он тот же
         if self.surfs.values().any(|s| s.kind == SKind::Popup && s.dirty && !s.closing) {
@@ -1010,6 +1012,7 @@ impl App {
                 SKind::Osd => crate::notif::draw_osd(&mut ui, st, w, h),
                 SKind::Widget(wid) => crate::widgets::draw(&mut ui, st, *wid, w, h),
                 SKind::Title(win) => crate::titles::draw(&mut ui, st, *win, w, h),
+                SKind::Grip(win) => crate::titles::draw_grip(&mut ui, st, *win, w, h),
                 SKind::EditBar => crate::widgets::draw_editbar(&mut ui, st, w, h),
                 SKind::Snap => crate::snap::draw(&mut ui, st, &s.output, w, h),
                 SKind::Dock => crate::dock::draw(&mut ui, st, w, h),
@@ -1018,7 +1021,7 @@ impl App {
                 SKind::CurtainBadge => crate::curtain::draw_badge(&mut ui, w, h),
             }
             // развёртка — только панели: не обои, не оверлей скриншота, не шторка
-            if st.set.scanlines && !matches!(s.kind, SKind::Dim | SKind::Catcher | SKind::Wall | SKind::Snap | SKind::Curtain | SKind::CurtainBadge | SKind::DockEdge | SKind::Title(_)) {
+            if st.set.scanlines && !matches!(s.kind, SKind::Dim | SKind::Catcher | SKind::Wall | SKind::Snap | SKind::Curtain | SKind::CurtainBadge | SKind::DockEdge | SKind::Title(_) | SKind::Grip(_)) {
                 ui.cv.scanlines(if st.t.light { 0.06 } else { 0.22 });
             }
             if k < 1.0 && !matches!(s.kind, SKind::Dim | SKind::Catcher) {
@@ -1417,6 +1420,8 @@ impl App {
                 let on = !self.st.niri.stacking;
                 self.st.niri.set_stacking(on);
                 self.st.set.stacking = on;
+                // фокус за мышью есть только в ленте (keys::kdl)
+                crate::keys::write(&self.st.set);
                 self.sync_titles();
                 self.dirty_all();
             }

@@ -1,7 +1,9 @@
 // Заголовки окон в режиме «стол» (на любом niri): над каждым плавающим окном — полоса во всю
 // ширину, как в DE: значок, название, свернуть / развернуть / закрыть. Тащишь — едет окно,
-// двойной клик — развернуть, ПКМ — меню окна. Части, закрытые окнами выше, не рисуются и
-// не ловят клики (порядок — по времени фокуса, активное сверху).
+// двойной клик — развернуть, ПКМ — меню окна. В правом нижнем углу — ручка размера: при
+// prefer-no-csd у окон нет своих рамок, а niri тянет размер только по Mod+ПКМ. Части, закрытые
+// окнами выше, не рисуются и не ловят клики (порядок — по времени фокуса: на столе фокус только
+// по щелчку, а щелчок окно и поднимает, см. keys::kdl).
 
 use crate::app::{App, SKind, State, TITLE_H};
 use crate::font::PX;
@@ -102,81 +104,189 @@ pub fn draw(ui: &mut Ui, st: &State, id: u64, w: i32, h: i32) {
     }
 }
 
+/// ручка размера: квадрат на углу окна, GRIP_IN пикселей внутри, остальное снаружи
+const GRIP: i32 = 14;
+const GRIP_IN: i32 = 5;
+/// меньше этого окно ручкой не сжать
+const MIN_W: i32 = 160;
+const MIN_H: i32 = 90;
+
+fn grip_of(tr: R) -> R {
+    R::new(tr.right() - GRIP_IN, tr.bottom() - GRIP_IN, GRIP, GRIP)
+}
+
+/// ручка: три пиксельные диагонали, как у старых окон; у активного — акцентом
+pub fn draw_grip(ui: &mut Ui, st: &State, id: u64, w: i32, h: i32) {
+    let t = ui.t;
+    let Some(win) = st.niri.win(id) else { return };
+    let hov = ui.hover(R::new(0, 0, w, h));
+    let c = if hov { t.text_hi } else if win.focused { t.red } else { t.dim };
+    for d in 0..3 {
+        // диагональ d: точки 2×2 от нижнего края к правому
+        for k in 0..=d {
+            let (x, y) = (w - 4 - k * 4, h - 4 - (d - k) * 4);
+            ui.cv.fill(R::new(x, y, 2, 2), c);
+        }
+    }
+    ui.zone(R::new(0, 0, w, h), Act::TSize(id), Cur::Resize);
+    if let Some(s) = st.titles.get(&id) {
+        for r in &s.grip_covered {
+            ui.cv.set(*r, CLEAR);
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct TitleGeo {
     pub covered: Vec<R>,
+    pub grip_covered: Vec<R>,
+}
+
+/// поверхность заголовка или ручки, которую надо поставить
+struct Want {
+    id: u64,
+    out: String,
+    r: R,
+    vis: Vec<R>,
+    cov: Vec<R>,
+}
+
+/// что из r видно над окнами выше (в координатах r) и что закрыто
+fn piece(id: u64, out: &str, r: R, above: &[R]) -> Option<Want> {
+    let vis = visible(r, above);
+    if vis.is_empty() {
+        return None;
+    }
+    let local = |x: &R| R::new(x.x - r.x, x.y - r.y, x.w, x.h);
+    let cov = above.iter().map(|a| local(&a.inter(&r))).filter(|x| !x.empty()).collect();
+    Some(Want { id, out: out.to_string(), r, vis: vis.iter().map(local).collect(), cov })
 }
 
 impl App {
     pub fn sync_titles(&mut self) {
         let on = self.st.niri.stacking && self.st.set.titlebars && !self.st.locked && !self.st.niri.overview;
-        let mut want: Vec<(u64, String, R, Vec<R>, Vec<R>)> = vec![];
+        let (mut titles, mut grips): (Vec<Want>, Vec<Want>) = (vec![], vec![]);
         if on {
             for out in self.output_names() {
                 let (ow, oh) = self.output_size(&out);
+                let top = self.bar_bottom(&out);
                 let wins = stack(&self.st, &out);
                 for (i, w) in wins.iter().enumerate() {
                     let tr = tile(w);
-                    // во весь экран — без заголовка
-                    if tr.w >= ow && tr.h >= oh - self.bar_bottom(&out) {
+                    // во весь экран — без заголовка и ручки
+                    if tr.w >= ow && tr.h >= oh - top {
                         continue;
                     }
-                    let bar = R::new(tr.x, tr.y - TITLE_H, tr.w, TITLE_H);
-                    if bar.bottom() <= 0 || bar.y >= oh {
-                        continue;
-                    }
+                    // окно выше вместе со своим заголовком и ручкой
                     let above: Vec<R> = wins[i + 1..].iter().flat_map(|a| {
                         let ar = tile(a);
-                        // окно выше вместе со своим заголовком
-                        [ar, R::new(ar.x, ar.y - TITLE_H, ar.w, TITLE_H)]
+                        [ar, R::new(ar.x, ar.y - TITLE_H, ar.w, TITLE_H), grip_of(ar)]
                     }).collect();
-                    let vis = visible(bar, &above);
-                    if vis.is_empty() {
-                        continue;
+                    let bar = R::new(tr.x, tr.y - TITLE_H, tr.w, TITLE_H);
+                    if bar.bottom() > 0 && bar.y < oh {
+                        titles.extend(piece(w.id, &out, bar, &above));
                     }
-                    let local = |r: &R| R::new(r.x - bar.x, r.y - bar.y, r.w, r.h);
-                    let vis_l: Vec<R> = vis.iter().map(local).collect();
-                    let cov: Vec<R> = above.iter().map(|a| local(&a.inter(&bar))).filter(|r| !r.empty()).collect();
-                    want.push((w.id, out.clone(), bar, vis_l, cov));
+                    let g = grip_of(tr);
+                    if g.x < ow && g.y < oh {
+                        grips.extend(piece(w.id, &out, g, &above));
+                    }
                 }
             }
         }
-        // лишние — убрать сразу (без анимации: окно ушло — заголовок тоже)
-        let have: Vec<(u32, u64)> = self.surfs.iter().filter_map(|(sid, s)| if let SKind::Title(id) = s.kind { Some((*sid, id)) } else { None }).collect();
+        // пока тащим — положение того, за что тянут, ведёт шелл: ответы niri запаздывают
+        let (mut by_title, mut by_grip) = (None, None);
+        match self.press.as_ref().filter(|p| p.moved).map(|p| &p.act) {
+            Some(Act::TDrag(id)) => by_title = Some(*id),
+            Some(Act::TSize(id)) => by_grip = Some(*id),
+            _ => {}
+        }
+        self.place(SKind::Title, titles, by_title);
+        self.place(SKind::Grip, grips, by_grip);
+        let live: Vec<u64> = self.surfs.values().filter_map(|s| if let SKind::Title(id) | SKind::Grip(id) = s.kind { Some(id) } else { None }).collect();
+        self.st.titles.retain(|id, _| live.contains(id));
+    }
+
+    /// поставить поверхности одного вида (заголовки или ручки) по списку: лишние убрать сразу
+    /// (окно ушло — его украшения тоже), новые создать, остальные сдвинуть
+    fn place(&mut self, kind: fn(u64) -> SKind, want: Vec<Want>, held: Option<u64>) {
+        let is_title = matches!(kind(0), SKind::Title(_));
+        let have: Vec<(u32, u64)> = self
+            .surfs
+            .iter()
+            .filter_map(|(sid, s)| match s.kind {
+                SKind::Title(id) if is_title => Some((*sid, id)),
+                SKind::Grip(id) if !is_title => Some((*sid, id)),
+                _ => None,
+            })
+            .collect();
         for (sid, id) in &have {
-            if !want.iter().any(|w| w.0 == *id) {
+            if !want.iter().any(|w| w.id == *id) {
                 self.destroy(*sid);
-                self.st.titles.remove(id);
             }
         }
-        let dragging = self.press.as_ref().and_then(|p| if let Act::TDrag(id) = p.act { if p.moved { Some(id) } else { None } } else { None });
-        for (id, out, bar, vis, cov) in want {
-            self.st.titles.insert(id, TitleGeo { covered: cov });
-            // пока тащим — положение ведёт шелл, ответы niri запаздывают
-            if dragging == Some(id) {
+        for w in want {
+            let g = self.st.titles.entry(w.id).or_default();
+            if is_title {
+                g.covered = w.cov;
+            } else {
+                g.grip_covered = w.cov;
+            }
+            if held == Some(w.id) {
                 continue;
             }
-            match have.iter().find(|h| h.1 == id).map(|h| h.0) {
+            let (r, ns) = (w.r, if is_title { "yami-title" } else { "yami-grip" });
+            match have.iter().find(|h| h.1 == w.id).map(|h| h.0) {
                 None => {
-                    let sid = self.mk(SKind::Title(id), &out, Layer::Top, "yami-title", Anchor::TOP | Anchor::LEFT, (bar.w, bar.h), (bar.y, 0, 0, bar.x), -1, KeyboardInteractivity::None);
+                    let sid = self.mk(kind(w.id), &w.out, Layer::Top, ns, Anchor::TOP | Anchor::LEFT, (r.w, r.h), (r.y, 0, 0, r.x), -1, KeyboardInteractivity::None);
                     if let Some(s) = self.surfs.get_mut(&sid) {
-                        s.margin = (bar.x, bar.y);
-                        s.applied = (bar.x, bar.y);
-                        s.input = Some(vis);
+                        s.margin = (r.x, r.y);
+                        s.applied = (r.x, r.y);
+                        s.input = Some(w.vis);
                     }
                 }
                 Some(sid) => {
-                    self.move_surface(sid, bar.x, bar.y);
+                    self.move_surface(sid, r.x, r.y);
                     if let Some(s) = self.surfs.get_mut(&sid) {
-                        if s.w != bar.w {
-                            s.layer.set_size(bar.w as u32, bar.h as u32);
+                        if s.w != r.w {
+                            s.layer.set_size(r.w as u32, r.h as u32);
                         }
-                        s.input = Some(vis);
+                        s.input = Some(w.vis);
                         s.layer.commit();
                         s.dirty = true;
                     }
                 }
             }
+        }
+    }
+
+    /// тянем ручку: окно растёт на ту же разницу (niri: AdjustFixed к ожидаемому размеру),
+    /// ручка едет сразу, не дожидаясь niri
+    pub fn grip_drag(&mut self, win: u64, sid: u32, start: (i32, i32), dx: f64, dy: f64) {
+        let Some((x0, y0)) = self.st.niri.win(win).and_then(|w| w.layout.pos) else { return };
+        // не меньше MIN_W×MIN_H: угол не левее и не выше этого
+        let dx = dx.round().max((x0.round() as i32 + MIN_W - GRIP_IN - start.0) as f64);
+        let dy = dy.round().max((y0.round() as i32 + MIN_H - GRIP_IN - start.1) as f64);
+        let sent = self.tdrag.filter(|t| t.0 == win).map(|t| t.1).unwrap_or((0.0, 0.0));
+        let (mx, my) = ((dx - sent.0) as i32, (dy - sent.1) as i32);
+        if mx == 0 && my == 0 {
+            return;
+        }
+        self.tdrag = Some((win, (dx, dy)));
+        if mx != 0 {
+            self.st.niri.act(json!({"SetWindowWidth": {"id": win, "change": {"AdjustFixed": mx}}}));
+        }
+        if my != 0 {
+            self.st.niri.act(json!({"SetWindowHeight": {"id": win, "change": {"AdjustFixed": my}}}));
+        }
+        if let Some(s) = self.surfs.get_mut(&sid) {
+            if s.input.is_some() {
+                s.input = None;
+                s.dirty = true;
+            }
+        }
+        self.move_surface(sid, start.0 + dx as i32, start.1 + dy as i32);
+        if let Some(g) = self.st.titles.get_mut(&win) {
+            g.grip_covered.clear();
         }
     }
 

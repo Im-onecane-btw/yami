@@ -212,6 +212,7 @@ impl App {
                     }
                 }
             },
+            Act::TSize(id) => self.st.niri.act(serde_json::json!({"FocusWindow": {"id": id}})),
             Act::TMin(id) => self.st.niri.minimize(id),
             Act::TMax(id) => self.window_op(id, "maximize"),
             Act::TClose(id) => self.st.niri.close_window(id),

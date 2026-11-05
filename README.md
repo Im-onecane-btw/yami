@@ -73,7 +73,8 @@ Everything it does and its flags: [Installation](#installation).
   rotation and VRR; applied through `~/.config/niri/yami-outputs.kdl`, reverted after 15 s unless kept.
 - **Login screen.** An SDDM theme that matches the lock screen and follows the palette.
 - **Desk mode.** Toggle niri between tiling and a classic floating desktop with DE-style title
-  bars, minimize/restore and a task list in the bar.
+  bars, a resize corner on every window, click to focus and raise, minimize/restore and a task
+  list in the bar.
 - **yami-niri.** Our niri: upstream 26.04 plus a short patch series, built for your CPU (fat
   LTO, `target-cpu=native`): tearing for fullscreen games (async page flips, less input lag), a
   realtime compositor thread so a game loading every core doesn't make the desktop stutter. The
