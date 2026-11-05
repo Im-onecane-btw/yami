@@ -4,7 +4,6 @@
 // i18n: inline pairs
 
 use crate::app::{App, SKind};
-use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 
 #[derive(Default)]
@@ -75,14 +74,7 @@ impl App {
         self.st.night.stop();
         let mut cmd = Command::new("wlsunset");
         cmd.args(&a).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-        // SAFETY: между fork и exec только prctl
-        unsafe {
-            cmd.pre_exec(|| {
-                libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
-                Ok(())
-            });
-        }
-        self.st.night.child = cmd.spawn().ok();
+        self.st.night.child = crate::app::owned(&mut cmd).spawn().ok();
         self.st.night.on = self.st.night.child.is_some();
         self.st.night.args = a;
         self.dirty(&SKind::Bar);

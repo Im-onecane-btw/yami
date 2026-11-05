@@ -422,7 +422,50 @@ impl State {
     }
 }
 
+/// долгий процесс нити шелла (playerctl -F, pactl subscribe, parec) уходит вместе с ней: при
+/// падении шелла и при перезапуске (exec в том же pid уничтожает нити, их дети получают сигнал).
+/// Без этого каждый `yami restart` и каждое обновление оставляли по живой копии каждого
+pub fn owned(cmd: &mut std::process::Command) -> &mut std::process::Command {
+    use std::os::unix::process::CommandExt;
+    // SAFETY: между fork и exec только prctl
+    unsafe {
+        cmd.pre_exec(|| {
+            libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
+            Ok(())
+        })
+    }
+}
+
+/// дети, доставшиеся от образа до перезапуска: их Child остались в старых нитях, ждать их некому.
+/// Список берётся до первого запуска чего-либо (все дети на этот момент — чужие) и
+/// подбирается в tick, иначе каждый перезапуск оставлял зомби
+static INHERITED: std::sync::Mutex<Vec<i32>> = std::sync::Mutex::new(Vec::new());
+
+fn note_inherited() {
+    let me = std::process::id().to_string();
+    let Ok(rd) = std::fs::read_dir("/proc") else { return };
+    let kids: Vec<i32> = rd
+        .flatten()
+        .filter_map(|e| e.file_name().to_str()?.parse::<i32>().ok())
+        .filter(|p| {
+            // «pid (comm) S ppid …»: comm может содержать пробелы и скобки — режем по последней «)»
+            let Ok(s) = std::fs::read_to_string(format!("/proc/{p}/stat")) else { return false };
+            s.rsplit_once(')').and_then(|(_, r)| r.split_whitespace().nth(1)) == Some(me.as_str())
+        })
+        .collect();
+    if let Ok(mut v) = INHERITED.lock() {
+        *v = kids;
+    }
+}
+
+fn reap_inherited() {
+    let Ok(mut v) = INHERITED.lock() else { return };
+    // 0 — ещё жив; pid — подобран; -1 — уже не наш
+    v.retain(|&p| unsafe { libc::waitpid(p, std::ptr::null_mut(), libc::WNOHANG) } == 0);
+}
+
 pub fn run() {
+    note_inherited();
     let conn = Connection::connect_to_env().expect("no Wayland display");
     let (globals, mut queue) = registry_queue_init::<App>(&conn).expect("wayland registry");
     let qh = queue.handle();
@@ -1010,6 +1053,7 @@ impl App {
     }
 
     pub(crate) fn tick(&mut self) {
+        reap_inherited();
         let now = Instant::now();
         // мигание курсора ввода — раз в полсекунды
         let blink = (self.st.started.elapsed().as_millis() / 500) % 2 == 0;

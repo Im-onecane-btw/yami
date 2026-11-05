@@ -56,7 +56,7 @@ pub fn spawn(tx: Sender<Msg>) {
         .name("media".into())
         .spawn(move || loop {
             let fmt = "{{playerName}}\t{{status}}\t{{artist}}\t{{title}}\t{{mpris:artUrl}}\t{{mpris:length}}\t{{position}}";
-            let Ok(mut c) = Command::new("playerctl").args(["-F", "metadata", "--format", fmt]).stdout(Stdio::piped()).stderr(Stdio::null()).spawn() else {
+            let Ok(mut c) = crate::app::owned(Command::new("playerctl").args(["-F", "metadata", "--format", fmt]).stdout(Stdio::piped()).stderr(Stdio::null())).spawn() else {
                 std::thread::sleep(std::time::Duration::from_secs(30));
                 continue;
             };

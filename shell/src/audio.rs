@@ -161,7 +161,7 @@ pub fn spawn(tx: Sender<Msg>) {
         .name("audio".into())
         .spawn(move || loop {
             let _ = tx2.send(Msg::Audio(query()));
-            let Ok(mut c) = Command::new("pactl").arg("subscribe").stdout(Stdio::piped()).stderr(Stdio::null()).spawn() else {
+            let Ok(mut c) = crate::app::owned(Command::new("pactl").arg("subscribe").stdout(Stdio::piped()).stderr(Stdio::null())).spawn() else {
                 std::thread::sleep(std::time::Duration::from_secs(5));
                 continue;
             };
@@ -259,12 +259,13 @@ fn viz_thread(tx: Sender<Msg>) {
                     std::thread::sleep(std::time::Duration::from_millis(300));
                     continue;
                 }
-                let Ok(mut c) = Command::new("parec")
-                    .args(["--raw", "--format=s16le", "--rate=44100", "--channels=1", "--latency-msec=20", "-d", "@DEFAULT_MONITOR@"])
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::null())
-                    .spawn()
-                else {
+                let Ok(mut c) = crate::app::owned(
+                    Command::new("parec")
+                        .args(["--raw", "--format=s16le", "--rate=44100", "--channels=1", "--latency-msec=20", "-d", "@DEFAULT_MONITOR@"])
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::null()),
+                )
+                .spawn() else {
                     std::thread::sleep(std::time::Duration::from_secs(5));
                     continue;
                 };
