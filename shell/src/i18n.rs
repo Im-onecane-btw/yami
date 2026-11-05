@@ -586,6 +586,11 @@ const PAIRS: &[(&str, &str)] = &[
     ("рисуются заново при смене цвета", "redrawn when the colour changes"),
     ("выбрать картинку…", "choose an image…"),
     ("пиксельные из палитры", "pixel art from the palette"),
+    // трей и температура в баре (#11)
+    ("в трее никого", "the tray is empty"),
+    ("стрелкой", "arrow"),
+    ("коротко", "compact"),
+    ("как цп", "like cpu"),
     ("или путь к файлу", "or a file path"),
     ("как показывать", "display"),
     ("подгонка", "fit"),

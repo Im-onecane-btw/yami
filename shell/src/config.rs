@@ -147,6 +147,10 @@ pub struct Settings {
     pub bar_right: Vec<String>,
     /// gauge | graph | number
     pub cpu_style: String,
+    /// модуль temp: "full" — как цп и память (подпись, шкала или график), "compact" — столбик и число
+    pub temp_style: String,
+    /// трей: "icons" — значки в баре, "arrow" — одна стрелка, значки во всплывашке
+    pub tray_mode: String,
     pub clock_seconds: bool,
     pub clock_date: bool,
     pub task_width: i32,
@@ -428,6 +432,8 @@ impl Default for Settings {
             bar_center: v(&["tasks"]),
             bar_right: v(&["tray", "sep", "net", "kb", "cpu", "ram", "bat", "profile", "sep", "vol", "sep", "clock", "sep", "settings", "power"]),
             cpu_style: "gauge".into(),
+            temp_style: "full".into(),
+            tray_mode: "icons".into(),
             clock_seconds: false,
             clock_date: true,
             task_width: 190,
@@ -587,6 +593,12 @@ impl Settings {
         }
         if self.bar_center_align != "after-left" {
             self.bar_center_align = "center".into();
+        }
+        if self.temp_style != "compact" {
+            self.temp_style = "full".into();
+        }
+        if self.tray_mode != "arrow" {
+            self.tray_mode = "icons".into();
         }
     }
 

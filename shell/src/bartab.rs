@@ -237,6 +237,10 @@ fn tab_bar_look(ui: &mut Ui, st: &State, b: R) {
     opt_btn(ui, R::new(col(0), y, cw, 26), "цп/память", cpu, Act::SCycle("cpu_style"));
     ui.toggle(R::new(col(1), y, cw, 26), "часы с секундами", "", s.clock_seconds, Act::SBool("clock_seconds"));
     ui.toggle(R::new(col(2), y, cw, 26), "дата в часах", "", s.clock_date, Act::SBool("clock_date"));
+    y += 32;
+    // #11: трей одной стрелкой, температура столбиком
+    opt_btn(ui, R::new(col(0), y, cw, 26), "трей", if s.tray_mode == "arrow" { "стрелкой" } else { "значки" }, Act::SCycle("tray_mode"));
+    opt_btn(ui, R::new(col(1), y, cw, 26), "температура", if s.temp_style == "compact" { "коротко" } else { "как цп" }, Act::SCycle("temp_style"));
     y += 40;
     y = title(ui, b.x, y, b.w, "как выглядит");
     shape_preview(ui, st, R::new(b.x, y, b.w, (b.bottom() - y).clamp(40, 96)));

@@ -41,7 +41,7 @@ pub const FIND: &[(&str, &str)] = &[
     ("wall", "обои картинка фон skwd skwd-wall видео wallpaper background image video"), // i18n-ok
     ("look", "анимации эффекты появление развёртка размытие значки иконки курсор animation effects reveal scanlines blur icons cursor"), // i18n-ok
     ("fonts", "шрифт размер терминал fastfetch браузер fonts size terminal browser"), // i18n-ok
-    ("bar", "бар модули часы разделитель плавающий плашка ширина центр bar modules clock separator floating pill width center"), // i18n-ok
+    ("bar", "бар модули часы разделитель плавающий плашка ширина центр трей стрелка температура bar modules clock separator floating pill width center tray arrow temperature"), // i18n-ok
     ("widgets", "виджеты график часы заметка widgets graph clock note"), // i18n-ok
     ("dock", "док закреплённые dock pinned"), // i18n-ok
     ("windows", "окна отступы плавающие стол заголовки углы скругление рамка gaps floating stacking windows titlebars corners rounded radius border"), // i18n-ok
@@ -724,6 +724,14 @@ impl App {
             Act::SCycle(k) => match *k {
                 "cpu_style" => {
                     s.cpu_style = cycle(&[("gauge", ""), ("graph", ""), ("number", "")], &s.cpu_style).into();
+                    self.settings_changed();
+                }
+                "tray_mode" => {
+                    s.tray_mode = if s.tray_mode == "arrow" { "icons" } else { "arrow" }.into();
+                    self.settings_changed();
+                }
+                "temp_style" => {
+                    s.temp_style = if s.temp_style == "compact" { "full" } else { "compact" }.into();
                     self.settings_changed();
                 }
                 "bar_page_mods" | "bar_page_look" => {

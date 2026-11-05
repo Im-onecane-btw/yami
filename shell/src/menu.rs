@@ -180,7 +180,13 @@ impl App {
     pub fn menu_act(&mut self, a: MAct) {
         match a {
             MAct::Win(id, op) => self.window_op(id, op),
-            MAct::Tray(svc, path, item) => crate::dbus::tray_menu_click(&svc, &path, item),
+            MAct::Tray(svc, path, item) => {
+                crate::dbus::tray_menu_click(&svc, &path, item);
+                // пункт выбран из меню во всплывашке трея — закрыть и её
+                if self.st.popup.as_ref().is_some_and(|p| p.kind == "tray") {
+                    self.close_popup();
+                }
+            }
             MAct::Widget(id, key, val) => {
                 if let Some(w) = self.st.set.widget_mut(id) {
                     crate::widgets::set_opt(w, key, &val);
@@ -296,9 +302,12 @@ impl App {
         if items.is_empty() {
             return;
         }
-        let (out, x) = self.tray_anchor.clone().unwrap_or_else(|| (self.focus_out(), 100));
+        let (out, x, y) = self.tray_anchor.clone().unwrap_or_else(|| {
+            let out = self.focus_out();
+            let y = self.bar_bottom(&out) + 2;
+            (out, 100, y)
+        });
         let title = self.st.tray.iter().find(|t| t.service == svc).map(|t| t.title.clone()).unwrap_or_default();
-        let y = self.bar_bottom(&out) + 2;
         self.open_menu(MenuState::new(&out, x, y, &title, items));
     }
 }

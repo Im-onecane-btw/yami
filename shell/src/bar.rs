@@ -184,6 +184,21 @@ fn sep(ui: &mut Ui, st: &State, x: i32, w: i32) {
     }
 }
 
+/// значок программы трея 16×16 с левым верхним углом в x, y (бар и всплывашка `tray`)
+pub fn tray_icon(ui: &mut Ui, it: &crate::dbus::TrayItem, x: i32, y: i32) {
+    let t = ui.t;
+    if let Some(img) = &it.pixmap {
+        ui.cv.image(img, x, y, 1.0);
+        return;
+    }
+    let name = it.icon.clone();
+    let img = if name.is_empty() { None } else { ui.ic.get(&name, 16).or_else(|| it.theme_path.as_ref().and_then(|p| icons::load_file(&std::path::Path::new(p).join(format!("{name}.png")), 16).map(std::rc::Rc::new))) };
+    match img {
+        Some(img) => ui.cv.image(&img, x, y, 1.0),
+        None => ui.cv.icon("dots", x + 1, y + 1, 2, t.text_dim),
+    }
+}
+
 /// модуль бара: рисует (или только меряет) с левого края x, возвращает ширину
 fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) -> i32 {
     let t = ui.t;
@@ -239,8 +254,29 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
             }
             w
         }
+        // трей стрелкой: одна кнопка, значки — во всплывашке (popups.rs `tray`); точка — кто-то зовёт
+        "tray" if st.set.tray_mode == "arrow" => {
+            let items = crate::popups::tray_items(st);
+            if items.is_empty() {
+                return 0;
+            }
+            if !measure {
+                let r = R::new(x, cy - 11, 22, 22);
+                let open = st.popup.as_ref().is_some_and(|p| p.kind == "tray");
+                let hov = ui.hover(r);
+                if hov || open {
+                    ui.cv.pxbox(r, &BoxStyle::new(t.surface_hi, if open { t.red } else { t.border }));
+                }
+                ui.cv.icon(if open { "up" } else { "down" }, x + 4, cy - 7, 2, if hov || open { t.text_hi } else { t.text_dim });
+                if items.iter().any(|i| i.status == "NeedsAttention") {
+                    ui.cv.fill(R::new(x + 17, cy - 9, 4, 4), t.ember);
+                }
+                ui.zone(r, Act::Popup("tray"), Cur::Pointer);
+            }
+            22
+        }
         "tray" => {
-            let items: Vec<&crate::dbus::TrayItem> = st.tray.iter().filter(|i| i.status != "Passive").collect();
+            let items = crate::popups::tray_items(st);
             let w = items.len() as i32 * 24 - 2;
             if measure || items.is_empty() {
                 return w.max(0);
@@ -251,18 +287,7 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
                 if ui.hover(r) {
                     ui.cv.pxbox(r, &BoxStyle::new(t.surface_hi, t.red));
                 }
-                if let Some(img) = &it.pixmap {
-                    ui.cv.image(img, ix + 3, cy - 8, 1.0);
-                } else if !it.icon.is_empty() {
-                    let name = it.icon.clone();
-                    if let Some(img) = ui.ic.get(&name, 16).or_else(|| it.theme_path.as_ref().and_then(|p| icons::load_file(&std::path::Path::new(p).join(format!("{name}.png")), 16).map(std::rc::Rc::new))) {
-                        ui.cv.image(&img, ix + 3, cy - 8, 1.0);
-                    } else {
-                        ui.cv.icon("dots", ix + 4, cy - 7, 2, t.text_dim);
-                    }
-                } else {
-                    ui.cv.icon("dots", ix + 4, cy - 7, 2, t.text_dim);
-                }
+                tray_icon(ui, it, ix + 3, cy - 8);
                 ui.zone(r, Act::Tray(it.service.clone()), Cur::Pointer);
                 ix += 24;
             }
@@ -350,6 +375,25 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
             if !measure {
                 ui.button(R::new(x, cy - 11, w, 22), &s, "", Tone::Plain, false, true, Act::Kb);
             }
+            w
+        }
+        // температура коротко: столбик-градусник и число, без подписи и шкалы
+        "temp" if st.set.temp_style == "compact" => {
+            let txt = format!("{}°", st.sys.temp.round());
+            let hot = st.sys.temp > 80.0;
+            let tw = ui.w(PX, "88°").max(ui.w(PX, &txt));
+            let w = 4 + 5 + tw;
+            if measure {
+                return w;
+            }
+            let r = R::new(x, 0, w, H - 1);
+            let hov = ui.hover(r);
+            // 7 клеток по 2 px: целые пиксели, без полутонов
+            let cells = ((st.sys.temp / 100.0).clamp(0.0, 1.0) * 7.0).round() as i32;
+            ui.cv.fill(R::new(x, cy - 7, 4, 14), t.surface_hi.lerp(t.border, 0.45));
+            ui.cv.fill(R::new(x, cy + 7 - cells * 2, 4, cells * 2), if hot { t.ember } else { t.red });
+            ui.text_in(PX, R::new(x + 9, 0, tw, H - 1), &txt, if hot { t.ember } else if hov { t.text } else { t.text_dim });
+            ui.zone(r, Act::Popup("sys"), Cur::Pointer);
             w
         }
         "cpu" | "ram" | "temp" => {

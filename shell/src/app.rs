@@ -340,7 +340,8 @@ pub struct App {
     pub quit: bool,
     /// выйти и запустить себя заново (тот же путь: после обновления — новый бинарь)
     pub restart: bool,
-    pub tray_anchor: Option<(String, i32)>,
+    /// где открыть меню программы трея: монитор, x, y
+    pub tray_anchor: Option<(String, i32, i32)>,
     pub tdrag: Option<(u64, (f64, f64))>,
 }
 
@@ -1237,6 +1238,10 @@ impl App {
             Msg::Tray(e) => {
                 dbus::apply(&mut self.st.tray, e);
                 self.dirty(&SKind::Bar);
+                if self.st.popup.as_ref().is_some_and(|p| p.kind == "tray") {
+                    self.resize_popup();
+                    self.dirty(&SKind::Popup);
+                }
             }
             Msg::TrayMenu(svc, items) => self.open_tray_menu(&svc, items),
             Msg::Net(n) => {
@@ -1384,6 +1389,7 @@ impl App {
                     "net" => "net",
                     "bt" => "bt",
                     "profile" => "profile",
+                    "tray" => "tray",
                     _ => "sys",
                 };
                 // из терминала или хоткея: под правым краем бара

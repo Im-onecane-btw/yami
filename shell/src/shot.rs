@@ -21,6 +21,7 @@ const TARGETS: &[&str] = &[
     "bar",
     "bar:pill",
     "bar:float",
+    "bar:compact",
     "settings:color",
     "settings:bar",
     "settings:bar-look",
@@ -47,6 +48,7 @@ const TARGETS: &[&str] = &[
     "popup:bt",
     "popup:sys",
     "popup:profile",
+    "popup:tray",
     "menu:widget",
     "widget:clock",
     "widget:graph",
@@ -135,6 +137,7 @@ pub fn run(args: &[String]) -> i32 {
     res.icons.set_pixel(set.icon_pixel.then(|| crate::theme::Theme::new(set.accent_rgb(), set.tint, set.glass, set.lift, set.inner, set.light).icon_ramp()));
     let mut st = State::new(set, mock_niri());
     st.apps = mock_apps();
+    mock_tray(&mut st);
     st.sys.sample();
     mock_sys(&mut st.sys);
     if std::fs::create_dir_all(&out).is_err() {
@@ -176,6 +179,12 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
             st.set.bar_center = v(&["clock"]);
             st.set.bar_right = v(&["settings", "net", "vol", "temp"]);
             st.media.title = "a very long track title that pushes the clock".into();
+        } else if arg == "compact" {
+            // #11: трей стрелкой и короткая температура
+            st.set.bar_width_pc = 100;
+            st.set.tray_mode = "arrow".into();
+            st.set.temp_style = "compact".into();
+            st.set.bar_right = v(&["tray", "sep", "net", "cpu", "temp", "sep", "vol", "sep", "clock", "sep", "settings", "power"]);
         } else {
             st.set.bar_width_pc = 100;
         }
@@ -308,7 +317,7 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
                 st.media = crate::media::MediaState { player: "mpv".into(), status: "Playing".into(), artist: "Ash Field".into(), title: "Pixel Rain".into(), art: String::new(), length: 245.0, pos: 83.0, at };
                 st.viz = (0..32).map(|i| ((i * 7 % 11) as f32 / 11.0) * 0.8 + 0.1).collect();
             }
-            let k = ["cal", "sound", "media", "net", "bt", "sys", "profile"].into_iter().find(|k| *k == arg).unwrap_or(if arg == "wifi" { "net" } else { "cal" });
+            let k = ["cal", "sound", "media", "net", "bt", "sys", "profile", "tray"].into_iter().find(|k| *k == arg).unwrap_or(if arg == "wifi" { "net" } else { "cal" });
             st.popup = Some(Popup { kind: k });
             crate::popups::size(k, st)
         }
@@ -518,6 +527,17 @@ fn mock_net(st: &mut State, ask: bool) {
         st.wifi_pass.text = "secret".into();
         st.wifi_pass.cur = 6;
         st.field_focus = Some("wifi");
+    }
+}
+
+/// три программы в трее: значки — клетки в тонах темы, одна зовёт (NeedsAttention)
+fn mock_tray(st: &mut State) {
+    let t = st.t;
+    for (i, (name, status)) in [("Telegram", "Active"), ("Steam", "NeedsAttention"), ("nm-applet", "Active")].into_iter().enumerate() {
+        let c = [t.red, t.ok, t.text_dim][i];
+        let px = (0..256).map(|k| { let (x, y) = (k % 16, k / 16); if (2..14).contains(&x) && (2..14).contains(&y) && (x + y + i) % 5 != 0 { c.0 | 0xff000000 } else { 0 } }).collect();
+        let pixmap = Some(crate::gfx::Img { w: 16, h: 16, px });
+        crate::dbus::apply(&mut st.tray, crate::dbus::TrayEv::Upsert { service: format!(":1.{i}"), bus: format!(":1.{i}"), path: "/StatusNotifierItem".into(), title: name.into(), status: status.into(), icon: String::new(), theme_path: None, pixmap, menu: String::new(), is_menu: false });
     }
 }
 

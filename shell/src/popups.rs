@@ -1,6 +1,6 @@
 // Всплывашки бара (ЛКМ по модулю): календарь + история уведомлений, звук (выход, микрофон,
 // громкость программ), музыка (обложка, кнопки, перемотка, эквалайзер), сеть (график ↓↑, Wi-Fi),
-// bluetooth, система.
+// bluetooth, система, трей (trayMode = arrow: значки программ списком).
 // Клик мимо — закрыть (ловец кликов в app.rs), Esc — тоже.
 
 use crate::app::{App, SKind, State};
@@ -26,6 +26,7 @@ pub fn size(kind: &str, st: &State) -> (i32, i32) {
         }
         "bt" => (380, 44 + 40 + if st.bt.msg.is_empty() { 0 } else { 24 } + if st.bt.powered { st.bt.devices.len().clamp(1, 8) as i32 * 34 } else { 30 } + 50),
         "sys" => (440, 44 + 4 * 74 + 40 + 50),
+        "tray" => (300, 66 + tray_items(st).len().clamp(1, 12) as i32 * 32),
         "profile" => (340, 44 + if st.sys.bat.is_some() { 40 } else { 0 } + if st.prof.present { 36 * 3 + if st.prof.degraded.is_empty() { 0 } else { 26 } } else { 60 } + 30),
         _ => (300, 200),
     }
@@ -47,6 +48,7 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
         "bt" => bt(ui, st, body),
         "sys" => sys(ui, st, body),
         "profile" => profile(ui, st, body),
+        "tray" => tray(ui, st, body),
         _ => {}
     }
 }
@@ -177,6 +179,38 @@ fn media(ui: &mut Ui, st: &State, b: R) {
         let at = st.seek.map(|f| f as f64 * m.length).unwrap_or(m.now_pos());
         ui.cv.text_in(ui.f, PX, R::new(b.x, y, b.w / 2, 20), &crate::media::clock(at), if st.seek.is_some() { t.red } else { t.text_dim });
         ui.cv.text_right(ui.f, PX, R::new(b.x, y, b.w, 20), &crate::media::clock(m.length), t.text_faint);
+    }
+}
+
+// ── трей ────────────────────────────────────────────────────────────────────
+// trayMode = arrow: в баре одна стрелка, программы — здесь. ЛКМ, ПКМ, СКМ и колесо — как у значка
+// в баре; меню программы открывается под её строкой
+pub fn tray_items(st: &State) -> Vec<&crate::dbus::TrayItem> {
+    st.tray.iter().filter(|i| i.status != "Passive").collect()
+}
+
+fn tray(ui: &mut Ui, st: &State, b: R) {
+    let t = ui.t;
+    let items = tray_items(st);
+    let n = items.len().to_string();
+    let mut y = head(ui, b, "menu", "трей", &n);
+    if items.is_empty() {
+        ui.text_in(PX, R::new(b.x, y, b.w, 28), "в трее никого", t.text_faint);
+        return;
+    }
+    for it in items.into_iter().take(12) {
+        let r = R::new(b.x, y, b.w, 28);
+        ui.button(r, "", "", Tone::Ghost, false, true, Act::Tray(it.service.clone()));
+        crate::bar::tray_icon(ui, it, r.x + 6, r.cy() - 8);
+        // имя даёт сама программа: как есть, без перевода
+        let name = if it.title.is_empty() { it.icon.as_str() } else { it.title.as_str() };
+        let name = if name.is_empty() { it.service.as_str() } else { name };
+        let hov = ui.hover(r);
+        ui.cv.text_in(ui.f, PX, R::new(r.x + 30, r.y, r.w - 46, r.h), name, if hov { t.text_hi } else { t.text });
+        if it.status == "NeedsAttention" {
+            ui.cv.fill(R::new(r.right() - 12, r.cy() - 2, 4, 4), t.ember);
+        }
+        y += 32;
     }
 }
 

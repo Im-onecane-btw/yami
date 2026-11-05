@@ -108,6 +108,8 @@ yami-shell binds list | print | write     # keybindings
 |---|---|---|
 | `barLeft`, `barCenter`, `barRight` | see `config list` | module ids in order: `launcher` `workspaces` `mode` `tasks` `media` `tray` `net` `netspeed` `bt` `kb` `cpu` `ram` `temp` `bat` `vol` `profile` `clock` `notif` `settings` `power` `sep` (`bat`: laptop battery, hidden without one) |
 | `cpuStyle` | `"gauge"` | `gauge` `graph` `number` |
+| `tempStyle` | `"full"` | the `temp` module: `full` like `cpu` and `ram` (label and `cpuStyle`), `compact` a small thermometer column and the number |
+| `trayMode` | `"icons"` | `icons`: every tray icon on the bar; `arrow`: one arrow that opens them as a list (clicks work as on the bar; a dot when an app asks for attention) |
 | `clockSeconds`, `clockDate` | `false`, `true` | |
 | `taskWidth` | `190` | width of a task button, px (60–400) |
 | `barTaskGap` | `4` | gap between task buttons, px (0–16) |

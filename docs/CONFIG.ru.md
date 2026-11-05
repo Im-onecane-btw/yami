@@ -109,6 +109,8 @@ yami-shell binds list | print | write     # сочетания клавиш
 |---|---|---|
 | `barLeft`, `barCenter`, `barRight` | см. `config list` | id модулей по порядку: `launcher` `workspaces` `mode` `tasks` `media` `tray` `net` `netspeed` `bt` `kb` `cpu` `ram` `temp` `bat` `vol` `profile` `clock` `notif` `settings` `power` `sep` (`bat`: батарея ноутбука, скрыт без неё) |
 | `cpuStyle` | `"gauge"` | `gauge` `graph` `number` |
+| `tempStyle` | `"full"` | модуль `temp`: `full` — как `cpu` и `ram` (подпись и `cpuStyle`), `compact` — столбик-градусник и число |
+| `trayMode` | `"icons"` | `icons` — все значки трея в баре; `arrow` — одна стрелка, по ней они открываются списком (щелчки — как в баре; точка, когда программа зовёт) |
 | `clockSeconds`, `clockDate` | `false`, `true` | |
 | `taskWidth` | `190` | ширина кнопки окна, px (60–400) |
 | `barTaskGap` | `4` | промежуток между кнопками окон, px (0–16) |

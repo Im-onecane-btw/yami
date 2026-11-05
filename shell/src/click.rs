@@ -59,17 +59,22 @@ impl App {
             Act::Tray(svc) => {
                 let Some(it) = self.st.tray.iter().find(|t| t.service == svc) else { return };
                 let (bus, path, menu, is_menu) = (it.bus.clone(), it.path.clone(), it.menu.clone(), it.is_menu);
-                self.tray_anchor = Some((out.clone(), ax - 20));
+                // меню программы: под значком в баре или под её строкой во всплывашке трея
+                let in_popup = kind == Some(SKind::Popup);
+                let mx = self.surfs.get(&sid).map(|s| s.margin.0).unwrap_or(0);
+                self.tray_anchor = Some(if in_popup { (out.clone(), mx + zone.x + 8, ay + 2) } else { (out.clone(), ax - 20, self.bar_bottom(&out) + 2) });
                 if button == RMB || (button == LMB && is_menu) {
                     if !menu.is_empty() {
                         crate::dbus::tray_menu(&svc, &bus, &menu, self.tx.clone());
                     } else {
                         crate::dbus::tray_call(&bus, &path, "ContextMenu", ax, ay);
                     }
-                } else if button == MMB {
-                    crate::dbus::tray_call(&bus, &path, "SecondaryActivate", ax, ay);
                 } else {
-                    crate::dbus::tray_call(&bus, &path, "Activate", ax, ay);
+                    crate::dbus::tray_call(&bus, &path, if button == MMB { "SecondaryActivate" } else { "Activate" }, ax, ay);
+                    // программа открыла окно: всплывашка трея своё сделала
+                    if in_popup {
+                        self.close_popup();
+                    }
                 }
             }
             Act::Mode => self.ipc("stacking"),
