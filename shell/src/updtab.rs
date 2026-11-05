@@ -224,7 +224,7 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     if u.pick && u.busy.is_none() {
         picker(ui, st, R::new(b.x, y, b.w, by - y - 8));
     } else if let Some(i) = notes {
-        // что нового: строки CHANGELOG выпуска (английский текст репозитория — без перевода)
+        // что нового: строки CHANGELOG выпуска на языке интерфейса (CHANGELOG.ru.md), мимо tr()
         y = title(ui, b.x, y, b.w, &crate::tf!("что нового в {}", "what is new in {}", i.latest));
         for n in &i.notes {
             if y + 18 > by - 8 {

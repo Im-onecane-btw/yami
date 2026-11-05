@@ -325,22 +325,28 @@ pub(crate) fn plain(l: &str) -> String {
     out.replace("**", "").replace('`', "")
 }
 
-/// что нового: раздел CHANGELOG.md выпуска, иначе заголовки коммитов
+/// строки раздела «## ver» без заголовков «### …» и без разметки: ссылки, **жирное**, `код`
+pub(crate) fn section(log: &str, ver: &str) -> Vec<String> {
+    let head = format!("## {ver}");
+    log.lines()
+        .skip_while(|l| l.trim_end() != head)
+        .skip(1)
+        .take_while(|l| !l.starts_with("## "))
+        .filter(|l| !l.trim_start().starts_with('#'))
+        .map(|l| plain(l.trim().trim_start_matches(['-', '*']).trim()))
+        .filter(|l| !l.is_empty())
+        .take(12)
+        .collect()
+}
+
+/// что нового: раздел CHANGELOG выпуска (CHANGELOG.ru.md при русском интерфейсе, если в нём
+/// есть этот выпуск), иначе заголовки коммитов
 pub(crate) fn notes(dir: &Path, st: &Stamp, i: &Info, known: bool, main: bool) -> Vec<String> {
     if !main {
-        if let Ok(log) = git(dir, &["show", &format!("{}:CHANGELOG.md", i.target)]) {
-            let head = format!("## {}", i.latest);
-            // строки раздела без заголовков «### …» и без разметки: ссылки, **жирное**, `код`
-            let sec: Vec<String> = log
-                .lines()
-                .skip_while(|l| !l.starts_with(&head))
-                .skip(1)
-                .take_while(|l| !l.starts_with("## "))
-                .filter(|l| !l.trim_start().starts_with('#'))
-                .map(|l| plain(l.trim().trim_start_matches(['-', '*']).trim()))
-                .filter(|l| !l.is_empty())
-                .take(12)
-                .collect();
+        let files: &[&str] = if crate::i18n::en() { &["CHANGELOG.md"] } else { &["CHANGELOG.ru.md", "CHANGELOG.md"] };
+        for f in files {
+            let Ok(log) = git(dir, &["show", &format!("{}:{f}", i.target)]) else { continue };
+            let sec = section(&log, &i.latest);
             if !sec.is_empty() {
                 return sec;
             }
@@ -606,5 +612,9 @@ mod tests {
     fn notes_as_plain_text() {
         assert_eq!(super::plain("**Bar shape** ([#5](https://github.com/Trendorin/yami/issues/5)): `barFloat`"), "Bar shape (#5): barFloat");
         assert_eq!(super::plain("a [b] c"), "a [b] c");
+        // «## 2.5.1» не должен находить «## 2.5.10», а раздел кончается на следующем «## »
+        let log = "# x\n\n## 2.5.10\n\n- ten\n\n## 2.5.1\n\n### Fixes\n\n- `one`\n- two\n\n## 2.5.0\n\n- old\n";
+        assert_eq!(super::section(log, "2.5.1"), vec!["one", "two"]);
+        assert!(super::section(log, "2.6.0").is_empty());
     }
 }
