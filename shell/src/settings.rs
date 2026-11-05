@@ -60,6 +60,8 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
     let fr = R::new(0, 0, w - 6, h - 6);
     ui.frame(fr, false);
     ui.header(R::new(1, 1, fr.w - 2, 30), "gear", "настройки", "yami-shell");
+    // за заголовок окно двигается (крестик зарегистрирован позже — он сверху)
+    ui.zone(R::new(1, 1, fr.w - 2, 30), Act::MDrag, Cur::Default);
     ui.ghost(R::new(fr.right() - 28, 5, 24, 22), "close", Act::CloseModal);
     // вкладки
     let side = R::new(1, 31, 160, fr.h - 32);

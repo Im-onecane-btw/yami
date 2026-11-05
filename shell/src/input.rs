@@ -233,6 +233,12 @@ impl App {
                 }
                 return;
             }
+            Act::MDrag => {
+                if p.moved {
+                    self.modal_drag(sid, dx, dy);
+                }
+                return;
+            }
             Act::SModDrag(..) | Act::SModNew(_) => {
                 if p.moved {
                     let press = (p.x, p.y);
@@ -285,6 +291,9 @@ impl App {
     pub(crate) fn on_drag_end(&mut self, p: &Press) {
         if let Act::TDrag(win) | Act::TSize(win) = p.act {
             self.title_drag_end(win);
+        }
+        if let Act::MDrag = p.act {
+            self.mdrag = None;
         }
         if let Act::SSlider("pixel_level", ..) = p.act {
             self.look_apply();

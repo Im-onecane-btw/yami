@@ -379,6 +379,10 @@ pub struct App {
     pub tray_anchor: Option<(String, i32, i32)>,
     /// окно, которое тянут за заголовок или угол, и сколько сдвига (размера) niri уже отправлено
     pub tdrag: Option<(u64, (f64, f64))>,
+    /// окно настроек сдвинуто за заголовок: его поверхность и левый верхний угол; mdrag —
+    /// угол в начале текущего перетаскивания
+    pub modal_at: Option<(u32, (i32, i32))>,
+    pub mdrag: Option<(i32, i32)>,
     /// ползунок пиксельности сменил шрифт программ / курсор, theme.py ещё не звали
     pub look_pending: (bool, bool),
 }
@@ -606,6 +610,8 @@ pub fn run() {
         tray_anchor: None,
         tdrag: None,
         look_pending: (false, false),
+        modal_at: None,
+        mdrag: None,
     };
 
     // нити: niri, IPC, D-Bus (уведомления, трей), звук, музыка

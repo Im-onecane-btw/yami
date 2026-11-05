@@ -75,6 +75,24 @@ impl App {
         }, Anchor::empty(), (w, h + 12), (0, 0, 0, 0), -1, KeyboardInteractivity::Exclusive);
     }
 
+    /// тащим настройки за заголовок: окно открывается по центру (без якоря), при первом сдвиге
+    /// получает якорь сверху слева и дальше едет полями. Заголовок не уходит за край экрана
+    pub fn modal_drag(&mut self, sid: u32, dx: f64, dy: f64) {
+        let Some((w, h, out)) = self.surfs.get(&sid).map(|s| (s.w, s.h, s.output.clone())) else { return };
+        let (ow, oh) = self.output_size(&out);
+        let at = self.modal_at.filter(|m| m.0 == sid).map(|m| m.1);
+        let start = *self.mdrag.get_or_insert(at.unwrap_or(((ow - w) / 2, (oh - h) / 2)));
+        let nx = (start.0 + dx.round() as i32).clamp(80 - w, ow - 80);
+        let ny = (start.1 + dy.round() as i32).clamp(0, (oh - 40).max(0));
+        if at.is_none() {
+            if let Some(s) = self.surfs.get(&sid) {
+                s.layer.set_anchor(Anchor::TOP | Anchor::LEFT);
+            }
+        }
+        self.modal_at = Some((sid, (nx, ny)));
+        self.move_surface(sid, nx, ny);
+    }
+
     /// все клавиши — шеллу (запись сочетания): niri не ловит свои бинды, пока фокус у настроек
     pub fn inhibit_shortcuts(&mut self, on: bool) {
         if let Some(i) = self.ksi.take() {
@@ -94,6 +112,8 @@ impl App {
         if self.st.modal.is_none() {
             return;
         }
+        // следующее окно снова откроется по центру
+        self.modal_at = None;
         self.keys_capture(None);
         if self.st.modal == Some(Modal::Auth) {
             self.auth_cancel();

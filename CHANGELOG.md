@@ -26,6 +26,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - Notification and OSD position (#8): settings → system → notifications: the cards go to any corner or the middle of the top or bottom edge (`notifPos`), the volume and brightness OSD to the bottom, the top or the centre (`osdPos`); cards keep clear of the bar and the dock.
 - yami-view and yami-play tick once a second while nothing on screen is about to change (four times a second only while their panels are about to hide, faster only while something moves).
 - Fix: `glass` set below 0.15 by hand (the slider stops there) made panels all but invisible, so their shadow and blur looked like broken frames (#8); lower values are raised to 0.15.
+- The settings window moves by its header (#8): drag it anywhere on the screen; it opens in the middle again next time.
 
 ## 2.5.0
 
