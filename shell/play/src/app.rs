@@ -76,6 +76,8 @@ pub struct App {
     pool: Option<SlotPool>,
     configured: bool,
     dirty: bool,
+    /// холст интерфейса (HiDPI) весь прозрачный: чистить перед кадром не нужно
+    scratch_clean: bool,
     frame_pending: bool,
     anim: bool,
     zones: Vec<yami_px::ui::Zone<Act>>,
@@ -238,6 +240,7 @@ pub fn run(mut p: P) -> i32 {
         configured: false,
         dirty: true,
         frame_pending: false,
+        scratch_clean: false,
         anim: false,
         zones: vec![],
         fonts: Fonts::with(&font),
@@ -410,27 +413,34 @@ impl App {
             }
         }
         let mut scratch = std::mem::take(&mut self.scratch);
+        let drew;
         {
             let buf: &mut [u32] = if up {
-                scratch.clear();
-                scratch.resize((w * h) as usize, 0);
+                // холст интерфейса остался пустым с прошлого кадра (панели спрятаны): не чистить его
+                // заново на каждом кадре видео
+                if !self.scratch_clean || scratch.len() != (w * h) as usize {
+                    scratch.clear();
+                    scratch.resize((w * h) as usize, 0);
+                }
                 &mut scratch
             } else {
                 out
             };
             let mut ui = Ui { cv: Canvas::new(buf, w, h), f: &mut self.fonts, ic: &mut self.icons, t: self.p.look.theme, zones: vec![], ptr: self.p.ptr, down: self.press_act.is_some(), anim: false, blink: true, tr: crate::i18n::tr };
-            crate::play::draw(&mut ui, &self.p, w, h, !video);
+            drew = crate::play::draw(&mut ui, &self.p, w, h, !video);
             self.zones = std::mem::take(&mut ui.zones);
             self.anim = ui.anim;
         }
         if up {
             // SAFETY: тот же буфер пула; прошлая ссылка `out` больше не используется
             let out = unsafe { std::slice::from_raw_parts_mut(out_ptr, out_len) };
-            if video {
-                yami_px::gfx::overlay_up(&scratch, w, h, out, pw, ph);
-            } else {
+            if !video {
                 yami_px::gfx::upscale(&scratch, w, h, out, pw, ph);
+            } else if drew {
+                yami_px::gfx::overlay_up(&scratch, w, h, out, pw, ph);
             }
+            // поверх видео пусто — кадр mpv уже в буфере, проходить по нему незачем
+            self.scratch_clean = !drew;
         }
         self.scratch = scratch;
         let surf = self.window.wl_surface().clone();

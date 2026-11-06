@@ -352,8 +352,10 @@ fn ease(born: Instant, ms: f32, p: &P) -> f32 {
 }
 
 /// интерфейс поверх кадра. `bg` — кадра нет (музыка без обложки, загрузка, ошибка): фон темы
-pub fn draw(ui: &mut Ui, p: &P, w: i32, h: i32, bg: bool) {
+/// true — на холсте что-то нарисовано (false: панели спрятаны, поверх кадра видео пусто)
+pub fn draw(ui: &mut Ui, p: &P, w: i32, h: i32, bg: bool) -> bool {
     let t = ui.t;
+    let mut drew = bg;
     if bg {
         ui.cv.clear(t.bg.alpha(t.glass.max(0.92)));
         let (icon, msg) = match &p.err {
@@ -376,19 +378,24 @@ pub fn draw(ui: &mut Ui, p: &P, w: i32, h: i32, bg: bool) {
     if p.ui_visible() {
         top(ui, p, w);
         bottom(ui, p, w, h);
+        drew = true;
     } else if p.buffering {
         bottom_line(ui, p, w, h);
+        drew = true;
     }
     if p.paused && p.video && p.err.is_none() {
+        drew = true;
         let r = R::new(w / 2 - 34, h / 2 - 34, 68, 68);
         ui.cv.pxbox(r, &BoxStyle::new(t.panel.alpha(0.85), t.border.lerp(t.red, 0.5)).shadow(3));
         ui.cv.icon("play", r.x + 17, r.y + 17, 5, t.red);
     }
     if p.info {
         info(ui, p, w);
+        drew = true;
     }
     if let Some((s, born)) = &p.toast {
         if born.elapsed().as_millis() < 2600 {
+            drew = true;
             let tw = ui.w(PX, s).min(w - 60) + 36;
             let r = R::new((w - tw) / 2, 54, tw, 32);
             ui.cv.pxbox(r, &BoxStyle::new(t.panel.alpha(0.95), t.red).shadow(3));
@@ -402,6 +409,7 @@ pub fn draw(ui: &mut Ui, p: &P, w: i32, h: i32, bg: bool) {
         ui.cv.dissolve(k, 2);
         ui.anim = true;
     }
+    drew
 }
 
 fn top(ui: &mut Ui, p: &P, w: i32) {
