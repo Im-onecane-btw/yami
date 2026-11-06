@@ -51,6 +51,10 @@ pub struct Sys {
     pub h_mem: Series,
     pub h_temp: Series,
     pub h_gpu: Series,
+    /// загрузка видеокарты (модуль `gpu` в баре со стилем «график»)
+    pub h_gpu_load: Series,
+    /// видеокарту есть чем спросить: amdgpu в /sys или nvidia-smi
+    pub has_gpu: bool,
     pub h_rx: Series,
     pub h_tx: Series,
     pub online: bool,
@@ -179,7 +183,9 @@ fn find_nv_pm() -> Option<String> {
 
 impl Sys {
     pub fn new() -> Sys {
-        let mut s = Sys { temp_path: find_temp(), gpu_sys: find_gpu(), nv_pm: find_nv_pm(), bat: read_bat(), online: true, ..Default::default() };
+        let gpu_sys = find_gpu();
+        let has_gpu = gpu_sys.is_some() || crate::doctor::which("nvidia-smi");
+        let mut s = Sys { temp_path: find_temp(), gpu_sys, has_gpu, nv_pm: find_nv_pm(), bat: read_bat(), online: true, ..Default::default() };
         s.sample();
         s
     }
@@ -306,6 +312,9 @@ impl Sys {
         self.h_mem.push(self.mem);
         self.h_temp.push(self.temp);
         self.h_gpu.push(self.gpu_temp);
+        if self.want_gpu {
+            self.h_gpu_load.push(self.gpu_load);
+        }
         self.h_rx.push(self.rx as f32);
         self.h_tx.push(self.tx as f32);
     }
@@ -316,6 +325,7 @@ impl Sys {
             "ram" => (&self.h_mem, 1.0),
             "temp" => (&self.h_temp, 100.0),
             "gpu" => (&self.h_gpu, 100.0),
+            "gpu_load" => (&self.h_gpu_load, 1.0),
             "rx" => (&self.h_rx, self.h_rx.max().max(64.0 * 1024.0)),
             "tx" => (&self.h_tx, self.h_tx.max().max(64.0 * 1024.0)),
             _ => (&self.h_cpu, 1.0),

@@ -22,6 +22,9 @@ const TARGETS: &[&str] = &[
     "bar:pill",
     "bar:float",
     "bar:compact",
+    "bar:sys",
+    "bar:sys-graph",
+    "bar:sys-number",
     "settings:color",
     "settings:bar",
     "settings:bar-look",
@@ -192,6 +195,16 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
             st.set.tray_mode = "arrow".into();
             st.set.temp_style = "compact".into();
             st.set.bar_right = v(&["tray", "sep", "net", "cpu", "temp", "sep", "vol", "sep", "clock", "sep", "settings", "power"]);
+        } else if arg.starts_with("sys") {
+            // #8: видеокарта и диск рядом с цп, озу и температурой; sys-graph — стилем «график»
+            st.set.bar_width_pc = 100;
+            st.set.cpu_style = if arg == "sys-graph" { "graph" } else if arg == "sys-number" { "number" } else { "gauge" }.into();
+            st.set.bar_right = v(&["cpu", "ram", "gpu", "temp", "disk", "sep", "clock"]);
+            let sy = &mut st.sys;
+            (sy.has_gpu, sy.gpu_sleep, sy.gpu_load, sy.gpu_temp, sy.disk) = (true, false, 0.42, 61.0, 0.73);
+            for i in 0..40 {
+                sy.h_gpu_load.push(((i * 5 % 13) as f32 / 13.0) * 0.9);
+            }
         } else {
             st.set.bar_width_pc = 100;
         }

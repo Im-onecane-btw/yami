@@ -1255,7 +1255,7 @@ impl App {
 
     pub(crate) fn uses(&self, src: &str) -> bool {
         let s = &self.st.set;
-        s.widgets.iter().any(|w| w.on && w.kind == "graph" && w.source == src) || (src == "gpu" && self.st.popup_is("sys"))
+        s.widgets.iter().any(|w| w.on && w.kind == "graph" && w.source == src) || (src == "gpu" && (self.st.popup_is("sys") || s.on_bar("gpu")))
     }
 
     // ── простой: замок и гашение экрана ─────────────────────────────────────

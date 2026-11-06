@@ -151,6 +151,8 @@ const PAIRS: &[(&str, &str)] = &[
     ("стол / лента", "desk / tiling"),
     ("режим стол / лента", "desk / tiling mode"),
     ("цп", "cpu"),
+    ("гп", "gpu"),
+    ("диск", "disk"),
     ("озу", "ram"),
     ("тишина", "muted"),
     ("тихо", "muted"),

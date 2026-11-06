@@ -41,6 +41,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - Screenshots without the confirm step (#13): settings → screenshots → «take the shot»: `instant` (`shotConfirm`) takes the shot as soon as the mouse is released after selecting an area or clicking a window, and a full-screen shot (Ctrl+Print) at once, without the overlay; copy and save follow the same settings. Fix: a second Space or Enter (or a held key repeating) while the shot was being taken made a second copy, file and notification.
 - The music popup has four views (#13), switched by the button in its header or in settings → bar → look (`mediaView`): the cover with the equalizer, the cover with lyrics, lyrics alone and a short one (title and buttons). Lyrics come from the player, from a `.lrc` or `.txt` next to the track, or from lrclib.net (settings → services, `lyricsNet`; asked only while the popup shows lyrics, cached); with timestamps the sung line is lit and kept in view. No lyrics: the popup shows the cover. The equalizer of the popup and of the `media` module can be turned off or given another style (`mediaViz`); off, nothing captures audio for it.
 - Notification and OSD distance from the edge (#8): settings → system → notifications → «from the edge» under each position (`notifOffset`, `osdOffset`); next to the bar it is counted from the bar.
+- Bar modules `gpu` and `disk` (#8): graphics load (amdgpu, or `nvidia-smi` every 3 s; a sleeping laptop card is not woken) and how full `/` is, in the `cpuStyle` of `cpu` and `ram`; settings → bar → add.
 
 ## 2.5.0
 

@@ -394,14 +394,24 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
             ui.zone(r, Act::Popup("sys"), Cur::Pointer);
             w
         }
-        "cpu" | "ram" | "temp" => {
+        "cpu" | "ram" | "temp" | "gpu" | "disk" => {
+            // видеокарту нечем спросить (нет amdgpu и nvidia-smi) — модуля нет
+            if m == "gpu" && !st.sys.has_gpu {
+                return 0;
+            }
+            let s = &st.sys;
             let (label, v, txt, hot) = match m {
-                "cpu" => ("цп", st.sys.cpu, format!("{}%", (st.sys.cpu * 100.0).round()), st.sys.cpu > 0.85),
-                "ram" => ("озу", st.sys.mem, format!("{}%", (st.sys.mem * 100.0).round()), st.sys.mem > 0.85),
-                _ => ("t°", (st.sys.temp / 100.0).min(1.0), format!("{}°", st.sys.temp.round()), st.sys.temp > 80.0),
+                "cpu" => ("цп", s.cpu, format!("{}%", (s.cpu * 100.0).round()), s.cpu > 0.85),
+                "ram" => ("озу", s.mem, format!("{}%", (s.mem * 100.0).round()), s.mem > 0.85),
+                // спящую дискретку ноутбука не будим (sys.rs): «сон» вместо цифр
+                "gpu" if s.gpu_sleep => ("гп", 0.0, crate::i18n::tr("сон").to_string(), false),
+                "gpu" => ("гп", s.gpu_load, format!("{}%", (s.gpu_load * 100.0).round()), s.gpu_load > 0.95 || s.gpu_temp > 85.0),
+                "disk" => ("диск", s.disk, format!("{}%", (s.disk * 100.0).round()), s.disk > 0.9),
+                _ => ("t°", (s.temp / 100.0).min(1.0), format!("{}°", s.temp.round()), s.temp > 80.0),
             };
             let lw = ui.w(PX, label);
-            let style = st.set.cpu_style.as_str();
+            // у диска истории нет: «график» — шкалой
+            let style = if m == "disk" && st.set.cpu_style == "graph" { "gauge" } else { st.set.cpu_style.as_str() };
             let gw = if style == "number" { 0 } else { 48 };
             let w = lw + 6 + gw + if gw > 0 { 6 } else { 0 } + 34;
             if measure {
@@ -416,6 +426,7 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
                 let src = match m {
                     "cpu" => "cpu",
                     "ram" => "ram",
+                    "gpu" => "gpu_load",
                     _ => "temp",
                 };
                 let (ser, full) = st.sys.series(src);
