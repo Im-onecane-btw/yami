@@ -163,8 +163,14 @@ impl<'a, 'b, A: Action> Ui<'a, 'b, A> {
         let r = R::new(r.x + self.cv.ox, r.y + self.cv.oy, r.w, r.h);
         self.ptr.map(|(x, y)| r.contains(x, y)).unwrap_or(false)
     }
+    /// зона щелчка; её часть за обрезкой холста не ловит ничего: строка, прокрученная под шапку
+    /// списка, не перехватывает щелчки шапки
     pub fn zone(&mut self, r: R, act: A, cur: Cur) {
-        self.zones.push(Zone { r: R::new(r.x + self.cv.ox, r.y + self.cv.oy, r.w, r.h), act, cur });
+        self.cv.reach = self.cv.reach.max(r.y + r.h);
+        let r = R::new(r.x + self.cv.ox, r.y + self.cv.oy, r.w, r.h).inter(&self.cv.clip_rect());
+        if r.w > 0 && r.h > 0 {
+            self.zones.push(Zone { r, act, cur });
+        }
     }
 
     pub fn text(&mut self, face: Face, x: i32, y: i32, s: &str, c: C) -> i32 {

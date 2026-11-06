@@ -17,6 +17,8 @@ pub struct Icons {
     imgs: HashMap<(String, i32), Option<std::rc::Rc<Img>>>,
     /// значки программ пиксельными в палитре: обводка и 4 тона от тёмного к светлому
     pixel: Option<[u32; 5]>,
+    /// пиксельные копии чужих картинок (значки трея) по отпечатку картинки и палитры
+    pixeled: HashMap<u64, std::rc::Rc<Img>>,
 }
 
 fn icon_roots() -> Vec<PathBuf> {
@@ -44,7 +46,7 @@ fn parse_ini(text: &str) -> Vec<(String, HashMap<String, String>)> {
 
 impl Icons {
     pub fn new(theme: &str) -> Icons {
-        let mut ic = Icons { dirs: vec![], found: HashMap::new(), imgs: HashMap::new(), pixel: None };
+        let mut ic = Icons { dirs: vec![], found: HashMap::new(), imgs: HashMap::new(), pixel: None, pixeled: HashMap::new() };
         let roots = icon_roots();
         let mut order: Vec<String> = vec![];
         let mut queue: Vec<String> = vec![];
@@ -161,6 +163,25 @@ impl Icons {
             self.pixel = ramp;
             self.imgs.retain(|k, _| !k.0.starts_with('\0'));
         }
+    }
+
+    /// готовая картинка (значок трея) пиксельной в тонах `ramp`; копии помнятся по отпечатку
+    /// пикселей и палитры, чтобы бар не пересчитывал их каждую секунду
+    pub fn pixeled(&mut self, img: &Img, ramp: &[u32; 5], size: i32) -> std::rc::Rc<Img> {
+        let mut h = crate::fnv(crate::FNV0, &(size as u32).to_le_bytes());
+        for p in ramp.iter().chain(img.px.iter()) {
+            h = crate::fnv(h, &p.to_le_bytes());
+        }
+        if let Some(i) = self.pixeled.get(&h) {
+            return i.clone();
+        }
+        // значки трея меняются (мигают, показывают счёт): старые копии не копить
+        if self.pixeled.len() > 64 {
+            self.pixeled.clear();
+        }
+        let out = std::rc::Rc::new(pixelate(img, ramp, size));
+        self.pixeled.insert(h, out.clone());
+        out
     }
 
     /// значок программы: как есть или пиксельный (сетка 16×16, тона палитры, дизеринг Байера)
@@ -466,7 +487,8 @@ pub fn load_apps() -> Vec<App> {
             });
         }
     }
-    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    // ключ — один раз на программу, а не две строки на каждое сравнение
+    out.sort_by_cached_key(|a| a.name.to_lowercase());
     out
 }
 

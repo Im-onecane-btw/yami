@@ -108,6 +108,9 @@ pub struct Canvas<'a> {
     pub opacity: f32,
     /// где под поверхностью размывать фон: только сами стеклянные панели, без полей под тенью
     pub blur: Vec<R>,
+    /// самый нижний край зон Ui с последнего сброса (до обрезки): так окно с прокруткой узнаёт,
+    /// сколько содержимого нарисовала вкладка
+    pub reach: i32,
     /// цвет жёсткой тени (из темы, set_shade)
     pub shade: C,
     /// тень у букв (виджеты прямо на обоях): каждая буква сначала этим цветом на «пиксель
@@ -176,7 +179,7 @@ fn hash(x: i32, y: i32) -> u32 {
 
 impl<'a> Canvas<'a> {
     pub fn new(buf: &'a mut [u32], w: i32, h: i32) -> Canvas<'a> {
-        Canvas { buf, w, h, ox: 0, oy: 0, clip: R::new(0, 0, w, h), clips: vec![], opacity: 1.0, blur: vec![], shade: C(SHADE.load(std::sync::atomic::Ordering::Relaxed)), text_shade: None }
+        Canvas { buf, w, h, ox: 0, oy: 0, clip: R::new(0, 0, w, h), clips: vec![], opacity: 1.0, blur: vec![], reach: 0, shade: C(SHADE.load(std::sync::atomic::Ordering::Relaxed)), text_shade: None }
     }
 
     /// проявление панели: при k клетка видна, если её порог ниже k. Узор — из настроек
@@ -315,6 +318,10 @@ impl<'a> Canvas<'a> {
         self.clips.push(self.clip);
         let r = R::new(r.x + self.ox, r.y + self.oy, r.w, r.h);
         self.clip = self.clip.inter(&r);
+    }
+    /// текущая обрезка в координатах буфера (как у зон Ui)
+    pub fn clip_rect(&self) -> R {
+        self.clip
     }
     pub fn pop_clip(&mut self) {
         if let Some(c) = self.clips.pop() {
