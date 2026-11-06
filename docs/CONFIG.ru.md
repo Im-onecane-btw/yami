@@ -196,6 +196,7 @@ MangoHud получает конфиг в палитре и пиксельном
 | `notifMax`, `notifHistory` | `4`, `50` | карточек на экране одновременно; сколько хранит история |
 | `notifPos` | `"top-right"` | где появляются карточки: `top-right`, `top-left`, `top`, `bottom-right`, `bottom-left`, `bottom` (настройки → система); бар и док они не закрывают |
 | `osdPos` | `"bottom"` | OSD громкости и яркости: `bottom`, `top` (под баром) или `center` |
+| `notifOffset`, `osdOffset` | `10`, `64` | отступ карточек уведомлений и OSD от их края экрана, px (0–400); у края с баром — от бара |
 | `notifImages` | `true` | картинки в карточках (значки и превью; не больше 1024², файлы ≤ 16 МБ) |
 | `notifCast` | `false` | уведомления видны в записях и трансляциях; выключено — зрители их не видят (yami-niri ≥ `.5` просто не рисует их туда, другой niri закрывает чёрным) |
 | `audioNames` | `{}` | твои имена звуковых устройств (выходов и микрофонов): имя PipeWire (`pactl list short sinks`, `pactl list short sources`) → подпись, например `{"alsa_output.usb-…-00.analog-stereo": "Headphones"}` |

@@ -290,13 +290,15 @@ impl App {
     /// карточки на своём месте (notifPos): у края, с отступом 10; исключённые зоны бара и дока
     /// niri учитывает сам (exclusive 0), поэтому сверху — под баром, снизу — над доком
     fn notif_place(&self) -> (Anchor, (i32, i32, i32, i32)) {
+        // от края — notifOffset; бар niri сам вычитает (исключительная зона), карточки — под ним
+        let o = self.st.set.num("notif_offset");
         match self.st.set.notif_pos.as_str() {
-            "top-left" => (Anchor::TOP | Anchor::LEFT, (10, 0, 0, 6)),
-            "top" => (Anchor::TOP, (10, 0, 0, 0)),
-            "bottom-right" => (Anchor::BOTTOM | Anchor::RIGHT, (0, 6, 10, 0)),
-            "bottom-left" => (Anchor::BOTTOM | Anchor::LEFT, (0, 0, 10, 6)),
-            "bottom" => (Anchor::BOTTOM, (0, 0, 10, 0)),
-            _ => (Anchor::TOP | Anchor::RIGHT, (10, 6, 0, 0)),
+            "top-left" => (Anchor::TOP | Anchor::LEFT, (o, 0, 0, 6)),
+            "top" => (Anchor::TOP, (o, 0, 0, 0)),
+            "bottom-right" => (Anchor::BOTTOM | Anchor::RIGHT, (0, 6, o, 0)),
+            "bottom-left" => (Anchor::BOTTOM | Anchor::LEFT, (0, 0, o, 6)),
+            "bottom" => (Anchor::BOTTOM, (0, 0, o, 0)),
+            _ => (Anchor::TOP | Anchor::RIGHT, (o, 6, 0, 0)),
         }
     }
 

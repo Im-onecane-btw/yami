@@ -195,6 +195,10 @@ pub struct Settings {
     pub notif_pos: String,
     /// где OSD громкости и яркости: bottom | top | center
     pub osd_pos: String,
+    /// отступ карточек уведомлений от края экрана (от бара, если он у того края), px (#8)
+    pub notif_offset: i32,
+    /// отступ OSD от края экрана (сверху — от низа бара), px; по центру не нужен (#8)
+    pub osd_offset: i32,
 
     // скриншоты: папка ("" — Изображения/Screenshots), куда класть, лупа, таймер
     pub shot_dir: String,
@@ -413,6 +417,8 @@ pub const NUMS: &[(&str, i32, i32, i32)] = &[
     ("night_temp", 2500, 6000, 250),
     ("night_on_h", 0, 23, 1),
     ("night_off_h", 0, 23, 1),
+    ("notif_offset", 0, 400, 2),
+    ("osd_offset", 0, 400, 4),
 ];
 
 impl Default for Settings {
@@ -479,6 +485,8 @@ impl Default for Settings {
             notif_timeout: 7,
             notif_pos: "top-right".into(),
             osd_pos: "bottom".into(),
+            notif_offset: 10,
+            osd_offset: 64,
             shot_dir: String::new(),
             shot_copy: true,
             shot_save: true,
@@ -709,6 +717,8 @@ impl Settings {
             "bar_margin" => self.bar_margin,
             "win_radius" => self.win_radius,
             "win_border" => self.win_border,
+            "notif_offset" => self.notif_offset,
+            "osd_offset" => self.osd_offset,
             _ => 0,
         };
         NUMS.iter().find(|n| n.0 == k).map(|n| v.clamp(n.1, n.2)).unwrap_or(v)
@@ -739,6 +749,8 @@ impl Settings {
             "bar_margin" => self.bar_margin = v,
             "win_radius" => self.win_radius = v,
             "win_border" => self.win_border = v,
+            "notif_offset" => self.notif_offset = v,
+            "osd_offset" => self.osd_offset = v,
             _ => {}
         }
     }

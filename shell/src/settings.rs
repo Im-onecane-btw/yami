@@ -357,6 +357,11 @@ pub(crate) fn tab_system(ui: &mut Ui, st: &State, b: R) {
     y += 48;
     opt_btn(ui, R::new(lx, y, half, 26), "место", crate::notif::pos_name(&s.notif_pos), Act::SCycle("notif_pos"));
     opt_btn(ui, R::new(rx, y, half, 26), "громкость и яркость", crate::notif::osd_name(&s.osd_pos), Act::SCycle("osd_pos"));
+    y += 32;
+    num_btn(ui, R::new(lx, y, half, 26), "от края", s.num("notif_offset"), "notif_offset");
+    if s.osd_pos != "center" {
+        num_btn(ui, R::new(rx, y, half, 26), "от края", s.num("osd_offset"), "osd_offset");
+    }
     y += 38;
     // ночной свет: wlsunset; по координатам — от заката до восхода, иначе по часам
     y = title(ui, b.x, y, b.w, "ночной свет: по солнцу или по часам");
@@ -659,7 +664,15 @@ impl App {
             }
             Act::SNum(k, d) => {
                 s.step_num(k, *d);
+                // отступы уведомлений и OSD: поверхность создаётся заново на новом месте
+                if matches!(*k, "notif_offset" | "osd_offset") {
+                    let kind = if *k == "osd_offset" { SKind::Osd } else { SKind::Notifs };
+                    for id in self.find(&kind) {
+                        self.destroy(id);
+                    }
+                }
                 self.settings_changed();
+                self.sync_notifs();
             }
             Act::SBool(k) => {
                 match *k {

@@ -491,6 +491,7 @@ const PAIRS: &[(&str, &str)] = &[
     ("таймер (кнопка ◷ в оверлее)", "timer (◷ button in the overlay)"),
     ("снимок", "take the shot"),
     ("обложка", "cover"),
+    ("от края", "from the edge"),
     ("обложка и текст", "cover and lyrics"),
     ("текст", "lyrics"),
     ("текста не нашлось", "no lyrics found"),
