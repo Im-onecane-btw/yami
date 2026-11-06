@@ -274,6 +274,8 @@ pub struct State {
     pub cal_month: i32,
     pub blink: bool,
     pub wall: Option<std::rc::Rc<crate::gfx::Img>>,
+    /// в wall лежит уменьшенная копия (wall_park): полная уже у niri
+    pub wall_parked: bool,
     pub wall_stamp: u64,
     pub started: Instant,
     pub rss: f32,
@@ -388,6 +390,11 @@ pub struct App {
     /// обои: ключ того, из чего собрана текущая картинка, и номер последнего задания
     pub wall_key: String,
     pub wall_job: u64,
+    /// когда пришла последняя картинка обоев; идёт пересчёт отложенной (wall_need)
+    pub wall_at: Instant,
+    pub wall_reload: bool,
+    /// иероглиф рисуется поверх готовой картинки: его переключение — только перерисовка
+    pub wall_kanji: bool,
     /// номер последнего включения шторки (поздний кадр от прошлого — мимо)
     pub curtain_wanted: u64,
     pub quit: bool,
@@ -465,6 +472,7 @@ impl State {
             cal_month: 0,
             blink: true,
             wall: None,
+            wall_parked: false,
             wall_stamp: 0,
             started: Instant::now(),
             rss: 0.0,
@@ -586,6 +594,9 @@ pub fn run() {
         palette_written: String::new(),
         wall_key: String::new(),
         wall_job: 0,
+        wall_at: Instant::now(),
+        wall_reload: false,
+        wall_kanji: true,
         curtain_wanted: 0,
         quit: false,
         restart: false,
@@ -838,7 +849,12 @@ impl App {
         }
         for n in names {
             if self.find_on(&SKind::Wall, &n).is_none() && !self.skwd_draws(&n) {
-                self.mk(SKind::Wall, &n, Layer::Background, "yami-wall", Anchor::all(), (0, 0), (0, 0, 0, 0), -1, KeyboardInteractivity::None);
+                let id = self.mk(SKind::Wall, &n, Layer::Background, "yami-wall", Anchor::all(), (0, 0), (0, 0, 0, 0), -1, KeyboardInteractivity::None);
+                // мышь сквозь обои: щёлкать на них нечего, а вход и выход курсора перерисовывали
+                // бы всю картинку
+                if let Some(s) = self.surfs.get_mut(&id) {
+                    s.input = Some(vec![]);
+                }
                 // монитор появился: теперь известен его размер (обои режутся под него)
                 self.sync_wall();
                 // и шторку на него, если она опущена

@@ -299,6 +299,33 @@ fn to_login(w: i32, h: i32, raw: Option<Vec<u8>>, key: &str) {
     let _ = config::write_atomic(&dir.join("wallpaper-own.key"), key);
 }
 
+/// длинная сторона копии обоев, что остаётся в памяти (wall_park)
+const PARK: i32 = 640;
+
+/// уменьшение в целое число раз средним по квадрату k×k
+fn shrink(img: &Img, max: i32) -> Img {
+    let k = ((img.w.max(img.h) + max - 1) / max).max(1);
+    let (w, h) = ((img.w / k).max(1), (img.h / k).max(1));
+    let n = (k * k) as u32;
+    let mut px = Vec::with_capacity((w * h) as usize);
+    for y in 0..h {
+        for x in 0..w {
+            let [mut a, mut r, mut g, mut b] = [0u32; 4];
+            for j in 0..k {
+                let row = ((y * k + j) * img.w + x * k) as usize;
+                for &p in &img.px[row..row + k as usize] {
+                    a += p >> 24;
+                    r += (p >> 16) & 255;
+                    g += (p >> 8) & 255;
+                    b += p & 255;
+                }
+            }
+            px.push((a / n) << 24 | (r / n) << 16 | (g / n) << 8 | b / n);
+        }
+    }
+    Img { w, h, px }
+}
+
 /// обои на весь экран «как обложка» (картинка уже в пропорциях экрана — без обрезки)
 pub fn cover(ui: &mut Ui, img: &Img, w: i32, h: i32) {
     let k = (w as f32 / img.w as f32).max(h as f32 / img.h as f32);
@@ -415,6 +442,10 @@ impl App {
         if matches!(&self.press, Some(p) if matches!(p.act, Act::SSlider(k, ..) if k.starts_with("wall"))) {
             return;
         }
+        if self.wall_kanji != self.st.set.wall_kanji {
+            self.wall_kanji = self.st.set.wall_kanji;
+            self.dirty(&SKind::Wall);
+        }
         let (w, h) = self.output_size(&self.focus_out());
         let job = Job::new(&self.st.set, &self.st.t, w, h, source(&self.st));
         let key = job.key();
@@ -439,9 +470,12 @@ impl App {
             return;
         }
         self.st.wall = img.map(std::rc::Rc::new);
+        self.st.wall_parked = false;
+        self.wall_reload = false;
+        self.wall_at = std::time::Instant::now();
         self.st.wall_stamp += 1;
         for s in self.surfs.values_mut() {
-            if s.kind == SKind::Wall {
+            if matches!(s.kind, SKind::Wall | SKind::Curtain) {
                 s.dirty = true;
                 s.frame_pending = false;
             }
@@ -461,6 +495,35 @@ impl App {
                 self.settings_changed();
             }
         }
+    }
+
+    /// обои уже у niri: держать полную картинку незачем (1080p — 8 МБ, 4K — 33 МБ). Остаётся копия
+    /// не больше PARK точек по длинной стороне: превью во вкладке, замер под виджетами, первый кадр
+    /// блокировки и шторки. Полную пересчитывает wall_need, когда она снова нужна
+    pub fn wall_park(&mut self) {
+        let Some(img) = self.st.wall.as_ref() else { return };
+        if self.st.wall_parked || self.st.locked || self.st.curtain.is_some() || img.w.max(img.h) <= PARK {
+            return;
+        }
+        // пока обои не показаны (буфер ещё свой) или их только что сменили — рано
+        if self.wall_at.elapsed().as_secs() < 20 || self.surfs.values().any(|s| s.kind == SKind::Wall && (s.dirty || s.pool.is_some())) {
+            return;
+        }
+        let small = shrink(img, PARK);
+        self.st.wall = Some(std::rc::Rc::new(small));
+        self.st.wall_parked = true;
+        yami_px::trim_heap();
+    }
+
+    /// полная картинка снова нужна (обои перерисовать, блокировка, шторка): пересчитать её в нити.
+    /// Экран входа не трогается — ключ тот же
+    pub fn wall_need(&mut self) {
+        if !self.st.wall_parked || self.wall_reload {
+            return;
+        }
+        self.wall_reload = true;
+        self.wall_key.clear();
+        self.sync_wall();
     }
 
     /// новый путь (пусто — пиксельные из палитры): из настроек, IPC и диалога выбора

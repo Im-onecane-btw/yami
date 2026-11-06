@@ -134,6 +134,8 @@ impl App {
         }
         self.close_all();
         self.st.locked = true;
+        // первый кадр — на копии обоев, полная догонит
+        self.wall_need();
         self.st.lock_field.wipe();
         self.st.lock_status.clear();
         match self.lock_state.lock(&self.qh) {

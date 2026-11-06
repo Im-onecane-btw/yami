@@ -76,6 +76,7 @@ impl App {
             self.st.sys.sample();
             self.weather_tick();
             self.automount_tick();
+            self.wall_park();
             self.bat_check();
             // память видна только в настройках: не читать её каждую секунду зря
             if self.st.modal == Some(Modal::Settings) || self.st.rss == 0.0 {

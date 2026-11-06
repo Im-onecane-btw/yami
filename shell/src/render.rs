@@ -21,7 +21,13 @@ impl App {
         if self.surfs.values().any(|s| s.kind == SKind::Popup && s.dirty && !s.closing) {
             self.resize_popup();
         }
-        let ids: Vec<u32> = self.surfs.iter().filter(|(_, s)| s.dirty && s.configured && !s.frame_pending && !under(s)).map(|(i, _)| *i).collect();
+        let mut ids: Vec<u32> = self.surfs.iter().filter(|(_, s)| s.dirty && s.configured && !s.frame_pending && !under(s)).map(|(i, _)| *i).collect();
+        // обои отложены в копии (wall_park): поверхность обоев ждёт полную картинку, шторка
+        // рисуется сразу (её видят зрители) и станет чёткой, когда та придёт
+        if self.st.wall_parked && ids.iter().any(|i| matches!(self.surfs[i].kind, SKind::Wall | SKind::Curtain)) {
+            self.wall_need();
+            ids.retain(|i| self.surfs[i].kind != SKind::Wall);
+        }
         for id in ids {
             self.draw(id);
         }

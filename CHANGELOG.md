@@ -19,6 +19,8 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - Pixel tray (#19): settings → bar → look → «pixel tray» (`trayPixel`) redraws the tray icons on the bar and in the arrow's list in palette cells, like the dock and the launcher.
 - Apps in the palette colours (#17): settings → color → apps: foot, cava (reloads at once) and starship follow the palette (`appThemes`), and your own templates in `~/.config/yami/templates` recolour any other app: `{{accent}}`, `{{bg}}`, `{{color4}}`… and a «yami-output:» line; written only under `~/.config`, `~/.local/share` and `~/.cache`, never over a file you changed.
 - The shell's clickable areas end where their panel's visible part ends: a row scrolled under a list's header no longer catches the header's clicks.
+- The shell idles in about half the memory with a picture wallpaper (11–13 MB instead of 19–21 at 1080p, more saved at 4K): once niri shows the wallpaper the shell keeps only a small copy for the settings preview and the widgets, and rebuilds the full picture when it needs it again (the lock screen and the stream curtain show at once and sharpen a moment later).
+- The wallpaper no longer redraws whenever the pointer crosses the empty desktop (it took no clicks anyway), and «kanji on the wallpaper» applies at once.
 
 ## 2.5.1
 
