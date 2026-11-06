@@ -848,7 +848,7 @@ confirm() {
 # ── steps: spinner, elapsed time and a shimmering progress bar ──────────────
 STEPS_T=() STEPS_F=()
 add() { local title=$1; shift; STEPS_T+=("$title"); STEPS_F+=("$(printf '%q ' "$@")"); }
-FAILED=() SKIPPED=()
+FAILED=() SKIPPED=() BUILD_FAILED=0
 SPIN=(⣾ ⣽ ⣻ ⢿ ⡿ ⣟ ⣯ ⣷)
 progress() { # done total frame
   local w=32 fill=$(($1 * 32 / $2)) s="" j hl=$(($3 % 44 - 6))
@@ -907,13 +907,21 @@ step() { # index
   printf '\e[?25h'
 }
 run_steps() {
-  local i
+  local i nf
   for ((i = 0; i < ${#STEPS_T[@]}; i++)); do
+    nf=${#FAILED[@]}
     step "$i"
-    # an update whose build failed stops here: the old binaries stay with the configs they match,
-    # and the install record keeps the old version, so the update is offered again
-    if ((UPDATE)) && [[ ${STEPS_F[$i]%% *} == do_build_shell ]] && ((${#FAILED[@]})); then
-      warn "$(t "сборка не удалась — обновление остановлено, стоит прежняя версия" "the build failed: update stopped, the previous version stays")"
+    # a build that failed stops here. An update: the old binaries stay with the configs they match,
+    # and the install record keeps the old version, so the update is offered again. A first
+    # install: no niri config that starts a shell which is not there (the packages are in, a rerun
+    # continues from the build)
+    if [[ ${STEPS_F[$i]%% *} == do_build_shell ]] && ((${#FAILED[@]} > nf)); then
+      BUILD_FAILED=1
+      if ((UPDATE)); then
+        warn "$(t "сборка не удалась — обновление остановлено, стоит прежняя версия" "the build failed: update stopped, the previous version stays")"
+      else
+        warn "$(t "шелл не собрался — конфиги не тронуты; поправь причину (лог ниже) и запусти установку снова" "the shell did not build: your configs are untouched; fix the cause (log below) and run the installer again")"
+      fi
       break
     fi
   done
@@ -1002,10 +1010,12 @@ do_build_shell() {
   else
     "${cmd[@]}" || return 1
   fi
-  install -Dm755 "$CACHE/target/release/yami-shell" "$BIN/yami-shell"
-  install -Dm755 "$CACHE/target/release/yami-files" "$BIN/yami-files"
-  install -Dm755 "$CACHE/target/release/yami-view" "$BIN/yami-view"
-  install -Dm755 "$CACHE/target/release/yami-play" "$BIN/yami-play"
+  # each binary as a copy next to it, then a rename: the running shell keeps its old file, and a
+  # full disk or a cut copy leaves the previous binary in place, never half of a new one
+  local b
+  for b in yami-shell yami-files yami-view yami-play; do
+    install -Dm755 "$CACHE/target/release/$b" "$BIN/.$b.new" && mv -f "$BIN/.$b.new" "$BIN/$b" || { rm -f "$BIN/.$b.new"; return 1; }
+  done
   # `yami <command>`: the same binary, help instead of the shell when started without a command
   ln -sfn yami-shell "$BIN/yami"
 }
@@ -1686,7 +1696,7 @@ add "$(t "счётчик установок (один раз, без данны�
 
 run_steps
 
-if on fork && ((!DRY)); then
+if on fork && ((!DRY && !BUILD_FAILED)); then
   printf '\n  %s%s%s\n\n' "$T" "$(t "сборка yami-niri — 5–25 минут, вывод прямо здесь:" "building yami-niri takes 5–25 minutes, output below:")" "$R"
   if need_rust && "$ROOT/fork/yami-niri.sh" build 2>&1 | tee -a "$LOG"; then
     # realtime priority without the rtprio limit: the capability on the binary (dropped at start)
