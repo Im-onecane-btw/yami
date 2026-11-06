@@ -9,7 +9,7 @@
 use crate::app::{App, Modal, Msg, SKind, State};
 use crate::config;
 use crate::font::PX;
-use crate::gfx::{BoxStyle, R};
+use crate::gfx::{BoxStyle, Img, R};
 use crate::icons::{exec_argv, App as DApp};
 use crate::niri::Win;
 use crate::ui::{Act, Cur, Field, Tone, Ui};
@@ -24,6 +24,11 @@ use std::time::Instant;
 pub const SIZE: (i32, i32) = (648, 478);
 const ROW: i32 = 30;
 pub const ROWS: usize = 11;
+/// миниатюра картинки из буфера в строке списка
+const TW: i32 = 48;
+const TH: i32 = 24;
+/// больше картинок за одно открытие не декодируем
+const MAX_THUMBS: usize = 60;
 
 #[derive(Clone, Debug)]
 pub enum Kind {
@@ -75,6 +80,40 @@ pub struct LState {
     pub files: (String, Vec<PathBuf>),
     /// номер поиска файлов: старые нити видят, что их запрос устарел, и бросают обход
     pub fgen: Arc<AtomicU64>,
+    /// миниатюры картинок буфера (ключ — thumb_key; None — не картинка или не декодируется).
+    /// Только в памяти и только пока лаунчер открыт: на диске картинка пережила бы `cliphist wipe`
+    pub thumbs: HashMap<String, Option<Img>>,
+    /// номер нити миниатюр: закрыли лаунчер — старая нить бросает работу
+    pub tgen: Arc<AtomicU64>,
+}
+
+/// откуда взять картинку для миниатюры
+enum Src {
+    Line(String),
+    File(PathBuf),
+}
+
+/// у картинки из cliphist в списке вместо текста «[[ binary data 23 KiB png 1920x1080 ]]»
+fn is_binary(name: &str) -> bool {
+    name.starts_with("[[ binary")
+}
+
+/// «[[ binary data 23 KiB png 1920x1080 ]]» → «png 1920x1080 · 23 KiB»
+fn binary_label(name: &str) -> Option<String> {
+    let inner = name.trim().strip_prefix("[[ binary data")?.strip_suffix("]]")?.trim();
+    let mut it = inner.split_whitespace();
+    let size = format!("{} {}", it.next()?, it.next()?);
+    let rest = it.collect::<Vec<_>>().join(" ");
+    Some(if rest.is_empty() { size } else { format!("{rest} · {size}") })
+}
+
+/// ключ миниатюры строки списка: у записи cliphist — её номер, у закреплённой — «p:» и id
+pub fn thumb_key(l: &LState, k: &Kind) -> Option<String> {
+    match k {
+        Kind::Clip(line) if is_binary(line.split_once('\t').map(|x| x.1).unwrap_or(line)) => Some(line.split('\t').next().unwrap_or("").to_string()),
+        Kind::Pin(id) if l.pins.iter().any(|p| p.id == *id && p.image) => Some(format!("p:{id}")),
+        _ => None,
+    }
 }
 
 const SYS: &[(&str, &str, &str)] = &[
@@ -149,6 +188,44 @@ impl LState {
             self.scroll = self.cur + 1 - ROWS;
         }
     }
+    /// миниатюры картинок, которых ещё нет: одна нить по очереди, сначала закреплённые
+    pub fn thumbs_start(&mut self, tx: Sender<Msg>) {
+        let pins = self.pins.iter().filter(|p| p.image).map(|p| (format!("p:{}", p.id), Src::File(clip_dir().join(&p.file))));
+        let lines = self.clip_lines.iter().filter_map(|l| thumb_key(self, &Kind::Clip(l.clone())).map(|k| (k, Src::Line(l.clone()))));
+        let jobs: Vec<(String, Src)> = pins.chain(lines).filter(|(k, _)| !self.thumbs.contains_key(k)).take(MAX_THUMBS).collect();
+        if jobs.is_empty() {
+            return;
+        }
+        let my = self.tgen.fetch_add(1, Ordering::Relaxed) + 1;
+        let gen = self.tgen.clone();
+        let _ = std::thread::Builder::new().name("clip-thumbs".into()).spawn(move || {
+            for (k, src) in jobs {
+                if gen.load(Ordering::Relaxed) != my {
+                    break;
+                }
+                let data = match &src {
+                    Src::Line(l) => cliphist(&["decode"], l),
+                    Src::File(p) => yami_px::paths::read_capped(p, crate::icons::MAX_FILE).unwrap_or_default(),
+                };
+                let img = mime_of(&data).0.starts_with("image/").then(|| crate::icons::decode(&data, crate::icons::MAX_DECODE)).flatten().map(|d| {
+                    // «как обложка»: середина картинки в пропорциях клетки
+                    let (x, y, cw, ch) = crate::wall::cover_rect(d.width(), d.height(), TW as u32, TH as u32);
+                    crate::icons::from_rgba(&d.crop_imm(x, y, cw, ch).thumbnail_exact(TW as u32, TH as u32).to_rgba8())
+                });
+                drop(data);
+                if tx.send(Msg::ClipThumb(k, img)).is_err() {
+                    break;
+                }
+            }
+            yami_px::trim_heap();
+        });
+    }
+    /// лаунчер закрыт: миниатюры — из памяти, нить — бросить
+    pub fn thumbs_free(&mut self) {
+        self.tgen.fetch_add(1, Ordering::Relaxed);
+        self.thumbs = HashMap::new();
+    }
+
     pub fn load_pins(&mut self) {
         self.pins = std::fs::read_to_string(clip_dir().join("index.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
     }
@@ -175,7 +252,7 @@ impl LState {
                 if (!q.is_empty() && !name.to_lowercase().contains(&q)) || same(&name) {
                     continue;
                 }
-                let img = name.starts_with("[[ binary");
+                let img = is_binary(&name);
                 out.push(Item { kind: Kind::Clip(l.clone()), name, sub: if img { "картинка".into() } else { String::new() }, icon: String::new() });
                 if out.len() > 120 {
                     break;
@@ -501,6 +578,7 @@ impl App {
             _ => return,
         }
         self.st.launcher.load_pins();
+        self.st.launcher.thumbs_start(self.tx.clone());
         self.lrefresh();
     }
 
@@ -663,15 +741,31 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
             }
             Kind::Clip(_) => {}
         }
+        // картинка из буфера: миниатюра (пока не готова или не декодируется — значок)
+        let thumb = l.clip.then(|| thumb_key(l, &it.kind)).flatten();
+        if let Some(k) = &thumb {
+            let b = R::new(x, cy - TH / 2 - 1, TW + 2, TH + 2);
+            ui.cv.fill(b, t.border);
+            match l.thumbs.get(k) {
+                Some(Some(img)) => ui.cv.blit(img, b.x + 1, b.y + 1),
+                _ => {
+                    ui.cv.fill(R::new(b.x + 1, b.y + 1, TW, TH), t.surface);
+                    ui.cv.icon("image", b.x + (b.w - 14) / 2, b.y + (b.h - 14) / 2, 2, t.text_faint);
+                }
+            }
+            x += TW + 10;
+        }
+        let label = thumb.as_ref().and_then(|_| binary_label(&it.name));
+        let name = label.as_deref().unwrap_or(&it.name);
         let maxw = if l.clip { list.w - (x - r.x) - 70 } else { list.w - 230 };
         // имена программ, окон, файлов и команды — как есть, без перевода интерфейса
         let raw = !matches!(it.kind, Kind::Sys(_));
-        let nw = if raw { ui.f.width(PX, &it.name) } else { ui.w(PX, &it.name) }.min(maxw);
+        let nw = if raw { ui.f.width(PX, name) } else { ui.w(PX, name) }.min(maxw);
         let nc = if cur { t.text_hi } else { t.text };
         if raw {
-            ui.cv.text_in(ui.f, PX, R::new(x, r.y, nw, r.h - 2), &it.name, nc);
+            ui.cv.text_in(ui.f, PX, R::new(x, r.y, nw, r.h - 2), name, nc);
         } else {
-            ui.text_in(PX, R::new(x, r.y, nw, r.h - 2), &it.name, nc);
+            ui.text_in(PX, R::new(x, r.y, nw, r.h - 2), name, nc);
         }
         if !it.sub.is_empty() {
             let sx = x + nw + 10;

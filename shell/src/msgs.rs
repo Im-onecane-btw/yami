@@ -137,7 +137,18 @@ impl App {
             Msg::Clip(lines) => {
                 self.st.launcher.clip_lines = lines;
                 self.st.launcher.refresh(&self.st.apps, &self.st.niri.wins);
+                if self.st.modal == Some(Modal::Launcher) {
+                    self.st.launcher.thumbs_start(self.tx.clone());
+                }
                 self.dirty(&SKind::Modal);
+            }
+            Msg::ClipThumb(k, img) => {
+                if self.st.modal == Some(Modal::Launcher) {
+                    self.st.launcher.thumbs.insert(k, img);
+                    if self.st.launcher.clip {
+                        self.dirty(&SKind::Modal);
+                    }
+                }
             }
             Msg::Plugin(id, p) => {
                 if self.st.plugins.shown.get(&id) != Some(&p) {

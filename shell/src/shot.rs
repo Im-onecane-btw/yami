@@ -310,6 +310,14 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
         "launcher" | "clipboard" => {
             st.modal = Some(Modal::Launcher);
             st.launcher.open(kind == "clipboard", &st.apps, &st.niri.wins);
+            if kind == "clipboard" {
+                // свой буфер, не владельца: текст, картинка с миниатюрой и картинка, что ещё декодируется
+                st.launcher.pins = vec![];
+                st.launcher.clip_lines = ["12\thttps://github.com/Trendorin/yami", "11\t[[ binary data 812 KiB png 1920x1080 ]]", "10\tcargo build --release", "9\t[[ binary data 40 KiB jpeg 640x480 ]]", "8\tniri msg focused-window"].map(String::from).to_vec();
+                let px = (0..48 * 24).map(|i| { let (x, y) = (i % 48, i / 48); 0xff000000 | ((x * 5) as u32) << 16 | ((y * 8) as u32) << 8 | 0x60 }).collect();
+                st.launcher.thumbs.insert("11".into(), Some(crate::gfx::Img { w: 48, h: 24, px }));
+                st.launcher.refresh(&st.apps, &st.niri.wins);
+            }
             // launcher:calc, :find (окна и настройки), :cmd, :all (Ctrl+A)
             let q = match arg {
                 "calc" => "2+2*3",

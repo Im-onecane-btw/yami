@@ -128,6 +128,9 @@ impl App {
         if self.st.modal == Some(Modal::Walls) {
             self.walls_free();
         }
+        if self.st.modal == Some(Modal::Launcher) {
+            self.st.launcher.thumbs_free();
+        }
         // код настроек и выбора обоев велик, а нужен изредка: через полминуты — из памяти. После
         // лаунчера и прочих частых окон — нет: выгрузка задевает и горячий код (бар, тик), а он
         // тут же читается с диска обратно

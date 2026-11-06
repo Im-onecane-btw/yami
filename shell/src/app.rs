@@ -159,6 +159,8 @@ pub enum Msg {
     /// портал спрашивает, что показать: типы источников и сокет для ответа
     ScreenPick(u32, std::os::unix::net::UnixStream),
     Clip(Vec<String>),
+    /// миниатюра картинки из буфера (launcher.rs thumbs_start)
+    ClipThumb(String, Option<crate::gfx::Img>),
     /// строка модуля-скрипта бара (plugins.rs)
     Plugin(String, crate::plugins::Plug),
     /// файлы для «/» в лаунчере: запрос и найденное
