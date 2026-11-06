@@ -242,12 +242,21 @@ impl V {
     }
 
     pub fn ui_visible(&self) -> bool {
-        self.cropping || self.over_ui || self.pic().is_none() || self.active_at.elapsed() < Duration::from_millis(1800)
+        self.ui_held() || self.ui_recent()
+    }
+
+    /// панели держит не время: обрезка, мышь над ними, картинки нет
+    fn ui_held(&self) -> bool {
+        self.cropping || self.over_ui || self.pic().is_none()
+    }
+
+    fn ui_recent(&self) -> bool {
+        self.active_at.elapsed() < Duration::from_millis(1800)
     }
 
     /// панели видны, но вот-вот спрячутся сами: тику надо успеть (иначе он раз в секунду)
     pub fn hide_soon(&self) -> bool {
-        !self.cropping && !self.over_ui && self.pic().is_some() && self.active_at.elapsed() < Duration::from_millis(1800)
+        !self.ui_held() && self.ui_recent()
     }
 
     // ── правка ─────────────────────────────────────────────────────────────
@@ -547,8 +556,8 @@ pub fn draw(ui: &mut Ui, v: &V, w: i32, h: i32) {
                 }
             }
         } else if let Some(img) = v.frame_img() {
-            // крупный план: предумноженная копия кадра, её и рисуем клетками
-            *v.small.borrow_mut() = None;
+            // крупный план: предумноженная копия кадра, её и рисуем клетками. Копия под окно
+            // (не больше окна) остаётся: обратно во «вписать» — без нового масштабирования
             if (z - 1.0).abs() < 0.001 && !alpha {
                 ui.cv.blit(&img, r.x, r.y);
             } else {

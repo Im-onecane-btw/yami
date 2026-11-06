@@ -172,12 +172,21 @@ impl P {
 
     /// панели видны: пауза, мышь недавно двигалась, курсор над ними, нет картинки
     pub fn ui_visible(&self) -> bool {
-        self.paused || !self.video || self.over_ui || self.seek_drag.is_some() || self.err.is_some() || self.active_at.elapsed().as_millis() < 2200
+        self.ui_held() || self.ui_recent()
+    }
+
+    /// панели держит не время: пауза, музыка, мышь над ними, перемотка, ошибка
+    fn ui_held(&self) -> bool {
+        self.paused || !self.video || self.over_ui || self.seek_drag.is_some() || self.err.is_some()
+    }
+
+    fn ui_recent(&self) -> bool {
+        self.active_at.elapsed().as_millis() < 2200
     }
 
     /// панели видны, но вот-вот спрячутся сами: тику надо успеть (иначе он раз в секунду)
     pub fn hide_soon(&self) -> bool {
-        self.video && !self.paused && !self.over_ui && self.seek_drag.is_none() && self.err.is_none() && self.active_at.elapsed().as_millis() < 2200
+        !self.ui_held() && self.ui_recent()
     }
 
     pub fn seek_rel(&mut self, s: f64) {
