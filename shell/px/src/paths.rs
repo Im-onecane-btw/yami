@@ -120,6 +120,21 @@ pub fn self_exe() -> PathBuf {
     PathBuf::from(s.strip_suffix(" (deleted)").unwrap_or(&s))
 }
 
+/// процессы этого пользователя по имени программы (последняя часть argv[0]) и, если задан, аргументу
+/// среди остальных; зомби и чужие (cmdline не читается) не попадают
+pub fn pids(exe: &str, arg: &str) -> Vec<u32> {
+    let Ok(rd) = std::fs::read_dir("/proc") else { return vec![] };
+    rd.flatten()
+        .filter_map(|e| e.file_name().to_str()?.parse::<u32>().ok())
+        .filter(|pid| {
+            let c = std::fs::read(format!("/proc/{pid}/cmdline")).unwrap_or_default();
+            let mut parts = c.split(|b| *b == 0);
+            let first = parts.next().unwrap_or_default();
+            first.rsplit(|b| *b == b'/').next() == Some(exe.as_bytes()) && (arg.is_empty() || parts.any(|p| p == arg.as_bytes()))
+        })
+        .collect()
+}
+
 /// файл, путь к которому дал чужой процесс (уведомление, плеер), читаем с потолком: /dev/zero,
 /// fifo или гигантский файл не съедят память и не подвесят нить. Не обычный файл — None.
 pub fn read_capped(p: &Path, max: u64) -> Option<Vec<u8>> {

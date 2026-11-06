@@ -371,7 +371,8 @@ yami-shell binds list                  # keybindings: id, keys, action
   `walls` (the wallpaper picker), `wallpaper [PATH]` (no path: the generated pixel wallpaper), `curtain [on|off]` (privacy curtain), `night` (night light on/off).
 - **yami-files**: `~/.config/yami-files.json` (also from its ≡ menu → settings). `yami-files
   --pick open|save|dir …` is the dialog the portal runs; `yami-files --portal` is the portal and
-  FileManager1 service, started by D-Bus.
+  FileManager1 service, started by D-Bus; `yami-files --portal-reload` hands it over to a newly
+  installed binary without cutting a recording (the installer runs it).
 - **Login screen**: `tools/sddm-install.sh` installs the theme on a running system and makes SDDM
   the login manager from the next boot; the installer does it with the «login screen» component.
 

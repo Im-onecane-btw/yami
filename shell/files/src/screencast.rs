@@ -42,6 +42,8 @@ impl ScreenCast {
 struct Session {
     sessions: Sessions,
     key: String,
+    /// пока сеанс открыт, портал не перезапускается на новый бинарь
+    _busy: crate::portal::Busy,
 }
 
 #[zbus::interface(name = "org.freedesktop.impl.portal.Session")]
@@ -168,7 +170,7 @@ impl ScreenCast {
     async fn create_session(&self, _handle: ObjectPath<'_>, session_handle: ObjectPath<'_>, _app_id: &str, _options: HashMap<String, OwnedValue>, #[zbus(object_server)] server: &zbus::ObjectServer) -> (u32, HashMap<String, OwnedValue>) {
         let key = session_handle.to_string();
         self.sessions.lock().unwrap().insert(key.clone(), Sess { types: 1, cursor: 2, mutter: None });
-        if server.at(key.as_str(), Session { sessions: self.sessions.clone(), key: key.clone() }).await.is_err() {
+        if server.at(key.as_str(), Session { sessions: self.sessions.clone(), key: key.clone(), _busy: crate::portal::Busy::take() }).await.is_err() {
             return (2, HashMap::new());
         }
         let mut r = HashMap::new();

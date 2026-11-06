@@ -6,8 +6,15 @@
 // Подключение: ~/.local/share/xdg-desktop-portal/portals/yami.portal,
 // ~/.config/xdg-desktop-portal/niri-portals.conf (FileChooser=yami), D-Bus-активация из
 // ~/.local/share/dbus-1/services — всё кладёт установщик (шаг «портал»).
+//
+// Новый бинарь (обновление, tools/deploy.sh): `yami-files --portal-reload` шлёт SIGHUP, портал
+// exec'ает себя заново, как только свободен (ни показа экрана, ни открытого диалога), — идущая
+// трансляция не рвётся. Портала без бэкенда быть не должно: xdg-desktop-portal берёт типы
+// источников ScreenCast у живого бэкенда, без него OBS и браузеры не видят, что показывать.
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::time::{Duration, Instant};
 use zbus::zvariant::{OwnedValue, Value};
 
 pub const NAME: &str = "org.freedesktop.impl.portal.desktop.yami";
@@ -85,8 +92,80 @@ fn filter_arg(f: &Filter) -> String {
     format!("{}|{}", f.0.replace('|', "/"), pats.join(";"))
 }
 
+/// чем занят портал: сеансы показа экрана (screencast.rs) и открытые диалоги
+pub static BUSY: AtomicUsize = AtomicUsize::new(0);
+/// пришёл SIGHUP: на месте бинаря новый, перезапуститься при первой свободе
+static RELOAD: AtomicBool = AtomicBool::new(false);
+
+/// занятость на время диалога или сеанса; конец — повод перезапуститься, если ждали
+pub struct Busy;
+impl Busy {
+    pub fn take() -> Busy {
+        BUSY.fetch_add(1, Ordering::SeqCst);
+        Busy
+    }
+}
+impl Drop for Busy {
+    fn drop(&mut self) {
+        BUSY.fetch_sub(1, Ordering::SeqCst);
+        if RELOAD.load(Ordering::SeqCst) {
+            // ответ на вызов ещё не ушёл: exec — через секунду, когда zbus его отправит
+            std::thread::spawn(|| {
+                std::thread::sleep(Duration::from_secs(1));
+                reexec_if_idle();
+            });
+        }
+    }
+}
+
+fn reexec_if_idle() {
+    if !RELOAD.load(Ordering::SeqCst) || BUSY.load(Ordering::SeqCst) > 0 {
+        return;
+    }
+    use std::os::unix::process::CommandExt;
+    let Some(exe) = exe() else { return };
+    // тот же pid (D-Bus-активация его и держит), имена на шине берутся заново
+    let e = std::process::Command::new(exe).arg("--portal").exec();
+    eprintln!("yami-files --portal: exec: {e}");
+}
+
+/// `yami-files --portal-reload`: работающий портал — на новый бинарь, нет его — поднять
+pub fn reload() -> i32 {
+    let me = std::process::id();
+    let running = || yami_px::paths::pids("yami-files", "--portal").into_iter().filter(|p| *p != me).collect::<Vec<u32>>();
+    let pids = running();
+    for p in &pids {
+        unsafe { libc::kill(*p as i32, libc::SIGHUP) };
+    }
+    // старый портал (без обработчика) от SIGHUP умирает, новый exec'ается: его exe уже не «(deleted)»;
+    // занятый (идёт трансляция) остаётся на старом бинаре и перейдёт сам — не ждём его дольше 3 с
+    let t0 = Instant::now();
+    let deleted = |p: &u32| std::fs::read_link(format!("/proc/{p}/exe")).map(|e| e.to_string_lossy().ends_with(" (deleted)")).unwrap_or(false);
+    while pids.iter().any(deleted) && t0.elapsed() < Duration::from_secs(3) {
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    if !running().is_empty() {
+        return 0;
+    }
+    // никого: запуск через шину (D-Bus-активация). Освобождение имени шина видит не мгновенно —
+    // пока у имени есть хозяин, просьба о запуске ничего не делает, поэтому проверяем и повторяем
+    let Ok(c) = zbus::blocking::Connection::session() else { return 0 };
+    let Ok(bus) = zbus::blocking::fdo::DBusProxy::new(&c) else { return 0 };
+    let Ok(wk) = zbus::names::WellKnownName::try_from(NAME) else { return 0 };
+    for _ in 0..10 {
+        if bus.name_has_owner(wk.clone().into()).unwrap_or(false) {
+            return 0;
+        }
+        let _ = bus.start_service_by_name(wk.clone(), 0);
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    eprintln!("yami-files --portal-reload: {NAME} did not start");
+    1
+}
+
 /// запустить диалог и дождаться ответа; None — отменили
 fn pick(args: Vec<String>) -> Option<Vec<String>> {
+    let _busy = Busy::take();
     let exe = exe()?;
     let out = std::process::Command::new(exe).arg("--pick").args(&args).stdin(std::process::Stdio::null()).stderr(std::process::Stdio::inherit()).output().ok()?;
     if !out.status.success() {
@@ -194,6 +273,13 @@ impl Chooser {
 }
 
 pub fn serve() -> i32 {
+    // SIGHUP ждёт главная нить (sigwait): маску наследуют все нити, которые zbus запустит ниже
+    let mut hup: libc::sigset_t = unsafe { std::mem::zeroed() };
+    unsafe {
+        libc::sigemptyset(&mut hup);
+        libc::sigaddset(&mut hup, libc::SIGHUP);
+        libc::pthread_sigmask(libc::SIG_BLOCK, &hup, std::ptr::null_mut());
+    }
     let built = zbus::blocking::connection::Builder::session()
         .and_then(|b| b.serve_at("/org/freedesktop/portal/desktop", Chooser))
         .and_then(|b| b.serve_at("/org/freedesktop/portal/desktop", crate::screencast::ScreenCast::new()))
@@ -216,6 +302,10 @@ pub fn serve() -> i32 {
     // живём, пока жива сессия; шина держит соединение
     let _keep = conn;
     loop {
-        std::thread::park();
+        let mut sig = 0;
+        if unsafe { libc::sigwait(&hup, &mut sig) } == 0 && sig == libc::SIGHUP {
+            RELOAD.store(true, Ordering::SeqCst);
+            reexec_if_idle();
+        }
     }
 }

@@ -29,6 +29,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - The settings window moves by its header (#8): drag it anywhere on the screen; it opens in the middle again next time.
 - Fix: Mod+F did nothing in desk mode (#8): it was `maximize-column`, which leaves floating windows alone; on the desk it now maximizes the window to the screen edges, and in tiling it still maximizes the column.
 - On a weak machine (less than 6 GB of memory or 4 threads) the installer and `yami update` build the apps with thin LTO: the compiler's peak memory is about half (1.3 GB instead of 2.4 GB with two jobs), so a 4 GB laptop no longer swaps through the build.
+- Fix: after an update OBS and other recorders could find no screen to capture until the next login: the update stopped the screen-sharing and file-dialog backend (`yami-files --portal`) and nothing started it again in time. Now `yami-files --portal-reload` hands over to the new binary in the same process (the portal keeps talking to it), waits while a recording or a file dialog is open, and starts the backend when none runs; the installer, `yami update` and `tools/deploy.sh` use it.
 
 ## 2.5.0
 

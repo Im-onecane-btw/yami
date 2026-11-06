@@ -17,25 +17,24 @@ if [[ ${1:-} != --force && ${1:-} != --files-only ]] && command -v niri >/dev/nu
 fi
 
 cargo build --release --locked --workspace --manifest-path "$ROOT/shell/Cargo.toml"
-install -Dm755 "$ROOT/shell/target/release/yami-files" "$HOME/.local/bin/yami-files"
-install -Dm755 "$ROOT/shell/target/release/yami-view" "$HOME/.local/bin/yami-view"
-install -Dm755 "$ROOT/shell/target/release/yami-play" "$HOME/.local/bin/yami-play"
+# a copy next to the target, then a rename: a running program keeps its old file, a full disk
+# leaves the old binary in place instead of a cut one
+put() { install -Dm755 "$ROOT/shell/target/release/$1" "$HOME/.local/bin/.$1.new" && mv -f "$HOME/.local/bin/.$1.new" "$HOME/.local/bin/$1"; }
+put yami-files
+put yami-view
+put yami-play
 install -Dm644 "$ROOT/config/applications/yami-files.desktop" "${XDG_DATA_HOME:-$HOME/.local/share}/applications/yami-files.desktop"
 install -Dm644 "$ROOT/config/applications/yami-view.desktop" "${XDG_DATA_HOME:-$HOME/.local/share}/applications/yami-view.desktop"
 install -Dm644 "$ROOT/config/applications/yami-play.desktop" "${XDG_DATA_HOME:-$HOME/.local/share}/applications/yami-play.desktop"
-# the portal backend runs from login: swap it for the new binary (not while a file dialog is
-# open) and start it again at once. xdg-desktop-portal reads ScreenCast's source types from the
-# running backend; while it is gone OBS and browsers see no screen to capture.
-if ! pgrep -f '^[^ ]*yami-files --pick' >/dev/null && pkill -f '^[^ ]*yami-files --portal'; then
-  sleep 0.3
-  busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus StartServiceByName su \
-    org.freedesktop.impl.portal.desktop.yami 0 >/dev/null 2>&1 || true
-fi
+# the portal backend runs from login: it moves to the new binary as soon as no screencast or file
+# dialog is open, and is started if it is not running (xdg-desktop-portal reads ScreenCast's source
+# types from the running backend; without it OBS and browsers see no screen to capture)
+"$HOME/.local/bin/yami-files" --portal-reload || true
 if [[ ${1:-} == --files-only || ${2:-} == --files-only ]]; then
   echo "deploy: yami-files, yami-view and yami-play installed"
   exit 0
 fi
-install -Dm755 "$ROOT/shell/target/release/yami-shell" "$BIN"
+put yami-shell
 ln -sfn yami-shell "$HOME/.local/bin/yami"
 # what runs now (`yami update` compares against it); a dirty tree is marked as such
 "$BIN" update stamp "$ROOT" || true

@@ -98,11 +98,12 @@ fn main() {
             return;
         }
         Some("-h") | Some("--help") => {
-            println!("yami-files [DIR…] | --pick open|save|dir [--multiple] [--title T] [--accept T] [--name N] [--folder DIR] [--filter 'Name|*.ext;mime/type']… | --portal | shot [TARGET…] [--lang en] [-o DIR]");
+            println!("yami-files [DIR…] | --pick open|save|dir [--multiple] [--title T] [--accept T] [--name N] [--folder DIR] [--filter 'Name|*.ext;mime/type']… | --portal | --portal-reload | shot [TARGET…] [--lang en] [-o DIR]");
             return;
         }
         Some("shot") => std::process::exit(shot::run(&args[2..])),
         Some("--portal") => std::process::exit(portal::serve()),
+        Some("--portal-reload") => std::process::exit(portal::reload()),
         _ => {}
     }
     let look = look::Look::load();

@@ -3,6 +3,7 @@
 // Службы D-Bus — кто держит имя (процесс по pid), а не «есть ли пакет».
 // i18n: inline pairs
 
+use yami_px::paths::pids;
 use crate::cmd::Sty;
 use std::path::Path;
 
@@ -41,20 +42,6 @@ pub fn which(c: &str) -> bool {
 fn is_exec(p: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
     std::fs::metadata(p).map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0).unwrap_or(false)
-}
-
-/// процессы, чья командная строка начинается с exe (по имени) и содержит arg
-fn pids(exe: &str, arg: &str) -> Vec<u32> {
-    let Ok(rd) = std::fs::read_dir("/proc") else { return vec![] };
-    rd.flatten()
-        .filter_map(|e| e.file_name().to_str()?.parse::<u32>().ok())
-        .filter(|pid| {
-            let c = std::fs::read(format!("/proc/{pid}/cmdline")).unwrap_or_default();
-            let mut parts = c.split(|b| *b == 0).map(|s| String::from_utf8_lossy(s).to_string());
-            let first = parts.next().unwrap_or_default();
-            first.rsplit('/').next() == Some(exe) && (arg.is_empty() || parts.any(|p| p == arg))
-        })
-        .collect()
 }
 
 /// сам шелл: yami-shell (или yami) без команды либо с `run`; `yami update apply` и прочие команды

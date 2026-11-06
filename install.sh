@@ -1041,14 +1041,16 @@ do_files() {
     grep -qs 'use-xdg-desktop-portal.file-picker' "$prof/user.js" ||
       printf '// yami: file dialogs through the portal (yami-files)\nuser_pref("widget.use-xdg-desktop-portal.file-picker", 1);\n' >>"$prof/user.js"
   done < <(python3 -I "$ROOT/tools/theme.py" --profiles 2>/dev/null)
-  # a portal backend left from the previous build would spawn a deleted binary
-  pgrep -f '^[^ ]*yami-files --pick' >/dev/null || pkill -f '^[^ ]*yami-files --portal' 2>/dev/null
-  if ((UPDATE)); then
-    # update: only our backend comes back (new binary); restarting the portal frontend would cut
-    # a running screencast (OBS, Discord)
-    busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus StartServiceByName su \
-      org.freedesktop.impl.portal.desktop.yami 0 >/dev/null 2>&1
-  elif ((SYSTEMD)) && systemctl --user is-active -q xdg-desktop-portal 2>/dev/null; then
+  # the backend left from the previous build moves to the new binary as soon as no screencast or
+  # file dialog is open (a running stream is not cut), and is started when it is not running:
+  # xdg-desktop-portal takes ScreenCast's source types from the live backend, without it OBS and
+  # browsers see nothing to capture. Only in a niri session or over a running backend: installed
+  # from another desktop, it would take «show in folder» (FileManager1) there until logout
+  if ((RUNNING_NIRI)) || pgrep -f '^[^ ]*yami-files --portal$' >/dev/null; then
+    "$BIN/yami-files" --portal-reload 2>/dev/null
+  fi
+  # a first install: the portal frontend reads niri-portals.conf only when it starts
+  if ((!UPDATE && SYSTEMD)) && systemctl --user is-active -q xdg-desktop-portal 2>/dev/null; then
     busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig >/dev/null 2>&1
     systemctl --user restart xdg-desktop-portal
   fi
