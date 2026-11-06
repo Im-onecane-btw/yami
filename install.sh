@@ -179,8 +179,8 @@ if ((EUID == 0)); then SU=""; elif command -v sudo >/dev/null; then SU=sudo; eli
 # the install (the crates' build scripts, minutes of them) can simply call sudo; the channel to the
 # root shell is two pipes bash does not pass to the programs it starts ({var} descriptors). They
 # are not secret from this user: a process of the same user can still reach them through
-# /proc/PID/fd while they are open, so the root shell lives only through the steps and is closed
-# before the long yami-niri build (run_steps → root_stop).
+# /proc/PID/fd while they are open, so the root shell lives only through the root steps, which all
+# come first, and is closed before anything is compiled (run_steps → root_stop before the build).
 # A command runs with the caller's stdin, stdout and stderr (through /proc), so pipes into `tee`
 # and the log work as before (a socket cannot be reopened: /dev/null instead); it returns the
 # command's exit code.
@@ -937,6 +937,10 @@ run_steps() {
   local i nf
   for ((i = 0; i < ${#STEPS_T[@]}; i++)); do
     nf=${#FAILED[@]}
+    # every root step comes before the build: the root shell is closed here, so no build script of
+    # a crate (minutes of code from crates.io) runs while its pipes are open (see root_start). A step
+    # after this point that still asked for root would fail (asroot: «the root shell is gone»)
+    [[ ${STEPS_F[$i]%% *} == do_build_shell ]] && root_stop
     step "$i"
     # a build that failed stops here. An update: the old binaries stay with the configs they match,
     # and the install record keeps the old version, so the update is offered again. A first
@@ -1406,10 +1410,14 @@ do_sddm() {
   $SU touch "$dst/theme.conf.user" "$dst/background.png"
   $SU chown "$(id -u):$(id -g)" "$dst/theme.conf.user" "$dst/background.png"
   $SU chmod 644 "$dst/theme.conf.user" "$dst/background.png"
-  python3 -I "$ROOT/tools/theme.py" --sddm "$dst"
+  # the step runs before the shell's palette is written (it is the last root step, see run_steps):
+  # the chosen palette is given here; the palette step later rewrites the user-owned files above
+  local acc=(--accent "#${PAL_HEX[$pal]}")
+  ((theme == 1)) && acc+=(--light)
+  python3 -I "$ROOT/tools/theme.py" --sddm "$dst" "${acc[@]}"
   $SU mkdir -p /etc/sddm.conf.d
   # the pixel cursor on the login screen too: the greeter reads /usr/share/icons only
-  python3 -I "$ROOT/tools/theme.py" --cursor-to "$CACHE/yami-cursor" || return 1
+  python3 -I "$ROOT/tools/theme.py" --cursor-to "$CACHE/yami-cursor" "${acc[@]}" || return 1
   $SU rm -rf -- /usr/share/icons/yami-cursor
   $SU cp -r "$CACHE/yami-cursor" /usr/share/icons/yami-cursor || return 1
   rm -rf -- "$CACHE/yami-cursor"
@@ -1618,6 +1626,11 @@ uninstall_login() {
   fi
   ((${#files[@]})) && $SU rm -rf -- "${files[@]}"
   say "$(t "экран входа: тема yami убрана, у SDDM снова своя" "login screen: the yami theme is gone, SDDM has its own again")"
+  # Current=yami written by hand into another file (sddm_check asks for it) would point at nothing
+  local by
+  by="$(sddm_theme_by)"
+  [[ -n $by && ${by#*	} == yami ]] &&
+    warn "$(t "${by%%	*} всё ещё ставит тему yami (Current=yami): поменяй её там или убери строку" "${by%%	*} still sets the yami theme (Current=yami): change it there or remove the line")"
   if [[ -n $dm ]] && ((SYSTEMD)); then
     if $SU systemctl enable -f "$dm.service"; then
       say "$(t "менеджер входа: снова $dm со следующей загрузки" "login manager: $dm again from the next boot")"
@@ -1778,13 +1791,14 @@ on nvidia && add "$(t "NVIDIA: кодек видеокарты в OBS на ст�
 on core && ((SUDO)) && add "$(t "службы: bluetooth, профили питания, сеть" "services: bluetooth, power profiles, network")" do_services
 on fork && ((SUDO)) && add "$(t "пакеты: сборка yami-niri" "packages: yami-niri build deps")" pkgs "${P_nirisrc[@]}"
 old_install && add "$(t "переезд со старого имени DARK-4RMY" "move from the old name DARK-4RMY")" do_migrate
+# the login screen is the last root step: it goes before the build (run_steps closes the root shell there)
+on login && add "$(t "экран входа: тема yami для SDDM" "login screen: yami theme for SDDM")" do_sddm
 add "$(t "шелл: сборка из исходников" "shell: build from source")" do_build_shell
 add "$(t "файлы: yami-files и диалог выбора файлов" "files: yami-files and the file dialog")" do_files
 add "$(t "шрифты: Tiny5, DotGothic16, Terminess, Monocraft" "fonts: Tiny5, DotGothic16, Terminess, Monocraft")" do_fonts
 add "$(t "niri: конфиг и настройки под железо" "niri: config and hardware settings")" do_niri_config
 add "$(t "палитра «$(pal_name "$pal")»: шелл, kitty, fastfetch, обои" "palette «$(pal_name "$pal")»: shell, kitty, fastfetch, wallpaper")" do_dotfiles
 on look && add "$(t "тема программ: Qt, KDE, GTK" "app theme: Qt, KDE, GTK")" do_look
-on login && add "$(t "экран входа: тема yami для SDDM" "login screen: yami theme for SDDM")" do_sddm
 add "$(t "убрать старый форк dark-niri" "remove the old dark-niri fork")" do_drop_dark_niri
 old_install && add "$(t "убрать файлы под старым именем" "remove files under the old name")" do_drop_old
 add "$(t "запись об установке (для yami update)" "install record (for yami update)")" do_stamp
@@ -1793,8 +1807,8 @@ add "$(t "счётчик установок (один раз, без данны�
 ((RUNNING_NIRI)) && add "$(t "перезапуск шелла" "restart the shell")" do_restart_shell
 
 run_steps
-# every root step is done: the root shell goes before the long yami-niri build (see root_start);
-# the setcap below asks for the password on its own, and only where it is needed
+# the root shell is already closed (run_steps, before the build); the setcap below asks for the
+# password on its own, and only where it is needed
 if [[ $SU == asroot ]]; then
   root_stop
   SU=$ROOT_TOOL

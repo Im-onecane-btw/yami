@@ -11,7 +11,8 @@
 (~/.local/state/yami/wallpaper.png), тему SDDM (theme.conf.user и обои в
 /usr/share/sddm/themes/yami, если установщик сделал их твоими).
 
-    theme.py --sddm DIR           только тему SDDM в DIR (сборка, предпросмотр)
+    theme.py --sddm DIR [--accent '#c4161c' [--light]]   только тему SDDM в DIR
+    theme.py --cursor-to DIR [--accent …]                 курсор экрана входа в DIR
     theme.py --login              только экран входа (шелл сменил обои)
     theme.py --cursor             только курсор (после смены его в настройках шелла)
     theme.py --profiles           вывести профили Firefox/LibreWolf/Floorp/Zen
@@ -1281,17 +1282,23 @@ def sddm(p, target=None):
     write(user, "\n".join(lines) + "\n")
 
 
+def _palette(args=()):
+    """Палитра: из «--accent '#rrggbb' [--light]» в args (установщик ставит экран входа раньше,
+    чем пишет палитру шелла), иначе palette.json шелла, иначе красная по умолчанию."""
+    if "--accent" in args and args.index("--accent") + 1 < len(args):
+        return derive(args[args.index("--accent") + 1], 1.0, "--light" in args)
+    path = HOME / ".local/state/yami/palette.json"
+    return json.loads(path.read_text()) if path.exists() else derive("#c4161c")
+
+
 def main():
     args = sys.argv[1:]
     if args[:1] == ["--cursor"]:
-        path = HOME / ".local/state/yami/palette.json"
-        cursor(json.loads(path.read_text()) if path.exists() else derive("#c4161c"))
+        cursor(_palette())
         return
     if args[:1] == ["--cursor-to"] and len(args) > 1:
         # экрану входа (SDDM): тема курсора «yami-cursor» в папку args[1], её копируют в /usr/share/icons
-        path = HOME / ".local/state/yami/palette.json"
-        p = json.loads(path.read_text()) if path.exists() else derive("#c4161c")
-        cursor_theme(p, Path(args[1]), "yami-cursor")
+        cursor_theme(_palette(args[2:]), Path(args[1]), "yami-cursor")
         return
     if args[:1] == ["--profiles"]:
         # профили Firefox-семейства (для установщика), по одному на строку
@@ -1299,34 +1306,31 @@ def main():
             print(d)
         return
     if args[:1] == ["--fonts"]:
-        path = HOME / ".local/state/yami/palette.json"
-        p = json.loads(path.read_text()) if path.exists() else derive("#c4161c")
+        p = _palette()
         for step in (fonts, firefox):
             step(p)
         subprocess.run(["pkill", "-USR1", "-x", "kitty"], check=False)
         return
     if args[:1] == ["--fetch"]:
         # шелл переключил вид fastfetch (настройки → вид): только его конфиг
-        path = HOME / ".local/state/yami/palette.json"
-        fastfetch(json.loads(path.read_text()) if path.exists() else derive("#c4161c"))
+        fastfetch(_palette())
         return
     if args[:1] == ["--login"]:
         # шелл сменил обои: только экран входа (если тема SDDM открыта на запись)
-        path = HOME / ".local/state/yami/palette.json"
-        sddm(json.loads(path.read_text()) if path.exists() else derive("#c4161c"))
+        sddm(_palette())
         return
     if args[:1] == ["--sddm"] and len(args) > 1:
-        path = HOME / ".local/state/yami/palette.json"
-        p = json.loads(path.read_text()) if path.exists() else derive("#c4161c")
-        sddm(p, args[1])
+        sddm(_palette(args[2:]), args[1])
         return
     if args[:1] == ["--accent"] and len(args) > 1:
         # --accent '#rrggbb' [tint] [--light]
         rest = [a for a in args[2:] if a != "--light"]
         p = derive(args[1], float(rest[0]) if rest else 1.0, "--light" in args)
-    else:
-        path = Path(args[0]) if args else HOME / ".local/state/yami/palette.json"
+    elif args:
+        path = Path(args[0])
         p = json.loads(path.read_text()) if path.exists() else derive("#c4161c")
+    else:
+        p = _palette()
     for step in (wallpaper, qt6ct, kde, gtk, fonts, kitty, btop, mangohud, firefox, fastfetch, niri, cursor, sddm):
         try:
             step(p)

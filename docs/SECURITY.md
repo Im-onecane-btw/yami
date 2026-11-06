@@ -39,6 +39,9 @@ What yami trusts, what it exposes, and what was checked (audits of 2026-11-03 an
 - Downloads: the repository itself (git over HTTPS), rustup when the distro's Rust is too old
   (`https` only, TLS 1.2+), Monocraft at a pinned version checked against its SHA-256. niri and
   smithay are fetched at pinned commits, the patches come from this repository.
+- One root shell for all root steps (one password); its pipes are reachable by the user's own
+  processes through `/proc`, so it lives only through those steps, which all come before the build:
+  it is closed before cargo runs the build scripts of the crates.
 - `bash <(curl …)` runs code from the network: read `install.sh` first if you do not trust the
   source; `--dry-run` shows the plan.
 
