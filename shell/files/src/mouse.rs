@@ -560,7 +560,12 @@ impl App {
             Act::Toast => fm.toast = None,
             Act::Drag => {
                 if double {
-                    self.window.set_maximized();
+                    // двойной щелчок по шапке: развернуть и обратно (раньше только разворачивал)
+                    if self.maximized {
+                        self.window.unset_maximized();
+                    } else {
+                        self.window.set_maximized();
+                    }
                 }
             }
             Act::Dim => {

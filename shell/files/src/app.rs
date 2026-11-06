@@ -110,6 +110,8 @@ pub struct App {
     pub(crate) w: i32,
     pub(crate) h: i32,
     pub(crate) configured: bool,
+    /// окно развёрнуто (по configure): двойной щелчок по шапке возвращает его обратно
+    pub(crate) maximized: bool,
     pub(crate) dirty: bool,
     pub(crate) frame_pending: bool,
     pub(crate) anim: bool,
@@ -218,6 +220,7 @@ pub fn run(fm_init: impl FnOnce(Option<calloop::channel::Sender<Msg>>) -> Fm) ->
         w,
         h,
         configured: false,
+        maximized: false,
         dirty: true,
         frame_pending: false,
         scroll_t: Instant::now(),

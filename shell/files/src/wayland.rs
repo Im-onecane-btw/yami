@@ -68,6 +68,7 @@ impl WindowHandler for App {
             self.h = h.get() as i32;
         }
         let _ = c.decoration_mode == DecorationMode::Server;
+        self.maximized = c.is_maximized();
         self.fm.w = self.w;
         self.fm.h = self.h;
         self.configured = true;
