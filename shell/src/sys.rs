@@ -334,17 +334,31 @@ fn nix_statvfs(path: &str) -> Result<f32, ()> {
     Ok(if total > 0.0 { (1.0 - free / total) as f32 } else { 0.0 })
 }
 
+/// IPv4 интерфейса — из getifaddrs (netlink), без процесса `ip` в нити Wayland
 fn local_ip(iface: &str) -> String {
     if iface.is_empty() {
         return String::new();
     }
-    let o = std::process::Command::new("ip").args(["-4", "-o", "addr", "show", iface]).output();
-    o.ok()
-        .and_then(|o| {
-            let s = String::from_utf8_lossy(&o.stdout).to_string();
-            s.split_whitespace().skip_while(|w| *w != "inet").nth(1).map(|x| x.split('/').next().unwrap_or("").to_string())
-        })
-        .unwrap_or_default()
+    let mut all: *mut libc::ifaddrs = std::ptr::null_mut();
+    if unsafe { libc::getifaddrs(&mut all) } != 0 {
+        return String::new();
+    }
+    let mut out = String::new();
+    let mut p = all;
+    while !p.is_null() {
+        let a = unsafe { &*p };
+        p = a.ifa_next;
+        if a.ifa_addr.is_null() || a.ifa_name.is_null() || unsafe { (*a.ifa_addr).sa_family } as i32 != libc::AF_INET {
+            continue;
+        }
+        if unsafe { std::ffi::CStr::from_ptr(a.ifa_name) }.to_bytes() == iface.as_bytes() {
+            let sin = unsafe { &*(a.ifa_addr as *const libc::sockaddr_in) };
+            out = std::net::Ipv4Addr::from(u32::from_be(sin.sin_addr.s_addr)).to_string();
+            break;
+        }
+    }
+    unsafe { libc::freeifaddrs(all) };
+    out
 }
 
 /// 1536 → «1.5K», в байтах в секунду
@@ -360,11 +374,9 @@ pub fn rate(b: f64) -> String {
     }
 }
 
-/// своя память, МБ (для «о шелле»)
-pub fn self_rss_mb() -> f32 {
-    fs::read_to_string("/proc/self/status")
-        .ok()
-        .and_then(|t| t.lines().find(|l| l.starts_with("VmRSS:")).and_then(|l| l.split_whitespace().nth(1)).and_then(|v| v.parse::<f32>().ok()))
-        .map(|kb| kb / 1024.0)
-        .unwrap_or(0.0)
+/// своя память, МБ (настройки: «о шелле» и подпись слева): PSS — честная доля общих страниц,
+/// как её меряют в README; без smaps_rollup (старое ядро) — RSS
+pub fn self_mem_mb() -> f32 {
+    let get = |f: &str, k: &str| fs::read_to_string(f).ok().and_then(|t| t.lines().find(|l| l.starts_with(k)).and_then(|l| l.split_whitespace().nth(1)).and_then(|v| v.parse::<f32>().ok()));
+    get("/proc/self/smaps_rollup", "Pss:").or_else(|| get("/proc/self/status", "VmRSS:")).map(|kb| kb / 1024.0).unwrap_or(0.0)
 }

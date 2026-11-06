@@ -620,13 +620,15 @@ impl Settings {
     /// разбор, прощающий ошибки: ключ с негодным значением берётся по умолчанию, а не весь
     /// файл (руками правят по одному ключу — одна опечатка не должна сбросить всё)
     pub fn lenient(text: &str) -> Settings {
-        if let Ok(s) = serde_json::from_str::<Settings>(text) {
-            return s;
-        }
-        let Some(user) = serde_json::from_str::<serde_json::Value>(text).ok().and_then(|v| v.as_object().cloned()) else {
+        // всегда через Value: разбор Settings прямо из текста — ещё ~100 КБ кода в бинаре (второй
+        // экземпляр serde-посетителя на ~200 полей) ради микросекунд на файл в несколько КБ
+        let Some(user) = serde_json::from_str::<serde_json::Value>(text).ok().and_then(|v| if let serde_json::Value::Object(m) = v { Some(m) } else { None }) else {
             eprintln!("yami-shell: {} is not JSON, defaults used", settings_path().display());
             return Settings::default();
         };
+        if let Ok(s) = serde_json::from_value::<Settings>(serde_json::Value::Object(user.clone())) {
+            return s;
+        }
         let (bad, _) = Settings::problems(&user);
         let mut v = serde_json::Map::new();
         for (k, x) in user {

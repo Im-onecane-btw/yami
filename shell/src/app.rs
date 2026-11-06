@@ -1160,7 +1160,10 @@ impl App {
             self.st.sys.want_gpu = self.uses("gpu");
             self.st.sys.sample();
             self.bat_check();
-            self.st.rss = crate::sys::self_rss_mb();
+            // память видна только в настройках: не читать её каждую секунду зря
+            if self.st.modal == Some(Modal::Settings) || self.st.rss == 0.0 {
+                self.st.rss = crate::sys::self_mem_mb();
+            }
             let lt = local_now();
             let sec_needed = self.st.set.clock_seconds || self.st.set.widgets.iter().any(|w| w.on && (w.kind == "clock" || w.kind == "graph" || w.kind == "net"));
             if sec_needed || lt.min != self.last_min {

@@ -35,6 +35,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - yami-view keeps one copy of a big picture while it fits the window (the full-size copy for zooming in is made when you zoom), drops a picture that finished decoding after you moved on, and holds only the current picture and its neighbours: a 4K picture takes 107 MB instead of 140.
 - yami-files keeps at most 32 MB of thumbnails in memory: a folder with thousands of pictures no longer grows the window by hundreds of megabytes; the thumbnails on screen stay, the oldest of the rest are dropped and come back from the disk cache when you scroll to them.
 - yami-play at a fractional scale no longer clears and redraws its controls layer for every video frame while the controls are hidden.
+- The shell measures its own memory (settings → about) only while the settings window is open, as PSS like `yami status`, and the address in the network module comes from the kernel instead of a run of `ip` on the drawing thread.
 
 ## 2.5.0
 
