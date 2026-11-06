@@ -176,15 +176,19 @@ if ((EUID == 0)); then SU=""; elif command -v sudo >/dev/null; then SU=sudo; eli
 # Every root command goes to one root shell started once (root_start): sudo or doas asks a single
 # time, even doas without `persist` and even when a step falls back to installing packages one by
 # one (it used to ask for each). The cached ticket is dropped right after, so nothing else run by
-# the install (the crates' build scripts, minutes of them) can use it; the channel to the root shell
-# is two pipes only this script holds: bash closes {var} descriptors in the programs it starts.
+# the install (the crates' build scripts, minutes of them) can simply call sudo; the channel to the
+# root shell is two pipes bash does not pass to the programs it starts ({var} descriptors). They
+# are not secret from this user: a process of the same user can still reach them through
+# /proc/PID/fd while they are open, so the root shell lives only through the steps and is closed
+# before the long yami-niri build (run_steps → root_stop).
 # A command runs with the caller's stdin, stdout and stderr (through /proc), so pipes into `tee`
 # and the log work as before (a socket cannot be reopened: /dev/null instead); it returns the
 # command's exit code.
-ROOT_W="" ROOT_R=""
+ROOT_W="" ROOT_R="" ROOT_TOOL=""
 root_start() {
-  local tool=$SU rc
+  local tool=$SU
   [[ -n $tool ]] || return 0
+  ROOT_TOOL=$tool
   coproc ROOTSH {
     # shellcheck disable=SC2016
     "$tool" bash -c 'while IFS= read -r p && IFS= read -r c; do
@@ -212,8 +216,10 @@ asroot() {
   # the root shell opens this process's 0, 1 and 2 while it waits: a redirection here (`>&fd`,
   # `<&fd`) would swap them for that moment, so the request is written from a subshell and the
   # answer read with -u. A root shell that is gone must not take the installer with it (SIGPIPE).
-  (trap '' PIPE; printf '%s\n%s\n' "$me" "$q" >&"$ROOT_W") 2>/dev/null || { echo "the root shell is gone" >&2; return 1; }
-  IFS= read -r -u "$ROOT_R" rc || { echo "the root shell is gone" >&2; return 1; }
+  if ! (trap '' PIPE; printf '%s\n%s\n' "$me" "$q" >&"$ROOT_W") 2>/dev/null || ! IFS= read -r -u "$ROOT_R" rc; then
+    printf '%s\n' "$(t "root-сеанс закрыт" "the root shell is gone")" >&2
+    return 1
+  fi
   return "$rc"
 }
 root_stop() {
@@ -1639,16 +1645,16 @@ banner $((YES))
 
 if ((SUDO && !DRY)) && [[ -n $SU ]]; then
   say "$(t "нужен пароль администратора — один раз на всю установку" "the administrator password, once for the whole install")"
-  if root_start; then
-    :
-  elif $SU true; then
-    # the password is right but the root shell did not come up (an unusual sudo setup): every root
-    # command asks on its own, the steps run in the foreground so the prompts are seen
-    warn "$(t "общий root-сеанс не поднялся — пароль может спрашиваться не раз" "the shared root session did not start: the password may be asked more than once")"
-  else
-    warn "$(t "без root — ставлю только домашнюю папку" "no root: home directory only")"
-    SUDO=0
-    for i in "${!C_ID[@]}"; do can "${C_ID[$i]}" || C_ON[i]=0; done
+  if ! root_start; then
+    if $SU true; then
+      # the password is right but the root shell did not come up (an unusual sudo setup): every
+      # root command asks on its own, the steps run in the foreground so the prompts are seen
+      warn "$(t "общий root-сеанс не поднялся — пароль может спрашиваться не раз" "the shared root session did not start: the password may be asked more than once")"
+    else
+      warn "$(t "без root — ставлю только домашнюю папку" "no root: home directory only")"
+      SUDO=0
+      for i in "${!C_ID[@]}"; do can "${C_ID[$i]}" || C_ON[i]=0; done
+    fi
   fi
   printf '\n'
 fi
@@ -1695,6 +1701,12 @@ add "$(t "счётчик установок (один раз, без данны�
 ((RUNNING_NIRI)) && add "$(t "перезапуск шелла" "restart the shell")" do_restart_shell
 
 run_steps
+# every root step is done: the root shell goes before the long yami-niri build (see root_start);
+# the setcap below asks for the password on its own, and only where it is needed
+if [[ $SU == asroot ]]; then
+  root_stop
+  SU=$ROOT_TOOL
+fi
 
 if on fork && ((!DRY && !BUILD_FAILED)); then
   printf '\n  %s%s%s\n\n' "$T" "$(t "сборка yami-niri — 5–25 минут, вывод прямо здесь:" "building yami-niri takes 5–25 minutes, output below:")" "$R"
