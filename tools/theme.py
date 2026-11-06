@@ -5,7 +5,8 @@
     theme.py --accent '#c4161c' [--light]   без шелла: вывести оттенки из акцента
 
 Пишет: qt6ct (цвета + qss), схему KDE и kdeglobals, gtk.css для GTK3/4, цвета kitty, тему btop, MangoHud,
-меню Firefox/LibreWolf (userChrome.css)
+цвета foot, cava и starship (настройки → цвет → программы, appThemes), свои шаблоны
+(~/.config/yami/templates), меню Firefox/LibreWolf (userChrome.css)
 (открытые kitty перечитывают конфиг по SIGUSR1), fastfetch, цвета рамок niri
 (~/.config/niri/yami-colors.kdl, niri подхватывает сам), обои шелла
 (~/.local/state/yami/wallpaper.png), тему SDDM (theme.conf.user и обои в
@@ -541,19 +542,14 @@ def fonts(p=None):
 
 
 # ── kitty ────────────────────────────────────────────────────────────────────
-def kitty(p):
+def ansi(p):
+    """16 цветов терминала и основные: одни на kitty, foot, starship и свои шаблоны."""
     acc = p["accent"]
     # ANSI-цвета чуть в сторону акцента; на светлом фоне — темнее, иначе пастель не читается
     t = (lambda base, k=0.18: scale_v(mix(base, acc, k), 0.7)) if light(p) else (lambda base, k=0.18: mix(base, acc, k))
-    cols = {
-        "foreground": p["text"], "background": p["bg"],
+    return {
+        "foreground": p["text"], "background": p["bg"], "cursor": p["bright"],
         "selection_foreground": hi(p), "selection_background": p["selection"],
-        "cursor": p["bright"], "cursor_text_color": p["bg"], "url_color": p["bright"],
-        "active_border_color": acc, "inactive_border_color": p["border"], "bell_border_color": p["bright"],
-        "visual_bell_color": p["border"],
-        "active_tab_foreground": p["onAccent"], "active_tab_background": acc,
-        "inactive_tab_foreground": p["textDim"], "inactive_tab_background": p["panel"],
-        "tab_bar_background": p["bg"], "mark1_background": acc,
         # в светлой «чёрный» (0) остаётся тёмным: программы пишут им текст
         "color0": p["textDim"] if light(p) else p["panel"], "color8": p["textFaint"],
         "color1": "#b02a22" if light(p) else "#d0352d", "color9": "#d0352d" if light(p) else "#ff5a4c",
@@ -563,6 +559,22 @@ def kitty(p):
         "color5": t("#9a5aa0"), "color13": t("#c486c8"),
         "color6": t("#4f9a96"), "color14": t("#7cc2bc"),
         "color7": p["textDim"], "color15": p["text"],
+    }
+
+
+def kitty(p):
+    acc = p["accent"]
+    a = ansi(p)
+    cols = {
+        "foreground": a["foreground"], "background": a["background"],
+        "selection_foreground": a["selection_foreground"], "selection_background": a["selection_background"],
+        "cursor": a["cursor"], "cursor_text_color": p["bg"], "url_color": p["bright"],
+        "active_border_color": acc, "inactive_border_color": p["border"], "bell_border_color": p["bright"],
+        "visual_bell_color": p["border"],
+        "active_tab_foreground": p["onAccent"], "active_tab_background": acc,
+        "inactive_tab_foreground": p["textDim"], "inactive_tab_background": p["panel"],
+        "tab_bar_background": p["bg"], "mark1_background": acc,
+        **{f"color{i}": a[f"color{i}"] for i in range(16)},
     }
     write(CFG / "kitty/yami-colors.conf",
           "# YAMI: пишет tools/theme.py по палитре шелла\n" +
@@ -602,6 +614,190 @@ def btop(p):
         write(conf, t)
     else:
         write(conf, '#? Config file for btop (YAMI: only the theme is set, btop fills the rest)\ncolor_theme = "yami"\ntheme_background = false\n')
+
+
+# ── foot, cava, starship, свои шаблоны (#17) ─────────────────────────────────
+APPS = ("foot", "cava", "starship")
+
+
+def _apps():
+    """Какие программы красить: appThemes из настроек шелла (нет ключа — все)."""
+    v = _settings().get("appThemes")
+    return set(x for x in v if isinstance(x, str)) if isinstance(v, list) else set(APPS)
+
+
+def _signal(sig, name):
+    """Открытым копиям программы — сигнал перечитать цвета."""
+    subprocess.run(["pkill", f"-{sig}", "-x", name], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def foot(p):
+    """foot: цвета в foot/yami-colors.ini и include на него первой строкой foot.ini (свои [colors]
+    ниже перекрывают наши). foot читает их при запуске нового окна."""
+    if "foot" not in _apps() or not (shutil.which("foot") or (CFG / "foot").is_dir()):
+        return
+    a = ansi(p)
+    s = lambda k: a[k].lstrip("#")
+    # foot 1.22: секция [colors] стала [colors-dark] (старое имя ещё читается, но с предупреждением)
+    sec = "colors"
+    try:
+        out = subprocess.run(["foot", "--version"], capture_output=True, text=True, timeout=3).stdout
+        m = re.search(r"(\d+)\.(\d+)", out)
+        if m and (int(m.group(1)), int(m.group(2))) >= (1, 22):
+            sec = "colors-dark"
+    except (OSError, subprocess.SubprocessError):
+        pass
+    lines = ["# YAMI: пишет tools/theme.py по палитре шелла (include в foot.ini)", f"[{sec}]",
+             f"foreground={s('foreground')}", f"background={s('background')}",
+             f"selection-foreground={s('selection_foreground')}", f"selection-background={s('selection_background')}",
+             f"cursor={p['bg'].lstrip('#')} {s('cursor')}", f"urls={p['bright'].lstrip('#')}"]
+    lines += [f"regular{i}={s(f'color{i}')}" for i in range(8)] + [f"bright{i}={s(f'color{i + 8}')}" for i in range(8)]
+    inc_file = CFG / "foot/yami-colors.ini"
+    write(inc_file, "\n".join(lines) + "\n")
+    ini = CFG / "foot/foot.ini"
+    inc = f"include={inc_file}"
+    t = ini.read_text() if ini.exists() else ""
+    if "yami-colors.ini" not in t:
+        write(ini, inc + "\n" + t)
+
+
+def cava(p):
+    """cava: градиент полос от глубокого акцента к яркому в [color] её конфига (свои строки
+    остальных секций не трогаем); открытая cava перечитывает цвета по SIGUSR2."""
+    conf = CFG / "cava/config"
+    if "cava" not in _apps() or not conf.exists():
+        return
+    ours = {"gradient": "1", "gradient_count": "4",
+            "gradient_color_1": f"'{p['deep']}'", "gradient_color_2": f"'{p['accent']}'",
+            "gradient_color_3": f"'{p['bright']}'", "gradient_color_4": f"'{mix(p['bright'], p['text'], 0.5)}'"}
+    out, in_color, done = [], False, False
+    for line in conf.read_text().splitlines():
+        head = re.match(r"\s*\[(\w+)\]", line)
+        if head:
+            in_color = head.group(1) == "color"
+            out.append(line)
+            if in_color and not done:
+                out += [f"{k} = {v}" for k, v in ours.items()]
+                done = True
+            continue
+        key = re.match(r"\s*(\w+)\s*=", line)
+        if in_color and key and key.group(1) in ours:
+            continue
+        out.append(line)
+    if not done:
+        out += ["", "[color]"] + [f"{k} = {v}" for k, v in ours.items()]
+    text = "\n".join(out) + "\n"
+    if text != conf.read_text():
+        write(conf, text)
+        _signal("USR2", "cava")
+
+
+def starship(p):
+    """starship: палитра [palettes.yami] и palette = "yami". Палитра переопределяет и обычные
+    имена (red, green…), так что стандартное приглашение тоже окрашивается."""
+    conf = CFG / "starship.toml"
+    if "starship" not in _apps() or not conf.exists():
+        return
+    a = ansi(p)
+    pal = {"black": a["color0"], "red": a["color1"], "green": a["color2"], "yellow": a["color3"], "blue": a["color4"],
+           "purple": a["color5"], "cyan": a["color6"], "white": a["color7"],
+           "bright-black": a["color8"], "bright-red": a["color9"], "bright-green": a["color10"], "bright-yellow": a["color11"],
+           "bright-blue": a["color12"], "bright-purple": a["color13"], "bright-cyan": a["color14"], "bright-white": a["color15"],
+           "accent": p["accent"], "accent_deep": p["deep"], "accent_bright": p["bright"],
+           "text": p["text"], "text_dim": p["textDim"], "text_faint": p["textFaint"], "bg": p["bg"], "panel": p["panel"]}
+    lines = conf.read_text().splitlines()
+    # своя таблица палитры — заново; строка palette = … верхнего уровня — наша
+    out, skip, seen_table, has_palette = [], False, False, False
+    for line in lines:
+        head = re.match(r"\s*\[([^\]]+)\]", line)
+        if head:
+            seen_table = True
+            skip = head.group(1).strip() == "palettes.yami"
+            if skip:
+                continue
+        if skip:
+            continue
+        if not seen_table and re.match(r"\s*palette\s*=", line):
+            line, has_palette = 'palette = "yami"', True
+        out.append(line)
+    if not has_palette:
+        out.insert(0, 'palette = "yami"')
+    while out and not out[-1].strip():
+        out.pop()
+    out += ["", "# YAMI: пишет tools/theme.py по палитре шелла", "[palettes.yami]"] + [f'{k} = "{v}"' for k, v in pal.items()]
+    text = "\n".join(out) + "\n"
+    if text != conf.read_text():
+        write(conf, text)
+
+
+_TPL_KEY = re.compile(r"\{\{\s*([A-Za-z][A-Za-z0-9_]*)(?:\.(strip|rgb))?\s*\}\}")
+_TPL_DIR = re.compile(r"yami-(output|reload):\s*(\S.*?)\s*$")
+_TPL_ROOTS = (CFG, HOME / ".local/share", HOME / ".cache")
+
+
+def templates(p):
+    """Свои шаблоны: файлы в ~/.config/yami/templates. Строка «yami-output: ~/путь» — куда писать,
+    «yami-reload: USR1 программа» — кому послать сигнал (USR1, USR2 или HUP); {{accent}}, {{bg}},
+    {{color4}}… — цвета (.strip — без «#», .rgb — «r, g, b»). Пишем только в ~/.config, ~/.local/share
+    и ~/.cache и только в свой файл: чужой (изменённый руками) не перезаписываем."""
+    d = CFG / "yami/templates"
+    if not d.is_dir():
+        return
+    cols = {**{k: v for k, v in p.items() if isinstance(v, str) and v.startswith("#")}, **ansi(p)}
+    state = HOME / ".local/state/yami/templates.json"
+    try:
+        sums = json.loads(state.read_text())
+    except (OSError, ValueError):
+        sums = {}
+    if not isinstance(sums, dict):
+        sums = {}
+    import hashlib
+
+    def fill(m):
+        v = cols.get(m.group(1))
+        if v is None:
+            return m.group(0)
+        if m.group(2) == "strip":
+            return v.lstrip("#")
+        if m.group(2) == "rgb":
+            return ", ".join(str(x) for x in rgb(v))
+        return v
+
+    for f in sorted(d.iterdir()):
+        if not f.is_file() or f.name.startswith(".") or f.suffix == ".md":
+            continue
+        try:
+            src = f.read_text()
+        except (OSError, UnicodeDecodeError):
+            continue
+        out, reload, body = None, None, []
+        for line in src.splitlines(keepends=True):
+            m = _TPL_DIR.search(line)
+            if m and m.group(1) == "output":
+                out = Path(os.path.expanduser(m.group(2)))
+            elif m:
+                reload = m.group(2).split()
+            else:
+                body.append(line)
+        if out is None:
+            print(f"theme: template {f.name}: no yami-output line", file=sys.stderr)
+            continue
+        real = Path(os.path.realpath(out))
+        if not out.is_absolute() or not any(str(real).startswith(str(Path(os.path.realpath(r))) + os.sep) for r in _TPL_ROOTS):
+            print(f"theme: template {f.name}: {out} is outside ~/.config, ~/.local/share and ~/.cache", file=sys.stderr)
+            continue
+        text = _TPL_KEY.sub(fill, "".join(body))
+        key = str(real)
+        if real.exists():
+            have = hashlib.sha256(real.read_bytes()).hexdigest()
+            if have != sums.get(key) and real.read_text(errors="replace") != text:
+                print(f"theme: template {f.name}: {out} was changed by hand, not overwritten", file=sys.stderr)
+                continue
+        write(real, text)
+        sums[key] = hashlib.sha256(text.encode()).hexdigest()
+        if reload and len(reload) == 2 and reload[0] in ("USR1", "USR2", "HUP") and re.fullmatch(r"[A-Za-z0-9._+-]{1,32}", reload[1]):
+            _signal(reload[0], reload[1])
+    write(state, json.dumps(sums, indent=1) + "\n")
 
 
 # ── Firefox, LibreWolf, Floorp, Zen: меню, подсказки, панели ─────────────────
@@ -1331,7 +1527,7 @@ def main():
         p = json.loads(path.read_text()) if path.exists() else derive("#c4161c")
     else:
         p = _palette()
-    for step in (wallpaper, qt6ct, kde, gtk, fonts, kitty, btop, mangohud, firefox, fastfetch, niri, cursor, sddm):
+    for step in (wallpaper, qt6ct, kde, gtk, fonts, kitty, foot, cava, starship, btop, mangohud, templates, firefox, fastfetch, niri, cursor, sddm):
         try:
             step(p)
         except Exception as exc:  # одна программа не должна ломать остальные

@@ -13,15 +13,22 @@ use crate::widgets::{self, name_of, ANIMS, COLORS, KINDS, SIZES, SOURCES, STYLES
 pub(crate) fn tab_color(ui: &mut Ui, st: &State, b: R) {
     let t = ui.t;
     let s = &st.set;
-    // два раздела: палитра и свои темы (#8)
-    let bw = 100;
-    ui.button(R::new(b.right() - 2 * bw - 6, b.y - 3, bw, 22), "палитра", "drop", Tone::Ghost, !st.theme_page, true, Act::SCycle("color_page_pal"));
-    ui.button(R::new(b.right() - bw, b.y - 3, bw, 22), "темы", "grid", Tone::Ghost, st.theme_page, true, Act::SCycle("color_page_themes"));
-    if st.theme_page {
-        crate::themetab::tab(ui, st, b, b.w - 2 * bw - 12);
-        return;
+    // три раздела: палитра, свои темы (#8), программы в цветах палитры (#17)
+    // кнопки разделов справа налево, каждая по своей надписи (по-английски она короче)
+    let mut x = b.right();
+    for (i, (name, icon, act)) in [("палитра", "drop", "color_page_pal"), ("темы", "grid", "color_page_themes"), ("программы", "term", "color_page_apps")].into_iter().enumerate().rev() {
+        let bw = ui.w(PX, name) + 36;
+        x -= bw;
+        ui.button(R::new(x, b.y - 3, bw, 22), name, icon, Tone::Ghost, st.color_page == i as u8, true, Act::SCycle(act));
+        x -= 6;
     }
-    let mut y = title(ui, b.x, b.y, b.w - 2 * bw - 12, "палитра — весь райс перекрашивается сразу");
+    let tw = x - b.x - 6;
+    match st.color_page {
+        1 => return crate::themetab::tab(ui, st, b, tw),
+        2 => return app_themes(ui, st, b, tw),
+        _ => {}
+    }
+    let mut y = title(ui, b.x, b.y, tw, "палитра — весь райс перекрашивается сразу");
     let cw = (b.w - 6 * 8) / 7;
     for (i, p) in PRESETS.iter().enumerate() {
         let r = R::new(b.x + i as i32 * (cw + 8), y, cw, 64);
@@ -74,6 +81,29 @@ pub(crate) fn tab_color(ui: &mut Ui, st: &State, b: R) {
             x += 32;
         }
     }
+}
+
+/// программы в цветах палитры (#17): foot, cava, starship по выбору; kitty, btop, GTK, Qt, KDE,
+/// Firefox, fastfetch, niri — всегда; свои шаблоны — папка ~/.config/yami/templates
+fn app_themes(ui: &mut Ui, st: &State, b: R, tw: i32) {
+    let t = ui.t;
+    let s = &st.set;
+    let half = (b.w - 20) / 2;
+    let mut y = title(ui, b.x, b.y, tw, "программы в цветах палитры");
+    let on = |k: &str| s.app_themes.iter().any(|a| a == k);
+    ui.toggle(R::new(b.x, y, half, 40), "foot", "терминал: include в foot.ini", on("foot"), Act::SBool("app_foot"));
+    ui.toggle(R::new(b.x + half + 20, y, half, 40), "cava", "градиент полос, сразу", on("cava"), Act::SBool("app_cava"));
+    y += 46;
+    ui.toggle(R::new(b.x, y, half, 40), "starship", "палитра приглашения", on("starship"), Act::SBool("app_starship"));
+    y += 46;
+    ui.wrap(PX, R::new(b.x, y, b.w, 40), "всегда: kitty, btop, GTK, Qt и KDE, Firefox и LibreWolf, fastfetch, MangoHud, рамки niri, экран входа", t.text_faint, 2);
+    y += 48;
+    y = title(ui, b.x, y, b.w, "свои шаблоны");
+    let help = "файл в ~/.config/yami/templates — конфиг программы, где цвета записаны как {{accent}}, {{bg}}, {{text}}, {{color1}}… (.strip — без #, .rgb — r, g, b). Строка «yami-output: ~/путь» — куда писать, «yami-reload: USR1 программа» — кому сказать перечитать. Чужой файл не перезаписывается.";
+    ui.wrap(PX, R::new(b.x, y, b.w, 100), help, t.text_dim, 5);
+    y += 104;
+    ui.button(R::new(b.x, y, 220, 28), "папка шаблонов", "folder", Tone::Plain, false, true, Act::SCycle("templates_open"));
+    ui.button(R::new(b.x + 230, y, 220, 28), "перекрасить сейчас", "reboot", Tone::Plain, false, true, Act::SCycle("theme_rerun"));
 }
 
 pub(crate) fn tab_widgets(ui: &mut Ui, st: &State, b: R) {

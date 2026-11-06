@@ -158,6 +158,8 @@ pub struct Settings {
     pub tray_mode: String,
     /// значки трея клетками в тонах палитры, как пиксельные значки дока и лаунчера (#19)
     pub tray_pixel: bool,
+    /// какие программы theme.py красит по палитре сверх постоянных (#17): foot, cava, starship
+    pub app_themes: Vec<String>,
     pub clock_seconds: bool,
     pub clock_date: bool,
     pub task_width: i32,
@@ -479,6 +481,7 @@ impl Default for Settings {
             temp_style: "full".into(),
             tray_mode: "icons".into(),
             tray_pixel: false,
+            app_themes: vec!["foot".into(), "cava".into(), "starship".into()],
             clock_seconds: false,
             clock_date: true,
             task_width: 190,
@@ -675,6 +678,8 @@ impl Settings {
         if self.temp_style != "compact" {
             self.temp_style = "full".into();
         }
+        self.app_themes.retain(|a| matches!(a.as_str(), "foot" | "cava" | "starship"));
+        self.app_themes.dedup();
         if self.tray_mode != "arrow" {
             self.tray_mode = "icons".into();
         }

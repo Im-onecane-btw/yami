@@ -252,7 +252,8 @@ pub struct State {
     pub weather_try: Option<Instant>,
     pub weather_field: Field,
     /// вкладка «цвет»: страница «темы», свои темы и последнее действие с ними (themetab.rs)
-    pub theme_page: bool,
+    /// раздел вкладки «цвет»: 0 — палитра, 1 — свои темы, 2 — программы (#17)
+    pub color_page: u8,
     pub themes: Vec<crate::bundle::Card>,
     pub theme_note: String,
     pub viz: Vec<f32>,
@@ -445,7 +446,7 @@ impl State {
             weather_busy: false,
             weather_try: None,
             weather_field: Field::default(),
-            theme_page: false,
+            color_page: 0,
             themes: vec![],
             theme_note: String::new(),
             viz: vec![],

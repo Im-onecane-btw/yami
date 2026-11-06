@@ -7,6 +7,16 @@ use crate::theme::Theme;
 use crate::font::Fonts;
 
 
+/// пустая папка шаблонов получает пример (выключенный: без строки yami-output он не пишется)
+pub fn templates_example(d: &std::path::Path) {
+    let _ = std::fs::create_dir_all(d);
+    let empty = std::fs::read_dir(d).map(|mut r| r.next().is_none()).unwrap_or(false);
+    if empty {
+        let ex = "# yami template example: copy this file, put your app's colour config below and add the line\n# «yami-output: ~/.config/APP/colors» (where to write) and, if the app can reload,\n# «yami-reload: USR1 APP». Colours: {{accent}} {{deep}} {{bright}} {{bg}} {{panel}} {{surface}}\n# {{border}} {{text}} {{textDim}} {{textFaint}} {{foreground}} {{background}} {{cursor}} {{color0}}…{{color15}};\n# {{accent.strip}} — without «#», {{accent.rgb}} — «r, g, b». Files ending in .md are skipped.\n";
+        let _ = std::fs::write(d.join("example.md"), ex);
+    }
+}
+
 impl App {
     // ── настройки ───────────────────────────────────────────────────────────
     pub fn settings_changed(&mut self) {
@@ -100,6 +110,18 @@ impl App {
                 let _ = tx.send(Msg::Theme);
             });
         }
+    }
+
+    /// перекрасить программы заново той же палитрой (включили foot или свой шаблон): theme.py
+    /// читает настройки с диска — сначала сохранить
+    pub fn theme_rerun(&mut self) {
+        self.save_now();
+        let p = config::state_dir().join("palette.json");
+        let tx = self.tx.clone();
+        std::thread::spawn(move || {
+            let _ = crate::proc::theme_py().arg(&p).status();
+            let _ = tx.send(Msg::Theme);
+        });
     }
 
     /// ползунок настроек: значение в настройки, всё зависящее — следом

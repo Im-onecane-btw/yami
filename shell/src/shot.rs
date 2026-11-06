@@ -29,6 +29,7 @@ const TARGETS: &[&str] = &[
     "settings:bar",
     "settings:bar-look",
     "settings:color-themes",
+    "settings:color-apps",
     "settings:wall-skwd",
     "settings:widgets",
     "settings:look",
@@ -250,8 +251,12 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
             // вкладка «бар», раздел «вид»: форма бара, отступы
             st.bar_ed.look = arg == "bar-look";
             // вкладка «цвет», раздел «темы» (#8): свои темы карточками
-            st.theme_page = arg == "color-themes";
-            if st.theme_page {
+            st.color_page = match arg {
+                "color-themes" => 1,
+                "color-apps" => 2,
+                _ => 0,
+            };
+            if st.color_page == 1 {
                 let card = |name: &str, accent: u32, light: bool, wall: bool| crate::bundle::Card { name: name.into(), accent, light, wall };
                 st.themes = vec![card("ash-dark", 0xa8a29c, false, false), card("sakura evening", 0xd9577c, false, true), card("paper", 0x3a9fd0, true, false), card("amber-light", 0xd98e1f, true, true), card("venom", 0x5fae34, false, false)];
                 st.theme_note = crate::tf!("сохранена: {}", "saved: {}", "ash-dark");
