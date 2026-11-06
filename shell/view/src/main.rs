@@ -27,6 +27,8 @@ fn main() {
         Some("shot") => std::process::exit(shot(&args[1..])),
         _ => {}
     }
+    // через 15 с старт позади и окно открыто: код старта — из памяти (yami_px::shed_code)
+    yami_px::shed_code_later(15);
     let look = look::Look::load();
     i18n::set(&look.lang);
     let paths: Vec<PathBuf> = args.iter().filter(|a| !a.starts_with('-')).map(|a| icons::uri_path(a).unwrap_or_else(|| PathBuf::from(a))).map(|p| if p.is_relative() { std::env::current_dir().unwrap_or_default().join(p) } else { p }).collect();

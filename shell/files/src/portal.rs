@@ -114,6 +114,15 @@ impl Drop for Busy {
                 std::thread::sleep(Duration::from_secs(1));
                 reexec_if_idle();
             });
+        } else if BUSY.load(Ordering::SeqCst) == 0 {
+            // запись или выбор файла кончились: их код (окно, захват) — из памяти, если полминуты
+            // никто ничего не просил
+            let _ = std::thread::Builder::new().name("shed".into()).spawn(|| {
+                std::thread::sleep(Duration::from_secs(30));
+                if BUSY.load(Ordering::SeqCst) == 0 {
+                    yami_px::shed_code();
+                }
+            });
         }
     }
 }
@@ -301,6 +310,9 @@ pub fn serve() -> i32 {
     let _ = conn.request_name_with_flags(FM1, RequestNameFlags::ReplaceExisting | RequestNameFlags::AllowReplacement);
     // живём, пока жива сессия; шина держит соединение
     let _keep = conn;
+    // старт позади: код окна файлов, который порталу не нужен, — из памяти (5 МБ → ~1)
+    std::thread::sleep(std::time::Duration::from_secs(2));
+    yami_px::shed_code();
     loop {
         let mut sig = 0;
         if unsafe { libc::sigwait(&hup, &mut sig) } == 0 && sig == libc::SIGHUP {

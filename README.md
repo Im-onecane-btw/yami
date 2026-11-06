@@ -253,16 +253,17 @@ Measured on this setup (1920×1080, Arch, PSS — shared library pages split fai
 
 | What | Memory |
 |---|---|
-| yami-shell, idle (bar, dock, widgets, notifications, tray) | 15 MB (21 MB) |
+| yami-shell, idle (bar, dock, widgets, notifications, tray) | 12.5 MB (16 MB) |
 | yami-shell with the settings open | 18 MB |
 | yami-shell during a screenshot (frozen frame), freed on close | 32 MB → 16 MB |
-| yami-files --portal (file dialog + FileManager1 service, always on) | 5 MB (7 MB) |
-| yami-files window on the home folder | 12 MB (21 MB) — Dolphin: 69 MB (161 MB) |
-| yami-view on a 1080p PNG, both neighbours decoded ahead | 46 MB (56 MB) — Gwenview: 96 MB (188 MB) |
-| binaries on disk: shell + files + view | 6.3 + 5.5 + 2.2 MB |
+| yami-files --portal (file dialog + FileManager1 service, always on) | 0.8 MB (3.2 MB) |
+| yami-files window on the home folder | 11 MB (14 MB) — Dolphin: 69 MB (161 MB) |
+| yami-view on a 1080p PNG, both neighbours decoded ahead | 49 MB (53 MB) — Gwenview: 96 MB (188 MB) |
+| binaries on disk: shell + files + view + player | 8.7 + 6.4 + 2.3 + 1.6 MB |
 
-Always running: about 20 MB for the shell and the portal together. No GPU context, no toolkit,
-no interpreter; windows are drawn into shared memory and only when something changes.
+Always running: about 13 MB for the shell and the portal together. No GPU context, no toolkit,
+no interpreter; windows are drawn into shared memory and only when something changes. Code a
+program has stopped running (its start-up, a closed settings window) goes back to the kernel.
 
 ## Keys
 

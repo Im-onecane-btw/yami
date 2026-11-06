@@ -340,6 +340,9 @@ pub struct App {
     pub(crate) frac_mgr: Option<frac_mgr::WpFractionalScaleManagerV1>,
     /// логический холст перед увеличением (HiDPI); большой — освобождается сразу
     pub(crate) scratch: Vec<u32>,
+    /// когда отдать ядру код, который больше не исполняется (yami_px::shed_code): через 30 с после
+    /// старта и после закрытия окна (настройки, лаунчер — их код велик, а нужен изредка)
+    pub(crate) shed_at: Option<Instant>,
     pub(crate) lock_state: SessionLockState,
     pub lock: Option<SessionLock>,
     pub lock_surfs: Vec<LockSurf>,
@@ -578,6 +581,7 @@ pub fn run() {
         ksi: None,
         frac_mgr,
         scratch: vec![],
+        shed_at: Some(Instant::now() + Duration::from_secs(30)),
         lock_state: SessionLockState::new(&globals, &qh),
         lock: None,
         lock_surfs: vec![],
@@ -1143,6 +1147,12 @@ impl App {
     pub(crate) fn tick(&mut self) {
         reap_inherited();
         let now = Instant::now();
+        // старт позади (конфиги, темы значков, шрифты, все модули) или окно закрыто полминуты
+        // назад: их код больше не исполняется — из памяти; нужное вернётся из кеша страниц
+        if self.shed_at.is_some_and(|t| now >= t) && self.st.modal.is_none() && self.st.popup.is_none() {
+            self.shed_at = None;
+            yami_px::shed_code();
+        }
         // мигание курсора ввода — раз в полсекунды
         let blink = (self.st.started.elapsed().as_millis() / 500) % 2 == 0;
         if blink != self.st.blink {

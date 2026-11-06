@@ -132,6 +132,7 @@ impl App {
         self.st.field_focus = None;
         self.close_kind(&SKind::Modal);
         self.close_kind(&SKind::Dim);
+        self.shed_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(30));
     }
 
     // ── всплывашки бара ─────────────────────────────────────────────────────

@@ -28,6 +28,8 @@ fn main() {
         Some("shot") => std::process::exit(shot(&args[1..])),
         _ => {}
     }
+    // через 15 с старт позади и окно открыто: код старта — из памяти (yami_px::shed_code)
+    yami_px::shed_code_later(15);
     let look = look::Look::load();
     i18n::set(&look.lang);
     let items: Vec<String> = args.into_iter().filter(|a| !a.starts_with('-') || a == "-").collect();
