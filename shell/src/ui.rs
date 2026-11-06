@@ -57,6 +57,9 @@ pub enum Act {
     NightToggle,
     ReplySend,
     SModDel(usize, usize),
+    /// свои темы: применить, удалить (themetab.rs)
+    STheme(usize),
+    SThemeDel(usize),
     SWidgetAdd(&'static str),
     SWidgetDel(u32),
     SWidgetOpt(u32, &'static str),

@@ -69,6 +69,7 @@ mod updtab;
 mod upinstall;
 mod wall;
 mod walls;
+mod themetab;
 mod widgets;
 
 fn main() {

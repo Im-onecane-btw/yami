@@ -131,8 +131,9 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
 - **Свои модули бара.** Любой скрипт в `~/.config/yami/modules/`, что печатает текст или JSON,
   становится модулем (погода, курсы, GitHub — что угодно); см. [docs/CONFIG.ru.md](docs/CONFIG.ru.md).
 - **Мелкие удобства.** Ответ на сообщение прямо из уведомления, ночной свет (wlsunset), программы
-  прошлого сеанса снова открываются при входе (по желанию), темы одним файлом
-  (`yami theme export | import`) и переезд всех настроек на новую систему (`yami export | import`).
+  прошлого сеанса снова открываются при входе (по желанию), свои темы в один щелчок
+  (настройки → цвет → темы), темы одним файлом или ссылкой (`yami theme export | import`) и
+  переезд всех настроек на новую систему (`yami export | import`).
 - **Два языка.** Русский и английский интерфейс, переключается на лету в настройках.
 - **Переносимый установщик.** Один скрипт для Arch, Fedora (включая атомарные), Debian/Ubuntu,
   openSUSE, Void, Alpine, Gentoo и NixOS.
@@ -323,7 +324,8 @@ yami doctor                   # какие программы и службы D-
 yami doctor games             # ntsync, gamemode, MangoHud: что есть и как добавить
 yami report                   # архив для issue: версии, doctor, журнал, конфиги без секретов
 yami ocr картинка.png         # текст с картинки (как «текст» на скриншоте)
-yami theme export ~/my.yami   # вид одним файлом (поставить: yami theme import ФАЙЛ)
+yami theme export ~/my.yami   # вид одним файлом (поставить: yami theme import ФАЙЛ или https-ссылка)
+yami theme save night         # текущий вид — в свои темы (list | apply ИМЯ | remove ИМЯ)
 yami export ~/all.yami        # все настройки одним файлом для новой системы (yami import ФАЙЛ)
 yami version                  # все части, установленный коммит, канал обновлений
 yami update                   # что нового; apply | list | to X.Y.Z | rollback | status | log | need

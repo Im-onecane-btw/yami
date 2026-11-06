@@ -125,8 +125,9 @@ Everything it does and its flags: [Installation](#installation).
 - **Your own bar modules.** Any script in `~/.config/yami/modules/` that prints text or JSON
   becomes a module (weather, crypto, GitHub, anything); see [docs/CONFIG.md](docs/CONFIG.md).
 - **Small comforts.** Reply to a message right from its notification, a night light (wlsunset),
-  the programs of your last session reopened at login (opt-in), themes shared as one file
-  (`yami theme export | import`) and the whole setup moved to a new system (`yami export | import`).
+  the programs of your last session reopened at login (opt-in), your themes one click away
+  (settings → color → themes), shared as one file or a link (`yami theme export | import`) and the
+  whole setup moved to a new system (`yami export | import`).
 - **Bilingual.** English and Russian interface, switchable live in settings.
 - **Portable installer.** One script for Arch, Fedora (including atomic), Debian/Ubuntu,
   openSUSE, Void, Alpine, Gentoo and NixOS.
@@ -314,7 +315,8 @@ yami doctor                   # which programs and D-Bus services are there, wha
 yami doctor games             # ntsync, gamemode, MangoHud: what is there, how to add the rest
 yami report                   # an archive for an issue: versions, doctor, journal, configs without secrets
 yami ocr image.png            # text from an image (like «text» in the screenshot overlay)
-yami theme export ~/my.yami   # the look as one file (import: yami theme import FILE)
+yami theme export ~/my.yami   # the look as one file (import: yami theme import FILE or https link)
+yami theme save night         # keep the current look in your themes (list | apply NAME | remove NAME)
 yami export ~/all.yami        # every setting as one file for a new system (yami import FILE)
 yami version                  # every part, the installed commit, the update channel
 yami update                   # what is new; apply | list | to X.Y.Z | rollback | status | log | need

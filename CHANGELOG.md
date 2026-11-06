@@ -46,6 +46,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - The `glass` slider is called «panel opacity» (#8): 0.15 is the most transparent, 100 % solid. «settings file» (settings → system) closes settings first, so the editor does not open under them.
 - Fix: yami-files: a double click on the header maximized the window but never restored it (#8).
 - The bar on chosen screens only (#8): settings → screens → «bar on this screen» (`barOutputs`); when none of the chosen screens is connected, every screen gets the bar.
+- Your own themes (#8): settings → color → themes keeps the current look with one button and applies a saved one with a click (× removes it); they live in `~/.config/yami/themes` in the `yami theme export` format, wallpaper included. In the terminal: `yami theme save [NAME]`, `list`, `apply NAME`, `remove NAME`; `yami theme import` also takes an https link and keeps what it applies among your themes. A link may only bring a theme, never a full settings file.
 
 ## 2.5.0
 

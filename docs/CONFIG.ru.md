@@ -38,7 +38,8 @@ yami doctor                               # программы, службы D-B
 yami doctor games                         # ntsync, gamemode, MangoHud: что есть, одна команда для остального
 yami report [-o FILE]                     # версии, doctor, журнал этой загрузки, конфиги в tar.gz для issue (секреты вычищены)
 yami ocr FILE                             # текст с картинки, то же распознавание, что «текст» в оверлее скриншота (нужен tesseract)
-yami theme export FILE | import FILE      # вид одним файлом: палитра, эффекты, шрифты, бар, виджеты, обои (никогда — команды)
+yami theme export FILE | import FILE|URL  # вид одним файлом: палитра, эффекты, шрифты, бар, виджеты, обои (никогда — команды); импортированная тема остаётся в твоих темах, ссылка — только https
+yami theme save [NAME] | list | apply NAME | remove NAME   # свои темы в ~/.config/yami/themes (настройки → цвет → темы); save без имени называет тему по палитре
 yami export FILE | import FILE [--yes]    # все настройки одним файлом; user.kdl, свои клавиши и скрипты бара — только с --yes; перед импортом текущее состояние уходит в ~/.local/state/yami/before-import-*.json (вернуть: yami import этот файл --yes)
 yami clean [--dry-run]                    # удалить кэш сборки (исходники yami-niri, target шелла: гигабайты); --force удаляет и дерево с твоей работой над патчами
 yami version                              # каждая часть с установленным коммитом

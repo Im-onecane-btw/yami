@@ -37,7 +37,7 @@ pub const TABS: &[(&str, &str, &str)] = &[
 
 /// слова для поиска настроек из лаунчера («vrr» → экраны): по-русски и по-английски
 pub const FIND: &[(&str, &str)] = &[
-    ("color", "палитра акцент цвет тема светлая тёмная стекло прозрачность плотность palette accent colour color theme light dark glass opacity"), // i18n-ok
+    ("color", "палитра акцент цвет тема темы шаблон светлая тёмная стекло прозрачность плотность palette accent colour color theme themes template light dark glass opacity"), // i18n-ok
     ("wall", "обои картинка фон папка миниатюры skwd skwd-wall видео wallpaper background image folder thumbnails picker video"), // i18n-ok
     ("look", "пиксельность пиксели лёгкий режим слабый тормозит виртуалка анимации эффекты появление развёртка размытие значки иконки курсор pixel pixelation lite slow lag vm animation effects reveal scanlines blur icons cursor"), // i18n-ok
     ("fonts", "шрифт размер терминал fastfetch браузер fonts size terminal browser"), // i18n-ok
@@ -109,7 +109,15 @@ pub fn title(ui: &mut Ui, x: i32, y: i32, w: i32, s: &str) -> i32 {
 pub(crate) fn tab_color(ui: &mut Ui, st: &State, b: R) {
     let t = ui.t;
     let s = &st.set;
-    let mut y = title(ui, b.x, b.y, b.w, "палитра — весь райс перекрашивается сразу");
+    // два раздела: палитра и свои темы (#8)
+    let bw = 100;
+    ui.button(R::new(b.right() - 2 * bw - 6, b.y - 3, bw, 22), "палитра", "drop", Tone::Ghost, !st.theme_page, true, Act::SCycle("color_page_pal"));
+    ui.button(R::new(b.right() - bw, b.y - 3, bw, 22), "темы", "grid", Tone::Ghost, st.theme_page, true, Act::SCycle("color_page_themes"));
+    if st.theme_page {
+        crate::themetab::tab(ui, st, b, b.w - 2 * bw - 12);
+        return;
+    }
+    let mut y = title(ui, b.x, b.y, b.w - 2 * bw - 12, "палитра — весь райс перекрашивается сразу");
     let cw = (b.w - 6 * 8) / 7;
     for (i, p) in PRESETS.iter().enumerate() {
         let r = R::new(b.x + i as i32 * (cw + 8), y, cw, 64);
@@ -815,6 +823,14 @@ impl App {
                     s.temp_style = if s.temp_style == "compact" { "full" } else { "compact" }.into();
                     self.settings_changed();
                 }
+                "color_page_pal" | "color_page_themes" => {
+                    self.st.theme_page = *k == "color_page_themes";
+                    if self.st.theme_page {
+                        self.theme_do("list", 0);
+                    }
+                    self.dirty(&SKind::Modal);
+                }
+                "theme_save" => self.theme_do("save", 0),
                 "bar_page_mods" | "bar_page_look" => {
                     self.st.bar_ed.look = *k == "bar_page_look";
                     self.dirty(&SKind::Modal);
@@ -993,6 +1009,8 @@ impl App {
                 }
                 _ => {}
             },
+            Act::STheme(i) => self.theme_do("apply", *i),
+            Act::SThemeDel(i) => self.theme_do("remove", *i),
             Act::SModDel(si, i) => {
                 let l = s.side_mut(*si);
                 if *i < l.len() {

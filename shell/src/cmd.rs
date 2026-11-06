@@ -83,7 +83,8 @@ fn help(y: &Sty, me: &str) {
     y.row("palette [name|#hex]", &crate::tf!("палитры или сменить: blood ash sakura …", "list palettes or switch: blood ash sakura …"));
     y.row("wallpaper [path]", &crate::tf!("свои обои; без пути — пиксельные из палитры", "own picture; no path: the palette's pixel art"));
     y.section(&crate::tf!("настройки", "config"));
-    y.row("theme export | import FILE", &crate::tf!("тема одним файлом: поделиться и поставить чужую (только вид)", "a theme as one file: share yours, apply others' (the look only)"));
+    y.row("theme export | import FILE|URL", &crate::tf!("тема одним файлом: поделиться и поставить чужую (только вид)", "a theme as one file: share yours, apply others' (the look only)"));
+    y.row("theme save | list | apply NAME", &crate::tf!("свои темы: сохранить вид, список, применить (remove — удалить)", "your themes: keep the look, list, apply (remove deletes)"));
     y.row("export | import FILE", &crate::tf!("все настройки одним файлом: переезд на новую систему", "every setting as one file: move to a new system"));
     y.row("config …", &crate::tf!("все настройки: list get set reset check path kdl", "every setting: list get set reset check path kdl"));
     y.row("binds …", &crate::tf!("клавиши: list print write", "keybindings: list print write"));
@@ -475,6 +476,10 @@ pub fn run(args: &[String], me: &str) -> i32 {
         Some("theme") => match a.get(1) {
             Some(&"export") => crate::bundle::run(&y, "theme-export", &a[2..]),
             Some(&"import") => crate::bundle::run(&y, "theme-import", &a[2..]),
+            Some(&"save") => crate::bundle::run(&y, "theme-save", &a[2..]),
+            Some(&"list") => crate::bundle::run(&y, "theme-list", &a[2..]),
+            Some(&"apply") => crate::bundle::run(&y, "theme-apply", &a[2..]),
+            Some(&"remove") => crate::bundle::run(&y, "theme-remove", &a[2..]),
             _ => crate::bundle::run(&y, "", &[]),
         },
         Some("export") => crate::bundle::run(&y, "export", &a[1..]),

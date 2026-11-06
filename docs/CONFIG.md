@@ -37,7 +37,8 @@ yami doctor                               # programs, D-Bus services, config: wh
 yami doctor games                         # ntsync, gamemode, MangoHud: what is there, one command for the rest
 yami report [-o FILE]                     # versions, doctor, this boot's journal, configs in a tar.gz for an issue (secrets scrubbed)
 yami ocr FILE                             # text from an image, the same recognition as «text» in the screenshot overlay (needs tesseract)
-yami theme export FILE | import FILE      # the look as one file: palette, effects, fonts, bar, widgets, wallpaper (never commands)
+yami theme export FILE | import FILE|URL  # the look as one file: palette, effects, fonts, bar, widgets, wallpaper (never commands); an imported theme is kept in your themes, a URL must be https
+yami theme save [NAME] | list | apply NAME | remove NAME   # your themes in ~/.config/yami/themes (settings → color → themes); save with no name names it after the palette
 yami export FILE | import FILE [--yes]    # every setting as one file; user.kdl, custom keys and bar scripts only with --yes; before an import the current state goes to ~/.local/state/yami/before-import-*.json (undo: yami import that file --yes)
 yami clean [--dry-run]                    # remove the build cache (yami-niri sources, the shell's target: gigabytes); --force also drops a tree with your patch work
 yami version                              # every part with the installed commit

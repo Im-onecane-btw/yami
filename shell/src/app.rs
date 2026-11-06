@@ -183,6 +183,8 @@ pub enum Msg {
     Art(String, Option<crate::gfx::Img>),
     /// текст песни нашёлся (или нет) для трека Lyrics.key
     Lyrics(crate::lyrics::Lyrics),
+    /// свои темы (themetab.rs): список, что сделано, применена ли тема (перечитать настройки)
+    Themes(Vec<crate::bundle::Card>, String, bool),
     Theme,
     /// кадры шторки готовы: номер включения, картинки по мониторам
     Curtain(u64, HashMap<String, crate::gfx::Img>),
@@ -247,6 +249,10 @@ pub struct State {
     pub art: HashMap<String, Option<std::rc::Rc<crate::gfx::Img>>>,
     /// текст песни текущего трека (#13): ищется, только когда всплывашка его показывает
     pub lyrics: crate::lyrics::Lyrics,
+    /// вкладка «цвет»: страница «темы», свои темы и последнее действие с ними (themetab.rs)
+    pub theme_page: bool,
+    pub themes: Vec<crate::bundle::Card>,
+    pub theme_note: String,
     pub viz: Vec<f32>,
     /// куда тянут полосу позиции (доля трека); перемотка — когда отпустят
     pub seek: Option<f32>,
@@ -427,6 +433,9 @@ impl State {
             media: media::MediaState::default(),
             art: HashMap::new(),
             lyrics: Default::default(),
+            theme_page: false,
+            themes: vec![],
+            theme_note: String::new(),
             viz: vec![],
             seek: None,
             net: net::NetState::default(),
@@ -1349,6 +1358,7 @@ impl App {
                 media::viz_wanted(self.media_visible() && self.st.media.playing());
                 self.dirty_where(|k| matches!(k, SKind::Bar | SKind::Popup | SKind::Widget(_)));
             }
+            Msg::Themes(l, note, applied) => self.themes_listed(l, note, applied),
             Msg::Lyrics(l) => {
                 // ответ на прошлый трек — мимо
                 if l.key == self.st.lyrics.key {
