@@ -45,6 +45,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - Fix: tray icons (#8): an app whose icon name is missing from the icon theme (Steam, Electron apps such as Discord) showed three grey dots instead of its own picture; icons from the app's own folder are found in its theme subfolders too, and an icon given as a file path works. Icon changes (Discord's unread mark) were ignored for apps registered under a well-known name, and with another tray watcher running they added a second icon. The `net` module is a Wi-Fi or wired glyph instead of a dot, so it no longer reads as one more tray icon.
 - The `glass` slider is called «panel opacity» (#8): 0.15 is the most transparent, 100 % solid. «settings file» (settings → system) closes settings first, so the editor does not open under them.
 - Fix: yami-files: a double click on the header maximized the window but never restored it (#8).
+- The bar on chosen screens only (#8): settings → screens → «bar on this screen» (`barOutputs`); when none of the chosen screens is connected, every screen gets the bar.
 
 ## 2.5.0
 

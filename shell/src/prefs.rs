@@ -26,6 +26,7 @@ impl App {
         self.sync_wall();
         crate::keys::write(&self.st.set);
         self.setup_idle();
+        self.sync_bar_outputs();
         self.sync_widgets();
         self.sync_dock();
         self.sync_bar();

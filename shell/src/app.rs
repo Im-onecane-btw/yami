@@ -870,10 +870,8 @@ impl App {
                 // и шторку на него, если она опущена
                 self.curtain_show();
             }
-            if self.find_on(&SKind::Bar, &n).is_none() && !self.st.bar_hidden {
-                self.mk_bar(&n);
-            }
         }
+        self.sync_bar_outputs();
         // монитор сменил размер: ширина бара в процентах — от новой
         self.sync_bar();
         self.sync_widgets();

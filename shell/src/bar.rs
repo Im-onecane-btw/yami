@@ -658,10 +658,35 @@ impl App {
         }
     }
 
+    /// бар на этом экране: barOutputs пуст — везде; ни одного экрана из списка нет (ноутбук без
+    /// своего монитора) — тоже везде, иначе бара не осталось бы нигде
+    pub fn bar_on(&self, out: &str) -> bool {
+        let l = &self.st.set.bar_outputs;
+        l.is_empty() || l.iter().any(|o| o == out) || !self.output_names().iter().any(|n| l.contains(n))
+    }
+
+    /// бары по barOutputs: лишние убрать, недостающие создать
+    pub fn sync_bar_outputs(&mut self) {
+        let names = self.output_names();
+        for n in names {
+            let have = self.find_on(&SKind::Bar, &n);
+            let want = !self.st.bar_hidden && self.bar_on(&n);
+            match (have, want) {
+                (Some(id), false) => {
+                    self.destroy(id);
+                    self.close_popup();
+                    self.close_menu();
+                }
+                (None, true) => self.mk_bar(&n),
+                _ => {}
+            }
+        }
+    }
+
     /// нижний край бара на мониторе (0 — бара нет): всплывашки, меню, док сверху, виджеты и
     /// заголовки окон — ниже него
     pub fn bar_bottom(&self, out: &str) -> i32 {
-        if self.st.bar_hidden {
+        if self.st.bar_hidden || !self.bar_on(out) {
             return 0;
         }
         let (ow, _) = self.output_size(out);

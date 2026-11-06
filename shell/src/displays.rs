@@ -241,6 +241,8 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     crate::settings::opt_btn(ui, R::new(b.x + half + 12, y, half, 26), "поворот", &tr, Act::Disp("transform"));
     y += 34;
     ui.toggle(R::new(b.x, y, half, 26), "включён", "", o.on, Act::Disp("on"));
+    // бар — сразу, без «применить»: это настройка шелла, а не niri (#8)
+    let bar = st.set.bar_outputs.is_empty() || st.set.bar_outputs.contains(&o.name) || !d.outs.iter().any(|x| st.set.bar_outputs.contains(&x.name));
     if o.vrr_ok {
         let v = ["выкл", "всегда", "в играх"][o.vrr.min(2) as usize];
         crate::settings::opt_btn(ui, R::new(b.x + half + 12, y, half, 26), "VRR", v, Act::Disp("vrr"));
@@ -248,6 +250,10 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
         ui.text_in(PX, R::new(b.x + half + 38, y + 2, half - 26, 20), "VRR не поддерживается", t.text_faint);
     }
     y += 30;
+    if d.outs.len() > 1 {
+        ui.toggle(R::new(b.x, y, half, 26), "бар на этом экране", "", bar, Act::Disp("bar"));
+        y += 30;
+    }
     // один монитор на двух кабелях: niri видит два экрана рядом
     let twin = o.on && d.outs.iter().any(|x| x.name != o.name && x.on && x.mm == o.mm && o.mm.0 > 0 && x.modes == o.modes);
     if twin {
@@ -268,7 +274,33 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     }
 }
 
+/// новый barOutputs после щелчка по экрану name (all — экраны сейчас); None — не меняется
+fn bar_toggle(all: &[String], list: &[String], name: &str) -> Option<Vec<String>> {
+    let any = all.iter().any(|x| list.contains(x));
+    let mut on: Vec<String> = all.iter().filter(|n| list.is_empty() || list.contains(n) || !any).cloned().collect();
+    if on.iter().any(|n| n == name) {
+        if on.len() == 1 {
+            return None;
+        }
+        on.retain(|n| n != name);
+    } else {
+        on.push(name.to_string());
+    }
+    Some(if all.iter().all(|n| on.contains(n)) { vec![] } else { on })
+}
+
 impl App {
+    /// бар на экране i: вкл/выкл. Список хранит экраны с баром; все — пустой список.
+    /// Последний бар не убирается: без экранов из списка он и так вернулся бы на все
+    fn disp_bar(&mut self, i: usize) {
+        let all: Vec<String> = self.st.disp.outs.iter().map(|o| o.name.clone()).collect();
+        let Some(name) = all.get(i) else { return };
+        if let Some(l) = bar_toggle(&all, &self.st.set.bar_outputs, name) {
+            self.st.set.bar_outputs = l;
+            self.settings_changed();
+        }
+    }
+
     pub fn disp_open(&mut self) {
         if self.st.disp.revert.is_none() {
             self.st.disp.outs = load();
@@ -339,6 +371,7 @@ impl App {
                     }
                     "revert" => self.disp_revert(),
                     "reset" => self.disp_open(),
+                    "bar" => self.disp_bar(i),
                     _ => {}
                 }
             }
@@ -461,4 +494,23 @@ pub fn mock() -> Vec<Out> {
         Out { name: "DP-1".into(), desc: "Monitor 27 QHD".into(), mm: (530, 300), modes: vec![m(2560, 1440, 165000, true), m(2560, 1440, 60000, false), m(1920, 1080, 144001, false)], mode: 0, on: true, x: 0, y: 0, scale: 1.0, transform: "normal".into(), vrr_ok: true, vrr: 2 },
         Out { name: "HDMI-A-1".into(), desc: "Dell P2419H".into(), mm: (527, 296), modes: vec![m(1920, 1080, 60000, true)], mode: 0, on: true, x: 2560, y: 180, scale: 1.25, transform: "normal".into(), vrr_ok: false, vrr: 0 },
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::bar_toggle;
+
+    #[test]
+    fn bar_screens() {
+        let v = |xs: &[&str]| xs.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let all = v(&["DP-1", "HDMI-A-1"]);
+        // всё включено (пусто) → убрать с HDMI: только DP-1
+        assert_eq!(bar_toggle(&all, &[], "HDMI-A-1"), Some(v(&["DP-1"])));
+        // последний бар не убирается
+        assert_eq!(bar_toggle(&all, &v(&["DP-1"]), "DP-1"), None);
+        // вернуть на HDMI: снова все — пустой список
+        assert_eq!(bar_toggle(&all, &v(&["DP-1"]), "HDMI-A-1"), Some(vec![]));
+        // в списке только чужой экран (ноутбук без монитора): считается «все»
+        assert_eq!(bar_toggle(&all, &v(&["eDP-1"]), "DP-1"), Some(v(&["HDMI-A-1"])));
+    }
 }

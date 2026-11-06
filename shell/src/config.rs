@@ -183,6 +183,8 @@ pub struct Settings {
     pub bar_width_pc: i32,
     /// отступ плавающего бара от краёв экрана, px
     pub bar_margin: i32,
+    /// экраны с баром (имена niri: DP-2, eDP-1); пусто — все. Нет ни одного из них — тоже все (#8)
+    pub bar_outputs: Vec<String>,
     /// модули середины: "center" — по центру бара, "after-left" — сразу за левыми
     pub bar_center_align: String,
 
@@ -479,6 +481,7 @@ impl Default for Settings {
             bar_v: 1,
             bar_float: false,
             bar_width_pc: 100,
+            bar_outputs: vec![],
             bar_margin: 6,
             bar_center_align: "center".into(),
             lock_after: 10,
@@ -622,6 +625,13 @@ impl Settings {
         ids(&mut self.float_apps);
         ids(&mut self.game_apps);
         self.kb_switch.retain(|c| c.is_ascii_alphanumeric() || "_:,()-".contains(c));
+        for o in self.bar_outputs.iter_mut() {
+            o.retain(|c| c.is_ascii_alphanumeric() || "_.-".contains(c));
+            o.truncate(32);
+        }
+        self.bar_outputs.retain(|o| !o.is_empty());
+        self.bar_outputs.dedup();
+        self.bar_outputs.truncate(16);
         self.cursor_size = self.cursor_size.clamp(16, 96);
         // как у ползунка: ниже 0.15 панели почти невидимы, а тень и размытие под ними — «битые рамки» (#8)
         self.glass = self.glass.clamp(0.15, 1.0);

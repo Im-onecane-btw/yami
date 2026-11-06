@@ -128,6 +128,7 @@ Settings → look → «pixel look» moves these keys, `iconPixel` and `cursor` 
 | `barFloat` | `false` | the bar as a separate panel: `barMargin` from the screen edges, a border all round, a hard shadow; windows keep clear of it |
 | `barWidthPc` | `100` | bar width, % of the monitor (30–100); below 100 the panel is centred (`barFloat` off: it hangs from the top edge) |
 | `barMargin` | `6` | gap between a floating bar and the screen edges, px (0–32) |
+| `barOutputs` | `[]` | the screens with a bar, by niri name (`["eDP-1"]`; `niri msg outputs`); empty: every screen. When none of them is connected (a laptop away from its monitor) every screen gets one. Settings → screens → «bar on this screen» |
 | `barCenterAlign` | `"center"` | `barCenter` modules: `center` at the middle of the bar (a long left group only pushes them as far as needed), `after-left` right after the left group. With `tasks` in the middle it stretches either way |
 
 ### Windows, dock, screenshots, system
