@@ -115,7 +115,7 @@ Settings → look → «pixel look» moves these keys, `iconPixel` and `cursor` 
 | `barLeft`, `barCenter`, `barRight` | see `config list` | module ids in order: `launcher` `workspaces` `mode` `tasks` `media` `tray` `net` `netspeed` `bt` `kb` `cpu` `ram` `temp` `gpu` `disk` `weather` `bat` `vol` `profile` `clock` `notif` `settings` `power` `sep` (`bat`: laptop battery, hidden without one; `gpu`: graphics load from amdgpu or `nvidia-smi` every 3 s, hidden without either, «sleep» while a laptop's discrete card sleeps; `disk`: how full `/` is) |
 | `cpuStyle` | `"gauge"` | `gauge` `graph` `number`, for `cpu` `ram` `gpu` `disk` (`disk` has no history: `graph` draws a gauge) |
 | `tempStyle` | `"full"` | the `temp` module: `full` like `cpu` and `ram` (label and `cpuStyle`), `compact` a small thermometer column and the number |
-| `trayMode` | `"icons"` | `icons`: every tray icon on the bar; `arrow`: one arrow that opens them as a list (clicks work as on the bar; a dot when an app asks for attention) |
+| `trayMode` | `"icons"` | `icons`: every tray icon on the bar; `arrow`: one arrow that opens them as a list (clicks work as on the bar; a dot when an app asks for attention). A network applet (`nm-applet` and the like) is left out while the bar has `net` |
 | `mediaViz` | `"bars"` | the equalizer of the `media` module and the music popup: `bars` `line` `blocks` `wave` `dots`, or `off` (no equalizer, and no audio capture for it) |
 | `mediaView` | `"cover"` | what the music popup shows (the button in its header switches it): `cover` (cover, buttons, equalizer), `both` (cover and lyrics), `lyrics`, `minimal` (title and buttons) |
 | `clockSeconds`, `clockDate` | `false`, `true` | |

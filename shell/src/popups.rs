@@ -380,7 +380,9 @@ fn lyrics(ui: &mut Ui, st: &State, r: R) {
 // trayMode = arrow: в баре одна стрелка, программы — здесь. ЛКМ, ПКМ, СКМ и колесо — как у значка
 // в баре; меню программы открывается под её строкой
 pub fn tray_items(st: &State) -> impl Iterator<Item = &crate::dbus::TrayItem> {
-    st.tray.iter().filter(|i| i.status != "Passive")
+    // сеть показывает модуль `net`: апплет сети в трее её повторял бы (#16)
+    let net = st.set.on_bar("net");
+    st.tray.iter().filter(move |i| i.status != "Passive" && !(net && i.net_applet()))
 }
 
 fn tray(ui: &mut Ui, st: &State, b: R) {

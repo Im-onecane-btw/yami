@@ -54,6 +54,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - Fix: a font or cursor changed outside the settings window (a saved theme, `yami config set`, a hand edit of the settings file) reached GTK, Qt, kitty and the cursor only with the next palette change; now at once.
 - Fix: glass panels (#16): the hard shadow was drawn under the whole panel and showed through it as a second frame shifted by 6 pixels (the launcher, the wallpaper picker, settings, the clipboard, popups); it is drawn only outside the panel now.
 - Pictures in the clipboard have a preview (#16): a copied image shows as a thumbnail with its format, size and weight instead of «binary data». Thumbnails are made one at a time in the background while the clipboard is open and kept only in memory, never on disk, so a wiped clipboard leaves no copies.
+- The tray no longer shows a network applet (`nm-applet` and the like) when the bar has the `net` module (#16): that was a second network icon next to it.
 
 ## 2.5.0
 

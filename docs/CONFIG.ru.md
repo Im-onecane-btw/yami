@@ -116,7 +116,7 @@ yami-shell binds list | print | write     # сочетания клавиш
 | `barLeft`, `barCenter`, `barRight` | см. `config list` | id модулей по порядку: `launcher` `workspaces` `mode` `tasks` `media` `tray` `net` `netspeed` `bt` `kb` `cpu` `ram` `temp` `gpu` `disk` `weather` `bat` `vol` `profile` `clock` `notif` `settings` `power` `sep` (`bat`: батарея ноутбука, скрыт без неё; `gpu`: загрузка видеокарты из amdgpu или `nvidia-smi` раз в 3 с, скрыт без обоих, «сон», пока дискретка ноутбука спит; `disk`: заполненность `/`) |
 | `cpuStyle` | `"gauge"` | `gauge` `graph` `number` — для `cpu` `ram` `gpu` `disk` (у `disk` нет истории: `graph` рисует шкалу) |
 | `tempStyle` | `"full"` | модуль `temp`: `full` — как `cpu` и `ram` (подпись и `cpuStyle`), `compact` — столбик-градусник и число |
-| `trayMode` | `"icons"` | `icons` — все значки трея в баре; `arrow` — одна стрелка, по ней они открываются списком (щелчки — как в баре; точка, когда программа зовёт) |
+| `trayMode` | `"icons"` | `icons` — все значки трея в баре; `arrow` — одна стрелка, по ней они открываются списком (щелчки — как в баре; точка, когда программа зовёт). Апплет сети (`nm-applet` и подобные) не показывается, пока в баре есть `net` |
 | `mediaViz` | `"bars"` | эквалайзер модуля `media` и всплывашки музыки: `bars` `line` `blocks` `wave` `dots` или `off` (без эквалайзера и без захвата звука для него) |
 | `mediaView` | `"cover"` | что показывает всплывашка музыки (кнопка в её шапке переключает): `cover` (обложка, кнопки, эквалайзер), `both` (обложка и текст), `lyrics` (текст), `minimal` (название и кнопки) |
 | `clockSeconds`, `clockDate` | `false`, `true` | |

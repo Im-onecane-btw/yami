@@ -159,6 +159,8 @@ pub struct TrayItem {
     pub service: String,
     pub bus: String,
     pub path: String,
+    /// Id программы (nm-applet, steam…) и подпись для людей
+    pub id: String,
     pub title: String,
     pub status: String,
     pub icon: String,
@@ -169,16 +171,25 @@ pub struct TrayItem {
     pub is_menu: bool,
 }
 
+impl TrayItem {
+    /// апплет сети (nm-applet и подобные): когда в баре есть модуль `net`, в трее он второй
+    /// значок сети (#16)
+    pub fn net_applet(&self) -> bool {
+        const IDS: &[&str] = &["nm-applet", "nm-tray", "network-manager-applet", "iwgtk", "connman-gtk", "cmst"];
+        IDS.contains(&self.id.to_ascii_lowercase().as_str()) || self.icon.starts_with("nm-")
+    }
+}
+
 pub enum TrayEv {
-    Upsert { service: String, bus: String, path: String, title: String, status: String, icon: String, file: Option<String>, pixmap: Option<Img>, menu: String, is_menu: bool },
+    Upsert { service: String, bus: String, path: String, id: String, title: String, status: String, icon: String, file: Option<String>, pixmap: Option<Img>, menu: String, is_menu: bool },
     Remove(String),
 }
 
 pub fn apply(list: &mut Vec<TrayItem>, e: TrayEv) {
     match e {
         TrayEv::Remove(s) => list.retain(|i| i.service != s),
-        TrayEv::Upsert { service, bus, path, title, status, icon, file, pixmap, menu, is_menu } => {
-            let it = TrayItem { service: service.clone(), bus, path, title, status, icon, file, pixmap: pixmap.map(std::rc::Rc::new), menu, is_menu };
+        TrayEv::Upsert { service, bus, path, id, title, status, icon, file, pixmap, menu, is_menu } => {
+            let it = TrayItem { service: service.clone(), bus, path, id, title, status, icon, file, pixmap: pixmap.map(std::rc::Rc::new), menu, is_menu };
             if let Some(x) = list.iter_mut().find(|i| i.service == service) {
                 *x = it;
             } else {
@@ -329,11 +340,13 @@ fn refresh_item(bus: &str, path: &str, tx: &Sender<Msg>) {
     if pm.is_none() && file.is_none() {
         pm = pixmap(p.get_property::<OwnedValue>("IconPixmap").ok());
     }
+    let id = s("Id");
     let _ = tx.send(Msg::Tray(TrayEv::Upsert {
         service: format!("{bus}{path}"),
         bus: bus.into(),
         path: path.into(),
-        title: { let t = s("Title"); if t.is_empty() { s("Id") } else { t } },
+        title: { let t = s("Title"); if t.is_empty() { id.clone() } else { t } },
+        id,
         status,
         icon,
         file,
