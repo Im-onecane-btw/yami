@@ -132,6 +132,16 @@ fn clip_dir() -> std::path::PathBuf {
     config::data_dir().join("yami-clip")
 }
 
+/// папка закреплённого: только своя (0700) — там бывают пароли и ключи; старая папка с правами
+/// по умолчанию закрывается при первой записи
+fn clip_dir_private() -> std::path::PathBuf {
+    use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
+    let d = clip_dir();
+    let _ = std::fs::DirBuilder::new().recursive(true).mode(0o700).create(&d);
+    let _ = std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o700));
+    d
+}
+
 fn score(hay: &str, q: &str) -> i32 {
     let hay = hay.to_lowercase();
     if q.is_empty() {
@@ -227,7 +237,13 @@ impl LState {
     }
 
     pub fn load_pins(&mut self) {
-        self.pins = std::fs::read_to_string(clip_dir().join("index.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
+        use std::os::unix::fs::PermissionsExt;
+        let d = clip_dir();
+        // папка от старых версий (права по умолчанию) закрывается и без новой записи
+        if std::fs::metadata(&d).is_ok_and(|m| m.permissions().mode() & 0o077 != 0) {
+            let _ = std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o700));
+        }
+        self.pins = std::fs::read_to_string(d.join("index.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
     }
 
     pub fn refresh(&mut self, apps: &[DApp], wins: &[Win]) {
@@ -444,7 +460,7 @@ fn cliphist(args: &[&str], input: &str) -> Vec<u8> {
 }
 
 fn save_pins(p: &[Pin]) {
-    let _ = config::write_atomic(&clip_dir().join("index.json"), &serde_json::to_string_pretty(p).unwrap_or_default());
+    let _ = config::write_atomic(&clip_dir_private().join("index.json"), &serde_json::to_string_pretty(p).unwrap_or_default());
 }
 
 fn wl_copy(data: Vec<u8>, mime: &str) {
@@ -564,8 +580,7 @@ impl App {
                 }
                 let (mime, ext) = mime_of(&data);
                 let file = format!("{id}.{ext}");
-                let _ = std::fs::create_dir_all(clip_dir());
-                let _ = std::fs::write(clip_dir().join(&file), &data);
+                let _ = std::fs::write(clip_dir_private().join(&file), &data);
                 let name = if ext == "txt" {
                     String::from_utf8_lossy(&data).split_whitespace().collect::<Vec<_>>().join(" ").chars().take(300).collect()
                 } else {

@@ -86,6 +86,17 @@ fn opt_filter(o: &HashMap<String, OwnedValue>, k: &str) -> Option<Filter> {
     o.get(k).and_then(|v| v.try_clone().ok()).and_then(|v| Filter::try_from(v).ok())
 }
 
+/// имя файла от программы — только имя: без папок, «..» и абсолютного пути. Портал выдаёт
+/// программе из песочницы право писать по путям, которые вернул диалог: «../../.bashrc» или
+/// «/home/…» в имени дали бы ей запись мимо выбранной папки
+fn safe_name(n: &str) -> String {
+    let n = n.rsplit('/').next().unwrap_or("").trim_matches(char::from(0)).trim();
+    if n.is_empty() || n == "." || n == ".." {
+        return String::new();
+    }
+    n.chars().filter(|c| !c.is_control()).take(255).collect()
+}
+
 fn filter_arg(f: &Filter) -> String {
     // 0 — шаблон (*.png), 1 — MIME (image/png): yami-files различает их по «/»
     let pats: Vec<&str> = f.1.iter().map(|(_, p)| p.as_str()).collect();
@@ -254,14 +265,14 @@ impl Chooser {
     async fn save_file(&self, _handle: zbus::zvariant::ObjectPath<'_>, _app_id: &str, _parent: &str, title: &str, options: HashMap<String, OwnedValue>) -> (u32, HashMap<String, OwnedValue>) {
         let mut args = vec!["save".to_string()];
         let filters = common(title, &options, &mut args);
-        let mut name = opt_str(&options, "current_name");
+        let mut name = safe_name(&opt_str(&options, "current_name"));
         if let Some(f) = opt_path(&options, "current_file") {
             let p = std::path::PathBuf::from(&f);
             if let Some(d) = p.parent() {
                 args.extend(["--folder".into(), d.to_string_lossy().to_string()]);
             }
             if name.is_empty() {
-                name = p.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+                name = safe_name(&p.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default());
             }
         }
         if !name.is_empty() {
@@ -278,13 +289,28 @@ impl Chooser {
         let files: Vec<Vec<u8>> = options.get("files").and_then(|v| v.try_clone().ok()).and_then(|v| Vec::<Vec<u8>>::try_from(v).ok()).unwrap_or_default();
         let r = blocking::unblock(move || pick(args)).await;
         let uris = r.and_then(|d| crate::icons::uri_path(&d[0])).map(|dir| {
-            files.iter().map(|f| {
+            // не больше 1000 имён; пустое после очистки — «file»
+            files.iter().take(1000).map(|f| {
                 let n: Vec<u8> = f.iter().copied().take_while(|&c| c != 0).collect();
-                let n = String::from_utf8_lossy(&n).to_string();
-                crate::icons::file_uri(&crate::fsx::free_name(&dir, &n))
+                let n = safe_name(&String::from_utf8_lossy(&n));
+                crate::icons::file_uri(&crate::fsx::free_name(&dir, if n.is_empty() { "file" } else { &n }))
             }).collect::<Vec<String>>()
         });
         reply(uris, &[])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn names_stay_in_the_folder() {
+        use super::safe_name;
+        assert_eq!(safe_name("photo.png"), "photo.png");
+        assert_eq!(safe_name("../../.bashrc"), ".bashrc");
+        assert_eq!(safe_name("/home/u/.ssh/authorized_keys"), "authorized_keys");
+        assert_eq!(safe_name(".."), "");
+        assert_eq!(safe_name("a/"), "");
+        assert_eq!(safe_name("x\u{0}"), "x");
     }
 }
 

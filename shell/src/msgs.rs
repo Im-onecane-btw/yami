@@ -102,6 +102,8 @@ impl App {
             Msg::NotifClose(id) => {
                 self.st.notifs.remove(id, false);
                 self.sync_notifs();
+                // по спецификации: закрыто вызовом CloseNotification
+                dbus::notif_closed(id, 3);
             }
             Msg::Tray(e) => {
                 dbus::apply(&mut self.st.tray, e);

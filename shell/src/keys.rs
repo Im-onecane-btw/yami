@@ -282,8 +282,23 @@ pub fn key_ok(k: &str) -> bool {
     !k.is_empty() && k.len() <= 64 && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '_') && !k.starts_with('+') && !k.ends_with('+')
 }
 
-fn kdl_str(s: &str) -> String {
-    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+/// строка KDL: кавычки и обратная косая экранируются, переводы строк — \n (в строке KDL 2 их
+/// быть не может: команда со строкой из правленого руками JSON сломала бы весь конфиг niri)
+pub fn kdl_str(s: &str) -> String {
+    let mut o = String::with_capacity(s.len() + 2);
+    o.push('"');
+    for c in s.chars() {
+        match c {
+            '\\' => o.push_str("\\\\"),
+            '"' => o.push_str("\\\""),
+            '\n' => o.push_str("\\n"),
+            '\t' => o.push_str("\\t"),
+            c if c.is_control() => {}
+            c => o.push(c),
+        }
+    }
+    o.push('"');
+    o
 }
 
 /// yami-binds.kdl целиком

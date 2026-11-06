@@ -12,6 +12,45 @@ use zbus::blocking::{Connection, MessageIterator, Proxy};
 use zbus::zvariant::{OwnedValue, Value};
 
 static CONN: OnceLock<Connection> = OnceLock::new();
+/// кто прислал уведомление (уникальное имя на шине): ответы, действия и закрытие уходят только
+/// ему, а не всем на шине — набранный в уведомлении ответ не читает чужая программа
+static SENDERS: Mutex<Vec<(u32, String)>> = Mutex::new(Vec::new());
+/// потолки для текста от чужого процесса: история (до 500 карточек) не раздуется
+const MAX_SUMMARY: usize = 512;
+const MAX_BODY: usize = 8192;
+const MAX_ACTIONS: usize = 8;
+
+/// не длиннее max байт, по границе символа
+fn cap(mut s: String, max: usize) -> String {
+    if s.len() > max {
+        let mut n = max;
+        while !s.is_char_boundary(n) {
+            n -= 1;
+        }
+        s.truncate(n);
+        s.push('…');
+    }
+    s
+}
+
+/// начало строки не длиннее max байт (до разбора разметки: мегабайты тегов не перебираем)
+fn head(s: &str, max: usize) -> &str {
+    let mut n = s.len().min(max);
+    while !s.is_char_boundary(n) {
+        n -= 1;
+    }
+    &s[..n]
+}
+
+fn sender_of(id: u32) -> Option<String> {
+    SENDERS.lock().ok()?.iter().find(|(i, _)| *i == id).map(|(_, s)| s.clone())
+}
+
+/// сигнал программе, приславшей уведомление id; уведомления самого шелла (тосты, скриншоты) — никому
+fn emit_to<B: serde::Serialize + zbus::zvariant::DynamicType>(id: u32, name: &str, body: &B) {
+    let (Some(c), Some(dst)) = (CONN.get(), sender_of(id)) else { return };
+    let _ = c.emit_signal(Some(dst.as_str()), "/org/freedesktop/Notifications", "org.freedesktop.Notifications", name, body);
+}
 
 // ── уведомления ─────────────────────────────────────────────────────────────
 pub struct Incoming {
@@ -88,8 +127,19 @@ fn image_data(v: &Value) -> Option<Img> {
 #[zbus::interface(name = "org.freedesktop.Notifications")]
 impl Notif {
     #[allow(clippy::too_many_arguments)]
-    fn notify(&self, app_name: &str, replaces_id: u32, app_icon: &str, summary: &str, body: &str, actions: Vec<String>, hints: HashMap<String, OwnedValue>, expire_timeout: i32) -> u32 {
-        let id = if replaces_id > 0 { replaces_id } else { self.next.fetch_add(1, Ordering::SeqCst) };
+    fn notify(&self, #[zbus(header)] hdr: zbus::message::Header<'_>, app_name: &str, replaces_id: u32, app_icon: &str, summary: &str, body: &str, actions: Vec<String>, hints: HashMap<String, OwnedValue>, expire_timeout: i32) -> u32 {
+        let from = hdr.sender().map(|s| s.to_string()).unwrap_or_default();
+        // заменить можно только своё уведомление: чужой номер (другой программы или шелла) — новое
+        let mine = replaces_id > 0 && sender_of(replaces_id).is_some_and(|s| s == from);
+        let id = if mine { replaces_id } else { self.next.fetch_add(1, Ordering::SeqCst) };
+        if let Ok(mut v) = SENDERS.lock() {
+            v.retain(|(i, _)| *i != id);
+            v.push((id, from));
+            // история не длиннее 500: старше — не нужны
+            if v.len() > 600 {
+                v.drain(..100);
+            }
+        }
         let urgency = match hints.get("urgency").map(|v| &**v) {
             Some(Value::U8(u)) => *u,
             _ => 1,
@@ -111,13 +161,13 @@ impl Notif {
                 }
             }
         }
-        let acts: Vec<(String, String)> = actions.chunks(2).filter(|c| c.len() == 2).map(|c| (c[0].clone(), c[1].clone())).collect();
+        let acts: Vec<(String, String)> = actions.chunks(2).filter(|c| c.len() == 2).take(MAX_ACTIONS).map(|c| (cap(c[0].clone(), 256), cap(c[1].clone(), 128))).collect();
         let _ = self.tx.send(Msg::Notif(Incoming {
             id,
-            app: app_name.to_string(),
-            icon: app_icon.trim_start_matches("file://").to_string(),
-            summary: strip_markup(summary),
-            body: strip_markup(body),
+            app: cap(app_name.to_string(), 128),
+            icon: cap(app_icon.trim_start_matches("file://").to_string(), 1024),
+            summary: cap(strip_markup(head(summary, MAX_SUMMARY * 4)), MAX_SUMMARY),
+            body: cap(strip_markup(head(body, MAX_BODY * 4)), MAX_BODY),
             actions: acts,
             urgency,
             image,
@@ -125,8 +175,11 @@ impl Notif {
         }));
         id
     }
-    fn close_notification(&self, id: u32) {
-        let _ = self.tx.send(Msg::NotifClose(id));
+    /// закрыть можно только своё уведомление
+    fn close_notification(&self, #[zbus(header)] hdr: zbus::message::Header<'_>, id: u32) {
+        if hdr.sender().is_some_and(|s| sender_of(id).is_some_and(|o| o == s.as_str())) {
+            let _ = self.tx.send(Msg::NotifClose(id));
+        }
     }
     fn get_capabilities(&self) -> Vec<String> {
         ["actions", "body", "body-markup", "icon-static", "persistence", "inline-reply"].iter().map(|s| s.to_string()).collect()
@@ -138,20 +191,20 @@ impl Notif {
 
 /// уведомление закрыто (reason: 1 истекло, 2 закрыл человек, 3 закрыли через D-Bus)
 pub fn notif_closed(id: u32, reason: u32) {
-    if let Some(c) = CONN.get() {
-        let _ = c.emit_signal(None::<&str>, "/org/freedesktop/Notifications", "org.freedesktop.Notifications", "NotificationClosed", &(id, reason));
+    emit_to(id, "NotificationClosed", &(id, reason));
+    // истекло — карточка ушла в историю, её действия ещё нажимают; закрыта — забыть отправителя
+    if reason != 1 {
+        if let Ok(mut v) = SENDERS.lock() {
+            v.retain(|(i, _)| *i != id);
+        }
     }
 }
 /// ответ из окна ответа (inline-reply)
 pub fn notif_replied(id: u32, text: &str) {
-    if let Some(c) = CONN.get() {
-        let _ = c.emit_signal(None::<&str>, "/org/freedesktop/Notifications", "org.freedesktop.Notifications", "NotificationReplied", &(id, text));
-    }
+    emit_to(id, "NotificationReplied", &(id, text));
 }
 pub fn notif_action(id: u32, key: &str) {
-    if let Some(c) = CONN.get() {
-        let _ = c.emit_signal(None::<&str>, "/org/freedesktop/Notifications", "org.freedesktop.Notifications", "ActionInvoked", &(id, key));
-    }
+    emit_to(id, "ActionInvoked", &(id, key));
 }
 
 // ── трей ────────────────────────────────────────────────────────────────────

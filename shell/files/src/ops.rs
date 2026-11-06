@@ -358,7 +358,8 @@ fn run(job: Job, send: &dyn Fn(Ev)) {
             let out = crate::fsx::free_name(&job.dst, &job.name);
             c.tick(&job.name, true);
             let mut cmd = std::process::Command::new("bsdtar");
-            cmd.arg("-a").arg("-cf").arg(&out).arg("-C").arg(&job.dst);
+            // «--»: файл с именем «--use-compress-program=…» не станет ключом bsdtar
+            cmd.arg("-a").arg("-cf").arg(&out).arg("-C").arg(&job.dst).arg("--");
             for s in &job.srcs {
                 cmd.arg(s.strip_prefix(&job.dst).unwrap_or(s));
             }
