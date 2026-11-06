@@ -260,6 +260,16 @@ pub(crate) fn copy_text(s: &str) {
     }
 }
 
+/// вспышка затвора и наибольшее ожидание, пока курсор уйдёт из угла (мс)
+pub const FLASH: u128 = 280;
+const HOLD: u128 = 4000;
+
+/// курсор у угла экрана (горячий угол niri — пиксель в углу; берём с запасом)
+fn in_corner(x: i32, y: i32, w: i32, h: i32) -> bool {
+    let near = |v: i32, max: i32| v <= 2 || v >= max - 3;
+    near(x, w) && near(y, h)
+}
+
 pub(crate) fn file_name() -> String {
     let tm = crate::clock::local_now();
     format!("yami-{:04}-{:02}-{:02}_{:02}-{:02}-{:02}.png", tm.year, tm.mon, tm.day, tm.hour, tm.min, tm.sec)
@@ -322,7 +332,6 @@ impl App {
         for id in self.find(&SKind::Snap) {
             self.destroy(id);
         }
-        self.sync_dock();
     }
 
     fn snap_hint(&mut self, s: &str) {
@@ -342,10 +351,12 @@ impl App {
         let (w, h) = self.surfs.get(&sid).map(|s| (s.w, s.h)).unwrap_or((0, 0));
         let colors = Snap::colors(&self.st.t);
         let Some(sn) = &mut self.st.snap else { return false };
+        let (xi, yi) = ((x as i32).clamp(0, w - 1), (y as i32).clamp(0, h - 1));
         if sn.flash.is_some() || sn.busy {
+            // снимок сделан: курсор нужен только snap_tick — ушёл ли он из угла
+            sn.ptr = Some((out, xi, yi));
             return true;
         }
-        let (xi, yi) = ((x as i32).clamp(0, w - 1), (y as i32).clamp(0, h - 1));
         sn.ptr = Some((out.clone(), xi, yi));
         self.dirty(&SKind::Snap);
         let Some(sn) = &mut self.st.snap else { return false };
@@ -835,10 +846,18 @@ impl App {
         true
     }
 
-    /// раз в тик: вспышка догорела — закрыть оверлей
+    /// раз в тик: вспышка догорела — закрыть оверлей. Курсор в углу экрана — подождать, пока уйдёт
+    /// (не дольше HOLD): там горячий угол niri, и оверлей, пока он под курсором, его глушит. Без
+    /// оверлея первое же движение мыши в углу открыло бы обзор — так и было в мгновенном режиме,
+    /// когда выделение тянут до угла экрана (#15)
     pub fn snap_tick(&mut self) {
-        let done = self.st.snap.as_ref().and_then(|s| s.flash).map(|f| f.elapsed().as_millis() > 280).unwrap_or(false);
-        if done {
+        let Some(sn) = &self.st.snap else { return };
+        let Some(ms) = sn.flash.map(|f| f.elapsed().as_millis()) else { return };
+        let cornered = sn.ptr.as_ref().is_some_and(|(o, x, y)| {
+            let (w, h) = self.output_size(o);
+            in_corner(*x, *y, w, h)
+        });
+        if ms > FLASH && (!cornered || ms > HOLD) {
             self.snap_close();
         }
     }

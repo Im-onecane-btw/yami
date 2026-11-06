@@ -327,7 +327,9 @@ impl App {
     /// поверхности дока и полоски-ловца у края — по настройкам и окнам
     pub fn sync_dock(&mut self) {
         let out = self.focus_out();
-        let on = self.st.set.dock && !self.st.locked && !out.is_empty() && self.st.snap.is_none();
+        // под оверлеем скриншота док не убираем: оверлей его и так закрывает, а пересоздание после
+        // снимка двигало окна (исключённая зона) и заново проявляло док
+        let on = self.st.set.dock && !self.st.locked && !out.is_empty();
         if !on {
             for k in [SKind::Dock, SKind::DockEdge] {
                 for id in self.find(&k) {

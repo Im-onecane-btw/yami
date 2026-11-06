@@ -84,7 +84,7 @@ pub fn paint(cv: &mut Canvas, fonts: &mut crate::font::Fonts, m: &Mark, base: &I
                                 yy += 2;
                             }
                             let n = n.max(1);
-                            cv.set(R::new(x, y, cw, ch), C(0xff000000 | (rs / n) << 16 | (gs / n) << 8 | bs / n));
+                            cv.set(R::new(x, y, cw, ch), C(0xff000000 | ((rs / n) << 16) | ((gs / n) << 8) | (bs / n)));
                             x += cell;
                         }
                         y += cell;
@@ -123,6 +123,10 @@ pub fn draw(ui: &mut Ui, st: &State, out: &str, w: i32, h: i32) {
     let t = ui.t;
     let Some(sn) = &st.snap else { return };
     let Some(img) = sn.imgs.get(out) else { return };
+    // вспышка догорела, а курсор ещё в углу (snap_tick): оверлей прозрачен — виден живой экран
+    if sn.flash.is_some_and(|f| f.elapsed().as_millis() >= crate::snap::FLASH) {
+        return;
+    }
     if img.w == w && img.h == h {
         ui.cv.blit(img, 0, 0);
     } else {
