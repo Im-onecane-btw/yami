@@ -358,7 +358,7 @@ pub struct Fm {
     /// сколько байт пикселей в готовых миниатюрах
     pub thumb_bytes: usize,
     /// номер кадра (для вытеснения миниатюр)
-    pub frame: Cell<u32>,
+    pub frame: u32,
     pub want: RefCell<Vec<crate::thumbs::Req>>,
     pub worker: Option<crate::thumbs::Thumbs>,
     pub menu: Option<Menu>,
@@ -402,7 +402,7 @@ impl Fm {
         let t = match img {
             Some(i) => {
                 self.thumb_bytes += i.px.len() * 4;
-                Thumb::Ready(Rc::new(i), Cell::new(self.frame.get()))
+                Thumb::Ready(Rc::new(i), Cell::new(self.frame))
             }
             None => Thumb::None,
         };
@@ -416,7 +416,7 @@ impl Fm {
         if self.thumb_bytes <= THUMB_BUDGET {
             return;
         }
-        let now = self.frame.get();
+        let now = self.frame;
         let mut old: Vec<(u32, (PathBuf, i32))> = self.thumbs.iter().filter_map(|(k, t)| if let Thumb::Ready(_, u) = t { (u.get() != now).then(|| (u.get(), k.clone())) } else { None }).collect();
         old.sort_unstable_by_key(|o| o.0);
         for (_, k) in old {
@@ -443,7 +443,7 @@ impl Fm {
             apps: None,
             thumbs: HashMap::new(),
             thumb_bytes: 0,
-            frame: Cell::new(0),
+            frame: 0,
             want: RefCell::new(vec![]),
             worker: None,
             menu: None,

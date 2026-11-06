@@ -670,7 +670,7 @@ pub(crate) fn thumb_of(fm: &Fm, e: &fsx::Entry, size: i32) -> Option<std::rc::Rc
     }
     match fm.thumbs.get(&(e.path.clone(), size)) {
         Some(Thumb::Ready(img, used)) => {
-            used.set(fm.frame.get());
+            used.set(fm.frame);
             Some(img.clone())
         }
         Some(_) => None,

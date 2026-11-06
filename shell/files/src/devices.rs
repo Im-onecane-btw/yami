@@ -21,19 +21,20 @@ impl Fm {
 
     pub fn refresh_devices(&mut self) {
         self.dev_tick = Instant::now();
-        self.dev_sig = sig();
-        self.dev_full = Instant::now();
         if !self.cfg.devices && !self.cfg.network {
             self.devs.clear();
             return;
         }
+        // прошлый опрос ещё идёт (gio ждёт телефон) — второй не запускаем; отпечаток не обновляем,
+        // чтобы следующий тик увидел перемену и спросил снова (иначе флешка ждала бы минутного опроса)
+        if self.tx.is_some() && self.dev_busy.swap(true, std::sync::atomic::Ordering::AcqRel) {
+            return;
+        }
+        self.dev_sig = sig();
+        self.dev_full = Instant::now();
         let (disks, net, servers) = (self.cfg.devices, self.cfg.network, self.cfg.servers.clone());
         match &self.tx {
             Some(tx) => {
-                // прошлый опрос ещё идёт (gio ждёт телефон) — второй не запускаем
-                if self.dev_busy.swap(true, std::sync::atomic::Ordering::AcqRel) {
-                    return;
-                }
                 let (tx, busy) = (tx.clone(), self.dev_busy.clone());
                 std::thread::spawn(move || {
                     let _ = tx.send(Msg::Devices(places::devices(disks, net, &servers)));
@@ -238,12 +239,8 @@ impl Fm {
 /// отпечаток устройств без запуска программ: разделы (/proc/partitions), точки монтирования
 /// (mountinfo), USB (телефоны и камеры появляются там раньше, чем у gio) и подключения gvfs
 fn sig() -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    let mut eat = |b: &[u8]| {
-        for x in b {
-            h = (h ^ *x as u64).wrapping_mul(0x0000_0100_0000_01b3);
-        }
-    };
+    let mut h = yami_px::FNV0;
+    let mut eat = |b: &[u8]| h = yami_px::fnv(h, b);
     for f in ["/proc/partitions", "/proc/self/mountinfo"] {
         eat(&std::fs::read(f).unwrap_or_default());
     }

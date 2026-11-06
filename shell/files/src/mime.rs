@@ -20,8 +20,7 @@ fn leak(s: &str) -> &'static str {
 
 fn data_dirs() -> Vec<PathBuf> {
     let mut v = vec![crate::paths::data_dir()];
-    let xdg = std::env::var("XDG_DATA_DIRS").unwrap_or_else(|_| "/usr/local/share:/usr/share".into());
-    v.extend(xdg.split(':').filter(|d| !d.is_empty()).map(PathBuf::from));
+    v.extend(crate::paths::data_dirs());
     v
 }
 

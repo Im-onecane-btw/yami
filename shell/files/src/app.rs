@@ -517,7 +517,7 @@ impl App {
 
     pub(crate) fn draw(&mut self) {
         self.dirty = false;
-        self.fm.frame.set(self.fm.frame.get().wrapping_add(1));
+        self.fm.frame = self.fm.frame.wrapping_add(1);
         let scrolling = self.step_scroll();
         let (w, h) = (self.w, self.h);
         // HiDPI: буфер в физических пикселях, холст логический, увеличение ближайшим соседом

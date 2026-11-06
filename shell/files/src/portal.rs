@@ -141,7 +141,14 @@ fn reexec_if_idle() {
 /// `yami-files --portal-reload`: работающий портал — на новый бинарь, нет его — поднять
 pub fn reload() -> i32 {
     let me = std::process::id();
-    let running = || yami_px::paths::pids("yami-files", "--portal").into_iter().filter(|p| *p != me).collect::<Vec<u32>>();
+    // только портал из этого же файла: копия из другой установки (пакет, чужой HOME) — не наша
+    let mine = yami_px::paths::self_exe();
+    let same = |p: &u32| {
+        let Ok(e) = std::fs::read_link(format!("/proc/{p}/exe")) else { return false };
+        let s = e.to_string_lossy();
+        std::path::Path::new(s.strip_suffix(" (deleted)").unwrap_or(&s)) == mine
+    };
+    let running = || yami_px::paths::pids("yami-files", "--portal").into_iter().filter(|p| *p != me && same(p)).collect::<Vec<u32>>();
     let pids = running();
     for p in &pids {
         unsafe { libc::kill(*p as i32, libc::SIGHUP) };
