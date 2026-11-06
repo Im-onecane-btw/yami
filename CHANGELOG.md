@@ -38,6 +38,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - yami-play at a fractional scale no longer clears and redraws its controls layer for every video frame while the controls are hidden.
 - The shell measures its own memory (settings → about) only while the settings window is open, as PSS like `yami status`, and the address in the network module comes from the kernel instead of a run of `ip` on the drawing thread.
 - yami-files copies through the kernel (`copy_file_range`): on btrfs and xfs a copy inside one disk is a reflink, so a 4 GB video copies at once and takes no space until one of the two is changed; between disks the data no longer passes through the program. Phones, network shares and other FUSE mounts still copy the old way.
+- Screenshots without the confirm step (#13): settings → screenshots → «take the shot»: `instant` (`shotConfirm`) takes the shot as soon as the mouse is released after selecting an area or clicking a window, and a full-screen shot (Ctrl+Print) at once, without the overlay; copy and save follow the same settings. Fix: a second Space or Enter (or a held key repeating) while the shot was being taken made a second copy, file and notification.
 
 ## 2.5.0
 

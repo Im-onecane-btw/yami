@@ -152,6 +152,7 @@ yami-shell binds list | print | write     # сочетания клавиш
 | `shotDir` | `""` | папка скриншотов; пусто — Pictures/Screenshots |
 | `shotCopy`, `shotSave`, `shotLoupe`, `shotNotify` | `true` | копировать, сохранять, лупа, уведомление |
 | `shotDelay` | `3` | таймер, секунды |
+| `shotConfirm` | `space` | `space`: выделить, потом пробел или Enter; `instant`: снимок, как только отпущена мышь (область, окно), а снимок экрана — сразу, без оверлея |
 | `curtainStyle` | `"blur"` | что видят зрители трансляции, пока экран скрыт (Mod+Shift+H), без подписей: `blur` — застывший экран с размытием, `pixels` — крупными пикселями, `wall` — обои |
 | `curtainCell` | `24` | размер пикселя для `pixels` |
 | `lockAfter`, `screenOffAfter` | `10`, `15` | минуты простоя; 0 — никогда |

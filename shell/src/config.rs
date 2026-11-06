@@ -203,6 +203,9 @@ pub struct Settings {
     pub shot_loupe: bool,
     pub shot_notify: bool,
     pub shot_delay: u32,
+    /// подтверждение снимка (#13): "space" — выделил, потом пробел или enter; "instant" — снимок,
+    /// как только отпущена мышь (область, окно), а снимок экрана — сразу, без оверлея
+    pub shot_confirm: String,
     /// шторка для трансляций (curtain.rs): "blur", "pixels", "wall"; клетка пикселей в px
     pub curtain_style: String,
     pub curtain_cell: i32,
@@ -473,6 +476,7 @@ impl Default for Settings {
             shot_loupe: true,
             shot_notify: true,
             shot_delay: 3,
+            shot_confirm: "space".into(),
             curtain_style: "blur".into(),
             curtain_cell: 24,
             float_media: true,
@@ -614,6 +618,9 @@ impl Settings {
         }
         if self.tray_mode != "arrow" {
             self.tray_mode = "icons".into();
+        }
+        if self.shot_confirm != "instant" {
+            self.shot_confirm = "space".into();
         }
     }
 

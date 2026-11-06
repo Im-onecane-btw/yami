@@ -151,6 +151,7 @@ Settings → look → «pixel look» moves these keys, `iconPixel` and `cursor` 
 | `shotDir` | `""` | screenshot folder; empty: Pictures/Screenshots |
 | `shotCopy`, `shotSave`, `shotLoupe`, `shotNotify` | `true` | copy, save, magnifier, notification |
 | `shotDelay` | `3` | timer, seconds |
+| `shotConfirm` | `space` | `space`: select, then Space or Enter takes the shot; `instant`: the shot is taken as soon as the mouse is released (area, window), and a full-screen shot without the overlay |
 | `curtainStyle` | `"blur"` | what stream viewers see while the screen is hidden (Mod+Shift+H), no labels: `blur` the frozen screen blurred, `pixels` in big pixels, `wall` the wallpaper |
 | `curtainCell` | `24` | pixel size of `pixels` |
 | `lockAfter`, `screenOffAfter` | `10`, `15` | idle minutes; 0: never |

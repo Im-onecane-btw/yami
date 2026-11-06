@@ -308,6 +308,13 @@ impl App {
             sn.sel = Some((focus.clone(), R::new(0, 0, w, h)));
         }
         self.st.snap = Some(sn);
+        // мгновенный режим: снимок экрана — без оверлея, сразу в буфер и/или в папку
+        if mode == Mode::Screen && self.st.set.shot_confirm == "instant" {
+            let (c, s) = (self.st.set.shot_copy, self.st.set.shot_save);
+            self.snap_finish(c, s || !c, false);
+            self.snap_close();
+            return;
+        }
         for o in outs {
             let kb = if o == focus { KeyboardInteractivity::Exclusive } else { KeyboardInteractivity::None };
             self.mk(SKind::Snap, &o, Layer::Overlay, "yami-screenshot", Anchor::all(), (0, 0), (0, 0, 0, 0), -1, kb);
@@ -447,6 +454,7 @@ impl App {
             // отпускание
             _ => {
                 let Some(d) = sn.drag.take() else { return false };
+                let picked = matches!(d, Drag::New(..));
                 if let Drag::New(x0, y0) = d {
                     // щелчок без протяжки: окно под курсором (в любом режиме), иначе — экран
                     if (x0 - xi).abs() < 4 && (y0 - yi).abs() < 4 {
@@ -464,6 +472,11 @@ impl App {
                             sn.marks.pop();
                         }
                     }
+                }
+                // мгновенный режим: выделил (протянул или щёлкнул по окну) — снимок готов
+                if picked && sn.sel.is_some() && self.st.set.shot_confirm == "instant" {
+                    let (c, s) = (self.st.set.shot_copy, self.st.set.shot_save);
+                    self.snap_finish(c, s || !c, false);
                 }
                 true
             }
@@ -532,6 +545,11 @@ impl App {
         let (ctrl, shift) = (self.mods.ctrl, self.mods.shift);
         let ptr_w = self.st.snap.as_ref().and_then(|s| s.ptr.as_ref()).map(|p| self.output_size(&p.0).0).unwrap_or(1);
         let Some(sn) = &mut self.st.snap else { return };
+        // снимок уже сделан (вспышка) или ждёт диалога: второй пробел, enter или автоповтор
+        // клавиши не делают второй снимок (#13)
+        if sn.flash.is_some() || sn.busy {
+            return;
+        }
         let raw = e.raw_code;
         match e.keysym {
             Keysym::Escape => {
@@ -730,6 +748,10 @@ impl App {
 
     /// готово: copy — в буфер, save — в папку, ask — спросить место диалогом yami-files
     pub fn snap_finish(&mut self, copy: bool, save: bool, ask: bool) {
+        // один снимок на один оверлей: кнопка панели, клавиша и мгновенный режим сходятся сюда
+        if self.st.snap.as_ref().is_some_and(|s| s.flash.is_some() || s.busy) {
+            return;
+        }
         let Some((png, thumb)) = self.snap_render() else { return };
         let dir = shots_dir(&self.st.set);
         let name = file_name();

@@ -540,6 +540,9 @@ pub(crate) fn tab_shots(ui: &mut Ui, st: &State, b: R) {
     y += 50;
     let d = crate::tf!("{} с", "{} s", s.shot_delay);
     opt_btn(ui, R::new(b.x, y, b.w, 26), "таймер (кнопка ◷ в оверлее)", &d, Act::SCycle("shot_delay"));
+    y += 32;
+    let conf = if s.shot_confirm == "instant" { "сразу, как отпустил мышь" } else { "пробелом или enter" };
+    opt_btn(ui, R::new(b.x, y, b.w, 26), "снимок", conf, Act::SCycle("shot_confirm"));
     y += 40;
     // шторка: зрители трансляции видят её, ты — экран (curtain.rs)
     y = title(ui, b.x, y, b.w, "скрыть экран в трансляции");
@@ -769,6 +772,10 @@ impl App {
                     for id in self.find(&SKind::Osd) {
                         self.destroy(id);
                     }
+                    self.settings_changed();
+                }
+                "shot_confirm" => {
+                    s.shot_confirm = if s.shot_confirm == "instant" { "space" } else { "instant" }.into();
                     self.settings_changed();
                 }
                 "tray_mode" => {
