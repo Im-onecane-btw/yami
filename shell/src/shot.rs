@@ -595,7 +595,7 @@ fn mock_tray(st: &mut State) {
         let c = [t.red, t.ok, t.text_dim][i];
         let px = (0..256).map(|k| { let (x, y) = (k % 16, k / 16); if (2..14).contains(&x) && (2..14).contains(&y) && (x + y + i) % 5 != 0 { c.0 | 0xff000000 } else { 0 } }).collect();
         let pixmap = Some(crate::gfx::Img { w: 16, h: 16, px });
-        crate::dbus::apply(&mut st.tray, crate::dbus::TrayEv::Upsert { service: format!(":1.{i}"), bus: format!(":1.{i}"), path: "/StatusNotifierItem".into(), title: name.into(), status: status.into(), icon: String::new(), theme_path: None, pixmap, menu: String::new(), is_menu: false });
+        crate::dbus::apply(&mut st.tray, crate::dbus::TrayEv::Upsert { service: format!(":1.{i}"), bus: format!(":1.{i}"), path: "/StatusNotifierItem".into(), title: name.into(), status: status.into(), icon: String::new(), file: None, pixmap, menu: String::new(), is_menu: false });
     }
 }
 

@@ -187,15 +187,13 @@ fn sep(ui: &mut Ui, st: &State, x: i32, w: i32) {
 /// значок программы трея 16×16 с левым верхним углом в x, y (бар и всплывашка `tray`)
 pub fn tray_icon(ui: &mut Ui, it: &crate::dbus::TrayItem, x: i32, y: i32) {
     let t = ui.t;
-    if let Some(img) = &it.pixmap {
-        ui.cv.image(img, x, y, 1.0);
-        return;
-    }
+    // свой файл программы, потом имя в теме значков, потом её картинка (IconPixmap)
     let name = &it.icon;
-    let img = if name.is_empty() { None } else { ui.ic.get(name, 16).or_else(|| it.theme_path.as_ref().and_then(|p| ui.ic.file(&std::path::Path::new(p).join(format!("{name}.png")), 16))) };
-    match img {
-        Some(img) => ui.cv.image(&img, x, y, 1.0),
-        None => ui.cv.icon("dots", x + 1, y + 1, 2, t.text_dim),
+    let img = it.file.as_ref().and_then(|f| ui.ic.file(std::path::Path::new(f), 16)).or_else(|| if name.is_empty() { None } else { ui.ic.get(name, 16) });
+    match (img, &it.pixmap) {
+        (Some(img), _) => ui.cv.image(&img, x, y, 1.0),
+        (None, Some(img)) => ui.cv.image(img, x, y, 1.0),
+        (None, None) => ui.cv.icon("dots", x + 1, y + 1, 2, t.text_dim),
     }
 }
 
@@ -292,14 +290,17 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
             w
         }
         "net" => {
+            // значок wi-fi или кабеля: точка рядом с треем читалась как ещё один его значок (#8)
             let off = !st.sys.online;
-            let w = if off { 6 + 6 + ui.w(PX, "нет сети") } else { 10 };
+            let wifi = st.net.active.iter().any(|a| a.1 == "wi-fi");
+            let w = if off { 14 + 6 + ui.w(PX, "нет сети") } else { 14 };
             if !measure {
                 let r = R::new(x - 2, 0, w + 4, H - 1);
                 let hov = ui.hover(r);
-                ui.cv.fill(R::new(x + if off { 0 } else { 2 }, cy - 3, 6, 6), if off { t.ember } else if hov { t.text_hi } else { t.ok });
+                let c = if off { t.ember } else if hov { t.text_hi } else { t.text };
+                ui.cv.icon(if wifi { "wifi" } else { "lan" }, x, cy - 7, 2, c);
                 if off {
-                    ui.text_in(PX, R::new(x + 12, 0, w, H - 1), "нет сети", t.ember);
+                    ui.text_in(PX, R::new(x + 20, 0, w, H - 1), "нет сети", t.ember);
                 }
                 ui.zone(r, Act::Popup("net"), Cur::Pointer);
             }

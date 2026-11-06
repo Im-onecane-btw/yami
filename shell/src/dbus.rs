@@ -162,22 +162,23 @@ pub struct TrayItem {
     pub title: String,
     pub status: String,
     pub icon: String,
-    pub theme_path: Option<String>,
+    /// файл значка программы: IconName путём или из её IconThemePath (найден в нити D-Bus)
+    pub file: Option<String>,
     pub pixmap: Option<std::rc::Rc<Img>>,
     pub menu: String,
     pub is_menu: bool,
 }
 
 pub enum TrayEv {
-    Upsert { service: String, bus: String, path: String, title: String, status: String, icon: String, theme_path: Option<String>, pixmap: Option<Img>, menu: String, is_menu: bool },
+    Upsert { service: String, bus: String, path: String, title: String, status: String, icon: String, file: Option<String>, pixmap: Option<Img>, menu: String, is_menu: bool },
     Remove(String),
 }
 
 pub fn apply(list: &mut Vec<TrayItem>, e: TrayEv) {
     match e {
         TrayEv::Remove(s) => list.retain(|i| i.service != s),
-        TrayEv::Upsert { service, bus, path, title, status, icon, theme_path, pixmap, menu, is_menu } => {
-            let it = TrayItem { service: service.clone(), bus, path, title, status, icon, theme_path, pixmap: pixmap.map(std::rc::Rc::new), menu, is_menu };
+        TrayEv::Upsert { service, bus, path, title, status, icon, file, pixmap, menu, is_menu } => {
+            let it = TrayItem { service: service.clone(), bus, path, title, status, icon, file, pixmap: pixmap.map(std::rc::Rc::new), menu, is_menu };
             if let Some(x) = list.iter_mut().find(|i| i.service == service) {
                 *x = it;
             } else {
@@ -187,8 +188,48 @@ pub fn apply(list: &mut Vec<TrayItem>, e: TrayEv) {
     }
 }
 
+/// зарегистрированный значок: key = «шина+путь» (так его зовут хосты), owner — уникальное имя
+/// процесса. Сигналы значка (NewIcon, NewStatus…) приходят от уникального имени, а регистрируются
+/// программы часто общеизвестным (org.kde.StatusNotifierItem-PID-N): без owner их смена значка
+/// терялась, а у чужого наблюдателя — давала второй, дублирующий значок
+#[derive(Clone)]
+struct Reg {
+    key: String,
+    bus: String,
+    path: String,
+    owner: String,
+}
+
+type Regs = Arc<Mutex<Vec<Reg>>>;
+
+/// добавить или обновить запись; false — потолок (64), значок не берём
+fn reg_put(regs: &Regs, r: Reg) -> bool {
+    let mut it = regs.lock().unwrap();
+    if let Some(x) = it.iter_mut().find(|x| x.key == r.key) {
+        *x = r;
+        return true;
+    }
+    // потолок: процесс, регистрирующий значки в цикле, не забьёт бар и память
+    if it.len() >= 64 {
+        return false;
+    }
+    it.push(r);
+    true
+}
+
+/// уникальное имя владельца шины (у уникального имени — оно само)
+fn name_owner(c: &Connection, bus: &str) -> String {
+    if bus.starts_with(':') {
+        return bus.to_string();
+    }
+    c.call_method(Some("org.freedesktop.DBus"), "/org/freedesktop/DBus", Some("org.freedesktop.DBus"), "GetNameOwner", &(bus,))
+        .ok()
+        .and_then(|m| m.body().deserialize::<String>().ok())
+        .unwrap_or_default()
+}
+
 struct Watcher {
-    items: Arc<Mutex<Vec<String>>>,
+    items: Regs,
     tx: Sender<Msg>,
 }
 
@@ -196,17 +237,10 @@ struct Watcher {
 impl Watcher {
     fn register_status_notifier_item(&self, service: &str, #[zbus(header)] hdr: zbus::message::Header<'_>) {
         let sender = hdr.sender().map(|s| s.to_string()).unwrap_or_default();
-        let (bus, path) = if service.starts_with('/') { (sender, service.to_string()) } else { (service.to_string(), "/StatusNotifierItem".to_string()) };
+        let (bus, path) = if service.starts_with('/') { (sender.clone(), service.to_string()) } else { (service.to_string(), "/StatusNotifierItem".to_string()) };
         let key = format!("{bus}{path}");
-        {
-            let mut it = self.items.lock().unwrap();
-            // потолок: процесс, регистрирующий значки в цикле, не забьёт бар и память
-            if it.len() >= 64 && !it.contains(&key) {
-                return;
-            }
-            if !it.contains(&key) {
-                it.push(key.clone());
-            }
+        if !reg_put(&self.items, Reg { key, bus: bus.clone(), path: path.clone(), owner: sender }) {
+            return;
         }
         let tx = self.tx.clone();
         std::thread::spawn(move || refresh_item(&bus, &path, &tx));
@@ -214,7 +248,7 @@ impl Watcher {
     fn register_status_notifier_host(&self, _service: &str) {}
     #[zbus(property)]
     fn registered_status_notifier_items(&self) -> Vec<String> {
-        self.items.lock().unwrap().clone()
+        self.items.lock().unwrap().iter().map(|r| r.key.clone()).collect()
     }
     #[zbus(property)]
     fn is_status_notifier_host_registered(&self) -> bool {
@@ -268,21 +302,78 @@ fn refresh_item(bus: &str, path: &str, tx: &Sender<Msg>) {
     let Ok(p) = Proxy::new(c, bus.to_string(), path.to_string(), "org.kde.StatusNotifierItem") else { return };
     let s = |k: &str| p.get_property::<String>(k).unwrap_or_default();
     let menu = p.get_property::<zbus::zvariant::OwnedObjectPath>("Menu").map(|m| m.to_string()).unwrap_or_default();
-    let icon = s("IconName");
-    let pm = if icon.is_empty() { pixmap(p.get_property::<OwnedValue>("IconPixmap").ok()) } else { None };
-    let theme = s("IconThemePath");
+    let status = s("Status");
+    // программа зовёт: свой значок «внимания», если он есть (Discord — непрочитанные)
+    let att = status == "NeedsAttention";
+    let mut icon = if att { s("AttentionIconName") } else { String::new() };
+    let mut pm = if att && icon.is_empty() { pixmap(p.get_property::<OwnedValue>("AttentionIconPixmap").ok()) } else { None };
+    if icon.is_empty() && pm.is_none() {
+        icon = s("IconName");
+    }
+    // картинку берём всегда: имени может не быть в теме значков (Steam, Electron) — тогда она
+    if pm.is_none() {
+        pm = pixmap(p.get_property::<OwnedValue>("IconPixmap").ok());
+    }
+    let file = icon_file(&icon, &s("IconThemePath"));
     let _ = tx.send(Msg::Tray(TrayEv::Upsert {
         service: format!("{bus}{path}"),
         bus: bus.into(),
         path: path.into(),
         title: { let t = s("Title"); if t.is_empty() { s("Id") } else { t } },
-        status: s("Status"),
+        status,
         icon,
-        theme_path: if theme.is_empty() { None } else { Some(theme) },
+        file,
         pixmap: pm,
         menu,
         is_menu: p.get_property::<bool>("ItemIsMenu").unwrap_or(false),
     }));
+}
+
+/// файл значка трея: IconName — путь к файлу, или имя в IconThemePath программы (прямо в
+/// папке или в её теме: hicolor/22x22/apps/…). Из размеров — ближайший сверху к 16, потом svg
+fn icon_file(name: &str, dir: &str) -> Option<String> {
+    let ok = |p: &std::path::Path| std::fs::metadata(p).map(|m| m.is_file()).unwrap_or(false);
+    if name.starts_with('/') {
+        return ok(std::path::Path::new(name)).then(|| name.to_string());
+    }
+    if name.is_empty() || dir.is_empty() || name.contains('/') {
+        return None;
+    }
+    let (mut best, mut seen): (Option<(i32, std::path::PathBuf)>, usize) = (None, 0);
+    let mut stack = vec![(std::path::PathBuf::from(dir), 0)];
+    while let Some((d, depth)) = stack.pop() {
+        let Ok(rd) = std::fs::read_dir(&d) else { continue };
+        for e in rd.flatten() {
+            // чужая папка: глубина и число записей ограничены
+            seen += 1;
+            if seen > 4000 {
+                break;
+            }
+            let p = e.path();
+            if e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                if depth < 4 {
+                    stack.push((p, depth + 1));
+                }
+                continue;
+            }
+            let (Some(stem), Some(ext)) = (p.file_stem().and_then(|x| x.to_str()), p.extension().and_then(|x| x.to_str())) else { continue };
+            if stem != name || !matches!(ext, "png" | "svg") {
+                continue;
+            }
+            // размер из пути: …/22x22/… ; без него — как средний
+            let n = p.iter().filter_map(|c| c.to_str()?.split_once('x')?.0.parse::<i32>().ok()).next();
+            let score = match (ext, n) {
+                ("svg", _) => 70,
+                (_, Some(n)) if n >= 16 => n,
+                (_, Some(n)) => 1000 - n,
+                _ => 80,
+            };
+            if best.as_ref().map(|b| score < b.0).unwrap_or(true) {
+                best = Some((score, p));
+            }
+        }
+    }
+    best.and_then(|b| b.1.to_str().map(String::from))
 }
 
 /// ЛКМ / СКМ / колесо по значку трея
@@ -412,7 +503,7 @@ pub fn spawn(tx: Sender<Msg>, notif: bool, tray: bool) {
                 return;
             }
             // трей: свой наблюдатель, а если он уже есть — подключаемся к нему хостом
-            let items = Arc::new(Mutex::new(Vec::<String>::new()));
+            let items: Regs = Arc::new(Mutex::new(Vec::new()));
             let _ = c.object_server().at("/StatusNotifierWatcher", Watcher { items: items.clone(), tx: tx.clone() });
             let own = c.request_name_with_flags("org.kde.StatusNotifierWatcher", RequestNameFlags::DoNotQueue.into()).is_ok();
             let host = format!("org.kde.StatusNotifierHost-{}", std::process::id());
@@ -422,7 +513,9 @@ pub fn spawn(tx: Sender<Msg>, notif: bool, tray: bool) {
                     let _ = p.call_method("RegisterStatusNotifierHost", &(host.as_str(),));
                     for s in p.get_property::<Vec<String>>("RegisteredStatusNotifierItems").unwrap_or_default() {
                         let (b, pa) = split_service(&s);
-                        refresh_item(&b, &pa, &tx);
+                        if reg_put(&items, Reg { key: format!("{b}{pa}"), owner: name_owner(&c, &b), bus: b.clone(), path: pa.clone() }) {
+                            refresh_item(&b, &pa, &tx);
+                        }
                     }
                 }
             }
@@ -438,38 +531,40 @@ pub fn spawn(tx: Sender<Msg>, notif: bool, tray: bool) {
                 let path = h.path().map(|p| p.to_string()).unwrap_or_default();
                 match (iface.as_str(), member.as_str()) {
                     ("org.kde.StatusNotifierItem", _) => {
-                        let key = format!("{sender}{path}");
-                        let known = items.lock().unwrap().contains(&key) || !own;
-                        if known {
-                            refresh_item(&sender, &path, &tx);
+                        // значок ищем по уникальному имени отправителя и пути, обновляем под своим ключом
+                        let r = items.lock().unwrap().iter().find(|r| r.owner == sender && r.path == path).cloned();
+                        if let Some(r) = r {
+                            refresh_item(&r.bus, &r.path, &tx);
                         }
                     }
                     ("org.kde.StatusNotifierWatcher", "StatusNotifierItemRegistered") if !own => {
                         if let Ok(s) = m.body().deserialize::<String>() {
                             let (b, pa) = split_service(&s);
-                            refresh_item(&b, &pa, &tx);
+                            if reg_put(&items, Reg { key: format!("{b}{pa}"), owner: name_owner(&c, &b), bus: b.clone(), path: pa.clone() }) {
+                                refresh_item(&b, &pa, &tx);
+                            }
                         }
                     }
                     ("org.kde.StatusNotifierWatcher", "StatusNotifierItemUnregistered") if !own => {
                         if let Ok(s) = m.body().deserialize::<String>() {
                             let (b, pa) = split_service(&s);
-                            let _ = tx.send(Msg::Tray(TrayEv::Remove(format!("{b}{pa}"))));
+                            let key = format!("{b}{pa}");
+                            items.lock().unwrap().retain(|r| r.key != key);
+                            let _ = tx.send(Msg::Tray(TrayEv::Remove(key)));
                         }
                     }
                     ("org.freedesktop.DBus", "NameOwnerChanged") => {
                         if let Ok((name, _old, new)) = m.body().deserialize::<(String, String, String)>() {
                             if new.is_empty() {
+                                // ушёл процесс (уникальное имя) или его общеизвестное имя
                                 let gone: Vec<String> = {
                                     let mut it = items.lock().unwrap();
-                                    let g: Vec<String> = it.iter().filter(|k| k.starts_with(&format!("{name}/"))).cloned().collect();
-                                    it.retain(|k| !g.contains(k));
+                                    let g: Vec<String> = it.iter().filter(|r| r.owner == name || r.bus == name).map(|r| r.key.clone()).collect();
+                                    it.retain(|r| !g.contains(&r.key));
                                     g
                                 };
                                 for k in gone {
                                     let _ = tx.send(Msg::Tray(TrayEv::Remove(k)));
-                                }
-                                if !own {
-                                    let _ = tx.send(Msg::Tray(TrayEv::Remove(format!("{name}/StatusNotifierItem"))));
                                 }
                             }
                         }
