@@ -675,6 +675,12 @@ impl Settings {
         if !MEDIA_VIEWS.iter().any(|(k, _)| *k == self.media_view) {
             self.media_view = "cover".into();
         }
+        if !crate::notif::POS.iter().any(|(k, _)| *k == self.notif_pos) {
+            self.notif_pos = "top-right".into();
+        }
+        if !crate::notif::OSD_POS.iter().any(|(k, _)| *k == self.osd_pos) {
+            self.osd_pos = "bottom".into();
+        }
         if self.shot_confirm != "instant" {
             self.shot_confirm = "space".into();
         }
@@ -970,9 +976,6 @@ impl Settings {
         l.push(String::new());
     }
 
-    /// yami-fx.kdl для niri уровня `lvl` (0 — сток, иначе наш форк: allow-tearing; ≥ 4 —
-    /// `show-only-in`; ≥ 5 — `hide-from`); curtain — шторка опущена (без `show-only-in` тогда
-    /// прячутся окна). Матовость — размытие под терминалами (панели шелла — своим регионом)
     /// анимации на деле: выключены и сами, и в лёгком режиме
     pub fn anim(&self) -> bool {
         self.animations && !self.lite
@@ -985,6 +988,9 @@ impl Settings {
         self.blur_term && !self.lite
     }
 
+    /// yami-fx.kdl для niri уровня `lvl` (0 — сток, иначе наш форк: allow-tearing; ≥ 4 —
+    /// `show-only-in`; ≥ 5 — `hide-from`); curtain — шторка опущена (без `show-only-in` тогда
+    /// прячутся окна). Матовость — размытие под терминалами (панели шелла — своим регионом)
     pub fn fx_kdl(&self, lvl: u32, curtain: bool) -> String {
         let mut l: Vec<String> = vec!["// yami: written by the shell (settings → look, windows, games, services). Do not edit by hand: it is rewritten.".into(), String::new()];
         self.float_kdl(&mut l);

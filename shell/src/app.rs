@@ -128,7 +128,8 @@ pub struct Surf {
 
 /// отпечаток кадра: размер и пиксели (FNV по 64-битным словам — на бар ~30 мкс)
 fn frame_hash(px: &[u32], dims: [i32; 4]) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    // FNV-1a по 8-байтным словам, а не по байтам: кадр — сотни килобайт, умножений в 8 раз меньше
+    let mut h = yami_px::FNV0;
     let mut eat = |v: u64| h = (h ^ v).wrapping_mul(0x0000_0100_0000_01b3);
     for d in dims {
         eat(d as u32 as u64);
@@ -358,7 +359,7 @@ pub struct App {
     /// логический холст перед увеличением (HiDPI); большой — освобождается сразу
     pub(crate) scratch: Vec<u32>,
     /// когда отдать ядру код, который больше не исполняется (yami_px::shed_code): через 30 с после
-    /// старта и после закрытия окна (настройки, лаунчер — их код велик, а нужен изредка)
+    /// старта и после закрытия настроек или выбора обоев (их код велик, а нужен изредка)
     pub(crate) shed_at: Option<Instant>,
     pub(crate) lock_state: SessionLockState,
     pub lock: Option<SessionLock>,
@@ -497,9 +498,28 @@ impl State {
     }
 }
 
+/// curl к чужому сайту (погода, тексты песен, тема по ссылке): только https, и после
+/// переадресаций; потолок времени и размера; имя yami в User-Agent. Флаги -f, -G, -L, -o — у вызова
+pub fn curl(secs: u32, max: u64) -> std::process::Command {
+    let mut c = std::process::Command::new("curl");
+    let ua = concat!("yami/", env!("CARGO_PKG_VERSION"), " (https://github.com/Trendorin/yami)");
+    c.args(["-q", "-s", "--proto", "=https", "--proto-redir", "=https", "-A", ua, "--max-time", &secs.to_string(), "--max-filesize", &max.to_string()]);
+    c
+}
+
+/// GET url?k=v&… тем же curl: значения — через --data-urlencode (пробелы, кириллица, «&»)
+pub fn curl_get(secs: u32, max: u64, url: &str, q: &[(&str, String)]) -> std::process::Command {
+    let mut c = curl(secs, max);
+    c.args(["-G", url]);
+    for (k, v) in q {
+        c.arg("--data-urlencode").arg(format!("{k}={v}"));
+    }
+    c
+}
+
 /// долгий процесс нити шелла (playerctl -F, pactl subscribe, parec) уходит вместе с ней: при
 /// падении шелла и при перезапуске (exec в том же pid уничтожает нити, их дети получают сигнал).
-/// Без этого каждый `yami restart` и каждое обновление оставляли по живой копии каждого
+/// Без этого каждый `yami restart` и каждое обновление оставляли по живой копии каждого из них
 pub fn owned(cmd: &mut std::process::Command) -> &mut std::process::Command {
     use std::os::unix::process::CommandExt;
     // SAFETY: между fork и exec только prctl
@@ -1206,7 +1226,11 @@ impl App {
         }
         if now.duration_since(self.last_sample) >= Duration::from_millis(990) {
             self.last_sample = now;
-            self.st.sys.want_gpu = self.uses("gpu");
+            // игра на весь экран закрывает все бары: датчики видеокарты не нужны, а nvidia-smi раз в
+            // 3 с под игрой — лишняя работа драйвера (рывки кадров)
+            let fo = self.focus_out();
+            let hidden = self.st.game.fullscreen && self.output_names().iter().all(|n| *n == fo || !self.bar_on(n));
+            self.st.sys.want_gpu = self.st.sys.has_gpu && self.uses("gpu") && !hidden;
             self.st.sys.sample();
             self.weather_tick();
             self.bat_check();
@@ -1367,7 +1391,7 @@ impl App {
                 }
                 self.st.media = m;
                 self.lyrics_want();
-                media::viz_wanted(self.media_visible() && self.st.media.playing());
+                self.viz_sync();
                 self.dirty_where(|k| matches!(k, SKind::Bar | SKind::Popup | SKind::Widget(_)));
             }
             Msg::Themes(l, note, applied) => self.themes_listed(l, note, applied),
@@ -1377,7 +1401,7 @@ impl App {
                 if l.key == self.st.lyrics.key {
                     self.st.lyrics = l;
                     // текста нет — всплывашка показывает обложку, и эквалайзеру нужен звук
-                    media::viz_wanted(self.media_visible() && self.st.media.playing());
+                    self.viz_sync();
                     self.dirty(&SKind::Popup);
                 }
             }
@@ -1461,6 +1485,11 @@ impl App {
         self.st.set.viz_placed() || crate::popups::shows_viz(&self.st)
     }
 
+    /// захват звука для эквалайзера — пока тот где-то виден и музыка играет
+    pub fn viz_sync(&self) {
+        media::viz_wanted(self.media_visible() && self.st.media.playing());
+    }
+
     /// вид всплывашки музыки — следующий по кругу (кнопка в её шапке)
     pub fn media_view_next(&mut self) {
         let s = &mut self.st.set;
@@ -1471,7 +1500,7 @@ impl App {
     /// вид или эквалайзер поменялись: текст — если теперь нужен, захват звука — если эквалайзер виден
     pub fn media_sync(&mut self) {
         self.lyrics_want();
-        media::viz_wanted(self.media_visible() && self.st.media.playing());
+        self.viz_sync();
         self.dirty_where(|k| matches!(k, SKind::Popup | SKind::Bar));
     }
 
@@ -1724,6 +1753,11 @@ pub struct Tm {
     pub min: u32,
     pub sec: u32,
     pub wday: u32,
+}
+
+/// секунды с 1970-го (метки кеша, возраст данных)
+pub fn unix_now() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
 pub fn local_now() -> Tm {

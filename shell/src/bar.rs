@@ -292,7 +292,8 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
         "net" => {
             // значок wi-fi или кабеля: точка рядом с треем читалась как ещё один его значок (#8)
             let off = !st.sys.online;
-            let wifi = st.net.active.iter().any(|a| a.1 == "wi-fi");
+            // по маршруту по умолчанию (sys.rs), а не по списку nmcli: тот есть, только пока открыта всплывашка
+            let wifi = st.sys.wifi;
             let w = if off { 14 + 6 + ui.w(PX, "нет сети") } else { 14 };
             if !measure {
                 let r = R::new(x - 2, 0, w + 4, H - 1);
@@ -675,11 +676,8 @@ impl App {
         }
     }
 
-    /// бар на этом экране: barOutputs пуст — везде; ни одного экрана из списка нет (ноутбук без
-    /// своего монитора) — тоже везде, иначе бара не осталось бы нигде
     pub fn bar_on(&self, out: &str) -> bool {
-        let l = &self.st.set.bar_outputs;
-        l.is_empty() || l.iter().any(|o| o == out) || !self.output_names().iter().any(|n| l.contains(n))
+        shown_on(&self.st.set.bar_outputs, &self.output_names(), out)
     }
 
     /// бары по barOutputs: лишние убрать, недостающие создать
@@ -709,4 +707,10 @@ impl App {
         let (ow, _) = self.output_size(out);
         geo(&self.st.set, ow).0 + H
     }
+}
+
+/// бар на экране out (barOutputs = list, present — экраны сейчас): список пуст — везде; ни одного
+/// экрана из списка нет (ноутбук без своего монитора) — тоже везде, иначе бара не осталось бы нигде
+pub fn shown_on(list: &[String], present: &[String], out: &str) -> bool {
+    list.is_empty() || list.iter().any(|o| o == out) || !present.iter().any(|n| list.contains(n))
 }

@@ -58,6 +58,8 @@ pub struct Sys {
     pub h_rx: Series,
     pub h_tx: Series,
     pub online: bool,
+    /// маршрут по умолчанию идёт через Wi-Fi (значок модуля `net`)
+    pub wifi: bool,
     prev_cpu: Option<(u64, u64)>,
     prev_net: Option<(u64, u64, std::time::Instant)>,
     temp_path: Option<String>,
@@ -165,14 +167,23 @@ fn find_temp() -> Option<String> {
     })
 }
 
-/// карта NVIDIA: файл её состояния питания (только у PCI-устройства, не у разъёмов cardN-…)
+/// число из строки «Ключ: N kB» файлов /proc (meminfo, status, smaps_rollup)
+pub fn kv_num(text: &str, key: &str) -> Option<f64> {
+    text.lines().find(|l| l.starts_with(key))?.split_whitespace().nth(1)?.parse().ok()
+}
+
+/// видеокарты: папки device у /sys/class/drm/cardN (разъёмы cardN-… — не карты)
+pub fn drm_cards() -> Vec<std::path::PathBuf> {
+    let Ok(rd) = fs::read_dir("/sys/class/drm") else { return vec![] };
+    rd.flatten()
+        .filter(|e| e.file_name().to_str().is_some_and(|n| n.starts_with("card") && !n.contains('-')))
+        .map(|e| e.path().join("device"))
+        .collect()
+}
+
+/// карта NVIDIA: файл её состояния питания
 fn find_nv_pm() -> Option<String> {
-    for e in fs::read_dir("/sys/class/drm").ok()?.flatten() {
-        let n = e.file_name().to_string_lossy().to_string();
-        if !n.starts_with("card") || n.contains('-') {
-            continue;
-        }
-        let d = e.path().join("device");
+    for d in drm_cards() {
         if fs::read_to_string(d.join("vendor")).unwrap_or_default().trim() == "0x10de" {
             let p = d.join("power/runtime_status");
             return p.exists().then(|| p.to_string_lossy().to_string());
@@ -208,6 +219,9 @@ impl Sys {
             .and_then(|l| l.split_whitespace().next())
             .map(String::from);
         self.online = iface.is_some();
+        if iface.as_deref().unwrap_or("") != self.iface {
+            self.wifi = iface.as_ref().is_some_and(|i| std::path::Path::new("/sys/class/net").join(i).join("wireless").exists());
+        }
         let t = fs::read_to_string("/proc/net/dev").ok()?;
         let (mut rx, mut tx) = (0u64, 0u64);
         for l in t.lines().skip(2) {
@@ -241,9 +255,7 @@ impl Sys {
             self.prev_cpu = Some((idle, total));
         }
         if let Ok(t) = fs::read_to_string("/proc/meminfo") {
-            let get = |k: &str| -> f64 {
-                t.lines().find(|l| l.starts_with(k)).and_then(|l| l.split_whitespace().nth(1)).and_then(|v| v.parse().ok()).unwrap_or(0.0)
-            };
+            let get = |k: &str| kv_num(&t, k).unwrap_or(0.0);
             let total = get("MemTotal:");
             let avail = get("MemAvailable:");
             if total > 0.0 {
@@ -387,6 +399,6 @@ pub fn rate(b: f64) -> String {
 /// своя память, МБ (настройки: «о шелле» и подпись слева): PSS — честная доля общих страниц,
 /// как её меряют в README; без smaps_rollup (старое ядро) — RSS
 pub fn self_mem_mb() -> f32 {
-    let get = |f: &str, k: &str| fs::read_to_string(f).ok().and_then(|t| t.lines().find(|l| l.starts_with(k)).and_then(|l| l.split_whitespace().nth(1)).and_then(|v| v.parse::<f32>().ok()));
-    get("/proc/self/smaps_rollup", "Pss:").or_else(|| get("/proc/self/status", "VmRSS:")).map(|kb| kb / 1024.0).unwrap_or(0.0)
+    let get = |f: &str, k: &str| fs::read_to_string(f).ok().and_then(|t| kv_num(&t, k));
+    get("/proc/self/smaps_rollup", "Pss:").or_else(|| get("/proc/self/status", "VmRSS:")).map(|kb| kb as f32 / 1024.0).unwrap_or(0.0)
 }

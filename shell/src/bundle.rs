@@ -353,6 +353,13 @@ fn theme_path(name: &str) -> Option<PathBuf> {
     (!n.is_empty()).then(|| themes_dir().join(format!("{n}.json")))
 }
 
+/// файл темы из библиотеки: карточка зовёт его по имени файла, а файл, положенный руками, может
+/// зваться иначе, чем дал бы theme_name («Nord (dark).json»): сначала как есть, потом очищенное
+fn theme_file(name: &str) -> Option<PathBuf> {
+    let raw = (!name.is_empty() && !name.contains('/') && !name.starts_with('.')).then(|| themes_dir().join(format!("{name}.json")));
+    raw.filter(|p| p.is_file()).or_else(|| theme_path(name).filter(|p| p.is_file()))
+}
+
 /// карточка темы для настроек: имя, цвет акцента, светлая ли, есть ли своя картинка
 #[derive(Clone, Debug)]
 pub struct Card {
@@ -364,12 +371,25 @@ pub struct Card {
 
 /// цвет акцента темы: свой (#rrggbb) или пресета палитры
 fn accent_of(s: &Value) -> u32 {
-    let own = s["accent"].as_str().map(|h| h.trim_start_matches('#')).filter(|h| h.len() == 6).and_then(|h| u32::from_str_radix(h, 16).ok());
+    let own = s["accent"].as_str().and_then(yami_px::theme::parse_hex);
     own.or_else(|| yami_px::theme::PRESETS.iter().find(|p| Some(p.id) == s["palette"].as_str()).map(|p| p.accent)).unwrap_or(yami_px::theme::PRESETS[0].accent)
 }
 
+/// что карточке нужно из файла темы: картинку обоев (base64, мегабайты) разбор пропускает, не собирая
+#[derive(serde::Deserialize)]
+struct Head {
+    #[serde(default)]
+    format: Value,
+    #[serde(default)]
+    kind: Value,
+    #[serde(default)]
+    settings: Value,
+    #[serde(default)]
+    wallpaper: Option<serde::de::IgnoredAny>,
+}
+
 /// сохранённые темы в естественном порядке имён (не больше 48). Файлы с картинкой весят мегабайты:
-/// шелл зовёт это из нити
+/// шелл зовёт это из нити, файл читается потоком, без копии в памяти
 pub fn cards() -> Vec<Card> {
     let Ok(rd) = std::fs::read_dir(themes_dir()) else { return vec![] };
     let mut v: Vec<Card> = rd
@@ -378,9 +398,11 @@ pub fn cards() -> Vec<Card> {
         .filter(|p| p.extension().is_some_and(|e| e == "json"))
         .filter_map(|p| {
             let name = p.file_stem()?.to_str()?.to_string();
-            let b = load(&p).ok().filter(|b| b["kind"] == "theme")?;
-            let s = &b["settings"];
-            Some(Card { name, accent: accent_of(s), light: s["light"].as_bool().unwrap_or(false), wall: b["wallpaper"].is_object() })
+            let f = std::fs::File::open(&p).ok().filter(|f| f.metadata().is_ok_and(|m| m.is_file() && m.len() <= MAX_FILE))?;
+            let b: Head = serde_json::from_reader(std::io::BufReader::new(f)).ok()?;
+            (b.format == FORMAT && b.kind == "theme").then_some(())?;
+            let s = &b.settings;
+            Some(Card { name, accent: accent_of(s), light: s["light"].as_bool().unwrap_or(false), wall: b.wallpaper.is_some() })
         })
         .collect();
     v.sort_by(|a, b| yami_px::paths::natural(&a.name.to_lowercase(), &b.name.to_lowercase()));
@@ -428,13 +450,13 @@ pub fn save(name: &str) -> Result<String, String> {
 }
 
 pub fn remove(name: &str) -> Result<(), String> {
-    let p = theme_path(name).filter(|p| p.is_file()).ok_or_else(|| crate::tf!("нет такой темы: {}", "no such theme: {}", name))?;
+    let p = theme_file(name).ok_or_else(|| crate::tf!("нет такой темы: {}", "no such theme: {}", name))?;
     std::fs::remove_file(p).map_err(|e| e.to_string())
 }
 
 /// применить тему из библиотеки (шелл: молча, ответ — ошибкой)
 pub fn apply(name: &str) -> Result<(), String> {
-    let p = theme_path(name).filter(|p| p.is_file()).ok_or_else(|| crate::tf!("нет такой темы: {}", "no such theme: {}", name))?;
+    let p = theme_file(name).ok_or_else(|| crate::tf!("нет такой темы: {}", "no such theme: {}", name))?;
     let b = load(&p)?;
     commit(&b, plan(&b, true, false), false, None).map(|_| ())
 }
@@ -447,9 +469,8 @@ fn fetch(url: &str) -> Result<Value, String> {
     }
     let dir = yami_px::paths::private_tmp("theme").map_err(|e| e.to_string())?;
     let out = dir.join("theme.json");
-    let ua = format!("yami/{} (https://github.com/Trendorin/yami)", env!("CARGO_PKG_VERSION"));
-    let ok = std::process::Command::new("curl")
-        .args(["-q", "-sfL", "--proto", "=https", "--proto-redir", "=https", "--max-redirs", "3", "--max-time", "30", "--max-filesize", &MAX_FILE.to_string(), "-A", &ua, "-o"])
+    let ok = crate::app::curl(30, MAX_FILE)
+        .args(["-fL", "--max-redirs", "3", "-o"])
         .arg(&out)
         .arg("--")
         .arg(url)
@@ -535,7 +556,7 @@ fn backup() -> Option<PathBuf> {
     std::fs::create_dir_all(&dir).ok()?;
     let mut b = bundle(false, false);
     b["restore"] = json!({ "wallpaper": settings_value().get("wallpaper").and_then(|w| w.as_str()).unwrap_or("") });
-    let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let stamp = crate::app::unix_now();
     // два импорта за секунду не затирают копию первого: номер — следующий за самым большим в эту
     // секунду, так копии по имени идут ровно в том порядке, в каком их сняли
     let n = std::fs::read_dir(&dir).ok()?.flatten().filter_map(|e| backup_key(&e.path())).filter(|k| k.0 == stamp).map(|k| k.1 + 1).max().unwrap_or(0);
@@ -557,6 +578,20 @@ fn safe_rel(rel: &str) -> bool {
 }
 
 /// `yami theme …`, `yami export …`, `yami import …`
+/// итог команды: ✓ и что сделано (0) или ✕ и почему (1)
+fn report(y: &Sty, r: Result<String, String>) -> i32 {
+    match r {
+        Ok(m) => {
+            println!(" {} {m}", y.ok("✓"));
+            0
+        }
+        Err(e) => {
+            eprintln!(" {} {e}", y.bad("✕"));
+            1
+        }
+    }
+}
+
 pub fn run(y: &Sty, cmd: &str, args: &[&str]) -> i32 {
     let flags = |f: &str| args.contains(&f);
     let file = args.iter().find(|a| !a.starts_with("--")).copied();
@@ -576,31 +611,9 @@ pub fn run(y: &Sty, cmd: &str, args: &[&str]) -> i32 {
             println!();
             return 0;
         }
-        "theme-save" => {
-            return match save(&name) {
-                Ok(n) => {
-                    println!(" {} {} → {}", y.ok("✓"), n, y.dim(&themes_dir().display().to_string()));
-                    0
-                }
-                Err(e) => {
-                    eprintln!(" {} {e}", y.bad("✕"));
-                    1
-                }
-            };
-        }
-        "theme-apply" | "theme-remove" if !name.is_empty() => {
-            let r = if cmd == "theme-apply" { apply(&name) } else { remove(&name) };
-            return match r {
-                Ok(()) => {
-                    println!(" {} {}", y.ok("✓"), if cmd == "theme-apply" { crate::tf!("{} — шелл перечитает сам", "{}: the shell reloads by itself", name) } else { crate::tf!("{} удалена", "{} removed", name) });
-                    0
-                }
-                Err(e) => {
-                    eprintln!(" {} {e}", y.bad("✕"));
-                    1
-                }
-            };
-        }
+        "theme-save" => return report(y, save(&name).map(|n| format!("{n} → {}", y.dim(&themes_dir().display().to_string())))),
+        "theme-apply" if !name.is_empty() => return report(y, apply(&name).map(|_| crate::tf!("{} — шелл перечитает сам", "{}: the shell reloads by itself", name))),
+        "theme-remove" if !name.is_empty() => return report(y, remove(&name).map(|_| crate::tf!("{} удалена", "{} removed", name))),
         _ => {}
     }
     // опечатка во флаге («--dryrun») не должна молча превратиться в настоящий импорт

@@ -43,14 +43,8 @@ fn gpu() -> Option<String> {
     if !dri.iter().any(|n| n.starts_with("renderD")) {
         return Some(crate::tf!("нет ускорения графики (отрисовка процессором)", "no graphics acceleration (the CPU draws)"));
     }
-    let Ok(rd) = std::fs::read_dir("/sys/class/drm") else { return None };
     let mut drivers = vec![];
-    for e in rd.flatten() {
-        let n = e.file_name().to_string_lossy().to_string();
-        if !n.starts_with("card") || n.contains('-') {
-            continue;
-        }
-        let dev = e.path().join("device");
+    for dev in crate::sys::drm_cards() {
         let drv = std::fs::read_link(dev.join("driver")).ok().and_then(|p| p.file_name().map(|f| f.to_string_lossy().to_string())).unwrap_or_default();
         let id = u32::from_str_radix(read(&dev.join("device").to_string_lossy()).trim_start_matches("0x"), 16).unwrap_or(0);
         if drv == "i915" && OLD_INTEL.contains(&id) {
@@ -64,7 +58,7 @@ fn gpu() -> Option<String> {
 
 /// мало памяти и ядер: 4 ГБ и два-четыре потока — старый ноутбук
 fn small() -> Option<String> {
-    let mem = read("/proc/meminfo").lines().find(|l| l.starts_with("MemTotal:")).and_then(|l| l.split_whitespace().nth(1)?.parse::<u64>().ok()).unwrap_or(u64::MAX);
+    let mem = crate::sys::kv_num(&read("/proc/meminfo"), "MemTotal:").map(|v| v as u64).unwrap_or(u64::MAX);
     let gb = (mem as f64 / 1048576.0).round() as u64;
     let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(8);
     (gb <= 4 && threads <= 4).then(|| crate::tf!("{} ГБ памяти, {} потока", "{} GB of memory, {} threads", gb, threads))

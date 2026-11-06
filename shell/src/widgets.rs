@@ -91,7 +91,7 @@ pub fn widget_menu(w: &Widget) -> Vec<MItem> {
         }
         "script" => {
             // скрипты — те же, что модули бара: ~/.config/yami/modules
-            let names: Vec<MItem> = crate::plugins::available().iter().map(|m| MItem::new(&m[2..], "", MAct::Widget(id, "source", m[2..].to_string())).check(m[2..] == w.source)).collect();
+            let names: Vec<MItem> = crate::plugins::scripts().into_iter().map(|n| MItem::new(&n, "", MAct::Widget(id, "source", n.clone())).check(n == w.source)).collect();
             if !names.is_empty() {
                 items.push(MItem::sub(&crate::tf!("скрипт: {}", "script: {}", if w.source.is_empty() { "—" } else { &w.source }), "term", names));
             }
@@ -119,7 +119,7 @@ pub fn widget_menu(w: &Widget) -> Vec<MItem> {
 fn weather(ui: &mut Ui, st: &State, w: &Widget, r: R, c: C) {
     let t = ui.t;
     let Some(wt) = crate::weather::ready(st) else {
-        let msg = if crate::weather::key(&st.set).is_empty() { crate::i18n::tr("погода: город — в настройках → службы → сеть").to_string() } else if !st.weather.err.is_empty() { st.weather.err.clone() } else { crate::i18n::tr("спрашиваю open-meteo.com…").to_string() };
+        let msg = crate::weather::status(st, "погода: город — в настройках → службы → сеть");
         ui.cv.icon("cloud", r.x, r.y + 2, 2, t.text_faint);
         ui.wrap(PX, R::new(r.x + 22, r.y, r.w - 22, r.h), &msg, t.text_faint, 3);
         return;
@@ -148,8 +148,7 @@ fn weather(ui: &mut Ui, st: &State, w: &Widget, r: R, c: C) {
     let cw = r.w / n as i32;
     for (i, d) in wt.days.iter().take(n).enumerate() {
         let b = R::new(r.x + i as i32 * cw, y, cw, 54);
-        let name = if i == 0 { "сегодня" } else { crate::weather::wday(&d.date).map(|k| crate::app::RU_DAY[k]).unwrap_or("?") };
-        ui.text_center(PX, R::new(b.x, b.y, b.w, 16), name, t.text_dim);
+        ui.text_center(PX, R::new(b.x, b.y, b.w, 16), crate::weather::day_name(i, d), t.text_dim);
         ui.cv.icon(crate::weather::icon(d.code, true), b.x + b.w / 2 - 7, b.y + 18, 2, c);
         ui.cv.text_center(ui.f, PX, R::new(b.x, b.y + 36, b.w, 16), &format!("{} {}", crate::weather::deg(d.hi), crate::weather::deg(d.lo)), t.text_faint);
     }
@@ -483,15 +482,11 @@ fn draw_widget(ui: &mut Ui, st: &State, w: &Widget, sw: i32, sh: i32) {
             let pad = if w.frame { 12 } else { 2 };
             calendar(ui, st, R::new(pad, pad, r.w - 2 * pad, r.h - 2 * pad), 0, c, false);
         }
-        "weather" => {
+        "weather" | "script" => {
             panel(ui, w, r);
             let pad = if w.frame { 12 } else { 4 };
-            weather(ui, st, w, R::new(pad, pad, r.w - 2 * pad, r.h - 2 * pad), c);
-        }
-        "script" => {
-            panel(ui, w, r);
-            let pad = if w.frame { 12 } else { 4 };
-            script(ui, st, w, R::new(pad, pad, r.w - 2 * pad, r.h - 2 * pad), c);
+            let f = if w.kind == "weather" { weather } else { script };
+            f(ui, st, w, R::new(pad, pad, r.w - 2 * pad, r.h - 2 * pad), c);
         }
         _ => {}
     }
@@ -526,14 +521,18 @@ pub fn media_card(ui: &mut Ui, st: &State, r: R, style: &str, c: C, label: bool,
     let art = st.art.get(&m.art).cloned().flatten();
     let side = (r.h - 30).clamp(32, 64);
     let mut x = r.x;
-    if !show_art {
-    } else if let Some(img) = &art {
-        ui.cv.image_scaled(img, R::new(r.x, r.y, side, side), 1.0);
-        ui.cv.outline(R::new(r.x, r.y, side, side), t.border, 1);
-        x += side + 10;
-    } else {
-        ui.cv.pxbox(R::new(r.x, r.y, side, side), &BoxStyle::new(t.surface, t.border));
-        ui.cv.icon_in("music", R::new(r.x, r.y, side, side), 3, t.dim);
+    if show_art {
+        let a = R::new(r.x, r.y, side, side);
+        match &art {
+            Some(img) => {
+                ui.cv.image_scaled(img, a, 1.0);
+                ui.cv.outline(a, t.border, 1);
+            }
+            None => {
+                ui.cv.pxbox(a, &BoxStyle::new(t.surface, t.border));
+                ui.cv.icon_in("music", a, 3, t.dim);
+            }
+        }
         x += side + 10;
     }
     let tw = r.right() - x;

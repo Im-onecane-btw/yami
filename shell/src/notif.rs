@@ -302,6 +302,17 @@ impl App {
         }
     }
 
+    /// место или отступ карточек (OSD) поменялись: поверхность — заново, якорь layer-shell на лету
+    /// не меняется
+    pub fn renew_notif(&mut self, kind: SKind) {
+        for id in self.find(&kind) {
+            self.destroy(id);
+        }
+        if kind == SKind::Notifs {
+            self.sync_notifs();
+        }
+    }
+
     pub fn sync_notifs(&mut self) {
         let empty = self.st.notifs.popups.is_empty() || self.st.locked;
         let ids = self.find(&SKind::Notifs);
@@ -344,24 +355,7 @@ impl App {
     }
 }
 
-/// места карточек уведомлений (notifPos), по кругу в настройках
-pub const POS: [&str; 6] = ["top-right", "top-left", "top", "bottom-right", "bottom-left", "bottom"];
-
-pub fn pos_name(p: &str) -> &'static str {
-    match p {
-        "top-left" => "слева сверху",
-        "top" => "сверху по центру",
-        "bottom-right" => "справа снизу",
-        "bottom-left" => "слева снизу",
-        "bottom" => "снизу по центру",
-        _ => "справа сверху",
-    }
-}
-
-pub fn osd_name(p: &str) -> &'static str {
-    match p {
-        "top" => "сверху",
-        "center" => "по центру",
-        _ => "снизу",
-    }
-}
+/// места карточек уведомлений (notifPos) и OSD (osdPos) по кругу в настройках: значение, подпись
+pub const POS: &[(&str, &str)] =
+    &[("top-right", "справа сверху"), ("top-left", "слева сверху"), ("top", "сверху по центру"), ("bottom-right", "справа снизу"), ("bottom-left", "слева снизу"), ("bottom", "снизу по центру")];
+pub const OSD_POS: &[(&str, &str)] = &[("bottom", "снизу"), ("top", "сверху"), ("center", "по центру")];

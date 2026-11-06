@@ -60,13 +60,18 @@ pub fn name_ok(n: &str) -> bool {
 
 /// исполняемые файлы в папке модулей → id модулей `x:<имя>`
 pub fn available() -> Vec<String> {
+    scripts().into_iter().map(|n| format!("x:{n}")).collect()
+}
+
+/// имена скриптов в ~/.config/yami/modules (исполняемые файлы), по алфавиту: для виджета «скрипт»
+pub fn scripts() -> Vec<String> {
     use std::os::unix::fs::PermissionsExt;
     let mut v: Vec<String> = std::fs::read_dir(dir())
         .map(|rd| {
             rd.flatten()
                 .filter(|e| e.metadata().map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0).unwrap_or(false))
-                .filter_map(|e| e.file_name().to_str().map(|n| format!("x:{n}")))
-                .filter(|n| name_ok(&n[2..]))
+                .filter_map(|e| e.file_name().to_str().map(str::to_string))
+                .filter(|n| name_ok(n))
                 .collect()
         })
         .unwrap_or_default();

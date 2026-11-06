@@ -129,13 +129,7 @@ fn weather(ui: &mut Ui, st: &State, b: R) {
     let mut y = head(ui, b, "cloud", "погода", "");
     let Some(w) = crate::weather::ready(st) else {
         // города нет, ответа ещё нет или ошибка
-        let msg = if crate::weather::key(&st.set).is_empty() {
-            crate::i18n::tr("город — в настройках → службы → сеть").to_string()
-        } else if !st.weather.err.is_empty() {
-            st.weather.err.clone()
-        } else {
-            crate::i18n::tr("спрашиваю open-meteo.com…").to_string()
-        };
+        let msg = crate::weather::status(st, "город — в настройках → службы → сеть");
         ui.wrap(PX, R::new(b.x, y, b.w, 40), &msg, if st.weather.err.is_empty() { t.text_dim } else { t.ember }, 2);
         return;
     };
@@ -162,15 +156,14 @@ fn weather(ui: &mut Ui, st: &State, b: R) {
         let cw = b.w / w.days.len() as i32;
         for (i, d) in w.days.iter().enumerate() {
             let c = R::new(b.x + i as i32 * cw, y, cw, 60);
-            let name = if i == 0 { "сегодня" } else { crate::weather::wday(&d.date).map(|k| crate::app::RU_DAY[k]).unwrap_or("?") };
-            ui.text_center(PX, R::new(c.x, c.y, c.w, 16), name, if i == 0 { t.text } else { t.text_dim });
+            ui.text_center(PX, R::new(c.x, c.y, c.w, 16), crate::weather::day_name(i, d), if i == 0 { t.text } else { t.text_dim });
             ui.cv.icon(crate::weather::icon(d.code, true), c.x + c.w / 2 - 7, c.y + 22, 2, t.red);
             let hl = format!("{} {}", crate::weather::deg(d.hi), crate::weather::deg(d.lo));
             ui.cv.text_center(ui.f, PX, R::new(c.x, c.y + 42, c.w, 16), &hl, t.text_dim);
         }
         y += 68;
     }
-    let age = (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0).saturating_sub(w.at) / 60) as i32;
+    let age = (crate::app::unix_now().saturating_sub(w.at) / 60) as i32;
     let foot = if !st.weather.err.is_empty() { st.weather.err.clone() } else { crate::tf!("open-meteo.com · {} мин назад", "open-meteo.com · {} min ago", age) };
     ui.cv.text_in(ui.f, PX, R::new(b.x, y, b.w, 18), &foot, if st.weather.err.is_empty() { t.text_faint } else { t.ember });
 }

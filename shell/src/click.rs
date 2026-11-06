@@ -291,11 +291,11 @@ impl App {
     /// первая найденная графическая программа, иначе текстовая в терминале: на чистой системе
     /// nm-connection-editor и blueman часто не стоят, а nmtui и bluetoothctl идут с сервисами
     fn open_tool(gui: &[&str], tui: &[&str]) -> bool {
-        if let Some(g) = gui.iter().find(|b| which(b)) {
+        if let Some(g) = gui.iter().find(|b| crate::doctor::which(b)) {
             App::spawn(&[g.to_string()]);
             return true;
         }
-        let Some(bin) = tui.iter().find(|b| which(b)) else { return false };
+        let Some(bin) = tui.iter().find(|b| crate::doctor::which(b)) else { return false };
         let term = crate::launcher::term();
         let mut v = vec![term.clone()];
         if !term.ends_with("kitty") {
@@ -313,6 +313,3 @@ impl App {
     }
 }
 
-pub fn which(bin: &str) -> bool {
-    std::env::var("PATH").unwrap_or_default().split(':').any(|d| std::path::Path::new(d).join(bin).is_file())
-}

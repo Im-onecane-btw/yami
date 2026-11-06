@@ -37,11 +37,7 @@ const DEPS: &[(&str, &str, &str, bool)] = &[
 ];
 
 pub fn which(c: &str) -> bool {
-    std::env::var_os("PATH").map(|p| std::env::split_paths(&p).any(|d| is_exec(&d.join(c)))).unwrap_or(false)
-}
-fn is_exec(p: &Path) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::metadata(p).map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0).unwrap_or(false)
+    yami_px::paths::find_exe(c).is_some()
 }
 
 /// сам шелл: yami-shell (или yami) без команды либо с `run`; `yami update apply` и прочие команды
@@ -60,7 +56,7 @@ fn shell_pids() -> Vec<u32> {
 }
 
 fn pss_mb(pid: u32) -> f32 {
-    std::fs::read_to_string(format!("/proc/{pid}/smaps_rollup")).ok().and_then(|t| t.lines().find(|l| l.starts_with("Pss:"))?.split_whitespace().nth(1)?.parse::<f32>().ok()).map(|k| k / 1024.0).unwrap_or(0.0)
+    std::fs::read_to_string(format!("/proc/{pid}/smaps_rollup")).ok().and_then(|t| crate::sys::kv_num(&t, "Pss:")).map(|k| k as f32 / 1024.0).unwrap_or(0.0)
 }
 
 /// кто держит имя на шине: имя процесса или None

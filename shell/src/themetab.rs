@@ -27,7 +27,7 @@ pub fn tab(ui: &mut Ui, st: &State, b: R, head_w: i32) {
         ui.zone(r, Act::STheme(i), Cur::Pointer);
         // образец: акцент на фоне своей темы (светлый или тёмный)
         let sw = R::new(r.x + 8, r.y + 8, r.w - 16, 22);
-        let bg = if c.light { C::hex(0xe8e2dc) } else { C::hex(0x171414) };
+        let bg = yami_px::theme::Theme::new(c.accent, 1.0, 1.0, 0.0, 1.0, c.light).panel;
         let ac = C(0xff000000 | c.accent);
         ui.cv.pxbox(sw, &BoxStyle::new(bg, t.border).bevel(true));
         ui.cv.fill(R::new(sw.x + 4, sw.y + 4, sw.w / 2 - 4, sw.h - 8), ac);
@@ -70,6 +70,8 @@ impl App {
                 _ => Ok(String::new()),
             };
             let _ = tx.send(Msg::Themes(crate::bundle::cards(), r.unwrap_or_else(|e| e), op == "apply"));
+            // тема с картинкой — мегабайты JSON: куча шелла не должна их держать
+            yami_px::trim_heap();
         });
     }
 

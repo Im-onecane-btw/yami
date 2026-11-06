@@ -207,43 +207,46 @@ pub fn spawn(tx: Sender<Msg>) {
     let tx2 = tx.clone();
     std::thread::Builder::new()
         .name("audio".into())
-        .spawn(move || loop {
-            let t0 = std::time::Instant::now();
-            let mut last = query();
-            let _ = tx2.send(Msg::Audio(last.clone()));
-            let Ok(mut c) = crate::app::owned(Command::new("pactl").arg("subscribe").stdout(Stdio::piped()).stderr(Stdio::null())).spawn() else {
-                std::thread::sleep(std::time::Duration::from_secs(30));
-                continue;
-            };
-            let out = c.stdout.take().unwrap();
-            let (ltx, lrx) = mpsc::channel::<u8>();
-            std::thread::spawn(move || {
-                for l in BufReader::new(out).lines() {
-                    let Ok(l) = l else { break };
-                    let f = facility(&l);
-                    if f != 0 {
-                        let _ = ltx.send(f);
+        .spawn(move || {
+            // пауза перед новым pactl: 2 с, а если он раз за разом сразу выходит (звукового сервера
+            // нет) — вдвое дольше, до 30 с. Сервер, поднявшийся чуть позже шелла, подхватится быстро
+            let mut wait = 2u64;
+            loop {
+                let t0 = std::time::Instant::now();
+                let mut last = query();
+                let _ = tx2.send(Msg::Audio(last.clone()));
+                let Ok(mut c) = crate::app::owned(Command::new("pactl").arg("subscribe").stdout(Stdio::piped()).stderr(Stdio::null())).spawn() else {
+                    std::thread::sleep(std::time::Duration::from_secs(30));
+                    continue;
+                };
+                let out = c.stdout.take().unwrap();
+                let (ltx, lrx) = mpsc::channel::<u8>();
+                std::thread::spawn(move || {
+                    for l in BufReader::new(out).lines() {
+                        let Ok(l) = l else { break };
+                        let f = facility(&l);
+                        if f != 0 {
+                            let _ = ltx.send(f);
+                        }
+                    }
+                });
+                while let Ok(mut what) = lrx.recv() {
+                    // пачка событий → один запрос того, что в ней задето
+                    std::thread::sleep(std::time::Duration::from_millis(40));
+                    while let Ok(f) = lrx.try_recv() {
+                        what |= f;
+                    }
+                    let a = refresh(last.clone(), what);
+                    if a != last {
+                        last = a.clone();
+                        let _ = tx2.send(Msg::Audio(a));
                     }
                 }
-            });
-            while let Ok(mut what) = lrx.recv() {
-                // пачка событий → один запрос того, что в ней задето
-                std::thread::sleep(std::time::Duration::from_millis(40));
-                while let Ok(f) = lrx.try_recv() {
-                    what |= f;
-                }
-                let a = refresh(last.clone(), what);
-                if a != last {
-                    last = a.clone();
-                    let _ = tx2.send(Msg::Audio(a));
-                }
+                let _ = c.kill();
+                let _ = c.wait();
+                wait = if t0.elapsed().as_secs() < 10 { (wait * 2).min(30) } else { 2 };
+                std::thread::sleep(std::time::Duration::from_secs(wait));
             }
-            let _ = c.kill();
-            let _ = c.wait();
-            // звукового сервера нет (сеанс без PipeWire): pactl сразу выходит — не дёргать его
-            // каждые две секунды, а ждать дольше, чем жил прошлый раз
-            let lived = t0.elapsed().as_secs();
-            std::thread::sleep(std::time::Duration::from_secs(if lived < 10 { 30 } else { 2 }));
         })
         .ok();
     viz_thread(tx);

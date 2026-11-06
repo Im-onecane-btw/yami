@@ -310,8 +310,7 @@ impl App {
         self.st.snap = Some(sn);
         // мгновенный режим: снимок экрана — без оверлея, сразу в буфер и/или в папку
         if mode == Mode::Screen && self.st.set.shot_confirm == "instant" {
-            let (c, s) = (self.st.set.shot_copy, self.st.set.shot_save);
-            self.snap_finish(c, s || !c, false);
+            self.snap_done();
             self.snap_close();
             return;
         }
@@ -475,8 +474,7 @@ impl App {
                 }
                 // мгновенный режим: выделил (протянул или щёлкнул по окну) — снимок готов
                 if picked && sn.sel.is_some() && self.st.set.shot_confirm == "instant" {
-                    let (c, s) = (self.st.set.shot_copy, self.st.set.shot_save);
-                    self.snap_finish(c, s || !c, false);
+                    self.snap_done();
                 }
                 true
             }
@@ -529,8 +527,7 @@ impl App {
                 }
                 "copy" => self.snap_finish(true, false, false),
                 "save" => {
-                    let (c, s) = (self.st.set.shot_copy, self.st.set.shot_save);
-                    self.snap_finish(c, s || !c, false);
+                    self.snap_done();
                 }
                 "saveas" => self.snap_finish(false, false, true),
                 "ocr" | "qr" => self.snap_read(a == "qr"),
@@ -575,8 +572,7 @@ impl App {
                         return;
                     }
                 }
-                let (c, s) = (self.st.set.shot_copy, self.st.set.shot_save);
-                self.snap_finish(c, s || !c, false);
+                self.snap_done();
                 return;
             }
             Keysym::Left | Keysym::Right | Keysym::Up | Keysym::Down => {
@@ -744,6 +740,12 @@ impl App {
             }
             None => self.toast_note(title, if qr { "QR-код не найден" } else { "текст не распознан" }),
         }
+    }
+
+    /// готово по настройкам: копировать и/или сохранить (без копирования — всегда сохранить)
+    fn snap_done(&mut self) {
+        let (c, s) = (self.st.set.shot_copy, self.st.set.shot_save);
+        self.snap_finish(c, s || !c, false);
     }
 
     /// готово: copy — в буфер, save — в папку, ask — спросить место диалогом yami-files

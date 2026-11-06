@@ -30,6 +30,8 @@ pub struct Out {
     pub modes: Vec<Mode>,
     pub mode: usize,
     pub on: bool,
+    /// включён в niri сейчас (on — с правками до «применить»): бар есть только на таких
+    pub live: bool,
     pub x: i32,
     pub y: i32,
     pub scale: f64,
@@ -125,6 +127,7 @@ pub fn load() -> Vec<Out> {
                 mode: cur.or_else(|| modes.iter().position(|m| m.pref)).unwrap_or(0),
                 modes,
                 on: cur.is_some() && lg.is_some(),
+                live: cur.is_some() && lg.is_some(),
                 x: n("x").unwrap_or(0.0) as i32,
                 y: n("y").unwrap_or(0.0) as i32,
                 scale: n("scale").unwrap_or(1.0),
@@ -242,7 +245,9 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     y += 34;
     ui.toggle(R::new(b.x, y, half, 26), "включён", "", o.on, Act::Disp("on"));
     // бар — сразу, без «применить»: это настройка шелла, а не niri (#8)
-    let bar = st.set.bar_outputs.is_empty() || st.set.bar_outputs.contains(&o.name) || !d.outs.iter().any(|x| st.set.bar_outputs.contains(&x.name));
+    // по экранам, что включены в niri сейчас (выключенный бар не держит)
+    let live = live_names(&d.outs);
+    let bar = crate::bar::shown_on(&st.set.bar_outputs, &live, &o.name);
     if o.vrr_ok {
         let v = ["выкл", "всегда", "в играх"][o.vrr.min(2) as usize];
         crate::settings::opt_btn(ui, R::new(b.x + half + 12, y, half, 26), "VRR", v, Act::Disp("vrr"));
@@ -250,7 +255,7 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
         ui.text_in(PX, R::new(b.x + half + 38, y + 2, half - 26, 20), "VRR не поддерживается", t.text_faint);
     }
     y += 30;
-    if d.outs.len() > 1 {
+    if o.live && live.len() > 1 {
         ui.toggle(R::new(b.x, y, half, 26), "бар на этом экране", "", bar, Act::Disp("bar"));
         y += 30;
     }
@@ -274,10 +279,13 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     }
 }
 
+fn live_names(outs: &[Out]) -> Vec<String> {
+    outs.iter().filter(|o| o.live).map(|o| o.name.clone()).collect()
+}
+
 /// новый barOutputs после щелчка по экрану name (all — экраны сейчас); None — не меняется
 fn bar_toggle(all: &[String], list: &[String], name: &str) -> Option<Vec<String>> {
-    let any = all.iter().any(|x| list.contains(x));
-    let mut on: Vec<String> = all.iter().filter(|n| list.is_empty() || list.contains(n) || !any).cloned().collect();
+    let mut on: Vec<String> = all.iter().filter(|n| crate::bar::shown_on(list, all, n)).cloned().collect();
     if on.iter().any(|n| n == name) {
         if on.len() == 1 {
             return None;
@@ -293,9 +301,9 @@ impl App {
     /// бар на экране i: вкл/выкл. Список хранит экраны с баром; все — пустой список.
     /// Последний бар не убирается: без экранов из списка он и так вернулся бы на все
     fn disp_bar(&mut self, i: usize) {
-        let all: Vec<String> = self.st.disp.outs.iter().map(|o| o.name.clone()).collect();
-        let Some(name) = all.get(i) else { return };
-        if let Some(l) = bar_toggle(&all, &self.st.set.bar_outputs, name) {
+        let all = live_names(&self.st.disp.outs);
+        let Some(name) = self.st.disp.outs.get(i).map(|o| o.name.clone()).filter(|n| all.contains(n)) else { return };
+        if let Some(l) = bar_toggle(&all, &self.st.set.bar_outputs, &name) {
             self.st.set.bar_outputs = l;
             self.settings_changed();
         }
@@ -491,8 +499,8 @@ impl App {
 pub fn mock() -> Vec<Out> {
     let m = |w, h, mhz, pref| Mode { w, h, mhz, pref };
     vec![
-        Out { name: "DP-1".into(), desc: "Monitor 27 QHD".into(), mm: (530, 300), modes: vec![m(2560, 1440, 165000, true), m(2560, 1440, 60000, false), m(1920, 1080, 144001, false)], mode: 0, on: true, x: 0, y: 0, scale: 1.0, transform: "normal".into(), vrr_ok: true, vrr: 2 },
-        Out { name: "HDMI-A-1".into(), desc: "Dell P2419H".into(), mm: (527, 296), modes: vec![m(1920, 1080, 60000, true)], mode: 0, on: true, x: 2560, y: 180, scale: 1.25, transform: "normal".into(), vrr_ok: false, vrr: 0 },
+        Out { name: "DP-1".into(), desc: "Monitor 27 QHD".into(), mm: (530, 300), modes: vec![m(2560, 1440, 165000, true), m(2560, 1440, 60000, false), m(1920, 1080, 144001, false)], mode: 0, on: true, live: true, x: 0, y: 0, scale: 1.0, transform: "normal".into(), vrr_ok: true, vrr: 2 },
+        Out { name: "HDMI-A-1".into(), desc: "Dell P2419H".into(), mm: (527, 296), modes: vec![m(1920, 1080, 60000, true)], mode: 0, on: true, live: true, x: 2560, y: 180, scale: 1.25, transform: "normal".into(), vrr_ok: false, vrr: 0 },
     ]
 }
 

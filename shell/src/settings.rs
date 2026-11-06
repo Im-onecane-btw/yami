@@ -259,7 +259,7 @@ pub(crate) fn tab_widgets(ui: &mut Ui, st: &State, b: R) {
             // имя файла — как есть, не переводится
             opt_btn(ui, R::new(px, y, pw, 26), "скрипт", if w.source.is_empty() { "—" } else { &w.source }, Act::SWidgetOpt(id, "source"));
             y += 30;
-            if crate::plugins::available().is_empty() {
+            if crate::plugins::scripts().is_empty() {
                 ui.wrap(crate::font::PX, R::new(px, y, pw, 40), "положи исполняемый скрипт в ~/.config/yami/modules (как модуль бара)", t.text_faint, 2);
                 y += 40;
             }
@@ -372,8 +372,8 @@ pub(crate) fn tab_system(ui: &mut Ui, st: &State, b: R) {
     ui.toggle(R::new(lx, y, half, 40), "не беспокоить", "только срочные", s.dnd, Act::SBool("dnd"));
     ui.slider(R::new(rx, y, half, 40), "сколько висит", (s.notif_timeout as f32 - 2.0) / 28.0, &crate::tf!("{} с", "{} s", s.notif_timeout), 12, Act::SSlider("notif_timeout", 2.0, 30.0, 14));
     y += 48;
-    opt_btn(ui, R::new(lx, y, half, 26), "место", crate::notif::pos_name(&s.notif_pos), Act::SCycle("notif_pos"));
-    opt_btn(ui, R::new(rx, y, half, 26), "громкость и яркость", crate::notif::osd_name(&s.osd_pos), Act::SCycle("osd_pos"));
+    opt_btn(ui, R::new(lx, y, half, 26), "место", crate::widgets::name_of(crate::notif::POS, &s.notif_pos), Act::SCycle("notif_pos"));
+    opt_btn(ui, R::new(rx, y, half, 26), "громкость и яркость", crate::widgets::name_of(crate::notif::OSD_POS, &s.osd_pos), Act::SCycle("osd_pos"));
     y += 32;
     num_btn(ui, R::new(lx, y, half, 26), "от края", s.num("notif_offset"), "notif_offset");
     if s.osd_pos != "center" {
@@ -681,15 +681,13 @@ impl App {
             }
             Act::SNum(k, d) => {
                 s.step_num(k, *d);
-                // отступы уведомлений и OSD: поверхность создаётся заново на новом месте
-                if matches!(*k, "notif_offset" | "osd_offset") {
-                    let kind = if *k == "osd_offset" { SKind::Osd } else { SKind::Notifs };
-                    for id in self.find(&kind) {
-                        self.destroy(id);
-                    }
-                }
                 self.settings_changed();
-                self.sync_notifs();
+                // отступы уведомлений и OSD: поверхность создаётся заново на новом месте
+                match *k {
+                    "notif_offset" => self.renew_notif(SKind::Notifs),
+                    "osd_offset" => self.renew_notif(SKind::Osd),
+                    _ => {}
+                }
             }
             Act::SBool(k) => {
                 match *k {
@@ -795,29 +793,20 @@ impl App {
                     self.settings_changed();
                 }
                 "notif_pos" => {
-                    s.notif_pos = cycle(&crate::notif::POS.map(|p| (p, "")), &s.notif_pos).into();
-                    // карточки — на новое место сразу
-                    for id in self.find(&SKind::Notifs) {
-                        self.destroy(id);
-                    }
-                    self.sync_notifs();
+                    s.notif_pos = cycle(crate::notif::POS, &s.notif_pos).into();
                     self.settings_changed();
+                    self.renew_notif(SKind::Notifs);
                 }
                 "osd_pos" => {
-                    s.osd_pos = cycle(&[("bottom", ""), ("top", ""), ("center", "")], &s.osd_pos).into();
-                    for id in self.find(&SKind::Osd) {
-                        self.destroy(id);
-                    }
+                    s.osd_pos = cycle(crate::notif::OSD_POS, &s.osd_pos).into();
                     self.settings_changed();
+                    self.renew_notif(SKind::Osd);
                 }
                 "shot_confirm" => {
                     s.shot_confirm = if s.shot_confirm == "instant" { "space" } else { "instant" }.into();
                     self.settings_changed();
                 }
-                "media_view" => {
-                    s.media_view = cycle(crate::config::MEDIA_VIEWS, &s.media_view).into();
-                    self.media_sync();
-                }
+                "media_view" => self.media_view_next(),
                 "media_viz" => {
                     let mut l = crate::widgets::STYLES.to_vec();
                     l.push(("off", "выкл"));
@@ -1064,7 +1053,7 @@ impl App {
                 }
                 // скрипт — первый из папки модулей
                 if *k == "script" {
-                    w.source = crate::plugins::available().first().map(|m| m[2..].to_string()).unwrap_or_default();
+                    w.source = crate::plugins::scripts().into_iter().next().unwrap_or_default();
                 }
                 s.widgets.push(w);
                 self.st.sel_widget = id;
@@ -1079,7 +1068,7 @@ impl App {
                 if let Some(w) = s.widget_mut(*id) {
                     let v = match *key {
                         "source" if w.kind == "script" => {
-                            let v: Vec<String> = crate::plugins::available().iter().map(|m| m[2..].to_string()).collect();
+                            let v = crate::plugins::scripts();
                             v.iter().position(|n| *n == w.source).map(|i| v[(i + 1) % v.len()].clone()).or_else(|| v.first().cloned()).unwrap_or_default()
                         }
                         "source" => cycle(SOURCES, &w.source).to_string(),

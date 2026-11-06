@@ -102,8 +102,8 @@ on() {
 off() {
   rm -f -- "$DROPIN" "$UNITS/dark-niri.conf"
   # rules only the fork knows would break the packaged niri's config (it would start with its
-  # default config, without the shell): the same edit as session.sh's fallback, the shell rewrites
-  # the file for the running niri anyway
+  # default config, without the shell): the same edit as session.sh's fallback; a running shell
+  # keeps them out too from now on (it checks the link below before each write: niri::config_level)
   local fx="${XDG_CONFIG_HOME:-$HOME/.config}/niri/yami-fx.kdl"
   [[ -f $fx ]] && sed -i '/allow-tearing/d; /show-only-in/d; s/hide-from /block-out-from /' "$fx"
   [[ "$(readlink "$LINK" 2>/dev/null)" == "$LIB"/* ]] && rm -f -- "$LINK"

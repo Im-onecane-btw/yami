@@ -23,11 +23,10 @@ pub fn portals_conf(s: &Settings) -> String {
 /// переписать, если файла нет или он наш; свой (без «# yami:») — не трогаем
 pub fn write_portals(s: &Settings) {
     let p = crate::config::config_dir().join("xdg-desktop-portal/niri-portals.conf");
-    // каждое изменение настроек (и каждый шаг ползунка) зовёт сюда: пишем, только если текст другой
-    let cur = std::fs::read_to_string(&p).ok();
-    let text = portals_conf(s);
-    if cur.as_deref().map(|t| t.starts_with("# yami:") && t != text).unwrap_or(true) {
-        let _ = crate::config::write_atomic(&p, &text);
+    // файл без нашей метки — свой у человека, не трогаем; тот же текст write_atomic не пишет (а зовут
+    // сюда каждое изменение настроек, каждый шаг ползунка)
+    if std::fs::read_to_string(&p).map_or(true, |t| t.starts_with("# yami:")) {
+        let _ = crate::config::write_atomic(&p, &portals_conf(s));
     }
 }
 
@@ -90,8 +89,8 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     ui.toggle(R::new(x2, y, half, 40), "выбор экрана для трансляций", "выкл — окно GNOME", s.portal_cast, Act::SBool("portal_cast"));
     y += 46;
     y = title(ui, b.x, y, b.w, "сеть");
-    ui.toggle(R::new(b.x, y, half, 40), "обложки музыки из сети", "по ссылкам плеера; выкл — только файлы на диске", s.media_art_net, Act::SBool("media_art_net"));
-    ui.toggle(R::new(x2, y, half, 40), "тексты песен из сети", "lrclib.net; выкл — от плеера и файлы .lrc", s.lyrics_net, Act::SBool("lyrics_net"));
+    ui.toggle(R::new(b.x, y, half, 40), "обложки музыки из сети", "ссылки плеера; выкл — с диска", s.media_art_net, Act::SBool("media_art_net"));
+    ui.toggle(R::new(x2, y, half, 40), "тексты песен из сети", "lrclib.net; выкл — плеер и .lrc", s.lyrics_net, Act::SBool("lyrics_net"));
     y += 44;
     // погода (#6): город или координаты для open-meteo.com, единицы
     let gf = st.field_focus == Some("weather_city");

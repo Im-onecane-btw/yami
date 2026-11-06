@@ -200,16 +200,16 @@ impl App {
             Some(Act::TSize(id)) => by_grip = Some(*id),
             _ => {}
         }
-        self.place(SKind::Title, titles, by_title);
-        self.place(SKind::Grip, grips, by_grip);
+        self.place(true, titles, by_title);
+        self.place(false, grips, by_grip);
         let live: Vec<u64> = self.surfs.values().filter_map(|s| if let SKind::Title(id) | SKind::Grip(id) = s.kind { Some(id) } else { None }).collect();
         self.st.titles.retain(|id, _| live.contains(id));
     }
 
     /// поставить поверхности одного вида (заголовки или ручки) по списку: лишние убрать сразу
     /// (окно ушло — его украшения тоже), новые создать, остальные сдвинуть
-    fn place(&mut self, kind: fn(u64) -> SKind, want: Vec<Want>, held: Option<u64>) {
-        let is_title = matches!(kind(0), SKind::Title(_));
+    fn place(&mut self, is_title: bool, want: Vec<Want>, held: Option<u64>) {
+        let kind: fn(u64) -> SKind = if is_title { SKind::Title } else { SKind::Grip };
         let have: Vec<(u32, u64)> = self
             .surfs
             .iter()
@@ -247,11 +247,13 @@ impl App {
                 Some(sid) => {
                     self.move_surface(sid, r.x, r.y);
                     if let Some(s) = self.surfs.get_mut(&sid) {
+                        // новый размер — коммитом (niri ответит configure); область ввода и картинку
+                        // применит отрисовка, а кадр, равный прошлому, она и не отправит
                         if s.w != r.w {
                             s.layer.set_size(r.w as u32, r.h as u32);
+                            s.layer.commit();
                         }
                         s.input = Some(w.vis);
-                        s.layer.commit();
                         s.dirty = true;
                     }
                 }
@@ -266,50 +268,49 @@ impl App {
         // не меньше MIN_W×MIN_H: угол не левее и не выше этого
         let dx = dx.round().max((x0.round() as i32 + MIN_W - GRIP_IN - start.0) as f64);
         let dy = dy.round().max((y0.round() as i32 + MIN_H - GRIP_IN - start.1) as f64);
-        let sent = self.tdrag.filter(|t| t.0 == win).map(|t| t.1).unwrap_or((0.0, 0.0));
-        let (mx, my) = ((dx - sent.0) as i32, (dy - sent.1) as i32);
-        if mx == 0 && my == 0 {
-            return;
+        let Some((mx, my)) = self.drag_step(win, dx, dy) else { return };
+        if mx != 0.0 {
+            self.st.niri.act(json!({"SetWindowWidth": {"id": win, "change": {"AdjustFixed": mx as i32}}}));
         }
-        self.tdrag = Some((win, (dx, dy)));
-        if mx != 0 {
-            self.st.niri.act(json!({"SetWindowWidth": {"id": win, "change": {"AdjustFixed": mx}}}));
+        if my != 0.0 {
+            self.st.niri.act(json!({"SetWindowHeight": {"id": win, "change": {"AdjustFixed": my as i32}}}));
         }
-        if my != 0 {
-            self.st.niri.act(json!({"SetWindowHeight": {"id": win, "change": {"AdjustFixed": my}}}));
-        }
-        if let Some(s) = self.surfs.get_mut(&sid) {
-            if s.input.is_some() {
-                s.input = None;
-                s.dirty = true;
-            }
-        }
-        self.move_surface(sid, start.0 + dx as i32, start.1 + dy as i32);
+        self.drag_follow(sid, start.0 + dx as i32, start.1 + dy as i32);
         if let Some(g) = self.st.titles.get_mut(&win) {
             g.grip_covered.clear();
         }
     }
 
-    /// тащим заголовок: окно едет на ту же разницу (niri: смещение относительно текущего)
-    pub fn title_drag(&mut self, win: u64, sid: u32, start: (i32, i32), dx: f64, dy: f64) {
-        let (dx, dy) = (dx.round(), dy.round());
+    /// шаг перетаскивания заголовка или ручки: сколько добавить к уже посланному niri (None — не
+    /// сдвинулось ни на пиксель)
+    fn drag_step(&mut self, win: u64, dx: f64, dy: f64) -> Option<(f64, f64)> {
         let sent = self.tdrag.filter(|t| t.0 == win).map(|t| t.1).unwrap_or((0.0, 0.0));
         let (mx, my) = (dx - sent.0, dy - sent.1);
         if mx == 0.0 && my == 0.0 {
-            return;
+            return None;
         }
         self.tdrag = Some((win, (dx, dy)));
-        self.st.niri.act(json!({"MoveFloatingWindow": {"id": win, "x": {"AdjustFixed": mx}, "y": {"AdjustFixed": my}}}));
-        // заголовок едет сразу, не дожидаясь niri
-        let (nx, ny) = (start.0 + dx as i32, (start.1 + dy as i32).max(0));
+        Some((mx, my))
+    }
+
+    /// поверхность едет за мышью сразу, не дожидаясь niri; пока тащим, ловит клики всей площадью
+    /// (куски под чужими окнами — тоже)
+    fn drag_follow(&mut self, sid: u32, x: i32, y: i32) {
         if let Some(s) = self.surfs.get_mut(&sid) {
-            // пока тащим, ловим клики всей полосой (куски под чужими окнами — тоже)
             if s.input.is_some() {
                 s.input = None;
                 s.dirty = true;
             }
         }
-        self.move_surface(sid, nx, ny);
+        self.move_surface(sid, x, y);
+    }
+
+    /// тащим заголовок: окно едет на ту же разницу (niri: смещение относительно текущего)
+    pub fn title_drag(&mut self, win: u64, sid: u32, start: (i32, i32), dx: f64, dy: f64) {
+        let (dx, dy) = (dx.round(), dy.round());
+        let Some((mx, my)) = self.drag_step(win, dx, dy) else { return };
+        self.st.niri.act(json!({"MoveFloatingWindow": {"id": win, "x": {"AdjustFixed": mx}, "y": {"AdjustFixed": my}}}));
+        self.drag_follow(sid, start.0 + dx as i32, (start.1 + dy as i32).max(0));
         if let Some(g) = self.st.titles.get_mut(&win) {
             g.covered.clear();
         }

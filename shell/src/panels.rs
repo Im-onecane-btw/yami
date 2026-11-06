@@ -4,7 +4,7 @@
 use crate::app::*;
 use crate::gfx::R;
 use crate::icons::{self};
-use crate::{launcher, media, menu, net, popups};
+use crate::{launcher, menu, net, popups};
 
 use smithay_client_toolkit::{
     shell::{
@@ -128,11 +128,16 @@ impl App {
         if self.st.modal == Some(Modal::Walls) {
             self.walls_free();
         }
+        // код настроек и выбора обоев велик, а нужен изредка: через полминуты — из памяти. После
+        // лаунчера и прочих частых окон — нет: выгрузка задевает и горячий код (бар, тик), а он
+        // тут же читается с диска обратно
+        if matches!(self.st.modal, Some(Modal::Settings | Modal::Walls)) {
+            self.shed_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(30));
+        }
         self.st.modal = None;
         self.st.field_focus = None;
         self.close_kind(&SKind::Modal);
         self.close_kind(&SKind::Dim);
-        self.shed_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(30));
     }
 
     // ── всплывашки бара ─────────────────────────────────────────────────────
@@ -155,7 +160,7 @@ impl App {
             "cal" => self.st.cal_month = 0,
             _ => {}
         }
-        media::viz_wanted(self.media_visible() && self.st.media.playing());
+        self.viz_sync();
         let (w, h) = popups::size(kind, &self.st);
         let (ow, _) = self.output_size(out);
         let x = (ax - w / 2).clamp(6, (ow - w - 6).max(6));
@@ -185,7 +190,7 @@ impl App {
             if self.st.menu.is_none() {
                 self.close_kind(&SKind::Catcher);
             }
-            media::viz_wanted(self.media_visible() && self.st.media.playing());
+            self.viz_sync();
         }
     }
 
@@ -196,7 +201,7 @@ impl App {
             // ловит всё, кроме самого бара: бар живой, а поля вокруг плавающего — нет
             let (w, h) = self.output_size(out);
             let mut rs = vec![R::new(0, 0, w, h)];
-            if !self.st.bar_hidden {
+            if !self.st.bar_hidden && self.bar_on(out) {
                 let (top, side, _) = crate::bar::geo(&self.st.set, w);
                 let bot = top + BAR_H;
                 rs = vec![R::new(0, 0, w, top), R::new(0, top, side, BAR_H), R::new(w - side, top, side, BAR_H), R::new(0, bot, w, h - bot)];

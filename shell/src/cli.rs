@@ -109,7 +109,7 @@ pub fn config(args: &[String]) -> i32 {
         }
         ["kdl"] | ["kdl", _] => {
             // что шелл пишет в niri/yami-fx.kdl; `kdl yami` — как для yami-niri
-            let lvl = if a.get(1) == Some(&"yami") { u32::MAX } else { crate::niri::fork_level() };
+            let lvl = if a.get(1) == Some(&"yami") { u32::MAX } else { crate::niri::config_level(crate::niri::fork_level()) };
             print!("{}", Settings::load().fx_kdl(lvl, false));
         }
         // установщик, чистая установка: слабая или виртуальная машина — сразу лёгкий режим;

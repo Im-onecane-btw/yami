@@ -72,17 +72,21 @@ pub enum Ev {
 }
 
 /// наш ли это форк и какой: уровень из версии «26.04-yami.N (rev)», N — сколько патчей в серии,
-/// 0 — сток. Шелл пишет в конфиг только то, что запущенный niri понимает (после сборки до
-/// перезахода работает ещё старый бинарь).
+/// 0 — сток. Это запущенный niri (после сборки до перезахода работает ещё старый бинарь)
 pub fn fork_level() -> u32 {
     let v = request(&json!("Version")).and_then(|v| v["Ok"]["Version"].as_str().map(str::to_string)).unwrap_or_default();
     let Some(i) = v.find("yami") else { return 0 };
     // до уровней в версии: allow-tearing и realtime, три патча
-    let lvl = v[i + 4..].strip_prefix('.').and_then(|r| r.split(|c: char| !c.is_ascii_digit()).next()?.parse().ok()).unwrap_or(3);
-    // форк выключен до следующего входа (`yami-niri.sh off` убирает ссылку ~/.local/bin/niri): его
-    // ключи в yami-fx.kdl сломали бы конфиг пакетному niri — тот стартовал бы со своим, без шелла
+    v[i + 4..].strip_prefix('.').and_then(|r| r.split(|c: char| !c.is_ascii_digit()).next()?.parse().ok()).unwrap_or(3)
+}
+
+/// уровень для yami-fx.kdl: конфиг должен понять и запущенный niri, и тот, что будет после входа.
+/// Форк выключен до следующего входа (`yami-niri.sh off` убирает ссылку ~/.local/bin/niri) — его
+/// ключи сломали бы конфиг пакетному niri (тот стартовал бы со своим, без шелла): тогда 0.
+/// Спрашивается при каждой записи, а не раз при старте: off мог случиться при живом шелле
+pub fn config_level(running: u32) -> u32 {
     if next_login_fork() {
-        lvl
+        running
     } else {
         0
     }

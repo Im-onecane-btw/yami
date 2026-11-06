@@ -142,11 +142,8 @@ pub fn fetch(m: &MediaState, net: bool, tx: Sender<Msg>) {
     std::thread::spawn(move || {
         let text = from_player(&player, "xesam:asText").or_else(|| from_file(&player)).or_else(|| match cached(&key) {
             Some(hit) => hit,
-            None if net => {
-                let t = from_net(&artist, &title, len);
-                store(&key, t.as_deref());
-                t
-            }
+            // промах lrclib — в кеш на неделю; нет сети или lrclib не ответил — не запоминаем
+            None if net => from_net(&artist, &title, len).inspect(|t| store(&key, t.as_deref())).ok().flatten(),
             None => None,
         });
         let (lines, synced) = text.map(|t| parse(&t)).unwrap_or_default();
@@ -178,7 +175,7 @@ fn cache_dir() -> PathBuf {
 
 fn cache_file(key: &str) -> PathBuf {
     // FNV-1a: имя файла из исполнителя и названия, без них самих в пути
-    let h = key.bytes().fold(0xcbf29ce484222325u64, |h, b| (h ^ b as u64).wrapping_mul(0x100000001b3));
+    let h = yami_px::fnv(yami_px::FNV0, key.as_bytes());
     cache_dir().join(format!("{h:016x}.lrc"))
 }
 
@@ -197,7 +194,6 @@ fn cached(key: &str) -> Option<Option<String>> {
 fn store(key: &str, text: Option<&str>) {
     static TIDY: std::sync::Once = std::sync::Once::new();
     let d = cache_dir();
-    let _ = std::fs::create_dir_all(&d);
     TIDY.call_once(|| yami_px::paths::tidy(&d, 365, 8 << 20));
     let _ = yami_px::paths::write_atomic(&cache_file(key), text.unwrap_or(""));
 }
@@ -230,34 +226,35 @@ fn clean(artist: &str, title: &str) -> (String, String) {
 
 /// LRCLIB: сначала точное совпадение (исполнитель, название, длительность), потом поиск;
 /// текст с метками времени — лучше простого
-fn from_net(artist: &str, title: &str, len: f64) -> Option<String> {
-    let ua = concat!("yami/", env!("CARGO_PKG_VERSION"), " (https://github.com/Trendorin/yami)");
-    let get = |url: &str, q: &[(&str, String)]| -> Option<serde_json::Value> {
-        let mut c = Command::new("curl");
-        c.args(["-q", "-sf", "--max-time", "8", "--proto", "=https", "--max-filesize", "2000000", "-A", ua, "-G", url]);
-        for (k, v) in q {
-            c.arg("--data-urlencode").arg(format!("{k}={v}"));
+/// Ok(None) — lrclib ответил, что текста нет; Err — ответа нет (сеть, время вышло, ошибка сервера)
+fn from_net(artist: &str, title: &str, len: f64) -> Result<Option<String>, ()> {
+    // без -f: 404 («не нашлось») отличаем от сбоя по коду ответа в последней строке
+    let get = |url: &str, q: &[(&str, String)]| -> Result<Option<serde_json::Value>, ()> {
+        let o = crate::app::curl_get(8, 2_000_000, url, q).args(["-w", "\n%{http_code}"]).stderr(std::process::Stdio::null()).output().map_err(|_| ())?;
+        let n = o.stdout.iter().rposition(|b| *b == b'\n').ok_or(())?;
+        match (o.status.success(), &o.stdout[n + 1..]) {
+            (true, b"200") => Ok(serde_json::from_slice(&o.stdout[..n]).ok()),
+            (true, b"404") => Ok(None),
+            _ => Err(()),
         }
-        let o = c.stderr(std::process::Stdio::null()).output().ok()?;
-        o.status.success().then(|| serde_json::from_slice(&o.stdout).ok()).flatten()
     };
     let text = |v: &serde_json::Value, k: &str| v[k].as_str().filter(|s| !s.trim().is_empty() && s.len() as u64 <= MAX_TEXT).map(String::from);
     let (a, t) = clean(artist, title);
     if t.is_empty() {
-        return None;
+        return Ok(None);
     }
     let mut q = vec![("artist_name", a.clone()), ("track_name", t.clone())];
     if len > 0.0 {
         q.push(("duration", format!("{}", len.round() as i64)));
     }
-    if let Some(v) = get("https://lrclib.net/api/get", &q) {
+    if let Some(v) = get("https://lrclib.net/api/get", &q)? {
         if let Some(s) = text(&v, "syncedLyrics").or_else(|| text(&v, "plainLyrics")) {
-            return Some(s);
+            return Ok(Some(s));
         }
     }
-    let v = get("https://lrclib.net/api/search", &[("q", format!("{a} {t}").trim().to_string())])?;
-    let list = v.as_array()?;
-    list.iter().find_map(|x| text(x, "syncedLyrics")).or_else(|| list.iter().find_map(|x| text(x, "plainLyrics")))
+    let Some(v) = get("https://lrclib.net/api/search", &[("q", format!("{a} {t}").trim().to_string())])? else { return Ok(None) };
+    let Some(list) = v.as_array() else { return Ok(None) };
+    Ok(list.iter().find_map(|x| text(x, "syncedLyrics")).or_else(|| list.iter().find_map(|x| text(x, "plainLyrics"))))
 }
 
 #[cfg(test)]
@@ -287,10 +284,12 @@ mod tests {
     #[test]
     #[ignore]
     fn lrclib_live() {
-        let t = from_net("Kino", "Gruppa krovi (Remastered)", 282.0).expect("lrclib");
+        let t = from_net("Kino", "Gruppa krovi (Remastered)", 282.0).expect("lrclib answers").expect("lrclib");
         assert!(t.lines().count() > 10);
-        let t = from_net("", "Kino - Gruppa krovi [HD]", 0.0).expect("lrclib search");
+        let t = from_net("", "Kino - Gruppa krovi [HD]", 0.0).expect("lrclib answers").expect("lrclib search");
         assert!(!parse(&t).0.is_empty());
+        // нет такой песни — ответ «нет», а не сбой: такой промах кешируется
+        assert_eq!(from_net("zzqx no such band", "zzqx no such song 9137", 77.0), Ok(None));
     }
 
     #[test]

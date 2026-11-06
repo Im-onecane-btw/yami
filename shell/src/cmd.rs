@@ -474,12 +474,7 @@ pub fn run(args: &[String], me: &str) -> i32 {
         Some("report") => crate::report::run(&y, &a[1..]),
         Some("ocr") => crate::ocr::cli(&y, &a[1..]),
         Some("theme") => match a.get(1) {
-            Some(&"export") => crate::bundle::run(&y, "theme-export", &a[2..]),
-            Some(&"import") => crate::bundle::run(&y, "theme-import", &a[2..]),
-            Some(&"save") => crate::bundle::run(&y, "theme-save", &a[2..]),
-            Some(&"list") => crate::bundle::run(&y, "theme-list", &a[2..]),
-            Some(&"apply") => crate::bundle::run(&y, "theme-apply", &a[2..]),
-            Some(&"remove") => crate::bundle::run(&y, "theme-remove", &a[2..]),
+            Some(&w @ ("export" | "import" | "save" | "list" | "apply" | "remove")) => crate::bundle::run(&y, &format!("theme-{w}"), &a[2..]),
             _ => crate::bundle::run(&y, "", &[]),
         },
         Some("export") => crate::bundle::run(&y, "export", &a[1..]),

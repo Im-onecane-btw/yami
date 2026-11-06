@@ -480,7 +480,7 @@ impl App {
                 if data.is_empty() {
                     return;
                 }
-                let id = format!("{:016x}", fnv(&data));
+                let id = format!("{:016x}", yami_px::fnv(yami_px::FNV0, &data));
                 let mut pins = self.st.launcher.pins.clone();
                 if pins.iter().any(|p| p.id == id) {
                     return;
@@ -601,14 +601,6 @@ pub fn term() -> String {
     "xterm".into()
 }
 
-fn fnv(d: &[u8]) -> u64 {
-    let mut h: u64 = 0xcbf29ce484222325;
-    for b in d {
-        h ^= *b as u64;
-        h = h.wrapping_mul(0x100000001b3);
-    }
-    h
-}
 
 pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
     let t = ui.t;

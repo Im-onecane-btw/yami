@@ -61,9 +61,23 @@ impl App {
             self.set_mtime = m;
             let s = Settings::load();
             if s != self.st.set {
+                // правка извне (своя тема, yami config set, руками): шрифты и курсор программ
+                // theme.py перекрашивает сам только со сменой палитры — их входы сверяем отдельно
+                let fonts = |s: &Settings| (s.font_ui.clone(), s.font_mono.clone(), s.font_pt, s.font_size, s.browser_font, s.browser_menus);
+                let cursor = |s: &Settings| (s.cursor.clone(), s.cursor_size);
+                let (f0, c0, pal0) = (fonts(&self.st.set), cursor(&self.st.set), self.palette_written.clone());
                 self.st.set = s;
                 self.set_saved = self.st.set.to_json();
                 self.settings_changed();
+                // новая палитра — theme.py уже идёт целиком (шрифты и курсор в нём)
+                if self.palette_written == pal0 {
+                    if fonts(&self.st.set) != f0 {
+                        self.apply_fonts();
+                    }
+                    if cursor(&self.st.set) != c0 {
+                        self.apply_cursor();
+                    }
+                }
             }
         }
     }
@@ -174,7 +188,7 @@ impl App {
     /// yami-fx.kdl — только если он другой: каждая запись — перечитывание конфига niri
     pub fn write_fx(&mut self) {
         let p = config::config_dir().join("niri/yami-fx.kdl");
-        let text = self.st.set.fx_kdl(self.st.niri.level, self.st.curtain.is_some());
+        let text = self.st.set.fx_kdl(crate::niri::config_level(self.st.niri.level), self.st.curtain.is_some());
         if std::fs::read_to_string(&p).ok().as_deref() != Some(text.as_str()) {
             let _ = config::write_atomic(&p, &text);
         }

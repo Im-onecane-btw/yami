@@ -7,7 +7,6 @@
 use crate::app::{App, Msg, SKind};
 use crate::config::Settings;
 use serde::{Deserialize, Serialize};
-use std::process::Command;
 
 /// как часто спрашивать, с
 pub const EVERY: u64 = 20 * 60;
@@ -58,10 +57,6 @@ pub fn key(s: &Settings) -> String {
     } else {
         format!("{c}\t{}", s.weather_units)
     }
-}
-
-fn unix() -> u64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
 fn cache() -> std::path::PathBuf {
@@ -121,29 +116,39 @@ pub fn text(code: i32) -> &'static str {
     }
 }
 
-/// день недели (0 — воскресенье) из ГГГГ-ММ-ДД: алгоритм Сакамото
+/// день недели (0 — воскресенье) из ГГГГ-ММ-ДД; 1 января 1970-го — четверг
 pub fn wday(date: &str) -> Option<usize> {
-    let mut it = date.split('-').map(|x| x.parse::<i32>().ok());
-    let (mut y, m, d) = (it.next()??, it.next()??, it.next()??);
+    let mut it = date.split('-').map(|x| x.parse::<u32>().ok());
+    let (y, m, d) = (it.next()??, it.next()??, it.next()??);
     if !(1..=12).contains(&m) || !(1..=31).contains(&d) {
         return None;
     }
-    const T: [i32; 12] = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
-    if m < 3 {
-        y -= 1;
+    Some((crate::widgets::days_from_civil(y as i32, m, d) + 4).rem_euclid(7) as usize)
+}
+
+/// подпись дня прогноза: первый — «сегодня», дальше «пн», «вт»…
+pub fn day_name(i: usize, d: &Day) -> &'static str {
+    if i == 0 {
+        return "сегодня";
     }
-    Some(((y + y / 4 - y / 100 + y / 400 + T[(m - 1) as usize] + d) % 7) as usize)
+    wday(&d.date).map(|k| crate::app::RU_DAY[k]).unwrap_or("?")
+}
+
+/// погоды ещё нет: города нет — no_city, ошибка — она, иначе ответ ещё идёт
+pub fn status(st: &crate::app::State, no_city: &str) -> String {
+    if key(&st.set).is_empty() {
+        crate::i18n::tr(no_city).to_string()
+    } else if !st.weather.err.is_empty() {
+        st.weather.err.clone()
+    } else {
+        crate::i18n::tr("спрашиваю open-meteo.com…").to_string()
+    }
 }
 
 /// запрос к Open-Meteo: https и после переадресаций, 10 с, ответ ≤ 1 МБ
 fn get(url: &str, q: &[(&str, String)]) -> Result<serde_json::Value, String> {
-    let ua = format!("yami/{} (https://github.com/Trendorin/yami)", env!("CARGO_PKG_VERSION"));
-    let mut c = Command::new("curl");
-    c.args(["-q", "-sf", "--max-time", "10", "--max-filesize", "1048576", "--proto", "=https", "--proto-redir", "=https", "-A", &ua, "-G", url]);
-    for (k, v) in q {
-        c.arg("--data-urlencode").arg(format!("{k}={v}"));
-    }
-    let o = crate::app::owned(&mut c).output().map_err(|_| crate::tf!("нет curl", "no curl"))?;
+    let mut c = crate::app::curl_get(10, 1 << 20, url, q);
+    let o = crate::app::owned(c.arg("-f")).output().map_err(|_| crate::tf!("нет curl", "no curl"))?;
     if !o.status.success() {
         return Err(crate::tf!("open-meteo.com не ответил", "open-meteo.com did not answer"));
     }
@@ -200,7 +205,7 @@ fn forecast(old: &Weather, key: &str, city: &str, fahrenheit: bool) -> Result<We
         code: c["weather_code"].as_i64().unwrap_or(3) as i32,
         day: c["is_day"].as_i64().unwrap_or(1) == 1,
         days,
-        at: unix(),
+        at: crate::app::unix_now(),
         err: String::new(),
     })
 }
@@ -223,7 +228,7 @@ impl App {
         }
         let w = &self.st.weather;
         let same = w.key == key;
-        let age = unix().saturating_sub(w.at);
+        let age = crate::app::unix_now().saturating_sub(w.at);
         // свежий ответ для этого города или недавняя попытка — ждём
         if same && w.has() && age < EVERY && w.err.is_empty() {
             return;
@@ -240,7 +245,6 @@ impl App {
                 Ok(w) => {
                     if let Ok(t) = serde_json::to_string(&w) {
                         let p = cache();
-                        let _ = std::fs::create_dir_all(p.parent().unwrap_or(&p));
                         let _ = crate::config::write_atomic(&p, &t);
                     }
                     w
