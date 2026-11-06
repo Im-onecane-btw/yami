@@ -37,7 +37,7 @@ pub const TABS: &[(&str, &str, &str)] = &[
 
 /// слова для поиска настроек из лаунчера («vrr» → экраны): по-русски и по-английски
 pub const FIND: &[(&str, &str)] = &[
-    ("color", "палитра акцент цвет тема светлая тёмная стекло прозрачность palette accent colour color theme light dark glass"), // i18n-ok
+    ("color", "палитра акцент цвет тема светлая тёмная стекло прозрачность плотность palette accent colour color theme light dark glass opacity"), // i18n-ok
     ("wall", "обои картинка фон папка миниатюры skwd skwd-wall видео wallpaper background image folder thumbnails picker video"), // i18n-ok
     ("look", "пиксельность пиксели лёгкий режим слабый тормозит виртуалка анимации эффекты появление развёртка размытие значки иконки курсор pixel pixelation lite slow lag vm animation effects reveal scanlines blur icons cursor"), // i18n-ok
     ("fonts", "шрифт размер терминал fastfetch браузер fonts size terminal browser"), // i18n-ok
@@ -140,7 +140,7 @@ pub(crate) fn tab_color(ui: &mut Ui, st: &State, b: R) {
     let (lx, rx) = (b.x, b.x + hw + 24);
     let pct = |v: f32| format!("{:.0}%", v * 100.0);
     ui.slider(R::new(lx, y, hw, 40), "насыщенность фона", s.tint / 2.0, &format!("{:.1}", s.tint), 12, Act::SSlider("tint", 0.0, 2.0, 20));
-    ui.slider(R::new(rx, y, hw, 40), "стекло панелей", (s.glass - 0.15) / 0.85, &pct(s.glass), 12, Act::SSlider("glass", 0.15, 1.0, 17));
+    ui.slider(R::new(rx, y, hw, 40), "плотность панелей", (s.glass - 0.15) / 0.85, &pct(s.glass), 12, Act::SSlider("glass", 0.15, 1.0, 17));
     y += 50;
     ui.slider(R::new(lx, y, hw, 40), "яркость панелей", s.lift, &pct(s.lift), 12, Act::SSlider("lift", 0.0, 1.0, 20));
     ui.slider(R::new(rx, y, hw, 40), "карточки и графики", (s.inner - 0.2) / 0.8, &pct(s.inner), 12, Act::SSlider("inner", 0.2, 1.0, 16));
@@ -987,7 +987,9 @@ impl App {
                     let j = self.st.set.to_json();
                     let _ = crate::config::write_atomic(&crate::config::settings_path(), &j);
                     self.set_saved = j;
-                    let _ = std::process::Command::new("xdg-open").arg(crate::config::settings_path()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn().map(|mut c| std::thread::spawn(move || c.wait()));
+                    // настройки — слой над окнами: редактор открылся бы под ними (#8)
+                    self.close_modal();
+                    App::spawn(&["xdg-open".into(), crate::config::settings_path().display().to_string()]);
                 }
                 _ => {}
             },

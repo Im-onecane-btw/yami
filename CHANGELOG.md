@@ -43,6 +43,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - Notification and OSD distance from the edge (#8): settings → system → notifications → «from the edge» under each position (`notifOffset`, `osdOffset`); next to the bar it is counted from the bar.
 - Bar modules `gpu` and `disk` (#8): graphics load (amdgpu, or `nvidia-smi` every 3 s; a sleeping laptop card is not woken) and how full `/` is, in the `cpuStyle` of `cpu` and `ram`; settings → bar → add.
 - Fix: tray icons (#8): an app whose icon name is missing from the icon theme (Steam, Electron apps such as Discord) showed three grey dots instead of its own picture; icons from the app's own folder are found in its theme subfolders too, and an icon given as a file path works. Icon changes (Discord's unread mark) were ignored for apps registered under a well-known name, and with another tray watcher running they added a second icon. The `net` module is a Wi-Fi or wired glyph instead of a dot, so it no longer reads as one more tray icon.
+- The `glass` slider is called «panel opacity» (#8): 0.15 is the most transparent, 100 % solid. «settings file» (settings → system) closes settings first, so the editor does not open under them.
 
 ## 2.5.0
 
