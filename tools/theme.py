@@ -868,7 +868,6 @@ def mangohud(p):
     if path.exists() and not path.read_text(errors="replace").startswith(MANGO_MARK):
         return
     # без MangoHud конфиг ему не нужен: папку в ~/.config не заводим
-    import shutil
     if not path.exists() and not path.parent.is_dir() and not shutil.which("mangohud"):
         return
     h = lambda k: p[k].lstrip("#")
@@ -1224,7 +1223,6 @@ def cursor(p):
     # старые цвета — убрать
     for old in icons.glob("yami-*"):
         if old.name != name and re.fullmatch(r"yami-[0-9a-f]{6}(-l)?", old.name) and old.is_dir():
-            import shutil
             shutil.rmtree(old, ignore_errors=True)
     write(kdl, f"// yami: written by tools/theme.py (shell settings → windows → cursor)\ncursor {{\n    xcursor-theme \"{name}\"\n    xcursor-size {size}\n}}\nenvironment {{\n    XCURSOR_THEME \"{name}\"\n    XCURSOR_SIZE \"{size}\"\n}}\n")
     # X11-программам (xwayland-satellite) — тема по умолчанию
