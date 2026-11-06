@@ -37,6 +37,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - yami-files keeps at most 32 MB of thumbnails in memory: a folder with thousands of pictures no longer grows the window by hundreds of megabytes; the thumbnails on screen stay, the oldest of the rest are dropped and come back from the disk cache when you scroll to them.
 - yami-play at a fractional scale no longer clears and redraws its controls layer for every video frame while the controls are hidden.
 - The shell measures its own memory (settings → about) only while the settings window is open, as PSS like `yami status`, and the address in the network module comes from the kernel instead of a run of `ip` on the drawing thread.
+- yami-files copies through the kernel (`copy_file_range`): on btrfs and xfs a copy inside one disk is a reflink, so a 4 GB video copies at once and takes no space until one of the two is changed; between disks the data no longer passes through the program. Phones, network shares and other FUSE mounts still copy the old way.
 
 ## 2.5.0
 

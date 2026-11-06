@@ -141,22 +141,53 @@ fn size_of(p: &Path) -> u64 {
 
 fn copy_file(c: &mut Ctx, src: &Path, dst: &Path) -> std::io::Result<()> {
     use std::io::{Read, Write};
+    use std::os::fd::AsRawFd;
     let mut a = std::fs::File::open(src)?;
     let meta = a.metadata()?;
     let mut b = std::fs::File::create(dst)?;
-    let mut buf = vec![0u8; 1 << 20];
     let name = src.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+    // копирует ядро (copy_file_range): на btrfs и xfs внутри одного диска это reflink — мгновенно
+    // и без лишнего места, между дисками — без прохода данных через память программы. Кусками:
+    // прогресс и отмена. Не умеет (FUSE — телефоны и gvfs, старое ядро между ФС, «файлы» /proc
+    // с нулевым размером) — обычное чтение и запись с того же места
+    let mut kernel = true;
+    let mut copied = 0u64;
+    let mut buf: Option<Vec<u8>> = None;
     loop {
         if c.stopped() {
             drop(b);
             let _ = std::fs::remove_file(dst);
             return Ok(());
         }
-        let n = a.read(&mut buf)?;
+        let n = if kernel {
+            let n = unsafe { libc::copy_file_range(a.as_raw_fd(), std::ptr::null_mut(), b.as_raw_fd(), std::ptr::null_mut(), 16 << 20, 0) };
+            if n < 0 {
+                let e = std::io::Error::last_os_error();
+                if e.kind() == std::io::ErrorKind::Interrupted {
+                    continue;
+                }
+                if copied == 0 && matches!(e.raw_os_error(), Some(libc::EXDEV | libc::ENOSYS | libc::EINVAL | libc::EOPNOTSUPP | libc::EPERM | libc::EBADF)) {
+                    kernel = false;
+                    continue;
+                }
+                return Err(e);
+            }
+            if n == 0 && copied == 0 {
+                // пустой — или псевдофайл, у которого размер 0, а данные есть: пусть решит read
+                kernel = false;
+                continue;
+            }
+            n as usize
+        } else {
+            let buf = buf.get_or_insert_with(|| vec![0u8; 1 << 20]);
+            let n = a.read(buf)?;
+            b.write_all(&buf[..n])?;
+            n
+        };
         if n == 0 {
             break;
         }
-        b.write_all(&buf[..n])?;
+        copied += n as u64;
         c.done += n as u64;
         c.tick(&name, false);
     }
@@ -341,4 +372,39 @@ fn run(job: Job, send: &dyn Fn(Ev)) {
     }
     c.tick("", true);
     send(Ev::Done { id: job.id, kind: job.kind, errors: c.errors, pairs });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ctx<'a>(send: &'a dyn Fn(Ev)) -> Ctx<'a> {
+        Ctx { id: 0, send, done: 0, total: 0, last: Instant::now(), stop: Arc::new(AtomicBool::new(false)), all: None, errors: vec![] }
+    }
+
+    #[test]
+    fn copies_by_kernel_and_by_hand() {
+        let dir = yami_px::paths::private_tmp("ops-test").expect("tmp");
+        let big: Vec<u8> = (0..(40u32 << 20) / 4).flat_map(|i| i.to_le_bytes()).collect();
+        let cases: Vec<(PathBuf, Vec<u8>)> = vec![
+            (dir.join("big"), big),
+            (dir.join("empty"), vec![]),
+            (dir.join("small"), b"yami".to_vec()),
+        ];
+        let send = |_: Ev| {};
+        for (p, data) in &cases {
+            std::fs::write(p, data).unwrap();
+            let to = p.with_extension("copy");
+            let mut c = ctx(&send);
+            copy_file(&mut c, p, &to).unwrap();
+            assert_eq!(&std::fs::read(&to).unwrap(), data);
+            assert_eq!(c.done, data.len() as u64);
+        }
+        // размер 0, а данные есть: копия не пустая
+        let to = dir.join("status");
+        let mut c = ctx(&send);
+        copy_file(&mut c, Path::new("/proc/self/status"), &to).unwrap();
+        assert!(std::fs::read_to_string(&to).unwrap().contains("Name:"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
