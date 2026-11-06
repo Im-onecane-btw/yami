@@ -187,6 +187,22 @@ impl Fonts {
         f
     }
 
+    /// шрифты из файлов папки, без fontconfig: Tiny5.ttf и DotGothic16-Regular.ttf. Для экрана
+    /// входа: семь запусков fc-match — доли секунды старта, а шрифтов из домашней папки у его
+    /// пользователя нет. Нет Tiny5 — как Fonts::new()
+    pub fn bundled(dir: &std::path::Path) -> Fonts {
+        let file = |n: &str| load(&dir.join(n).to_string_lossy(), 0);
+        let Some(tiny) = file("Tiny5.ttf") else { return Fonts::new() };
+        let mut srcs = vec![Src { font: tiny, pixel: true, k: 1.0 }];
+        if let Some(d) = file("DotGothic16-Regular.ttf") {
+            srcs.push(Src { font: d, pixel: true, k: 1.0 });
+        }
+        let chain_px: Vec<usize> = (0..srcs.len()).collect();
+        let chain_jp: Vec<usize> = chain_px.iter().rev().copied().collect();
+        let ellipsis = if srcs[0].font.glyph_id('…').0 == 0 { ".." } else { "…" };
+        Fonts { srcs, chain_px, chain_jp, cache: HashMap::new(), adv_cache: HashMap::new(), ellipsis }
+    }
+
     fn chain(&self, k: Kind) -> &[usize] {
         match k {
             Kind::Px => &self.chain_px,

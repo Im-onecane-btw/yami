@@ -18,6 +18,7 @@
 | `~/.config/niri/yami-colors.kdl`, `yami-cursor.kdl` | `tools/theme.py` | нет, переписывается |
 | `~/.config/niri/yami-outputs.kdl` | шелла (настройки → экраны) | нет, переписывается |
 | `~/.config/niri/yami-local.kdl` | установщика (окружение GPU) | нет |
+| `/var/lib/yami-greet/look/` | шелла: то, из чего рисуется экран входа (`look.json`: палитра, язык, мониторы, раскладки; `wall.png`: обои), твоя с установки | нет, переписывается |
 | `~/.local/state/yami/palette.json` | шелла: производная палитра, по которой красятся другие программы | нет |
 | `~/.config/xdg-desktop-portal/niri-portals.conf` | шелла (настройки → службы); остаётся как есть, если больше не начинается с `# yami:` | через настройки |
 | `~/.local/state/yami/install.json` | установщика и `tools/deploy.sh`: версия, коммит, источник, компоненты | нет |
@@ -41,6 +42,7 @@ yami ocr FILE                             # текст с картинки, то
 yami theme export FILE | import FILE|URL  # вид одним файлом: палитра, эффекты, шрифты, бар, виджеты, обои (никогда — команды); импортированная тема остаётся в твоих темах, ссылка — только https
 yami theme save [NAME] | list | apply NAME | remove NAME   # свои темы в ~/.config/yami/themes (настройки → цвет → темы); save без имени называет тему по палитре
 yami export FILE | import FILE [--yes]    # все настройки одним файлом; user.kdl, свои клавиши и скрипты бара — только с --yes; перед импортом текущее состояние уходит в ~/.local/state/yami/before-import-*.json (вернуть: yami import этот файл --yes)
+yami login sync                           # отдать экрану входа вид шелла сейчас (шелл делает это при каждой смене)
 yami clean [--dry-run]                    # удалить кэш сборки (исходники yami-niri, target шелла: гигабайты); --force удаляет и дерево с твоей работой над патчами
 yami version                              # каждая часть с установленным коммитом
 yami update [check|apply|list|to X.Y.Z|rollback|status|log|need]

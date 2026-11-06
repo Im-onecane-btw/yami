@@ -68,17 +68,18 @@ fi
 step "unit tests"
 cargo test --release --locked --workspace --quiet --manifest-path "$ROOT/shell/Cargo.toml" >"$TMP/test.log" 2>&1 && ok "cargo test" || { tail -20 "$TMP/test.log"; bad "cargo test"; }
 
-step "login screen (SDDM theme, offscreen)"
-QML="$(command -v qml6 || command -v qml || { [[ -x /usr/lib/qt6/bin/qml ]] && echo /usr/lib/qt6/bin/qml; } || true)"
-if [[ -n $QML ]] && python3 -c 'import PIL' 2>/dev/null; then
-  if err="$(timeout 20 "$ROOT/tools/sddm-preview.sh" "$TMP/sddm.png" 2>&1)" && [[ -s $TMP/sddm.png ]] && ! grep -qiE 'error|is not a type|is not defined|unavailable' <<<"$err"; then
-    ok "Main.qml renders"
-  else
-    grep -iE 'error|warn|not a type|not defined' <<<"$err" | head -10
-    bad "sddm theme"
+step "login screen (yami-greet: offscreen states, niri config)"
+GREET="$ROOT/shell/target/release/yami-greet"
+if [[ -x $GREET ]]; then
+  "$GREET" shot --lang en -o "$TMP/gen" | grep untranslated
+  [[ ${PIPESTATUS[0]} -eq 0 ]] && ok "yami-greet shot --lang en: no Russian left" || bad "yami-greet shot --lang en"
+  NIRI_BIN="$(command -v niri || true)"
+  if [[ -n $NIRI_BIN ]]; then
+    for v in "" --plain; do
+      "$GREET" kdl $v >"$TMP/greet.kdl" && "$NIRI_BIN" validate -c "$TMP/greet.kdl" >/dev/null 2>&1 && ok "niri takes yami-greet kdl $v" || bad "yami-greet kdl $v: niri rejects it"
+    done
   fi
-else
-  echo "qml or python-pillow missing, skipped"
+  sh -n "$ROOT/system/greet/greet-session" || bad "syntax: system/greet/greet-session"
 fi
 
 step "scripts"

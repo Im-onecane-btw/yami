@@ -88,6 +88,31 @@ fn line(y: &Sty, mark: &str, what: &str, note: &str) {
     println!("   {mark} {}{}{}", what, " ".repeat(pad), y.dim(note));
 }
 
+/// экран входа: yami-greet стоит, greetd — менеджер входа, вид шелла до него доходит
+fn login(y: &Sty) {
+    let dm = std::fs::read_link("/etc/systemd/system/display-manager.service").map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+    let greet = std::path::Path::new("/usr/local/bin/yami-greet").exists();
+    if !greet && !std::path::Path::new("/usr/share/sddm/themes/yami").exists() {
+        return;
+    }
+    y.section(&crate::tf!("экран входа", "login screen"));
+    if !greet {
+        line(y, &y.warn("·"), "SDDM", &crate::tf!("тема yami до 2.6; свой экран входа: tools/greet-install.sh", "the yami theme of before 2.6; our own login screen: tools/greet-install.sh"));
+        return;
+    }
+    line(y, &y.ok("✓"), "yami-greet", "/usr/local/bin/yami-greet");
+    if dm.is_empty() || dm.contains("greetd") {
+        line(y, &y.ok("✓"), "greetd", &crate::tf!("менеджер входа", "the login manager"));
+    } else {
+        line(y, &y.warn("·"), "greetd", &crate::tf!("не менеджер входа: sudo systemctl enable -f greetd", "not the login manager: sudo systemctl enable -f greetd"));
+    }
+    if crate::login::writable() {
+        line(y, &y.ok("✓"), &crate::tf!("вид", "look"), &crate::login::dir().display().to_string());
+    } else {
+        line(y, &y.warn("·"), &crate::tf!("вид", "look"), &crate::tf!("папка не твоя: экран входа не идёт за шеллом", "the folder is not yours: the login screen does not follow the shell"));
+    }
+}
+
 /// службы D-Bus: (имя, для чего RU, EN); ours — должен держать шелл (если служба включена)
 fn services(y: &Sty, problems: &mut u32) {
     let set = crate::config::Settings::load();
@@ -192,6 +217,7 @@ pub fn run(y: &Sty) -> i32 {
             line(y, &y.bad("✕"), "niri/config.kdl", &crate::tf!("не проходит: niri validate", "fails: niri validate"));
         }
     }
+    login(y);
     // слабая или виртуальная машина: эффекты съедают её, лёгкий режим их снимает
     if let Some(why) = crate::lite::reason() {
         let set = crate::config::Settings::load();

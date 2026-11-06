@@ -2,12 +2,14 @@
 // проявление), шрифты, тема из одного акцента, иконки, немедленный UI. Общая для шелла и
 // приложений (файлы, диалог выбора файлов), чтобы они выглядели как одно целое.
 
+pub mod face;
 pub mod font;
 pub mod gfx;
 pub mod icons;
 pub mod look;
 pub mod paths;
 pub mod theme;
+pub mod time;
 pub mod ui;
 
 /// время «1:05» или «1:02:03» (плееры: шелл, yami-play)

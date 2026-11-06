@@ -39,6 +39,7 @@ mod launcher;
 mod lite;
 mod lyrics;
 mod lock;
+mod login;
 mod media;
 mod menu;
 mod msgs;

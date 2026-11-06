@@ -1,11 +1,10 @@
-// Экран блокировки (ext-session-lock): обои под тёмной вуалью, большие часы, дата, поле
-// пароля. Ошибка — поле вздрагивает ступенями. Остальные
+// Экран блокировки (ext-session-lock): лицо экрана входа (yami_px::face: обои под вуалью, часы,
+// дата), поле пароля. Ошибка — поле вздрагивает ступенями. Остальные
 // мониторы — только часы.
 
 use crate::app::{App, State};
-use crate::clock::{local_now, RU_DAY_FULL, RU_MON};
-use crate::font::{self, PX};
-use crate::gfx::{BoxStyle, C};
+use crate::font::PX;
+use crate::gfx::BoxStyle;
 use std::time::Instant;
 use crate::app::*;
 use crate::gfx::{Canvas, R};
@@ -20,29 +19,10 @@ use wayland_client::protocol::wl_shm;
 
 pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32, main: bool) {
     let t = ui.t;
-    ui.cv.clear(t.bg);
-    if let Some(img) = &st.wall {
-        crate::wall::cover(ui, img, w, h);
-    }
-    // вуаль к фону темы: в тёмной — затемнить, в светлой — высветлить (тёмный текст на ней)
-    let (veil, line) = if t.light { (t.bg.alpha(0.62), t.text.alpha(0.07)) } else { (C(0xff000000).alpha(0.55), C(0xff000000).alpha(0.18)) };
-    ui.cv.fill(R::new(0, 0, w, h), veil);
-    // строки развёртки — через одну, еле видно
-    for y in (0..h).step_by(4) {
-        ui.cv.fill(R::new(0, y, w, 1), line);
-    }
-    let tm = local_now();
-    let big = font::px(128);
-    let clock = format!("{:02}:{:02}", tm.hour, tm.min);
-    let cw = ui.w(big, &clock);
-    let cy = h / 2 - 150;
-    // тень-сдвиг на 4 px, как у панелей
-    ui.text(big, (w - cw) / 2 + 4, cy + 4, &clock, t.blood.fade(0.8));
-    ui.text(big, (w - cw) / 2, cy, &clock, t.text);
-    let date = format!("{}, {} {}", crate::i18n::tr(RU_DAY_FULL[tm.wday as usize]), tm.day, crate::i18n::tr(RU_MON[(tm.mon - 1) as usize]));
-    let dy = cy + ui.f.line(big) + 6;
-    ui.text_center(font::PX24, R::new(0, dy, w, 30), &date, t.text_dim);
-    ui.text(font::jp(32), w - 72, h - 64, "闇", t.red.fade(0.5));
+    // то же лицо, что у экрана входа (yami-greet): обои под вуалью, часы, дата, 闇
+    yami_px::face::backdrop(ui, st.wall.as_deref(), w, h);
+    let dy = yami_px::face::clock(ui, w, h) - 30;
+    yami_px::face::kanji(ui, w, h);
     if !main {
         return;
     }

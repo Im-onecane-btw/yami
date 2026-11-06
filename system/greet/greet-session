@@ -1,0 +1,44 @@
+#!/bin/sh
+# yami login screen: greetd starts this as its greeter user (/etc/greetd/config.toml). niri draws,
+# yami-greet asks for the password and hands it to greetd. When niri or yami-greet cannot start
+# (twice in a row, or one of them is missing), greetd's text greeter takes this one login, so the
+# machine always lets you in; the next start tries the pixel one again. Log: journalctl -u greetd
+G=/usr/local/bin/yami-greet
+ST=/var/lib/yami-greet/state
+run=${XDG_RUNTIME_DIR:-/tmp}
+cfg="$run/yami-greet.kdl"
+
+text() {
+    echo "yami-greet: $1, the text login this time" >&2
+    rm -f "$ST/fails"
+    command -v agreety >/dev/null 2>&1 || { echo "yami-greet: no agreety either" >&2; exit 1; }
+    if command -v niri-session >/dev/null 2>&1; then exec agreety --cmd niri-session; fi
+    exec agreety --cmd /bin/sh
+}
+
+fails=$(cat "$ST/fails" 2>/dev/null)
+case $fails in '' | *[!0-9]*) fails=0 ;; esac
+[ "$fails" -ge 2 ] && text "it failed $fails times in a row"
+command -v niri >/dev/null 2>&1 || text "no niri"
+[ -x "$G" ] || text "no $G"
+# the config is made at every start from the look the shell published (yami-greet kdl checks it);
+# a niri that rejects it gets the plain one
+if ! { "$G" kdl >"$cfg" && niri validate -c "$cfg" >/dev/null 2>&1; }; then
+    { "$G" kdl --plain >"$cfg" && niri validate -c "$cfg" >/dev/null 2>&1; } || text "niri accepts no config"
+fi
+rm -f "$run/yami-greet.rc"
+# power off, reboot, greetd stopping: not a failure
+trap 'exit 0' TERM INT HUP
+start=$(date +%s)
+niri -c "$cfg"
+nrc=$?
+# yami-greet writes its exit code there before niri quits: 0 = a session was started
+rc=$(cat "$run/yami-greet.rc" 2>/dev/null)
+if [ "$rc" = 0 ]; then
+    rm -f "$ST/fails"
+    exit 0
+fi
+echo "yami-greet: ended with ${rc:-no code} (niri: $nrc)" >&2
+# only a start that falls over at once counts: that is the loop without a way in
+[ $(($(date +%s) - start)) -lt 20 ] && echo $((fails + 1)) >"$ST/fails" 2>/dev/null
+exit 1

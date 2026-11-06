@@ -9,12 +9,9 @@
 (~/.config/yami/templates), меню Firefox/LibreWolf (userChrome.css)
 (открытые kitty перечитывают конфиг по SIGUSR1), fastfetch, цвета рамок niri
 (~/.config/niri/yami-colors.kdl, niri подхватывает сам), обои шелла
-(~/.local/state/yami/wallpaper.png), тему SDDM (theme.conf.user и обои в
-/usr/share/sddm/themes/yami, если установщик сделал их твоими).
+(~/.local/state/yami/wallpaper.png). Экрану входа (yami-greet) вид отдаёт сам шелл (login.rs).
 
-    theme.py --sddm DIR [--accent '#c4161c' [--light]]   только тему SDDM в DIR
     theme.py --cursor-to DIR [--accent …]                 курсор экрана входа в DIR
-    theme.py --login              только экран входа (шелл сменил обои)
     theme.py --cursor             только курсор (после смены его в настройках шелла)
     theme.py --profiles           вывести профили Firefox/LibreWolf/Floorp/Zen
     theme.py --fonts              только шрифты: размер по сетке Tiny5 под экран (или fontSize)
@@ -123,7 +120,7 @@ def write(path, text):
         tmp.write_text(text)
         tmp.replace(path)
     except PermissionError:
-        # папка чужая (тема SDDM у root), а сам файл наш: пишем на месте
+        # папка чужая (у root), а сам файл наш: пишем на месте
         path.write_text(text)
 
 
@@ -1433,51 +1430,6 @@ def cursor(p):
         subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "cursor-size", str(size)], check=False, capture_output=True)
 
 
-def _sddm_dir():
-    """Тема SDDM: первая sddm/themes/yami в XDG_DATA_DIRS (так и на NixOS), иначе /usr/share."""
-    for d in (os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share").split(":"):
-        if d.startswith("/") and (Path(d) / "sddm/themes/yami").is_dir():
-            return Path(d) / "sddm/themes/yami"
-    return Path("/usr/share/sddm/themes/yami")
-
-
-SDDM_DIR = _sddm_dir()
-
-
-def sddm(p, target=None):
-    """Экран входа: цвета в theme.conf.user, обои шелла — background.png рядом с темой
-    (приветствие работает от пользователя sddm и в домашнюю папку не заглядывает)."""
-    d = Path(target) if target else SDDM_DIR
-    user = d / "theme.conf.user"
-    if not target and not (d.is_dir() and os.access(user if user.exists() else d, os.W_OK)):
-        return
-    s = _settings()
-    keys = ("accent", "deep", "bright", "bg", "panel", "surface", "surfaceHi", "codeBg", "border",
-            "text", "textDim", "textFaint", "onAccent", "textHi", "warn", "mode")
-    lines = ["# yami: written by tools/theme.py from the shell palette", "[General]"]
-    lines += [f"{k}={p[k]}" for k in keys if k in p]
-    lines.append(f"lang={s.get('lang', '')}")
-    own = s.get("wallpaper") or ""
-    # свои обои — уже подготовленные шеллом (обрезка, клетки, окраска, затемнение: wall.rs)
-    ready = HOME / ".local/state/yami/wallpaper-own.png"
-    src = (ready if ready.is_file() else Path(own).expanduser()) if own else HOME / ".local/state/yami/wallpaper.png"
-    if src.is_file():
-        bg = d / "background.png"
-        try:
-            from PIL import Image
-            img = Image.open(src)
-            # своя картинка — не больше 2560 по ширине: приветствию хватит
-            if img.width > 2560:
-                img = img.resize((2560, round(img.height * 2560 / img.width)))
-            img.convert("RGB").save(bg)
-        except Exception:
-            bg.write_bytes(src.read_bytes())
-        # сгенерированные обои — в четверть экрана: растягивать без сглаживания
-        lines.append(f"pixelate={'false' if own and s.get('wallPixel', 1) <= 1 else 'true'}")
-    lines.append(f"kanji={'true' if s.get('wallKanji', True) else 'false'}")
-    write(user, "\n".join(lines) + "\n")
-
-
 def _palette(args=()):
     """Палитра: из «--accent '#rrggbb' [--light]» в args (установщик ставит экран входа раньше,
     чем пишет палитру шелла), иначе palette.json шелла, иначе красная по умолчанию."""
@@ -1493,7 +1445,7 @@ def main():
         cursor(_palette())
         return
     if args[:1] == ["--cursor-to"] and len(args) > 1:
-        # экрану входа (SDDM): тема курсора «yami-cursor» в папку args[1], её копируют в /usr/share/icons
+        # экрану входа: тема курсора «yami-cursor» в папку args[1], её копируют в /usr/share/icons
         cursor_theme(_palette(args[2:]), Path(args[1]), "yami-cursor")
         return
     if args[:1] == ["--profiles"]:
@@ -1511,13 +1463,6 @@ def main():
         # шелл переключил вид fastfetch (настройки → вид): только его конфиг
         fastfetch(_palette())
         return
-    if args[:1] == ["--login"]:
-        # шелл сменил обои: только экран входа (если тема SDDM открыта на запись)
-        sddm(_palette())
-        return
-    if args[:1] == ["--sddm"] and len(args) > 1:
-        sddm(_palette(args[2:]), args[1])
-        return
     if args[:1] == ["--accent"] and len(args) > 1:
         # --accent '#rrggbb' [tint] [--light]
         rest = [a for a in args[2:] if a != "--light"]
@@ -1527,7 +1472,7 @@ def main():
         p = json.loads(path.read_text()) if path.exists() else derive("#c4161c")
     else:
         p = _palette()
-    for step in (wallpaper, qt6ct, kde, gtk, fonts, kitty, foot, cava, starship, btop, mangohud, templates, firefox, fastfetch, niri, cursor, sddm):
+    for step in (wallpaper, qt6ct, kde, gtk, fonts, kitty, foot, cava, starship, btop, mangohud, templates, firefox, fastfetch, niri, cursor):
         try:
             step(p)
         except Exception as exc:  # одна программа не должна ломать остальные

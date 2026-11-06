@@ -73,7 +73,10 @@ Everything it does and its flags: [Installation](#installation).
   libmpv is loaded at run time (the only dependency); the screen stays on while a video plays.
 - **Screens.** Settings → screens: drag monitors into place, pick resolution, refresh rate, scale,
   rotation and VRR; applied through `~/.config/niri/yami-outputs.kdl`, reverted after 15 s unless kept.
-- **Login screen.** An SDDM theme that matches the lock screen and follows the palette.
+- **Login screen.** Our own: yami-greet draws the lock screen's face inside niri, greetd (a 650 KB
+  daemon in Rust) checks the password and starts the session. No Qt, no SDDM. It follows the shell:
+  palette, wallpaper, language, monitors, keyboard layouts; if it ever cannot start, greetd's text
+  login takes that one boot, so the machine always lets you in.
 - **Desk mode.** Toggle niri between tiling and a classic floating desktop with DE-style title
   bars, a resize corner on every window, click to focus and raise, minimize/restore and a task
   list in the bar.
@@ -206,7 +209,7 @@ in the finished desktop. Useful flags:
 | `--no-fork` | keep the packaged niri instead of building yami-niri |
 | `--no-tools` | leave out night light, text and QR from screenshots (wlsunset, tesseract, zbar) |
 | `--games`, `--no-games` | GameMode and MangoHud (on by default when Steam is installed) |
-| `--login`, `--no-login` | SDDM with the yami theme even if another login manager or SDDM theme is set / leave it alone |
+| `--login`, `--no-login` | yami's login screen (greetd + yami-greet) even if another login manager is set / leave it alone |
 | `--no-sudo` | home directory only: no packages, no system files |
 | `--dry-run` | print the plan, change nothing |
 | `--no-count` | do not add this machine to the «installs» badge (one anonymous download, [details](docs/SECURITY.md#install-count)) |
@@ -219,7 +222,7 @@ What it does:
 1. Detects the distribution from `/etc/os-release` and installs packages with its native package
    manager (niri, portals, polkit, PipeWire, NetworkManager, BlueZ, power-profiles-daemon, Noto
    fonts, cliphist, grim/slurp, kitty, fastfetch, btop, udisks2, ffmpegthumbnailer, bsdtar, mpv (libmpv), gvfs with the MTP/PTP/AFC/SMB backends, qt6ct,
-   adw-gtk3, Papirus, SDDM). Names a repository does not carry are reported, not fatal. Enables
+   adw-gtk3, Papirus, greetd). Names a repository does not carry are reported, not fatal. Enables
    Bluetooth and power profiles, and NetworkManager when nothing else manages the network.
 2. Builds the workspace with `cargo build --release --locked` (Rust ≥ 1.89; rustup is used
    when the distribution's toolchain is older) and installs `yami-shell`, `yami-files`,
@@ -231,10 +234,11 @@ What it does:
    the keybindings and the game rules. Existing files are moved to `*.bak-DATE`; `output` blocks
    from a previous niri config are carried over into `user.kdl`.
 5. Recolours everything around the shell (Qt, KDE, GTK, kitty, btop, browser menus, cursor).
-6. With the «login screen» component: installs the SDDM theme (with the pixel cursor) and makes
-   SDDM the login manager from the next boot (off by default when another login manager or SDDM
-   theme is set). `--uninstall` removes the theme and brings back the login manager it replaced;
-   SDDM itself stays, with its own theme.
+6. With the «login screen» component: installs greetd, yami-greet (root-owned, in `/usr/local/bin`),
+   its safety net `greet-session` and the pixel cursor, and makes greetd the login manager from the
+   next boot (off by default when another login manager is set; an SDDM with the old yami theme is
+   replaced). `--uninstall` removes it, gives greetd its own config back and brings back the login
+   manager it replaced.
 7. Builds yami-niri (5–25 minutes, output shown) and enables it from the next login.
 
 An existing install under the old name DARK-4RMY is moved over: settings, palette, widgets
@@ -384,8 +388,9 @@ yami-shell binds list                  # keybindings: id, keys, action
   --pick open|save|dir …` is the dialog the portal runs; `yami-files --portal` is the portal and
   FileManager1 service, started by D-Bus; `yami-files --portal-reload` hands it over to a newly
   installed binary without cutting a recording (the installer runs it).
-- **Login screen**: `tools/sddm-install.sh` installs the theme on a running system and makes SDDM
-  the login manager from the next boot; the installer does it with the «login screen» component.
+- **Login screen**: `tools/greet-install.sh` builds yami-greet and installs it on a running system
+  (sudo once), greetd from the next boot; the installer does it with the «login screen» component.
+  `yami login sync` hands it the shell's look at once (the shell does that on every change).
 
 ## Repository layout
 
@@ -396,7 +401,7 @@ yami-shell binds list                  # keybindings: id, keys, action
 | `shell/files/` | yami-files: file manager, portal file dialog, FileManager1 |
 | `shell/view/` | yami-view: image viewer and quick editor |
 | `shell/play/` | yami-play: video and music player (libmpv) |
-| `sddm/yami/` | SDDM login theme (Qt 6 QML, dissolve shader) |
+| `shell/greet/` | yami-greet: the login screen, a greetd greeter inside niri (`system/greet/greet-session` starts it) |
 | `config/portal/`, `config/applications/` | portal registration, D-Bus services, desktop entries |
 | `config/niri/` | niri configuration (keybindings come from the shell) |
 | `config/kitty/`, `config/fontconfig/` | terminal and pixel font rendering |
@@ -432,7 +437,7 @@ log in, `~/.local/lib/yami-niri/yami-niri.sh off`. Details: [fork/README.md](for
 | `tools/map.sh [TEXT]` | every source file with its one-line description |
 | `yami-shell shot [TARGET…] --lang en [--transparent] [--frame PNG] -o DIR` | render panels to PNG without a compositor (`--frame`: a real screen under the screenshot overlay); fails on untranslated text |
 | `yami-files shot`, `yami-view shot`, `yami-play shot` | the same for the file manager, the viewer and the player |
-| `tools/sddm-preview.sh OUT.png` | render the login screen offscreen with your palette (`--window` to try it) |
+| `yami-greet shot -o DIR`, `yami-greet --demo` | the login screen offscreen in each state; `--demo` runs it without greetd (password `yami`) inside a nested niri |
 | `tools/readme-art.py`, `tools/readme-shots.sh` | the README's logo and cards; real screenshots of your session (empty workspace, plain device names, everything put back) |
 | `tools/release.sh X.Y.Z` | cut a release: changelog, versions, check, signed tag, push (`--keygen` once for the key) |
 | `tools/deploy.sh` | build, install to `~/.local/bin` and restart the running shell (refuses while a game has focus); `--files-only` installs yami-files, yami-view and yami-play only |

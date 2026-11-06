@@ -90,6 +90,7 @@ impl R {
 }
 
 /// Готовая картинка: предумноженные ARGB-пиксели
+#[derive(Clone)]
 pub struct Img {
     pub w: i32,
     pub h: i32,

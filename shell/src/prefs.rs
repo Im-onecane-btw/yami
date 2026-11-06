@@ -36,6 +36,7 @@ impl App {
         self.automount_sync();
         self.sync_wall();
         crate::keys::write(&self.st.set);
+        crate::login::publish(&self.st.set);
         self.setup_idle();
         self.sync_bar_outputs();
         self.sync_widgets();

@@ -35,6 +35,13 @@ impl Look {
     /// light: Some — тема поверх настроек (снимки `shot --theme light`)
     pub fn load_mode(light: Option<bool>) -> Look {
         let v: serde_json::Value = std::fs::read_to_string(crate::paths::shell_settings()).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(serde_json::Value::Null);
+        let mut l = Look::from_json(&v, light);
+        l.stamp = stamp();
+        l
+    }
+
+    /// вид из JSON в формате настроек шелла (экран входа читает копию, которую выкладывает шелл)
+    pub fn from_json(v: &serde_json::Value, light: Option<bool>) -> Look {
         let f = |k: &str, d: f32| v.get(k).and_then(|x| x.as_f64()).map(|x| x as f32).unwrap_or(d);
         let s = |k: &str| v.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string();
         let b = |k: &str, d: bool| v.get(k).and_then(|x| x.as_bool()).unwrap_or(d);
@@ -53,7 +60,7 @@ impl Look {
             font_shell: s("fontShell"),
             font_files: s("fontFiles"),
             font_view: s("fontView"),
-            stamp: stamp(),
+            stamp: None,
         }
     }
 

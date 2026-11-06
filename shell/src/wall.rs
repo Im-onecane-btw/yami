@@ -1,7 +1,7 @@
 // Обои: своя картинка или пиксельные из палитры (tools/theme.py пишет wallpaper.png). Своя
 // готовится в нити — декод, обрезка или вписывание под экран, клетки, окраска в палитру,
 // затемнение — и приходит в Msg::Wall уже готовой: экран рисует её без пересчёта. Тот же
-// результат идёт экрану входа (wallpaper-own.png → theme.py --login). Здесь же вкладка «обои».
+// результат идёт и экрану входа (login.rs → /var/lib/yami-greet/look/wall.png). Здесь же вкладка «обои».
 
 use crate::app::{App, Msg, SKind, State};
 use crate::config::{self, Settings};
@@ -104,7 +104,7 @@ impl Job {
         }
     }
 
-    fn key(&self) -> String {
+    pub fn key(&self) -> String {
         let m = std::fs::metadata(&self.path).and_then(|m| m.modified()).ok();
         // и «палитра из обоев»: включили её на той же картинке — акцент надо вычислить заново
         format!("{:?}|{m:?}|{}|{}x{}|{}|{}|{}|{}|{:x?}|{}", self.path, self.own, self.w, self.h, self.cell, self.fit, self.tone, self.dim, self.ramp, self.accent)
@@ -265,40 +265,6 @@ fn hsv(h: f32, s: f32, v: f32) -> u32 {
     C::from_f(r + v - c, g + v - c, b + v - c).0 & 0xffffff
 }
 
-/// экран входа: та же картинка (theme.py --login кладёт её рядом с темой SDDM). Пиксели
-/// снимаются до отправки картинки экрану, PNG и скрипт — уже после.
-fn login_rgb(img: &Img, own: bool, key: &str) -> Option<Option<Vec<u8>>> {
-    let kf = config::state_dir().join("wallpaper-own.key");
-    if std::fs::read_to_string(&kf).map(|k| k == key).unwrap_or(false) || !login_writable() {
-        return None;
-    }
-    Some(own.then(|| img.px.iter().flat_map(|p| [(p >> 16) as u8, (p >> 8) as u8, *p as u8]).collect()))
-}
-
-/// папка темы SDDM: первая sddm/themes/yami в XDG_DATA_DIRS, иначе /usr/share (#1)
-pub fn sddm_dir() -> std::path::PathBuf {
-    yami_px::paths::data_dirs().into_iter().map(|d| d.join("sddm/themes/yami")).find(|d| d.is_dir()).unwrap_or_else(|| "/usr/share/sddm/themes/yami".into())
-}
-
-/// тема SDDM открыта нам на запись (установщик отдаёт theme.conf.user пользователю)
-fn login_writable() -> bool {
-    let d = sddm_dir();
-    let d = d.as_path();
-    let f = d.join("theme.conf.user");
-    let p = if f.exists() { f } else { d.to_path_buf() };
-    let Ok(c) = std::ffi::CString::new(p.to_string_lossy().as_bytes()) else { return false };
-    unsafe { libc::access(c.as_ptr(), libc::W_OK) == 0 }
-}
-
-fn to_login(w: i32, h: i32, raw: Option<Vec<u8>>, key: &str) {
-    let dir = config::state_dir();
-    if let Some(rgb) = raw.and_then(|r| image::RgbImage::from_raw(w as u32, h as u32, r)) {
-        let _ = rgb.save(dir.join("wallpaper-own.png"));
-    }
-    let _ = crate::proc::theme_py().arg("--login").status();
-    let _ = config::write_atomic(&dir.join("wallpaper-own.key"), key);
-}
-
 /// длинная сторона копии обоев, что остаётся в памяти (wall_park)
 const PARK: i32 = 640;
 
@@ -328,9 +294,7 @@ fn shrink(img: &Img, max: i32) -> Img {
 
 /// обои на весь экран «как обложка» (картинка уже в пропорциях экрана — без обрезки)
 pub fn cover(ui: &mut Ui, img: &Img, w: i32, h: i32) {
-    let k = (w as f32 / img.w as f32).max(h as f32 / img.h as f32);
-    let (dw, dh) = ((img.w as f32 * k).ceil() as i32, (img.h as f32 * k).ceil() as i32);
-    ui.cv.image_scaled(img, R::new((w - dw) / 2, (h - dh) / 2, dw, dh), 1.0);
+    yami_px::face::cover(ui, img, w, h);
 }
 
 pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
@@ -457,10 +421,11 @@ impl App {
         let (n, tx) = (self.wall_job, self.tx.clone());
         std::thread::spawn(move || {
             let (img, accent) = prepare(&job);
-            let login = img.as_ref().and_then(|i| login_rgb(i, job.own, &key).map(|raw| (i.w, i.h, raw)));
+            // экрану входа — та же картинка; PNG пишется уже после отправки её шеллу
+            let login = if crate::login::wanted(&key) { img.clone() } else { None };
             let _ = tx.send(Msg::Wall(n, img, accent));
-            if let Some((w, h, raw)) = login {
-                to_login(w, h, raw, &key);
+            if let Some(i) = login {
+                crate::login::wall(&i, &key);
             }
         });
     }

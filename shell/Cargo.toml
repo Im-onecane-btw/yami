@@ -30,7 +30,7 @@ blocking = "=1.6.2"
 libc = "0.2"
 
 [workspace]
-members = ["px", "files", "view", "play"]
+members = ["px", "files", "view", "play", "greet"]
 
 [profile.release]
 opt-level = 3

@@ -17,6 +17,7 @@ of the file is kept), unknown keys are ignored: `yami-shell config check` lists 
 | `~/.config/niri/yami-colors.kdl`, `yami-cursor.kdl` | `tools/theme.py` | no, rewritten |
 | `~/.config/niri/yami-outputs.kdl` | the shell (settings → screens) | no, rewritten |
 | `~/.config/niri/yami-local.kdl` | the installer (GPU environment) | no |
+| `/var/lib/yami-greet/look/` | the shell: what the login screen is drawn from (`look.json`: palette, language, monitors, layouts; `wall.png`: the wallpaper), yours since the install | no, rewritten |
 | `~/.local/state/yami/palette.json` | the shell: the derived palette other apps are coloured from | no |
 | `~/.config/xdg-desktop-portal/niri-portals.conf` | the shell (settings → services); kept as is once it no longer starts with `# yami:` | through the settings |
 | `~/.local/state/yami/install.json` | the installer and `tools/deploy.sh`: version, commit, source, components | no |
@@ -40,6 +41,7 @@ yami ocr FILE                             # text from an image, the same recogni
 yami theme export FILE | import FILE|URL  # the look as one file: palette, effects, fonts, bar, widgets, wallpaper (never commands); an imported theme is kept in your themes, a URL must be https
 yami theme save [NAME] | list | apply NAME | remove NAME   # your themes in ~/.config/yami/themes (settings → color → themes); save with no name names it after the palette
 yami export FILE | import FILE [--yes]    # every setting as one file; user.kdl, custom keys and bar scripts only with --yes; before an import the current state goes to ~/.local/state/yami/before-import-*.json (undo: yami import that file --yes)
+yami login sync                           # give the login screen the shell's look now (the shell does it on every change)
 yami clean [--dry-run]                    # remove the build cache (yami-niri sources, the shell's target: gigabytes); --force also drops a tree with your patch work
 yami version                              # every part with the installed commit
 yami update [check|apply|list|to X.Y.Z|rollback|status|log|need]

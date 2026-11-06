@@ -1,0 +1,22 @@
+[package]
+name = "yami-greet"
+version = "2.5.1"
+edition = "2021"
+description = "Pixel-art login screen of the yami desktop: a greetd greeter inside niri"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "yami-greet"
+path = "src/main.rs"
+
+[dependencies]
+yami-px = { path = "../px" }
+smithay-client-toolkit = "0.20"
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client", "staging"] }
+calloop-wayland-source = "0.4"
+calloop = "0.14"
+image = { version = "0.25", default-features = false, features = ["png"] }
+serde_json = "1"
+libc = "0.2"

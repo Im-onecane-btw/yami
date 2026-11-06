@@ -19,7 +19,7 @@
 #   ./install.sh --no-tools       skip night light, screen text recognition and QR (wlsunset, tesseract, zbar)
 #   ./install.sh --games          GameMode and MangoHud (on by default when Steam is here)
 #   ./install.sh --no-games       leave them out
-#   ./install.sh --login          SDDM with the yami theme even if another login manager is set
+#   ./install.sh --login          yami's login screen (greetd + yami-greet) even if another login manager is set
 #   ./install.sh --no-login       leave the login manager alone
 #   ./install.sh --no-sudo        home directory only: no packages, no system files
 #   ./install.sh --no-anim        no animations
@@ -257,34 +257,18 @@ if ((NVIDIA)); then
 fi
 [[ -n "${NIRI_SOCKET:-}" ]] && RUNNING_NIRI=1
 [[ -d /run/systemd/system ]] && SYSTEMD=1
-# экран входа: по умолчанию — только если другого менеджера входа нет
+# экран входа: по умолчанию — только если другого менеджера входа нет. Свой — greetd с yami-greet
+# и SDDM с прежней темой yami (до 2.6 экран входа был ею: обновление переводит на свой)
 OTHER_DM=""
 if [[ -L /etc/systemd/system/display-manager.service ]]; then
   OTHER_DM="$(basename "$(readlink /etc/systemd/system/display-manager.service)" .service)"
-  [[ $OTHER_DM == sddm ]] && OTHER_DM=""
+  case $OTHER_DM in
+    greetd) grep -qs 'yami/greet-session' /etc/greetd/config.toml && OTHER_DM="" ;;
+    sddm) [[ -d /usr/share/sddm/themes/yami ]] && OTHER_DM="" ;;
+  esac
 fi
-# SDDM reads its config in this order, a later file winning: /usr/lib/sddm/sddm.conf.d and
-# /etc/sddm.conf.d (each by file name), then /etc/sddm.conf. Ours is named to come last in the folder
-# (KDE writes kde_settings.conf there), 10-yami.conf is its old name.
-SDDM_OURS=/etc/sddm.conf.d/zz-yami.conf
-# the file that sets the SDDM theme last and the theme ("FILE<TAB>NAME"); `skip` leaves out ours
-sddm_theme_by() {
-  local f v last=""
-  for f in /usr/lib/sddm/sddm.conf.d/* /etc/sddm.conf.d/* /etc/sddm.conf; do
-    [[ -f $f && -r $f ]] || continue
-    [[ ${1:-} == skip && ( $f == "$SDDM_OURS" || $f == /etc/sddm.conf.d/10-yami.conf ) ]] && continue
-    v="$(awk -F= '/^[[:space:]]*\[/ { s = $0; gsub(/[[:space:]]/, "", s); next }
-      s == "[Theme]" && $1 ~ /^[[:space:]]*Current[[:space:]]*$/ { v = $2; gsub(/^[[:space:]]+|[[:space:]]+$/, "", v); hit = 1 }
-      END { if (hit) print v; else exit 1 }' "$f" 2>/dev/null)" && last="$f	$v"
-  done
-  printf '%s' "$last"
-}
-# a theme someone chose for SDDM (KDE: System Settings → Login Screen): yami's is then off by default
-SDDM_OTHER="$(sddm_theme_by skip)"
-SDDM_OTHER="${SDDM_OTHER#*	}"
-[[ $SDDM_OTHER == yami ]] && SDDM_OTHER=""
 LOGIN_ON=1
-[[ -n $OTHER_DM || -n $SDDM_OTHER ]] && LOGIN_ON=0
+[[ -n $OTHER_DM ]] && LOGIN_ON=0
 [[ -n $LOGIN_FLAG ]] && LOGIN_ON=$LOGIN_FLAG
 # игры: по умолчанию — только если здесь есть Steam (пакет, flatpak или его папка)
 GAMES_ON=0
@@ -294,7 +278,8 @@ GAMES_ON=0
 # ── packages by family ──────────────────────────────────────────────────────
 # niri — the compositor; base — what the shell and the session use at runtime;
 # build — to compile the shell; apps, look — optional; games — GameMode, MangoHud;
-# tools — night light, text and QR from screenshots; nirisrc — to build niri itself
+# tools — night light, text and QR from screenshots; login — greetd for yami-greet (agreety: the text
+# fallback); nirisrc — to build niri itself
 case "$FAM" in
   arch)
     P_niri=(niri xwayland-satellite xdg-desktop-portal-gnome xdg-desktop-portal-gtk)
@@ -306,6 +291,7 @@ case "$FAM" in
     P_look=(qt6ct adw-gtk-theme papirus-icon-theme)
     P_games=(gamemode mangohud)
     P_tools=(wlsunset tesseract tesseract-data-eng tesseract-data-rus zbar)
+    P_login=(greetd greetd-agreety)
     P_nirisrc=(git clang pkgconf libinput libxkbcommon mesa libdisplay-info seatd pango cairo pipewire systemd-libs) ;;
   fedora)
     P_niri=(niri xwayland-satellite xdg-desktop-portal-gnome xdg-desktop-portal-gtk)
@@ -317,6 +303,7 @@ case "$FAM" in
     P_look=(qt6ct adw-gtk3-theme papirus-icon-theme)
     P_games=(gamemode mangohud)
     P_tools=(wlsunset tesseract tesseract-langpack-eng tesseract-langpack-rus zbar)
+    P_login=(greetd)
     P_nirisrc=(git clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel
       libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel) ;;
   debian)
@@ -329,6 +316,7 @@ case "$FAM" in
     P_look=(qt6ct adw-gtk3 papirus-icon-theme)
     P_games=(gamemode mangohud)
     P_tools=(wlsunset tesseract-ocr tesseract-ocr-eng tesseract-ocr-rus zbar-tools)
+    P_login=(greetd)
     P_nirisrc=(git clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev
       libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev) ;;
   suse)
@@ -341,6 +329,7 @@ case "$FAM" in
     P_look=(qt6ct gtk3-metatheme-adwaita papirus-icon-theme)
     P_games=(gamemode mangohud)
     P_tools=(wlsunset tesseract-ocr tesseract-ocr-traineddata-eng tesseract-ocr-traineddata-rus zbar)
+    P_login=(greetd)
     P_nirisrc=(git clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-1-devel systemd-devel
       libseat-devel pipewire-devel pango-devel cairo-devel libdisplay-info-devel) ;;
   void)
@@ -353,6 +342,7 @@ case "$FAM" in
     P_look=(qt6ct adw-gtk3 papirus-icon-theme)
     P_games=(gamemode MangoHud)
     P_tools=(wlsunset tesseract-ocr tesseract-ocr-eng tesseract-ocr-rus zbar)
+    P_login=(greetd)
     P_nirisrc=(git clang eudev-libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel
       libseat-devel pipewire-devel pango-devel libdisplay-info-devel) ;;
   alpine)
@@ -365,6 +355,7 @@ case "$FAM" in
     P_look=(qt6ct adw-gtk3 papirus-icon-theme)
     P_games=(gamemode mangohud)
     P_tools=(wlsunset tesseract-ocr tesseract-ocr-data-rus zbar)
+    P_login=(greetd greetd-agreety)
     P_nirisrc=(git clang eudev-dev mesa-dev libxkbcommon-dev wayland-dev libinput-dev dbus-dev libseat-dev pipewire-dev
       pango-dev libdisplay-info-dev) ;;
   gentoo)
@@ -378,14 +369,15 @@ case "$FAM" in
     P_look=(gui-apps/qt6ct x11-themes/adw-gtk3 x11-themes/papirus-icon-theme)
     P_games=(games-util/gamemode games-util/mangohud)
     P_tools=(gui-apps/wlsunset app-text/tesseract media-gfx/zbar)
+    P_login=(gui-libs/greetd)
     P_nirisrc=(dev-vcs/git llvm-core/clang dev-libs/libinput sys-auth/seatd media-libs/mesa x11-libs/pango media-libs/libdisplay-info) ;;
   *)
-    P_niri=() P_base=() P_build=() P_apps=() P_look=() P_games=() P_tools=() P_nirisrc=() ;;
+    P_niri=() P_base=() P_build=() P_apps=() P_look=() P_games=() P_tools=() P_login=() P_nirisrc=() ;;
 esac
 if ((PRINT_PKGS)); then
   # name: packages — tools/ci-distro.sh checks that each exists in this distro's repositories
   printf 'family: %s\n' "$FAM"
-  for a in P_niri P_base P_build P_apps P_look P_games P_tools P_nirisrc; do
+  for a in P_niri P_base P_build P_apps P_look P_games P_tools P_login P_nirisrc; do
     declare -n arr=$a
     printf '%s: %s\n' "$a" "${arr[*]}"
   done
@@ -625,7 +617,7 @@ c_name() {
     tools) t "инструменты" "tools" ;;
     games) t "игры" "games" ;;
     look) t "тема программ" "app theme" ;;
-    login) t "экран входа SDDM" "SDDM login screen" ;;
+    login) t "экран входа" "login screen" ;;
     nvidia) t "фикс NVIDIA" "NVIDIA fixes" ;;
     fork) t "yami-niri (форк)" "yami-niri (fork)" ;;
   esac
@@ -636,8 +628,8 @@ c_desc() {
     apps) t "kitty, fastfetch, pavucontrol, btop, udisks2, миниатюры видео, bsdtar, libmpv для плеера, gvfs: телефоны и сеть" "kitty, fastfetch, pavucontrol, btop, udisks2, video thumbnails, bsdtar, libmpv for the player, gvfs: phones and network" ;;
     tools) t "ночной свет (wlsunset), текст и QR со скриншота (tesseract, zbar)" "night light (wlsunset), text and QR from screenshots (tesseract, zbar)" ;;
     games) t "GameMode и MangoHud в палитре" "GameMode and MangoHud in the palette" ;;
-    login) if [[ -n $OTHER_DM ]]; then t "пиксельная тема как экран блокировки; заменит $OTHER_DM" "pixel theme like the lock screen; replaces $OTHER_DM"
-      elif [[ -n $SDDM_OTHER ]]; then t "пиксельная тема как экран блокировки; заменит тему SDDM $SDDM_OTHER" "pixel theme like the lock screen; replaces the SDDM theme $SDDM_OTHER"; else t "пиксельная тема как экран блокировки, вход в niri" "pixel theme like the lock screen, logs into niri"; fi ;;
+    login) if [[ -n $OTHER_DM ]]; then t "свой, как экран блокировки: greetd + yami-greet, без Qt; заменит $OTHER_DM" "our own, like the lock screen: greetd + yami-greet, no Qt; replaces $OTHER_DM"
+      else t "свой, как экран блокировки: greetd + yami-greet, без Qt, вход в niri" "our own, like the lock screen: greetd + yami-greet, no Qt, logs into niri"; fi ;;
     look) t "qt6ct + adw-gtk3 + Papirus: Qt, KDE и GTK в палитре райса" "qt6ct + adw-gtk3 + Papirus: Qt, KDE and GTK in the rice palette" ;;
     nvidia) t "переменные драйвера, профиль против утечки VRAM, драйвер с начала загрузки (пароль диска виден и на DisplayPort), NVENC в OBS на старом драйвере" "driver env, a VRAM leak profile, the driver from the start of boot (disk password visible on DisplayPort too), NVENC in OBS on an old driver" ;;
     fork)
@@ -1268,11 +1260,11 @@ fork_stale() {
   have="$("$HOME/.local/lib/yami-niri/current/niri" --version 2>/dev/null | awk '{print $2}')"
   [[ $want != "$have" ]]
 }
-# update: the installed login theme differs from this tree (its QML; fonts and colours are added on install)
-sddm_stale() {
-  local f
-  for f in "$ROOT"/sddm/yami/*.qml; do cmp -s "$f" "/usr/share/sddm/themes/yami/${f##*/}" || return 0; done
-  return 1
+# update: the installed login screen is older than this build (or still the SDDM theme of before 2.6)
+greet_stale() {
+  [[ -d /usr/share/sddm/themes/yami ]] && return 0
+  [[ -x /usr/local/bin/yami-greet ]] || return 1
+  ! cmp -s "$CACHE/target/release/yami-greet" /usr/local/bin/yami-greet || ! cmp -s "$ROOT/system/greet/greet-session" /usr/local/lib/yami/greet-session
 }
 # the yami-niri sources and their build cache are ~4 GB and only the next fork build needs them (the
 # installed binary does not), so after a successful build they go; the next build clones them again.
@@ -1375,78 +1367,32 @@ do_need_pkgs() {
   fi
 }
 
-# ── login screen: SDDM with the yami theme ──────────────────────────────────
-# the theme is Qt 6 (QtVersion=6, SDDM 0.21+); an older SDDM (Qt 5 only) shows a broken login screen
-sddm_qt6() {
-  local d
-  command -v sddm-greeter-qt6 >/dev/null && return 0
-  for d in /usr/bin /usr/libexec /usr/lib/sddm /usr/local/bin; do [[ -x $d/sddm-greeter-qt6 ]] && return 0; done
-  return 1
-}
-# for the summary: a login screen that will not show, and why
-sddm_check() {
-  command -v sddm >/dev/null || return 0
-  if ! sddm_qt6; then
-    warn "$(t "SDDM здесь без Qt 6 (старше 0.21): тема yami не встанет, экран входа оставлен как был" "this SDDM has no Qt 6 greeter (older than 0.21): the yami theme cannot run, the login screen is left as it was")"
-    return 0
-  fi
-  # /etc/sddm.conf is read after the folder: a theme set there still wins
-  local by
-  by="$(sddm_theme_by)"
-  [[ -e $SDDM_OURS && -n $by && ${by%%	*} != "$SDDM_OURS" && ${by#*	} != yami ]] &&
-    warn "$(t "тему SDDM задаёт ${by%%	*} (Current=${by#*	}): поставь там Current=yami" "${by%%	*} sets the SDDM theme (Current=${by#*	}): put Current=yami there")"
-  return 0
-}
-do_sddm() {
-  local dst=/usr/share/sddm/themes/yami src="$CACHE/sddm-yami"
-  # the summary says why (sddm_check)
-  sddm_qt6 || return 99
-  rm -rf -- "$src"
-  "$ROOT/tools/sddm-build.sh" "$src" >/dev/null || return 1
-  $SU rm -rf -- "$dst"
-  $SU mkdir -p "$(dirname "$dst")"
-  $SU cp -r "$src" "$dst" || return 1
-  # палитру и обои при смене цвета переписывает tools/theme.py — от тебя, без sudo
-  $SU touch "$dst/theme.conf.user" "$dst/background.png"
-  $SU chown "$(id -u):$(id -g)" "$dst/theme.conf.user" "$dst/background.png"
-  $SU chmod 644 "$dst/theme.conf.user" "$dst/background.png"
-  # the step runs before the shell's palette is written (it is the last root step, see run_steps):
-  # the chosen palette is given here; the palette step later rewrites the user-owned files above
+# ── login screen: greetd + yami-greet ───────────────────────────────────────
+# greetd (a small daemon in Rust, every distro has it) does PAM and starts the session; yami-greet
+# draws the login screen inside niri with the lock screen's look. The root half is
+# tools/greet-install.sh --system (also run by hand: tools/greet-install.sh). This step comes before
+# the build; yami-greet itself is installed after it (greet_bin), greet-session meanwhile falls
+# back to greetd's text greeter, so a failed build never leaves the machine without a login.
+do_greet() {
+  command -v greetd >/dev/null || return 1
   local acc=(--accent "#${PAL_HEX[$pal]}")
   ((theme == 1)) && acc+=(--light)
-  python3 -I "$ROOT/tools/theme.py" --sddm "$dst" "${acc[@]}"
-  $SU mkdir -p /etc/sddm.conf.d
-  # the pixel cursor on the login screen too: the greeter reads /usr/share/icons only
-  python3 -I "$ROOT/tools/theme.py" --cursor-to "$CACHE/yami-cursor" "${acc[@]}" || return 1
-  $SU rm -rf -- /usr/share/icons/yami-cursor
-  $SU cp -r "$CACHE/yami-cursor" /usr/share/icons/yami-cursor || return 1
+  # the pixel cursor on the login screen too: niri there reads /usr/share/icons only
   rm -rf -- "$CACHE/yami-cursor"
-  $SU rm -f /etc/sddm.conf.d/10-yami.conf
-  printf '%s\n' "# yami: login screen theme (installer; ./install.sh --uninstall removes it)" "[Theme]" "Current=yami" "CursorTheme=yami-cursor" "CursorSize=24" \
-    "" "[Users]" "RememberLastUser=true" "RememberLastSession=true" | $SU tee "$SDDM_OURS" >/dev/null
-
-  # first boot: this user and the Niri session already picked (SDDM keeps its own choice later)
-  local st=/var/lib/sddm/state.conf sess
-  sess="$(ls /usr/share/wayland-sessions/niri.desktop /usr/local/share/wayland-sessions/niri.desktop 2>/dev/null | head -n1)"
-  if [[ -n $sess && -d ${st%/*} ]] && ! $SU grep -qs '^Session=' "$st"; then
-    printf '[Last]\nSession=%s\nUser=%s\n' "$sess" "$(id -un)" | $SU tee "$st" >/dev/null
-    $SU chown sddm:sddm "$st" 2>/dev/null
-  fi
-  if ((SYSTEMD)) && [[ -f /usr/lib/systemd/system/plymouth-quit.service ]]; then
-    # зависший plymouth не должен держать multi-user.target (system/plymouth)
-    local u
-    for u in plymouth-quit plymouth-quit-wait; do
-      $SU install -Dm644 "$ROOT/system/plymouth/10-yami.conf" "/etc/systemd/system/$u.service.d/10-yami.conf"
-    done
-    $SU systemctl daemon-reload
-  fi
-  if ((SYSTEMD)); then
+  python3 -I "$ROOT/tools/theme.py" --cursor-to "$CACHE/yami-cursor" "${acc[@]}" || return 1
+  if ((SYSTEMD)) && [[ -n $OTHER_DM && ! -s $STATE/login-dm ]]; then
     # заменить текущий менеджер входа — со следующей загрузки, сеанс не трогаем; --uninstall вернёт его
-    if [[ -n $OTHER_DM && ! -s $STATE/login-dm ]]; then
-      mkdir -p "$STATE" && printf '%s\n' "$OTHER_DM" >"$STATE/login-dm"
-    fi
-    $SU systemctl enable -f sddm.service || return 1
+    mkdir -p "$STATE" && printf '%s\n' "$OTHER_DM" >"$STATE/login-dm"
   fi
+  $SU "$ROOT/tools/greet-install.sh" --system "$(id -un)" --cursor "$CACHE/yami-cursor" || return 1
+  rm -rf -- "$CACHE/yami-cursor"
+}
+# after the build: the binary, root-owned in /usr/local/bin (the root shell is closed by then: the
+# password is asked once more, like for the yami-niri capability), and the shell's look for it
+greet_bin() {
+  [[ -x $CACHE/target/release/yami-greet ]] || return 1
+  $SU "$ROOT/tools/greet-install.sh" --system "$(id -un)" --bin "$CACHE/target/release/yami-greet" --bin-only || return 1
+  "$BIN/yami-shell" login sync >/dev/null 2>&1 || true
 }
 
 do_nvidia_profile() {
@@ -1601,36 +1547,44 @@ do_drop_old() {
 }
 
 # ── uninstall ───────────────────────────────────────────────────────────────
-# the login screen: yami's SDDM theme, its config and cursor go, the login manager it replaced
-# (do_sddm wrote it down) comes back from the next boot; SDDM itself stays with its own theme (KDE
-# and others use it). The plymouth and NVIDIA fixes stay too: they help without yami.
+# the login screen: yami-greet, its files, cursor and greetd config go (greetd gets its own config
+# back), the login manager it replaced (do_greet wrote it down) comes back from the next boot;
+# greetd itself stays. The plymouth and NVIDIA fixes stay too: they help without yami.
 uninstall_login() {
   local dm="" f files=() now
   [[ -r $STATE/login-dm ]] && dm="$(head -n1 "$STATE/login-dm")"
   [[ $dm =~ ^[A-Za-z0-9_.@-]+$ ]] || dm=""
-  # the manager comes back only while SDDM is still the one: another chosen since then stays
+  # the manager comes back only while greetd is still the one: another chosen since then stays
   now="$(basename "$(readlink /etc/systemd/system/display-manager.service 2>/dev/null)" .service)"
-  if [[ -n $dm && $now != sddm ]]; then
+  if [[ -n $dm && $now != greetd ]]; then
     dm=""
     rm -f "$STATE/login-dm"
   fi
-  for f in "$SDDM_OURS" /etc/sddm.conf.d/10-yami.conf /usr/share/sddm/themes/yami /usr/share/icons/yami-cursor; do
+  for f in /usr/local/bin/yami-greet /usr/local/lib/yami/greet-session /usr/local/share/yami-greet /var/lib/yami-greet /usr/share/icons/yami-cursor \
+    /usr/share/sddm/themes/yami /etc/sddm.conf.d/zz-yami.conf /etc/sddm.conf.d/10-yami.conf; do
     [[ -e $f ]] && files+=("$f")
   done
-  ((${#files[@]})) || [[ -n $dm ]] || return 0
+  local ours=0
+  grep -qs '^# yami:' /etc/greetd/config.toml && ours=1
+  ((${#files[@]} || ours)) || [[ -n $dm ]] || return 0
   local cmd="rm -rf ${files[*]}"
+  ((ours)) && cmd+="; mv -f /etc/greetd/config.toml.yami-orig /etc/greetd/config.toml"
   [[ -n $dm ]] && cmd+="; systemctl enable -f $dm.service"
   if ((EUID != 0)) && { [[ -z $SU ]] || ! root_start; }; then
     warn "$(t "экран входа не убран, нужен root:" "the login screen is not removed, root is needed:") sudo sh -c '$cmd'"
     return 0
   fi
   ((${#files[@]})) && $SU rm -rf -- "${files[@]}"
-  say "$(t "экран входа: тема yami убрана, у SDDM снова своя" "login screen: the yami theme is gone, SDDM has its own again")"
-  # Current=yami written by hand into another file (sddm_check asks for it) would point at nothing
-  local by
-  by="$(sddm_theme_by)"
-  [[ -n $by && ${by#*	} == yami ]] &&
-    warn "$(t "${by%%	*} всё ещё ставит тему yami (Current=yami): поменяй её там или убери строку" "${by%%	*} still sets the yami theme (Current=yami): change it there or remove the line")"
+  if ((ours)); then
+    # greetd без нашего конфига: его собственный, если был, иначе текстовое приветствие
+    if [[ -f /etc/greetd/config.toml.yami-orig ]]; then
+      $SU mv -f /etc/greetd/config.toml.yami-orig /etc/greetd/config.toml
+    else
+      printf '%s\n' "[terminal]" "vt = 1" "" "[default_session]" 'command = "agreety --cmd /bin/sh"' "user = \"$(awk -F'"' '/^user/ { print $2; exit }' /etc/greetd/config.toml)\"" | $SU tee /etc/greetd/config.toml.new >/dev/null &&
+        $SU mv -f /etc/greetd/config.toml.new /etc/greetd/config.toml
+    fi
+  fi
+  say "$(t "экран входа yami убран" "the yami login screen is removed")"
   if [[ -n $dm ]] && ((SYSTEMD)); then
     if $SU systemctl enable -f "$dm.service"; then
       say "$(t "менеджер входа: снова $dm со следующей загрузки" "login manager: $dm again from the next boot")"
@@ -1638,13 +1592,13 @@ uninstall_login() {
     else
       warn "$(t "не включился $dm: sudo systemctl enable -f $dm.service" "$dm did not enable: sudo systemctl enable -f $dm.service")"
     fi
-  elif ((SYSTEMD)) && [[ $now == sddm ]]; then
+  elif ((SYSTEMD)) && [[ $now == greetd ]]; then
     # installed before the replaced manager was written down: name the ones on this system
     local u others=()
-    for u in gdm lightdm lxdm ly greetd cosmic-greeter plasmalogin; do
+    for u in sddm gdm lightdm lxdm ly cosmic-greeter plasmalogin; do
       [[ -f /usr/lib/systemd/system/$u.service || -f /etc/systemd/system/$u.service ]] && others+=("$u")
     done
-    ((${#others[@]})) && note "$(t "SDDM остаётся менеджером входа; вернуть прежний:" "SDDM stays the login manager; to switch back:") sudo systemctl enable -f ${others[0]}.service$( ((${#others[@]} > 1)) && printf ' (%s)' "${others[*]}")"
+    ((${#others[@]})) && note "$(t "greetd остаётся менеджером входа (текстовый вход); вернуть прежний:" "greetd stays the login manager (text login); to switch back:") sudo systemctl enable -f ${others[0]}.service$( ((${#others[@]} > 1)) && printf ' (%s)' "${others[*]}")"
   fi
   root_stop
 }
@@ -1671,7 +1625,7 @@ uninstall() {
   uninstall_login
   rm -f "$STATE/packages-needed" "$STATE/components-known" "$STATE/settings-newer.json"
   # the build cache (gigabytes); yami-niri sources only without patch work in them
-  rm -rf -- "$CACHE/target" "$CACHE/sddm-yami" "$CACHE/update.log" "$CACHE/update.lock"
+  rm -rf -- "$CACHE/target" "$CACHE/sddm-yami" "$CACHE/yami-cursor" "$CACHE/update.log" "$CACHE/update.lock"
   local src="${YAMI_NIRI_SRC:-$CACHE/niri-src}"
   if niri_src_plain "$src"; then
     rm -rf -- "$src"
@@ -1719,8 +1673,8 @@ if ((UPDATE)); then
     say "$(t "yami-niri: новая серия патчей — сборка (5–25 минут)" "yami-niri: a new patch series, building (5–25 minutes)")"
     if need_rust && "$ROOT/fork/yami-niri.sh" build 2>&1 | tee -a "$LOG"; then fork_tidy; else FAILED+=("yami-niri"); fi
   fi
-  if on login && [[ -d /usr/share/sddm/themes/yami ]] && sddm_stale; then
-    note "$(t "экран входа обновился — поставь его: $ROOT/tools/sddm-install.sh (нужен sudo)" "the login screen changed, install it: $ROOT/tools/sddm-install.sh (needs sudo)")"
+  if on login && ((!DRY)) && greet_stale; then
+    note "$(t "экран входа обновился — поставь его: $ROOT/tools/greet-install.sh (нужен sudo)" "the login screen changed, install it: $ROOT/tools/greet-install.sh (needs sudo)")"
   fi
   if ((${#FAILED[@]})); then
     warn "$(t "не вышло:" "failed:") ${FAILED[*]}"
@@ -1780,7 +1734,7 @@ on apps && add "$(t "пакеты: программы" "packages: apps")" pkgs "
 on look && add "$(t "пакеты: тема Qt и GTK" "packages: Qt and GTK theme")" pkgs "${P_look[@]}"
 on tools && add "$(t "пакеты: ночной свет, текст и QR со скриншота" "packages: night light, text and QR from screenshots")" pkgs "${P_tools[@]}"
 on games && add "$(t "пакеты: GameMode, MangoHud" "packages: GameMode, MangoHud")" pkgs "${P_games[@]}"
-on login && add "$(t "пакеты: SDDM" "packages: SDDM")" pkgs "$([[ $FAM == gentoo ]] && echo x11-misc/sddm || echo sddm)"
+on login && add "$(t "пакеты: greetd" "packages: greetd")" pkgs "${P_login[@]}"
 if on core; then
   niri_ok || ((DRY)) || add "$(t "пакеты: сборка niri" "packages: niri build deps")" pkgs "${P_nirisrc[@]}"
   add "$(t "niri $NIRI_MIN+ из исходников, если пакет старее" "niri $NIRI_MIN+ from source if the package is older")" do_niri_source
@@ -1792,7 +1746,7 @@ on core && ((SUDO)) && add "$(t "службы: bluetooth, профили пит�
 on fork && ((SUDO)) && add "$(t "пакеты: сборка yami-niri" "packages: yami-niri build deps")" pkgs "${P_nirisrc[@]}"
 old_install && add "$(t "переезд со старого имени DARK-4RMY" "move from the old name DARK-4RMY")" do_migrate
 # the login screen is the last root step: it goes before the build (run_steps closes the root shell there)
-on login && add "$(t "экран входа: тема yami для SDDM" "login screen: yami theme for SDDM")" do_sddm
+on login && add "$(t "экран входа: greetd, вид и страховка" "login screen: greetd, look and safety net")" do_greet
 add "$(t "шелл: сборка из исходников" "shell: build from source")" do_build_shell
 add "$(t "файлы: yami-files и диалог выбора файлов" "files: yami-files and the file dialog")" do_files
 add "$(t "шрифты: Tiny5, DotGothic16, Terminess, Monocraft" "fonts: Tiny5, DotGothic16, Terminess, Monocraft")" do_fonts
@@ -1812,6 +1766,11 @@ run_steps
 if [[ $SU == asroot ]]; then
   root_stop
   SU=$ROOT_TOOL
+fi
+
+if on login && ((SUDO && !DRY && !BUILD_FAILED)); then
+  say "$(t "экран входа: ставлю yami-greet (пароль администратора ещё раз)" "login screen: installing yami-greet (the administrator password once more)")"
+  greet_bin || { FAILED+=("yami-greet"); warn "$(t "yami-greet не встал: до него вход будет текстовым; поставить потом:" "yami-greet is not installed: the login is text until then; install it later:") $ROOT/tools/greet-install.sh"; }
 fi
 
 if on fork && ((!DRY && !BUILD_FAILED)); then
@@ -1850,7 +1809,6 @@ if [[ $FAM == nixos ]]; then
   printf '%s\n' "$NIX_PKGS" | sed "s/^/    $D/; s/\$/$R/"
   note "programs.niri.enable = true;"
 fi
-on login && ((!DRY)) && sddm_check
 niri_ok || ((DRY)) || on fork || warn "$(t "нужен niri $NIRI_MIN или новее — поставь его или запусти без --no-fork" "niri $NIRI_MIN or newer is required: install it or rerun without --no-fork")"
 
 if ((RUNNING_NIRI)); then next="$(t "всё уже применилось; Qt и GTK-программы — после перезапуска" "everything is live; Qt and GTK apps pick it up after a restart")"

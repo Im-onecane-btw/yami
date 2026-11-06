@@ -21,6 +21,7 @@ Please do not post it in public issues: send a [private report on GitHub](https:
 | `$XDG_RUNTIME_DIR/yami-shell.sock` (IPC) | processes of the same user | socket mode 0600, peer UID checked (`SO_PEERCRED`), one line ≤ 4 KB read with a 2 s timeout; the commands only open panels, lock, take screenshots or quit: none runs a program |
 | polkit agent (`/org/yami/PolkitAgent`, system bus) | polkitd | calls from anyone but the owner of `org.freedesktop.PolicyKit1` are refused, so no other process can raise a password window; the password goes only to `polkit-agent-helper-1` (polkit's socket, else the setuid wrapper `/run/wrappers/bin` on NixOS, the distribution paths, then `PATH`) and is wiped from memory after use |
 | lock screen | the seat | `ext-session-lock`: if the shell dies, niri keeps the screen locked. Password checked by PAM (`pam_unix` only, own service file in `~/.local/state/yami/pam`, so faillock never locks the account over typos; a user not in `/etc/passwd` — LDAP, SSSD, systemd-homed — goes through the system's `system-local-login` or `login` service instead), copies wiped after the check; a monitor plugged in while locked gets its own lock surface |
+| login screen (yami-greet) | the seat; the installing user (its look folder) | greetd (root) runs PAM and the session; yami-greet runs as greetd's unprivileged greeter user inside its own niri, root-owned in `/usr/local/bin`, and hands the password only to greetd (`$GREETD_SOCK`), built into the request by hand and wiped after sending. The look folder `/var/lib/yami-greet/look` is the user's: `look.json` and `wall.png` are parsed as untrusted data (size and image limits), and the niri config of the login screen takes from it only monitor and layout values that pass a character whitelist, never commands or binds. Sessions come only from `wayland-sessions` in the system data dirs. A niri or yami-greet that cannot start hands one login to greetd's text greeter (`greet-session`) |
 | privacy curtain (Mod+Shift+H) | xdg-desktop-portal screencasts (OBS PipeWire, Discord, browsers) | on yami-niri ≥ `.4` a layer only screencasts draw (`show-only-in`) covers the screen with a frozen frame, blurred (or in 24 px pixels, or the wallpaper); shell panels opened meanwhile get a new curtain above them; from `.5` a single shared window is covered too (its part of the curtain). niri's Alt+Tab switcher draws above every layer and is not covered; wlr-screencopy capture (grim, OBS wlrobs) is not covered. On other niri the windows are blocked out instead |
 | portal backends (FileChooser, ScreenCast, FileManager1) | xdg-desktop-portal, same-user apps on the session bus | sandboxed apps only reach them through the portal frontend; the screen picker is the shell's own modal; file names an app suggests or asks for (`current_name`, «save several files») are reduced to a bare name, so the paths the frontend grants never leave the folder the user chose |
 | notifications, tray | same-user apps | rendered as text and decoded images (pure Rust decoders); raw pictures are size-checked before allocation (≤ 1024², no integer overflow), files named by an app (`image-path`, cover `file://`) are read only if regular and ≤ 16 MB, decoders run with a 64 MB cap; at most 64 tray items; summary, body and actions are capped (512 B, 8 KB, 8); replies, actions and `NotificationClosed` go only to the connection that sent the notification, which alone may replace or close it; nothing is executed except an action the user clicks; each service can be turned off (settings → services) |
@@ -42,7 +43,7 @@ Please do not post it in public issues: send a [private report on GitHub](https:
 
 ## Installer
 
-- Runs as the user; `sudo`/`doas` only for packages, services, the SDDM theme, the NVIDIA profile and,
+- Runs as the user; `sudo`/`doas` only for packages, services, the login screen, the NVIDIA profile and,
   when the user has no realtime limit, `setcap cap_sys_nice=ep` on the yami-niri binary (the
   compositor drops every capability right after taking its scheduling class; any write to the file
   clears the capability).
@@ -74,9 +75,10 @@ Please do not post it in public issues: send a [private report on GitHub](https:
 
 ## Known trade-offs
 
-- The SDDM theme's `theme.conf.user` and `background.png` belong to the installing user so the
-  palette and wallpaper can follow the shell; on a machine shared with untrusted users, make them
-  root-owned (`tools/sddm-install.sh` then needs re-running after palette changes).
+- The login screen's look folder `/var/lib/yami-greet/look` belongs to the installing user so the
+  palette and wallpaper can follow the shell; what it holds only changes how the login screen
+  looks. On a machine shared with untrusted users, make it root-owned: the login screen then keeps
+  the look it has.
 - The lock screen's PAM service file lives in the user's state directory: a process running as
   the user could weaken it, but such a process already controls the session.
 - Clipboard history (cliphist) skips entries password managers mark as secret

@@ -97,6 +97,7 @@ fn help(y: &Sty, me: &str) {
     y.row("doctor games", &crate::tf!("ntsync, gamemode, MangoHud: что есть и как добавить", "ntsync, gamemode, MangoHud: what is there, how to add it"));
     y.row("ocr FILE", &crate::tf!("текст с картинки (как «текст» на скриншоте)", "text from an image (like «text» in screenshots)"));
     y.row("report [-o FILE]", &crate::tf!("архив для issue: версии, doctor, журнал, конфиги без секретов", "an archive for an issue: versions, doctor, journal, configs without secrets"));
+    y.row("login sync", &crate::tf!("отдать экрану входа вид шелла сейчас (шелл делает это сам)", "give the login screen the shell's look now (the shell does it by itself)"));
     y.row("clean [--dry-run]", &crate::tf!("убрать кеш сборки: исходники yami-niri и target шелла (гигабайты)", "remove the build cache: yami-niri sources and the shell's target (gigabytes)"));
     y.row("version", &crate::tf!("версии всех частей", "versions of every part"));
     y.row("shot …", &crate::tf!("панели в PNG без Wayland (разработка)", "panels to PNG without Wayland (development)"));
@@ -238,7 +239,7 @@ fn version(y: &Sty) -> i32 {
     let commit: String = st.commit.chars().take(8).collect();
     row("yami", format!("{}{}", if st.version.is_empty() { env!("CARGO_PKG_VERSION") } else { &st.version }, if commit.is_empty() { String::new() } else { format!("  {}", y.dim(&commit)) }));
     row("yami-shell", env!("CARGO_PKG_VERSION").into());
-    for b in ["yami-files", "yami-view", "yami-play"] {
+    for b in ["yami-files", "yami-view", "yami-play", "yami-greet"] {
         row(b, out(b).map(|v| v.split_whitespace().last().unwrap_or("").to_string()).unwrap_or_else(|| y.warn(&crate::tf!("не найден", "not found"))));
     }
     row("niri", out("niri").unwrap_or_else(|| y.warn(&crate::tf!("не найден", "not found"))));
@@ -480,6 +481,7 @@ pub fn run(args: &[String], me: &str) -> i32 {
         Some("export") => crate::bundle::run(&y, "export", &a[1..]),
         Some("import") => crate::bundle::run(&y, "import", &a[1..]),
         Some("clean") => crate::clean::run(&y, &a[1..]),
+        Some("login") => crate::login::cli(&a[1..]),
         Some("palette") => palette(&y, &a[1..]),
         Some("wallpaper") => {
             // шелл живёт в другой папке: путь — абсолютный

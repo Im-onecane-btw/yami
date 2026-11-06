@@ -461,6 +461,7 @@ impl App {
         let p = path();
         let prev = std::fs::read_to_string(&p).ok();
         let _ = crate::config::write_atomic(&p, &kdl(&self.st.disp.outs));
+        crate::login::publish(&self.st.set);
         self.st.disp.edited = false;
         self.st.disp.revert = Some((prev, Instant::now() + Duration::from_secs(REVERT_S)));
     }
@@ -476,6 +477,7 @@ impl App {
                 let _ = std::fs::remove_file(&p);
             }
         }
+        crate::login::publish(&self.st.set);
         self.st.disp.reload_at = Some(Instant::now() + Duration::from_millis(800));
     }
 
