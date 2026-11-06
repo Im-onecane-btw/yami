@@ -57,8 +57,9 @@ Everything it does and its flags: [Installation](#installation).
   loupe, pen, frame, arrow, marker, mosaic and numbered badges, a colour picker that copies hex,
   text recognition (tesseract) and QR codes (zbarimg) from the selection; copies
   and/or saves, the notification has a thumbnail and open / show-in-folder.
-- **yami-files.** A file manager in the same pixels: tabs, split view, icons and details, places,
-  devices (drives through udisks2, phones and cameras over MTP/PTP, iPhone), network shares
+- **yami-files.** A file manager in the same pixels: tabs, split view, icons and details, places
+  in your order (drag, hide, fold), devices that mount by themselves when plugged in (drives and
+  cards through udisks2, encrypted ones with a password, phones and cameras over MTP/PTP, iPhone), network shares
   (smb, sftp, ftp, WebDAV, nfs: «connect to a server», addresses remembered without passwords), freedesktop trash, copy/move with progress and conflicts, undo, drag and
   drop, thumbnails, open with. It is also the **file dialog** of every app that uses the portal
   (Firefox, LibreWolf, Chromium, Telegram, Electron, GTK/KDE apps) and answers **show in folder**.
@@ -91,8 +92,9 @@ Everything it does and its flags: [Installation](#installation).
   gets `us`, a Russian one `us,ru`), any xkb codes and the switch combination are a choice. Written
   to `~/.config/niri/yami-binds.kdl`.
 - **One palette everywhere.** Seven presets or any custom accent recolor the shell, wallpaper,
-  niri borders, kitty, btop, fastfetch (闇 logo), Qt/KDE and GTK apps, the browser's menus (its
-  own theme stays yours), the pixel cursor and the login screen at once. App icons in the launcher, dock and file manager are
+  niri borders, kitty, foot, cava, starship, btop, fastfetch (闇 logo), Qt/KDE and GTK apps, the browser's menus (its
+  own theme stays yours), the pixel cursor and the login screen at once; your own templates
+  (`~/.config/yami/templates`) recolour any other app. App icons in the launcher, dock, file manager and tray are
   redrawn as 16×16 pixel art in the palette tones (can be turned off).
 - **Qt and KDE apps look like the shell.** Notched buttons, fields, checkboxes and tabs drawn from
   the palette (qt6ct + QSS, KDE apps kept on Fusion instead of Breeze), and their file dialogs open

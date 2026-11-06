@@ -92,6 +92,26 @@ yami-shell binds list | print | write     # keybindings
 | `iconPixel` | `true` | app icons redrawn as 16×16 pixel art in the palette tones |
 | `fetchFull` | `false` | fastfetch with the hardware (kernel, packages, CPU, GPU, memory, disk, display); off: who, OS, wm, shell, terminal, uptime |
 | `lang` | `""` | `ru`, `en`, or empty for `$LANG` |
+| `appThemes` | `["foot", "cava", "starship"]` | apps theme.py recolours besides the ones it always does (settings → color → apps): `foot` (`foot/yami-colors.ini` and an `include=` line at the top of `foot.ini`, new windows), `cava` (a gradient in the `[color]` section of its config, open cava reloads at once), `starship` (`palette = "yami"` and a `[palettes.yami]` table that also retints `red`, `green` and the other names). Each one only if its config is there |
+
+### Apps in the palette colours
+
+kitty, btop, GTK, Qt and KDE, Firefox-family menus, fastfetch, MangoHud, niri's borders and the
+login screen always follow the palette; `appThemes` adds foot, cava and starship. For any other
+app write a template: a file in `~/.config/yami/templates` that is the app's colour config with
+`{{accent}}`, `{{bg}}`, `{{text}}`, `{{color0}}`…`{{color15}}` and the other palette names
+(`.strip` drops the `#`, `.rgb` gives `r, g, b`), plus a line saying where it goes and, if the app
+can reload, whom to signal. Every palette change renders it again. It is written only under
+`~/.config`, `~/.local/share` or `~/.cache`, and never over a file you changed by hand (delete
+the target once to hand it to the template); files ending in `.md` are skipped.
+
+```ini
+# yami-output: ~/.config/mako/config
+# yami-reload: USR1 mako
+background-color={{bg}}
+border-color={{accent}}
+text-color={{text}}
+```
 
 ### Fonts
 
@@ -116,6 +136,7 @@ Settings → look → «pixel look» moves these keys, `iconPixel` and `cursor` 
 | `cpuStyle` | `"gauge"` | `gauge` `graph` `number`, for `cpu` `ram` `gpu` `disk` (`disk` has no history: `graph` draws a gauge) |
 | `tempStyle` | `"full"` | the `temp` module: `full` like `cpu` and `ram` (label and `cpuStyle`), `compact` a small thermometer column and the number |
 | `trayMode` | `"icons"` | `icons`: every tray icon on the bar; `arrow`: one arrow that opens them as a list (clicks work as on the bar; a dot when an app asks for attention). A network applet (`nm-applet` and the like) is left out while the bar has `net` |
+| `trayPixel` | `false` | tray icons (on the bar and in the arrow's list) redrawn in pixel cells in the palette tones, like the dock and the launcher with `iconPixel` (#19) |
 | `mediaViz` | `"bars"` | the equalizer of the `media` module and the music popup: `bars` `line` `blocks` `wave` `dots`, or `off` (no equalizer, and no audio capture for it) |
 | `mediaView` | `"cover"` | what the music popup shows (the button in its header switches it): `cover` (cover, buttons, equalizer), `both` (cover and lyrics), `lyrics`, `minimal` (title and buttons) |
 | `clockSeconds`, `clockDate` | `false`, `true` | |
@@ -194,8 +215,10 @@ polkit change after a shell restart (`yami restart`), portals from the next logi
 | `agentNotif` | `true` | the notification server (`org.freedesktop.Notifications`) |
 | `agentTray` | `true` | the tray (`org.kde.StatusNotifierWatcher`, at most 64 items) |
 | `agentPolkit` | `true` | the polkit password window |
+| `automount` | `true` | drives, memory cards, discs, phones (Android file transfer), cameras and iPhones mount by themselves when they are plugged in, like in GNOME and KDE: what the volume itself asks to be mounted (removable media yes, partitions of internal disks no), once per plug, so what you unmount stays unmounted. The shell listens to udev (a netlink socket filtered in the kernel to `block` and `usb`, no polling) and asks `gio`. Encrypted drives are not opened by themselves: their card opens yami-files' password window. Settings → services |
+| `automountOpen` | `false` | open what was mounted in yami-files at once; off: a card with «open» |
 | `notifMax`, `notifHistory` | `4`, `50` | cards on screen at once; how many the history keeps |
-| `notifPos` | `"top-right"` | where the cards appear: `top-right`, `top-left`, `top`, `bottom-right`, `bottom-left`, `bottom` (settings → system); they keep clear of the bar and the dock |
+| `notifPos` | `"top-right"` | where the cards appear: `top-right`, `top-left`, `top`, `bottom-right`, `bottom-left`, `bottom` (settings → notifications); they keep clear of the bar and the dock |
 | `osdPos` | `"bottom"` | the volume and brightness OSD: `bottom`, `top` (under the bar) or `center` |
 | `notifOffset`, `osdOffset` | `10`, `64` | distance of the notification cards and of the OSD from their screen edge, px (0–400); next to the bar it is counted from the bar |
 | `notifImages` | `true` | pictures in cards (icons and previews; at most 1024², files ≤ 16 MB) |
@@ -292,6 +315,9 @@ mouse: settings → widgets, edit mode.
 | `devices` | `true` | drives, USB sticks, phones and cameras in the sidebar |
 | `network` | `true` | the «network» section: mounted shares and «connect…» |
 | `servers` | `[]` | addresses you connected to (`smb://nas/media`, `sftp://me@host/`), never with a password; one click mounts them again |
+| `placesOrder` | `[]` | your order of the places: `home`, `desktop`, `documents`, `downloads`, `music`, `pictures`, `videos`, `trash` and bookmark paths; drag a place along the sidebar to set it |
+| `placesHidden`, `devsHidden` | `[]`, `[]` | places and devices you hid (right click → hide; right click → show hidden brings them back) |
+| `collapsed` | `[]` | folded sidebar sections: `places`, `devices`, `network` (a click on the section title) |
 | `terminal` | `"kitty"` | «open terminal here» |
 | `confirmTrash`, `singleClick`, `split` | `false` | |
 | `width`, `height` | `1060`, `660` | window size at start |
@@ -300,6 +326,10 @@ Phones, cameras and network shares go through gvfs (`gio mount`): the packages `
 (Android), `gvfs-gphoto2` (cameras), `gvfs-afc` (iPhone) and `gvfs-smb` (Windows shares) add the
 backends; sftp, ftp and WebDAV are in gvfs itself. A password is asked in the window and handed
 to `gio` over a pipe; it is not stored. Kernel mounts (cifs, nfs, sshfs, rclone) show up too.
+A phone shows in the sidebar as soon as file transfer is on (the shell's `automount` mounts it by
+itself). An encrypted drive (LUKS, BitLocker) asks for its password on a click (`yami-files
+--unlock /dev/…` opens that window); udisks opens it, and «eject» locks it again before the
+drive is powered off. A right click on a place or a drive opens it in a new tab or the other pane.
 
 Its shortcuts are the usual ones (Ctrl+C/X/V, F2, Delete, Ctrl+T, Ctrl+L, Ctrl+H …) and match by
 key position, so they work in any keyboard layout.
