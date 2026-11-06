@@ -22,6 +22,16 @@ pub const SIZE: (i32, i32) = (446, 248);
 const PATH: &str = "/org/yami/PolkitAgent";
 pub const SOCKET: &str = "/run/polkit/agent-helper.socket";
 pub const HELPERS: &[&str] = &["/usr/lib/polkit-1/polkit-agent-helper-1", "/usr/libexec/polkit-agent-helper-1", "/usr/lib/policykit-1/polkit-agent-helper-1", "/usr/libexec/polkit-1/polkit-agent-helper-1"];
+
+/// помощник polkit: сначала setuid-обёртка NixOS (/run/wrappers/bin — копия из PATH без setuid
+/// пароль не проверит), потом пути дистрибутивов, потом PATH (#1)
+pub fn helper() -> Option<std::path::PathBuf> {
+    let wrap = std::path::Path::new("/run/wrappers/bin/polkit-agent-helper-1");
+    if wrap.exists() {
+        return Some(wrap.to_path_buf());
+    }
+    HELPERS.iter().map(std::path::PathBuf::from).find(|p| p.exists()).or_else(|| yami_px::paths::find_exe("polkit-agent-helper-1"))
+}
 const TRIES: u32 = 3;
 
 /// ответы окна нитям запросов: cookie → пароль (None — отмена)
@@ -102,7 +112,7 @@ fn session(user: &str, cookie: &str, tx: &Sender<Msg>, rx: &mpsc::Receiver<Optio
         }
         (w, Box::new(s2))
     } else {
-        let Some(h) = HELPERS.iter().find(|p| std::path::Path::new(p).exists()) else { return Out::Bad };
+        let Some(h) = helper() else { return Out::Bad };
         let Ok(mut ch) = std::process::Command::new(h).arg(user).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::null()).spawn() else { return Out::Bad };
         let (Some(mut i), Some(o)) = (ch.stdin.take(), ch.stdout.take()) else { return Out::Bad };
         if writeln!(i, "{cookie}").is_err() {

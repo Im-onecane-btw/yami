@@ -140,7 +140,7 @@ fn services(y: &Sty, problems: &mut u32) {
             }
         }
     }
-    let helper = Path::new(crate::auth::SOCKET).exists() || crate::auth::HELPERS.iter().any(|h| Path::new(h).exists());
+    let helper = Path::new(crate::auth::SOCKET).exists() || crate::auth::helper().is_some();
     if set.agent_polkit && !helper {
         *problems += 1;
         line(y, &y.bad("✕"), &crate::tf!("помощник polkit", "polkit helper"), &crate::tf!("нет polkit-agent-helper-1: окна пароля не будет", "no polkit-agent-helper-1: no password window"));

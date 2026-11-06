@@ -1238,7 +1238,15 @@ def cursor(p):
         subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "cursor-size", str(size)], check=False, capture_output=True)
 
 
-SDDM_DIR = Path("/usr/share/sddm/themes/yami")
+def _sddm_dir():
+    """Тема SDDM: первая sddm/themes/yami в XDG_DATA_DIRS (так и на NixOS), иначе /usr/share."""
+    for d in (os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share").split(":"):
+        if d.startswith("/") and (Path(d) / "sddm/themes/yami").is_dir():
+            return Path(d) / "sddm/themes/yami"
+    return Path("/usr/share/sddm/themes/yami")
+
+
+SDDM_DIR = _sddm_dir()
 
 
 def sddm(p, target=None):

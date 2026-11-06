@@ -275,9 +275,15 @@ fn login_rgb(img: &Img, own: bool, key: &str) -> Option<Option<Vec<u8>>> {
     Some(own.then(|| img.px.iter().flat_map(|p| [(p >> 16) as u8, (p >> 8) as u8, *p as u8]).collect()))
 }
 
+/// папка темы SDDM: первая sddm/themes/yami в XDG_DATA_DIRS, иначе /usr/share (#1)
+pub fn sddm_dir() -> std::path::PathBuf {
+    yami_px::paths::data_dirs().into_iter().map(|d| d.join("sddm/themes/yami")).find(|d| d.is_dir()).unwrap_or_else(|| "/usr/share/sddm/themes/yami".into())
+}
+
 /// тема SDDM открыта нам на запись (установщик отдаёт theme.conf.user пользователю)
 fn login_writable() -> bool {
-    let d = Path::new("/usr/share/sddm/themes/yami");
+    let d = sddm_dir();
+    let d = d.as_path();
     let f = d.join("theme.conf.user");
     let p = if f.exists() { f } else { d.to_path_buf() };
     let Ok(c) = std::ffi::CString::new(p.to_string_lossy().as_bytes()) else { return false };

@@ -47,6 +47,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - Fix: yami-files: a double click on the header maximized the window but never restored it (#8).
 - The bar on chosen screens only (#8): settings → screens → «bar on this screen» (`barOutputs`); when none of the chosen screens is connected, every screen gets the bar.
 - Your own themes (#8): settings → color → themes keeps the current look with one button and applies a saved one with a click (× removes it); they live in `~/.config/yami/themes` in the `yami theme export` format, wallpaper included. In the terminal: `yami theme save [NAME]`, `list`, `apply NAME`, `remove NAME`; `yami theme import` also takes an https link and keeps what it applies among your themes. A link may only bring a theme, never a full settings file.
+- Fewer fixed paths (#1): the polkit helper is also found as NixOS's setuid wrapper (`/run/wrappers/bin`) and in `PATH`, the phone backend of gvfs through `XDG_DATA_DIRS` (and next to it, and in `PATH`), the login theme in the first `sddm/themes/yami` of `XDG_DATA_DIRS`; the old paths stay as fallbacks.
 
 ## 2.5.0
 

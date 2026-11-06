@@ -21,6 +21,20 @@ pub fn state_dir() -> PathBuf {
 pub fn data_dir() -> PathBuf {
     xdg("XDG_DATA_HOME").unwrap_or_else(|| home().join(".local/share"))
 }
+/// системные папки данных: XDG_DATA_DIRS (на NixOS там /run/current-system/sw/share и
+/// share каждого пакета), без неё — /usr/local/share и /usr/share
+pub fn data_dirs() -> Vec<PathBuf> {
+    let v = std::env::var("XDG_DATA_DIRS").ok().filter(|v| !v.trim().is_empty()).unwrap_or_else(|| "/usr/local/share:/usr/share".into());
+    std::env::split_paths(&v).filter(|p| p.is_absolute()).collect()
+}
+
+/// исполняемый файл в PATH
+pub fn find_exe(name: &str) -> Option<PathBuf> {
+    use std::os::unix::fs::PermissionsExt;
+    let path = std::env::var_os("PATH")?;
+    std::env::split_paths(&path).map(|d| d.join(name)).find(|p| std::fs::metadata(p).map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0).unwrap_or(false))
+}
+
 pub fn cache_dir() -> PathBuf {
     xdg("XDG_CACHE_HOME").unwrap_or_else(|| home().join(".cache"))
 }

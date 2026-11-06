@@ -403,9 +403,13 @@ pub fn usb_phones_without_backend() -> Vec<Dev> {
     out
 }
 
-/// есть ли у gvfs бэкенды для телефонов (иначе подскажем пакет)
+/// есть ли у gvfs бэкенды для телефонов (иначе подскажем пакет): служба монитора MTP в папках
+/// данных (XDG_DATA_DIRS — так и на NixOS, где gvfs в /nix/store), libexec рядом с ними, PATH,
+/// потом пути дистрибутивов (#1)
 fn phone_backends() -> bool {
-    ["/usr/lib/gvfsd-mtp", "/usr/libexec/gvfsd-mtp", "/usr/lib/gvfs/gvfsd-mtp", "/usr/lib/x86_64-linux-gnu/gvfs/gvfsd-mtp", "/usr/lib64/gvfs/gvfsd-mtp"].iter().any(|p| Path::new(p).exists())
+    let svc = yami_px::paths::data_dirs().iter().any(|d| d.join("dbus-1/services/org.gtk.vfs.MTPVolumeMonitor.service").exists() || d.join("../libexec/gvfsd-mtp").exists());
+    svc || yami_px::paths::find_exe("gvfsd-mtp").is_some()
+        || ["/usr/lib/gvfsd-mtp", "/usr/libexec/gvfsd-mtp", "/usr/lib/gvfs/gvfsd-mtp", "/usr/lib/x86_64-linux-gnu/gvfs/gvfsd-mtp", "/usr/lib64/gvfs/gvfsd-mtp"].iter().any(|p| Path::new(p).exists())
 }
 
 #[cfg(test)]
