@@ -186,15 +186,20 @@ fn sep(ui: &mut Ui, st: &State, x: i32, w: i32) {
 }
 
 /// значок программы трея 16×16 с левым верхним углом в x, y (бар и всплывашка `tray`)
-pub fn tray_icon(ui: &mut Ui, it: &crate::dbus::TrayItem, x: i32, y: i32) {
+/// значок программы трея; `pixel` (trayPixel, #19) — клетками в тонах палитры, как в доке и
+/// лаунчере со «значками пиксельными»
+pub fn tray_icon(ui: &mut Ui, it: &crate::dbus::TrayItem, x: i32, y: i32, pixel: bool) {
     let t = ui.t;
     // свой файл программы, потом имя в теме значков, потом её картинка (IconPixmap)
     let name = &it.icon;
-    let img = it.file.as_ref().and_then(|f| ui.ic.file(std::path::Path::new(f), 16)).or_else(|| if name.is_empty() { None } else { ui.ic.get(name, 16) });
-    match (img, &it.pixmap) {
-        (Some(img), _) => ui.cv.image(&img, x, y, 1.0),
-        (None, Some(img)) => ui.cv.image(img, x, y, 1.0),
-        (None, None) => ui.cv.icon("dots", x + 1, y + 1, 2, t.text_dim),
+    let img = it.file.as_ref().and_then(|f| ui.ic.file(std::path::Path::new(f), 16)).or_else(|| if name.is_empty() { None } else { ui.ic.get(name, 16) }).or_else(|| it.pixmap.clone());
+    match img {
+        Some(img) if pixel => {
+            let p = ui.ic.pixeled(&img, &t.icon_ramp(), 16);
+            ui.cv.image(&p, x, y, 1.0);
+        }
+        Some(img) => ui.cv.image(&img, x, y, 1.0),
+        None => ui.cv.icon("dots", x + 1, y + 1, 2, t.text_dim),
     }
 }
 
@@ -284,7 +289,7 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
                 if ui.hover(r) {
                     ui.cv.pxbox(r, &BoxStyle::new(t.surface_hi, t.red));
                 }
-                tray_icon(ui, it, ix + 3, cy - 8);
+                tray_icon(ui, it, ix + 3, cy - 8, st.set.tray_pixel);
                 ui.zone(r, Act::Tray(it.service.clone()), Cur::Pointer);
                 ix += 24;
             }

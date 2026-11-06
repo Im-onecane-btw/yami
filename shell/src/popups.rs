@@ -396,7 +396,7 @@ fn tray(ui: &mut Ui, st: &State, b: R) {
     for it in tray_items(st).take(12) {
         let r = R::new(b.x, y, b.w, 28);
         ui.button(r, "", "", Tone::Ghost, false, true, Act::Tray(it.service.clone()));
-        crate::bar::tray_icon(ui, it, r.x + 6, r.cy() - 8);
+        crate::bar::tray_icon(ui, it, r.x + 6, r.cy() - 8, st.set.tray_pixel);
         // имя даёт сама программа: как есть, без перевода
         let name = if it.title.is_empty() { it.icon.as_str() } else { it.title.as_str() };
         let name = if name.is_empty() { it.service.as_str() } else { name };

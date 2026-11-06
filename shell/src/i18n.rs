@@ -767,4 +767,5 @@ const PAIRS: &[(&str, &str)] = &[
     ("нет gio (пакет glib2)", "no gio (the glib2 package)"),
     ("нажми, чтобы ввести пароль", "click to enter the password"),
     ("разблокируй телефон и выбери «передача файлов»", "unlock the phone and choose “file transfer”"),
+    ("трей клетками", "pixel tray"),
 ];

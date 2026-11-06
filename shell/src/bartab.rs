@@ -246,6 +246,7 @@ fn tab_bar_look(ui: &mut Ui, st: &State, b: R) {
     opt_btn(ui, R::new(col(2), y, cw, 26), "эквалайзер", eq, Act::SCycle("media_viz"));
     y += 32;
     opt_btn(ui, R::new(col(0), y, cw * 2 + (col(1) - col(0) - cw), 26), "всплывашка музыки", crate::widgets::name_of(crate::config::MEDIA_VIEWS, &s.media_view), Act::SCycle("media_view"));
+    ui.toggle(R::new(col(2), y, cw, 26), "трей клетками", "", s.tray_pixel, Act::SBool("tray_pixel"));
     y += 40;
     y = title(ui, b.x, y, b.w, "как выглядит");
     shape_preview(ui, st, R::new(b.x, y, b.w, (b.bottom() - y).clamp(40, 96)));

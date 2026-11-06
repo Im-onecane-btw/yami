@@ -156,6 +156,8 @@ pub struct Settings {
     pub temp_style: String,
     /// трей: "icons" — значки в баре, "arrow" — одна стрелка, значки во всплывашке
     pub tray_mode: String,
+    /// значки трея клетками в тонах палитры, как пиксельные значки дока и лаунчера (#19)
+    pub tray_pixel: bool,
     pub clock_seconds: bool,
     pub clock_date: bool,
     pub task_width: i32,
@@ -476,6 +478,7 @@ impl Default for Settings {
             cpu_style: "gauge".into(),
             temp_style: "full".into(),
             tray_mode: "icons".into(),
+            tray_pixel: false,
             clock_seconds: false,
             clock_date: true,
             task_width: 190,

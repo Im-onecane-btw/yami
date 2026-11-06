@@ -76,6 +76,7 @@ impl App {
                     "blur_shell" => s.blur_shell = !s.blur_shell,
                     "blur_term" => s.blur_term = !s.blur_term,
                     "clock_seconds" => s.clock_seconds = !s.clock_seconds,
+                    "tray_pixel" => s.tray_pixel = !s.tray_pixel,
                     "clock_date" => s.clock_date = !s.clock_date,
                     "dnd" => s.dnd = !s.dnd,
                     "shot_copy" => s.shot_copy = !s.shot_copy,
