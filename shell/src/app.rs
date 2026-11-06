@@ -191,6 +191,10 @@ pub enum Msg {
     /// проверка обновлений (update.rs)
     Update(crate::update::Info),
     SnapDone { path: Option<std::path::PathBuf>, copied: bool, err: Option<String>, thumb: Option<crate::gfx::Img> },
+    /// тома gio после события udev (automount.rs)
+    Volumes(Vec<crate::automount::Vol>),
+    /// том подключён сам: его локальная папка или ошибка
+    AutoMounted(crate::automount::Vol, Result<Option<String>, String>),
 }
 
 pub struct Res {
@@ -301,6 +305,8 @@ pub struct State {
     pub upd: crate::update::Upd,
     /// выбор обоев: папка, клетки, миниатюры видимых строк
     pub walls: crate::walls::Walls,
+    /// автоподключение флешек и телефонов (automount.rs)
+    pub am: crate::automount::Am,
 }
 
 pub struct Press {
@@ -477,6 +483,7 @@ impl State {
             trash_full: false,
             upd: crate::update::Upd::load(),
             walls: Default::default(),
+            am: Default::default(),
             set,
         }
     }
@@ -602,6 +609,7 @@ pub fn run() {
     crate::keys::write(&app.st.set);
     app.setup_idle();
     app.side_sync();
+    app.automount_sync();
     // «стол» при входе включится, когда придёт список окон (см. on_msg)
 
     handle
@@ -631,7 +639,7 @@ pub fn run() {
         use std::os::unix::process::CommandExt;
         let args: Vec<String> = std::env::args().skip(1).collect();
         drop(app);
-        let e = std::process::Command::new(yami_px::paths::self_exe()).args(args).exec();
+        let e = std::process::Command::new(yami_px::paths::self_exe()).args(args).env("YAMI_RESTARTED", "1").exec();
         eprintln!("restart: {e}");
         std::process::exit(1);
     }

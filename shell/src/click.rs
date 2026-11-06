@@ -170,7 +170,7 @@ impl App {
             }
             Act::NotifAct(id, key) if key == "inline-reply" => self.reply_open(id),
             Act::NotifAct(id, key) => {
-                if !self.shot_note_action(id, &key) && !self.update_note_action(id) {
+                if !self.shot_note_action(id, &key) && !self.update_note_action(id) && !self.automount_note_action(id) {
                     crate::dbus::notif_action(id, &key);
                 }
                 self.st.notifs.remove(id, false);

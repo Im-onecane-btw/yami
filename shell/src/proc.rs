@@ -52,20 +52,45 @@ pub fn files_pick(mode: &str, folder: &std::path::Path, args: &[&str]) -> Option
 static INHERITED: std::sync::Mutex<Vec<i32>> = std::sync::Mutex::new(Vec::new());
 
 pub(crate) fn note_inherited() {
-    let me = std::process::id().to_string();
-    let Ok(rd) = std::fs::read_dir("/proc") else { return };
-    let kids: Vec<i32> = rd
-        .flatten()
-        .filter_map(|e| e.file_name().to_str()?.parse::<i32>().ok())
-        .filter(|p| {
-            // «pid (comm) S ppid …»: comm может содержать пробелы и скобки — режем по последней «)»
-            let Ok(s) = std::fs::read_to_string(format!("/proc/{p}/stat")) else { return false };
-            s.rsplit_once(')').and_then(|(_, r)| r.split_whitespace().nth(1)) == Some(me.as_str())
-        })
-        .collect();
+    // `msg restart` и обновление — exec в том же pid с меткой в окружении (её снимаем: детям шелла
+    // она ни к чему); при входе в систему меток нет
+    if std::env::var_os("YAMI_RESTARTED").is_some() {
+        std::env::remove_var("YAMI_RESTARTED");
+        RESTARTED.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+    // дети всех нитей: /proc/self/task/*/children (на старте нить одна); нет файла (ядро без
+    // CONFIG_PROC_CHILDREN) — обход всего /proc
+    let mut kids: Vec<i32> = vec![];
+    let mut known = false;
+    for t in std::fs::read_dir("/proc/self/task").into_iter().flatten().flatten() {
+        if let Ok(s) = std::fs::read_to_string(t.path().join("children")) {
+            known = true;
+            kids.extend(s.split_whitespace().filter_map(|p| p.parse::<i32>().ok()));
+        }
+    }
+    if !known {
+        let me = std::process::id().to_string();
+        let Ok(rd) = std::fs::read_dir("/proc") else { return };
+        kids = rd
+            .flatten()
+            .filter_map(|e| e.file_name().to_str()?.parse::<i32>().ok())
+            .filter(|p| {
+                // «pid (comm) S ppid …»: comm может содержать пробелы и скобки — режем по последней «)»
+                let Ok(s) = std::fs::read_to_string(format!("/proc/{p}/stat")) else { return false };
+                s.rsplit_once(')').and_then(|(_, r)| r.split_whitespace().nth(1)) == Some(me.as_str())
+            })
+            .collect();
+    }
     if let Ok(mut v) = INHERITED.lock() {
         *v = kids;
     }
+}
+
+static RESTARTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// шелл запущен заново из себя же (`msg restart`, обновление), а не при входе в систему
+pub(crate) fn restarted() -> bool {
+    RESTARTED.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 pub(crate) fn reap_inherited() {

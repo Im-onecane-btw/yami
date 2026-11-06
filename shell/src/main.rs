@@ -10,6 +10,7 @@ pub use yami_px::{font, gfx, icons, theme};
 mod agents;
 mod app;
 mod auth;
+mod automount;
 mod profile;
 mod displays;
 mod screen;

@@ -336,6 +336,10 @@ pub struct Settings {
     pub media_art_net: bool,
     /// тексты песен с lrclib.net (иначе — только от плеера и файлы .lrc рядом с треком)
     pub lyrics_net: bool,
+    /// флешки, диски, телефоны и камеры подключаются сами, как только их вставили (automount.rs)
+    pub automount: bool,
+    /// подключённое само сразу открывается в файлах (иначе — карточка «открыть»)
+    pub automount_open: bool,
     /// эквалайзер всплывашки музыки и модуля `media`: стиль виджета (bars, line…) или "off" (#13)
     pub media_viz: String,
     /// что показывает всплывашка музыки: cover | lyrics | both | minimal (#13)
@@ -575,6 +579,8 @@ impl Default for Settings {
             notif_cast: false,
             media_art_net: true,
             lyrics_net: true,
+            automount: true,
+            automount_open: false,
             media_viz: "bars".into(),
             media_view: "cover".into(),
             audio_names: Default::default(),

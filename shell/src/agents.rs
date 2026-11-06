@@ -40,6 +40,8 @@ pub fn toggle(s: &mut Settings, k: &str) -> bool {
         "notif_cast" => &mut s.notif_cast,
         "media_art_net" => &mut s.media_art_net,
         "lyrics_net" => &mut s.lyrics_net,
+        "automount" => &mut s.automount,
+        "automount_open" => &mut s.automount_open,
         "portal_files" => &mut s.portal_files,
         "portal_cast" => &mut s.portal_cast,
         _ => return false,

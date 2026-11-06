@@ -96,6 +96,8 @@ impl App {
                 self.dirty_where(|k| matches!(k, SKind::Popup | SKind::Widget(_)));
             }
             Msg::Notif(n) => self.on_notif(n),
+            Msg::Volumes(v) => self.automount_volumes(v),
+            Msg::AutoMounted(v, res) => self.automount_done(v, res),
             Msg::Update(i) => self.on_update(i),
             Msg::Snap(imgs, wins, mode) => self.on_snap_ready(imgs, wins, mode),
             Msg::SnapDone { path, copied, err, thumb } => self.on_snap_done(path, copied, err, thumb),
