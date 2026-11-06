@@ -183,6 +183,8 @@ pub enum Msg {
     Art(String, Option<crate::gfx::Img>),
     /// текст песни нашёлся (или нет) для трека Lyrics.key
     Lyrics(crate::lyrics::Lyrics),
+    /// ответ Open-Meteo (weather.rs)
+    Weather(crate::weather::Weather),
     /// свои темы (themetab.rs): список, что сделано, применена ли тема (перечитать настройки)
     Themes(Vec<crate::bundle::Card>, String, bool),
     Theme,
@@ -249,6 +251,11 @@ pub struct State {
     pub art: HashMap<String, Option<std::rc::Rc<crate::gfx::Img>>>,
     /// текст песни текущего трека (#13): ищется, только когда всплывашка его показывает
     pub lyrics: crate::lyrics::Lyrics,
+    /// погода (weather.rs): последний ответ, идёт ли запрос, когда спрашивали, поле города
+    pub weather: crate::weather::Weather,
+    pub weather_busy: bool,
+    pub weather_try: Option<Instant>,
+    pub weather_field: Field,
     /// вкладка «цвет»: страница «темы», свои темы и последнее действие с ними (themetab.rs)
     pub theme_page: bool,
     pub themes: Vec<crate::bundle::Card>,
@@ -433,6 +440,10 @@ impl State {
             media: media::MediaState::default(),
             art: HashMap::new(),
             lyrics: Default::default(),
+            weather: crate::weather::cached(),
+            weather_busy: false,
+            weather_try: None,
+            weather_field: Field::default(),
             theme_page: false,
             themes: vec![],
             theme_note: String::new(),
@@ -1197,6 +1208,7 @@ impl App {
             self.last_sample = now;
             self.st.sys.want_gpu = self.uses("gpu");
             self.st.sys.sample();
+            self.weather_tick();
             self.bat_check();
             // память видна только в настройках: не читать её каждую секунду зря
             if self.st.modal == Some(Modal::Settings) || self.st.rss == 0.0 {
@@ -1359,6 +1371,7 @@ impl App {
                 self.dirty_where(|k| matches!(k, SKind::Bar | SKind::Popup | SKind::Widget(_)));
             }
             Msg::Themes(l, note, applied) => self.themes_listed(l, note, applied),
+            Msg::Weather(w) => self.weather_got(w),
             Msg::Lyrics(l) => {
                 // ответ на прошлый трек — мимо
                 if l.key == self.st.lyrics.key {

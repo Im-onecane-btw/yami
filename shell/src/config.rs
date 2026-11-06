@@ -309,6 +309,10 @@ pub struct Settings {
     pub night: bool,
     pub night_temp: i32,
     pub night_geo: String,
+    /// погода (#6): город или «широта, долгота» для Open-Meteo; пусто — погоды нет
+    pub weather_city: String,
+    /// "c" — °C и км/ч, "f" — °F и mph
+    pub weather_units: String,
     pub night_on_h: i32,
     pub night_off_h: i32,
     /// свои app-id игр: через запятую, `name*` — по началу
@@ -385,6 +389,7 @@ pub const ALL_MODULES: &[(&str, &str)] = &[
     ("temp", "температура"),
     ("gpu", "видеокарта"),
     ("disk", "диск"),
+    ("weather", "погода"),
     ("vol", "звук"),
     ("bat", "батарея"),
     ("profile", "профиль питания"),
@@ -556,6 +561,8 @@ impl Default for Settings {
             night: false,
             night_temp: 4000,
             night_geo: String::new(),
+            weather_city: String::new(),
+            weather_units: "c".into(),
             night_on_h: 20,
             night_off_h: 7,
             game_apps: String::new(),
@@ -630,6 +637,17 @@ impl Settings {
             o.truncate(32);
         }
         self.bar_outputs.retain(|o| !o.is_empty());
+        self.weather_city.retain(|c| !c.is_control());
+        self.weather_city = self.weather_city.chars().take(64).collect::<String>().trim().to_string();
+        if self.weather_units != "f" {
+            self.weather_units = "c".into();
+        }
+        // виджет-скрипт: только имя файла в папке модулей (как модули бара `x:`)
+        for w in self.widgets.iter_mut().filter(|w| w.kind == "script") {
+            if !crate::plugins::name_ok(&w.source) {
+                w.source.clear();
+            }
+        }
         self.bar_outputs.dedup();
         self.bar_outputs.truncate(16);
         self.cursor_size = self.cursor_size.clamp(16, 96);

@@ -515,6 +515,21 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
             }
             14
         }
+        "weather" => {
+            // погода (weather.rs): значок и температура; города нет или ответа ещё нет — «?»
+            let wt = crate::weather::ready(st);
+            let txt = wt.map(|w| crate::weather::deg(w.temp)).unwrap_or_else(|| "?".into());
+            let w = 16 + ui.w(PX, &txt);
+            if !measure {
+                let r = R::new(x - 2, 0, w + 4, H - 1);
+                let hov = ui.hover(r);
+                let c = if hov { t.text_hi } else if wt.is_some() { t.text } else { t.text_faint };
+                ui.cv.icon(wt.map(|w| crate::weather::icon(w.code, w.day)).unwrap_or("cloud"), x, cy - 7, 2, c);
+                ui.cv.text_in(ui.f, PX, R::new(x + 16, 0, w - 14, H - 1), &txt, c);
+                ui.zone(r, Act::Popup("weather"), Cur::Pointer);
+            }
+            w
+        }
         m if m.starts_with("x:") => {
             // модуль-скрипт: значок 7×7 и текст его цветом роли
             let Some(p) = st.plugins.shown.get(m) else { return 0 };
@@ -522,7 +537,9 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
                 return 0;
             }
             let icon = !p.icon.is_empty() && crate::gfx::icon7(&p.icon).is_some();
-            let tw = ui.f.width(PX, &p.text);
+            // в баре — первая строка, не длиннее 48 знаков (многострочное — для виджета)
+            let text: String = p.text.lines().next().unwrap_or("").chars().take(48).collect();
+            let tw = ui.f.width(PX, &text);
             let w = if icon { 16 } else { 0 } + tw;
             if !measure {
                 let r = R::new(x - 2, 0, w + 4, H - 1);
@@ -531,7 +548,7 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
                 if icon {
                     ui.cv.icon(&p.icon, x, cy - 7, 2, c);
                 }
-                ui.cv.text_in(ui.f, PX, R::new(x + if icon { 16 } else { 0 }, 0, tw + 2, H - 1), &p.text, c);
+                ui.cv.text_in(ui.f, PX, R::new(x + if icon { 16 } else { 0 }, 0, tw + 2, H - 1), &text, c);
                 if !p.click.is_empty() {
                     ui.zone(r, Act::Plug(p.click.clone()), Cur::Pointer);
                 }

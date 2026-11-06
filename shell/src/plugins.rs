@@ -80,7 +80,8 @@ pub fn parse(line: &str) -> (Plug, Option<u64>) {
     if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
         if v.is_object() {
             let s = |k: &str| v.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string();
-            let text: String = s("text").chars().take(48).collect();
+            // виджету — несколько строк; бар берёт первую (bar.rs)
+            let text: String = s("text").chars().take(400).collect();
             return (Plug { text, icon: s("icon"), color: s("color"), click: s("click") }, v.get("interval").and_then(|x| x.as_u64()));
         }
     }
@@ -88,7 +89,7 @@ pub fn parse(line: &str) -> (Plug, Option<u64>) {
 }
 
 impl Plugins {
-    /// запустить модули, что в баре, остановить те, что из него ушли
+    /// запустить модули, что в баре (и виджеты-скрипты), остановить те, что ушли
     pub fn sync(&mut self, on_bar: &[String], tx: &Sender<Msg>) {
         let want: Vec<&String> = on_bar.iter().filter(|m| m.strip_prefix("x:").is_some_and(name_ok)).collect();
         let gone: Vec<String> = self.runs.keys().filter(|k| !want.contains(k)).cloned().collect();

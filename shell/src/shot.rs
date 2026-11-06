@@ -66,6 +66,14 @@ const TARGETS: &[&str] = &[
     "widget:net",
     "widget:media",
     "widget:cal",
+    "widget:weather",
+    "widget:weather-s",
+    "widget:weather-l",
+    "widget:weather-none",
+    "widget:script",
+    "widget:script-none",
+    "popup:weather",
+    "popup:weather-none",
     "notif",
     "notif:shot",
     "osd",
@@ -200,7 +208,8 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
             // #8: видеокарта и диск рядом с цп, озу и температурой; sys-graph — стилем «график»
             st.set.bar_width_pc = 100;
             st.set.cpu_style = if arg == "sys-graph" { "graph" } else if arg == "sys-number" { "number" } else { "gauge" }.into();
-            st.set.bar_right = v(&["cpu", "ram", "gpu", "temp", "disk", "sep", "clock"]);
+            st.set.bar_right = v(&["cpu", "ram", "gpu", "temp", "disk", "sep", "weather", "sep", "clock"]);
+            mock_weather(st, true);
             let sy = &mut st.sys;
             (sy.has_gpu, sy.gpu_sleep, sy.gpu_load, sy.gpu_temp, sy.disk) = (true, false, 0.42, 61.0, 0.73);
             for i in 0..40 {
@@ -368,6 +377,10 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
                 st.viz = (0..32).map(|i| ((i * 7 % 11) as f32 / 11.0) * 0.8 + 0.1).collect();
             }
             // виды всплывашки музыки (#13): без эквалайзера, с текстом (с метками, простым), коротко, текста нет
+            if arg.starts_with("weather") {
+                mock_weather(st, arg != "weather-none");
+            }
+            let arg = if arg.starts_with("weather") { "weather" } else { arg };
             if let Some(v) = arg.strip_prefix("media-") {
                 st.set.media_viz = if v == "flat" { "off" } else { "bars" }.into();
                 st.set.media_view = match v {
@@ -393,7 +406,17 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
         }
         "widget" => {
             st.set.widgets.retain(|w| w.id != 900);
-            let w = Widget { on: true, ..Widget::new(900, arg) };
+            // погода и скрипт (#6): размер и «нет данных» — суффиксом (weather-s, script-none)
+            let (k, var) = arg.split_once('-').unwrap_or((arg, ""));
+            mock_weather(st, var != "none");
+            let mut w = Widget { on: true, ..Widget::new(900, k) };
+            if matches!(var, "s" | "l") {
+                w.size = var.into();
+            }
+            if k == "script" {
+                w.source = if var == "none" { String::new() } else { "btc".into() };
+                st.plugins.shown.insert("x:btc".into(), crate::plugins::Plug { text: "BTC 68 420 $\n+2.4 % today\nhigh 69 010 $".into(), icon: "chart".into(), color: "ok".into(), click: String::new() });
+            }
             let s = crate::widgets::size_of(&w);
             st.set.widgets.push(w);
             s
@@ -677,3 +700,24 @@ const MOCK_LYRICS: &str = "[01:02.00]grey morning on the glass
 [01:39.00]stays lit across the dark
 [01:45.00]rain, rain, pixel rain
 [01:51.00]fall in squares again";
+
+/// погода для снимков: Берлин, дождь, пять дней; city = false — город не задан
+fn mock_weather(st: &mut State, city: bool) {
+    st.set.weather_city = if city { "Berlin".into() } else { String::new() };
+    let at = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0) - 300;
+    let day = |date: &str, code: i32, hi: f32, lo: f32| crate::weather::Day { date: date.into(), code, hi, lo };
+    st.weather = crate::weather::Weather {
+        key: crate::weather::key(&st.set),
+        place: "Berlin".into(),
+        temp: 7.4,
+        feels: 4.1,
+        hum: 81.0,
+        wind: 14.0,
+        code: 61,
+        day: true,
+        days: vec![day("2026-11-06", 61, 9.0, 4.0), day("2026-11-07", 3, 8.0, 3.0), day("2026-11-08", 2, 11.0, 2.0), day("2026-11-09", 0, 12.0, -1.0), day("2026-11-10", 73, 2.0, -3.0)],
+        at,
+        ..Default::default()
+    };
+}
+

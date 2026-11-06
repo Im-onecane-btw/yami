@@ -112,7 +112,7 @@ Settings → look → «pixel look» moves these keys, `iconPixel` and `cursor` 
 
 | Key | Default | Meaning |
 |---|---|---|
-| `barLeft`, `barCenter`, `barRight` | see `config list` | module ids in order: `launcher` `workspaces` `mode` `tasks` `media` `tray` `net` `netspeed` `bt` `kb` `cpu` `ram` `temp` `gpu` `disk` `bat` `vol` `profile` `clock` `notif` `settings` `power` `sep` (`bat`: laptop battery, hidden without one; `gpu`: graphics load from amdgpu or `nvidia-smi` every 3 s, hidden without either, «sleep» while a laptop's discrete card sleeps; `disk`: how full `/` is) |
+| `barLeft`, `barCenter`, `barRight` | see `config list` | module ids in order: `launcher` `workspaces` `mode` `tasks` `media` `tray` `net` `netspeed` `bt` `kb` `cpu` `ram` `temp` `gpu` `disk` `weather` `bat` `vol` `profile` `clock` `notif` `settings` `power` `sep` (`bat`: laptop battery, hidden without one; `gpu`: graphics load from amdgpu or `nvidia-smi` every 3 s, hidden without either, «sleep» while a laptop's discrete card sleeps; `disk`: how full `/` is) |
 | `cpuStyle` | `"gauge"` | `gauge` `graph` `number`, for `cpu` `ram` `gpu` `disk` (`disk` has no history: `graph` draws a gauge) |
 | `tempStyle` | `"full"` | the `temp` module: `full` like `cpu` and `ram` (label and `cpuStyle`), `compact` a small thermometer column and the number |
 | `trayMode` | `"icons"` | `icons`: every tray icon on the bar; `arrow`: one arrow that opens them as a list (clicks work as on the bar; a dot when an app asks for attention) |
@@ -203,6 +203,7 @@ polkit change after a shell restart (`yami restart`), portals from the next logi
 | `audioNames` | `{}` | your names for sound devices (outputs and microphones): PipeWire name (`pactl list short sinks`, `pactl list short sources`) → label, e.g. `{"alsa_output.usb-…-00.analog-stereo": "Headphones"}` |
 | `mediaArtNet` | `true` | album covers from the player's web links (`curl`, https after redirects, ≤ 16 MB); off: only local files |
 | `lyricsNet` | `true` | lyrics from lrclib.net (artist, title and length are sent) when the player has none and there is no `.lrc` or `.txt` file next to the track; asked only while the music popup shows lyrics, answers cached in `~/.cache/yami/lyrics` |
+| `weatherCity`, `weatherUnits` | `""`, `"c"` | the `weather` bar module and widget: a city (`Berlin`) or `latitude, longitude`, asked from open-meteo.com every 20 minutes while one of them is shown; `f` gives °F and mph. Settings → services → network |
 | `portalFiles`, `portalCast` | `true`, `true` | file dialogs from yami-files, the screen-share picker from the shell (else GTK / GNOME) |
 
 ### Updates
@@ -249,7 +250,8 @@ express goes into `~/.config/niri/user.kdl` in plain niri syntax, which wins.
 An executable file in `~/.config/yami/modules/<name>` becomes the bar module `x:<name>` (settings
 → bar lists it with the built-in ones). The script prints a line on every update, plain text or
 JSON; a script that keeps running streams lines, one that exits is run again after `interval`
-seconds (10 by default).
+seconds (10 by default). The same script can also be a desktop widget (settings → widgets →
+script), where `\n` in the JSON `text` starts a new line; the bar shows the first line.
 
 ```sh
 #!/bin/sh
@@ -272,8 +274,9 @@ new wallpaper, a move, or a settings change.
 
 `widgets` is a list of `{"id", "kind", "on", "x", "y", "source", "style", "anim", "size",
 "color", "frame", "label", "seconds", "date", "text"}`: `kind` is `clock` `graph` `net` `media`
-`cal` `note`; graphs take `source` `cpu` `ram` `temp` `gpu` `swap` and `style` `bars` `line`
-`blocks` `wave` `dots`. `x`/`y` of -1 means the default place. Easier to arrange with the
+`cal` `weather` `script` `note`; graphs take `source` `cpu` `ram` `temp` `gpu` `swap` and
+`style` `bars` `line` `blocks` `wave` `dots`; a `script` widget takes the script's file name as
+`source`. `x`/`y` of -1 means the default place. Easier to arrange with the
 mouse: settings → widgets, edit mode.
 
 ## yami-files.json

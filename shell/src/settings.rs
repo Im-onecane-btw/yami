@@ -255,6 +255,15 @@ pub(crate) fn tab_widgets(ui: &mut Ui, st: &State, b: R) {
             row(ui, &mut y, "анимация", name_of(ANIMS, &w.anim), "anim");
         }
         "media" => row(ui, &mut y, "эквалайзер", name_of(STYLES, &w.style), "style"),
+        "script" => {
+            // имя файла — как есть, не переводится
+            opt_btn(ui, R::new(px, y, pw, 26), "скрипт", if w.source.is_empty() { "—" } else { &w.source }, Act::SWidgetOpt(id, "source"));
+            y += 30;
+            if crate::plugins::available().is_empty() {
+                ui.wrap(crate::font::PX, R::new(px, y, pw, 40), "положи исполняемый скрипт в ~/.config/yami/modules (как модуль бара)", t.text_faint, 2);
+                y += 40;
+            }
+        }
         _ => {}
     }
     row(ui, &mut y, "размер", name_of(SIZES, &w.size), "size");
@@ -965,6 +974,16 @@ impl App {
                     self.st.set.kb_switch = sw[i].0.to_string();
                     self.settings_changed();
                 }
+                "weather_apply" => {
+                    // город сменился: старый ответ не показывать, спросить сразу
+                    self.st.set.weather_city = self.st.weather_field.text.trim().chars().take(64).collect();
+                    self.st.field_focus = None;
+                    self.weather_reset();
+                }
+                "weather_units" => {
+                    self.st.set.weather_units = if self.st.set.weather_units == "f" { "c" } else { "f" }.into();
+                    self.weather_reset();
+                }
                 "geo_apply" => {
                     let g = self.st.geo_field.text.trim().to_string();
                     // пусто — по часам; иначе только верные координаты
@@ -1043,6 +1062,10 @@ impl App {
                 if *k == "media" {
                     w.style = "bars".into();
                 }
+                // скрипт — первый из папки модулей
+                if *k == "script" {
+                    w.source = crate::plugins::available().first().map(|m| m[2..].to_string()).unwrap_or_default();
+                }
                 s.widgets.push(w);
                 self.st.sel_widget = id;
                 self.settings_changed();
@@ -1055,6 +1078,10 @@ impl App {
             Act::SWidgetOpt(id, key) => {
                 if let Some(w) = s.widget_mut(*id) {
                     let v = match *key {
+                        "source" if w.kind == "script" => {
+                            let v: Vec<String> = crate::plugins::available().iter().map(|m| m[2..].to_string()).collect();
+                            v.iter().position(|n| *n == w.source).map(|i| v[(i + 1) % v.len()].clone()).or_else(|| v.first().cloned()).unwrap_or_default()
+                        }
                         "source" => cycle(SOURCES, &w.source).to_string(),
                         "style" => cycle(STYLES, &w.style).to_string(),
                         "anim" => cycle(ANIMS, &w.anim).to_string(),
@@ -1092,6 +1119,10 @@ impl App {
                 if *k == "kb_layout" && self.st.keys.lay.text.is_empty() {
                     let p = self.st.set.kb_layout.clone();
                     self.st.keys.lay.set(&p);
+                }
+                if *k == "weather_city" && self.st.weather_field.text.is_empty() {
+                    let p = self.st.set.weather_city.clone();
+                    self.st.weather_field.set(&p);
                 }
                 if *k == "night_geo" && self.st.geo_field.text.is_empty() {
                     let p = self.st.set.night_geo.clone();
@@ -1147,6 +1178,8 @@ impl App {
                         self.settings_click(&Act::SCycle("game_apply"));
                     } else if f == "night_geo" {
                         self.settings_click(&Act::SCycle("geo_apply"));
+                    } else if f == "weather_city" {
+                        self.settings_click(&Act::SCycle("weather_apply"));
                     } else if f == "kb_layout" {
                         self.settings_click(&Act::SCycle("kb_apply"));
                     } else if f == "key_cmd" {
@@ -1164,6 +1197,7 @@ impl App {
                         "key_cmd" => &mut self.st.keys.cmd,
                         "game_apps" => &mut self.st.game_field,
                         "night_geo" => &mut self.st.geo_field,
+                        "weather_city" => &mut self.st.weather_field,
                         "kb_layout" => &mut self.st.keys.lay,
                         _ => &mut self.st.wall_field,
                     };

@@ -48,6 +48,8 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - The bar on chosen screens only (#8): settings → screens → «bar on this screen» (`barOutputs`); when none of the chosen screens is connected, every screen gets the bar.
 - Your own themes (#8): settings → color → themes keeps the current look with one button and applies a saved one with a click (× removes it); they live in `~/.config/yami/themes` in the `yami theme export` format, wallpaper included. In the terminal: `yami theme save [NAME]`, `list`, `apply NAME`, `remove NAME`; `yami theme import` also takes an https link and keeps what it applies among your themes. A link may only bring a theme, never a full settings file.
 - Fewer fixed paths (#1): the polkit helper is also found as NixOS's setuid wrapper (`/run/wrappers/bin`) and in `PATH`, the phone backend of gvfs through `XDG_DATA_DIRS` (and next to it, and in `PATH`), the login theme in the first `sddm/themes/yami` of `XDG_DATA_DIRS`; the old paths stay as fallbacks.
+- Weather (#6): the `weather` bar module (icon and temperature), its popup (now, feels like, humidity, wind, five days) and a desktop widget in three sizes. Data from Open-Meteo, no key: set a city or `latitude, longitude` in settings → services → network (`weatherCity`, `weatherUnits` for °F); asked every 20 minutes and only while the module or the widget is shown.
+- Script widget (#6): any bar-module script from `~/.config/yami/modules` can also be a desktop widget (settings → widgets → add «script»): its icon and text, several lines when the JSON `text` has `\n`, its click; the script runs once even when it is on the bar too, and only while shown.
 
 ## 2.5.0
 

@@ -11,7 +11,7 @@ use crate::widgets;
 use smithay_client_toolkit::seat::keyboard::{KeyEvent, Keysym};
 
 /// виды всплывашек: `popup KIND`, `yami open KIND`, shot
-pub const KINDS: &[&str] = &["cal", "sound", "media", "net", "bt", "sys", "profile", "tray"];
+pub const KINDS: &[&str] = &["cal", "sound", "media", "net", "bt", "sys", "profile", "tray", "weather"];
 
 impl State {
     /// открыта всплывашка этого вида
@@ -80,6 +80,11 @@ pub fn size(kind: &str, st: &State) -> (i32, i32) {
         "bt" => (380, 44 + 40 + if st.bt.msg.is_empty() { 0 } else { 24 } + if st.bt.powered { st.bt.devices.len().clamp(1, 8) as i32 * 34 } else { 30 } + 50),
         "sys" => (440, 44 + 4 * 74 + 40 + 50),
         "tray" => (300, 66 + tray_items(st).count().clamp(1, 12) as i32 * 32),
+        // погода: шапка, сейчас, пять дней, строка о свежести; без города — подсказка
+        "weather" => match crate::weather::ready(st) {
+            Some(w) => (360, 44 + 36 + 70 + if w.days.is_empty() { 0 } else { 76 } + 4),
+            None => (340, 44 + 36 + 40),
+        },
         "profile" => (340, 44 + if st.sys.bat.is_some() { 40 } else { 0 } + if st.prof.present { 36 * 3 + if st.prof.degraded.is_empty() { 0 } else { 26 } } else { 60 } + 30),
         _ => (300, 200),
     }
@@ -102,6 +107,7 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
         "sys" => sys(ui, st, body),
         "profile" => profile(ui, st, body),
         "tray" => tray(ui, st, body),
+        "weather" => weather(ui, st, body),
         _ => {}
     }
 }
@@ -115,6 +121,58 @@ fn head(ui: &mut Ui, r: R, icon: &str, title: &str, sub: &str) -> i32 {
     }
     ui.cv.fill(R::new(r.x, r.y + 26, r.w, 1), t.border);
     r.y + 36
+}
+
+// ── погода (#6) ─────────────────────────────────────────────────────────────
+fn weather(ui: &mut Ui, st: &State, b: R) {
+    let t = ui.t;
+    let mut y = head(ui, b, "cloud", "погода", "");
+    let Some(w) = crate::weather::ready(st) else {
+        // города нет, ответа ещё нет или ошибка
+        let msg = if crate::weather::key(&st.set).is_empty() {
+            crate::i18n::tr("город — в настройках → службы → сеть").to_string()
+        } else if !st.weather.err.is_empty() {
+            st.weather.err.clone()
+        } else {
+            crate::i18n::tr("спрашиваю open-meteo.com…").to_string()
+        };
+        ui.wrap(PX, R::new(b.x, y, b.w, 40), &msg, if st.weather.err.is_empty() { t.text_dim } else { t.ember }, 2);
+        return;
+    };
+    // место — как его назвал Open-Meteo, справа в шапке
+    ui.cv.text_right(ui.f, PX, R::new(b.x, b.y, b.w, 20), &w.place, t.text_faint);
+    ui.cv.icon(crate::weather::icon(w.code, w.day), b.x, y + 4, 6, t.red);
+    let face = crate::font::px(48);
+    let tw = ui.cv.text(ui.f, face, b.x + 56, y, &crate::weather::deg(w.temp), t.text_hi);
+    let tx = b.x + 56 + tw + 16;
+    ui.text_in(PX, R::new(tx, y, b.right() - tx, 16), crate::weather::text(w.code), t.text);
+    let unit = if st.set.weather_units == "f" { "mph" } else { crate::i18n::tr("км/ч") };
+    let lines = [
+        crate::tf!("ощущается {}", "feels like {}", crate::weather::deg(w.feels)),
+        crate::tf!("влажность {}%", "humidity {}%", w.hum.round() as i32),
+        crate::tf!("ветер {} {}", "wind {} {}", w.wind.round() as i32, unit),
+    ];
+    for (i, l) in lines.iter().enumerate() {
+        ui.cv.text_in(ui.f, PX, R::new(tx, y + 17 + i as i32 * 17, b.right() - tx, 16), l, if i == 0 { t.text_dim } else { t.text_faint });
+    }
+    y += 70;
+    if !w.days.is_empty() {
+        ui.cv.fill(R::new(b.x, y, b.w, 1), t.border);
+        y += 8;
+        let cw = b.w / w.days.len() as i32;
+        for (i, d) in w.days.iter().enumerate() {
+            let c = R::new(b.x + i as i32 * cw, y, cw, 60);
+            let name = if i == 0 { "сегодня" } else { crate::weather::wday(&d.date).map(|k| crate::app::RU_DAY[k]).unwrap_or("?") };
+            ui.text_center(PX, R::new(c.x, c.y, c.w, 16), name, if i == 0 { t.text } else { t.text_dim });
+            ui.cv.icon(crate::weather::icon(d.code, true), c.x + c.w / 2 - 7, c.y + 22, 2, t.red);
+            let hl = format!("{} {}", crate::weather::deg(d.hi), crate::weather::deg(d.lo));
+            ui.cv.text_center(ui.f, PX, R::new(c.x, c.y + 42, c.w, 16), &hl, t.text_dim);
+        }
+        y += 68;
+    }
+    let age = (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0).saturating_sub(w.at) / 60) as i32;
+    let foot = if !st.weather.err.is_empty() { st.weather.err.clone() } else { crate::tf!("open-meteo.com · {} мин назад", "open-meteo.com · {} min ago", age) };
+    ui.cv.text_in(ui.f, PX, R::new(b.x, y, b.w, 18), &foot, if st.weather.err.is_empty() { t.text_faint } else { t.ember });
 }
 
 // ── календарь ───────────────────────────────────────────────────────────────

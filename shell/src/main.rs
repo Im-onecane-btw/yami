@@ -70,6 +70,7 @@ mod upinstall;
 mod wall;
 mod walls;
 mod themetab;
+mod weather;
 mod widgets;
 
 fn main() {

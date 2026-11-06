@@ -46,7 +46,8 @@ Everything it does and its flags: [Installation](#installation).
   (PAM), notification server with history and do-not-disturb, OSD, system tray (StatusNotifierItem
   with DBusMenu), calendar, sound/music/network/Bluetooth/system popups, a power profile switch
   (power-profiles-daemon) and its own **polkit password window** instead of a Qt/GTK agent.
-- **Desktop widgets.** Clock, calendar, music card with an audio-reactive equalizer, and graphs
+- **Desktop widgets.** Clock, calendar, weather, the output of your own script, music card with an
+  audio-reactive equalizer, and graphs
   for CPU, RAM, temperature and rx/tx network traffic in five styles (bars, line, blocks, wave,
   dots) and four animations. Drag them into place in edit mode, hide or resize them. Widgets
   without a frame follow the wallpaper under them: dark text on a light spot, light on a dark one.
@@ -123,7 +124,8 @@ Everything it does and its flags: [Installation](#installation).
 - **A launcher that does more.** Type `2+2*3` for an answer, an app or a window title, `vrr` to land
   on that setting, `>cmd` to run a command, `/name` to find a file at home.
 - **Your own bar modules.** Any script in `~/.config/yami/modules/` that prints text or JSON
-  becomes a module (weather, crypto, GitHub, anything); see [docs/CONFIG.md](docs/CONFIG.md).
+  becomes a module or a desktop widget (crypto, GitHub, anything); weather is built in (Open-Meteo,
+  bar module and widget); see [docs/CONFIG.md](docs/CONFIG.md).
 - **Small comforts.** Reply to a message right from its notification, a night light (wlsunset),
   the programs of your last session reopened at login (opt-in), your themes one click away
   (settings → color → themes), shared as one file or a link (`yami theme export | import`) and the

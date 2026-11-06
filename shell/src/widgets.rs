@@ -13,7 +13,7 @@ use smithay_client_toolkit::seat::keyboard::{KeyEvent, Keysym};
 use smithay_client_toolkit::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer};
 use smithay_client_toolkit::shell::WaylandSurface;
 
-pub const KINDS: &[(&str, &str)] = &[("clock", "часы"), ("graph", "график"), ("net", "сеть"), ("media", "музыка"), ("cal", "календарь")];
+pub const KINDS: &[(&str, &str)] = &[("clock", "часы"), ("graph", "график"), ("net", "сеть"), ("media", "музыка"), ("cal", "календарь"), ("weather", "погода"), ("script", "скрипт")];
 pub const SOURCES: &[(&str, &str)] = &[("cpu", "процессор"), ("ram", "память"), ("temp", "температура"), ("gpu", "видеокарта")];
 pub const STYLES: &[(&str, &str)] = &[("bars", "столбики"), ("line", "линия"), ("blocks", "клетки"), ("wave", "волна"), ("dots", "точки")];
 pub const ANIMS: &[(&str, &str)] = &[("scroll", "бегущий"), ("rise", "рост"), ("flicker", "мерцание"), ("none", "без анимации")];
@@ -45,6 +45,8 @@ pub fn size_of(w: &Widget) -> (i32, i32) {
         "graph" | "net" => ((220, 96), (300, 124), (440, 180)),
         "media" => ((320, 112), (400, 136), (500, 170)),
         "cal" => ((236, 220), (280, 252), (350, 316)),
+        "weather" => ((230, 96), (300, 150), (390, 176)),
+        "script" => ((220, 64), (300, 110), (400, 160)),
         _ => ((200, 100), (300, 140), (400, 200)),
     };
     let (w, h) = [a, b, c][k];
@@ -87,6 +89,13 @@ pub fn widget_menu(w: &Widget) -> Vec<MItem> {
         "media" => {
             items.push(MItem::sub(&crate::tf!("эквалайзер: {}", "equalizer: {}", crate::i18n::tr(name_of(STYLES, &w.style))), "music", pick("style", STYLES, &w.style)));
         }
+        "script" => {
+            // скрипты — те же, что модули бара: ~/.config/yami/modules
+            let names: Vec<MItem> = crate::plugins::available().iter().map(|m| MItem::new(&m[2..], "", MAct::Widget(id, "source", m[2..].to_string())).check(m[2..] == w.source)).collect();
+            if !names.is_empty() {
+                items.push(MItem::sub(&crate::tf!("скрипт: {}", "script: {}", if w.source.is_empty() { "—" } else { &w.source }), "term", names));
+            }
+        }
         "clock" => {
             items.push(MItem::new("секунды", "", MAct::Widget(id, "seconds", String::new())).check(w.seconds));
             items.push(MItem::new("дата", "", MAct::Widget(id, "date", String::new())).check(w.date));
@@ -103,6 +112,85 @@ pub fn widget_menu(w: &Widget) -> Vec<MItem> {
     items.push(MItem::new("спрятать", "eye", MAct::Widget(id, "on", String::new())));
     items.push(MItem::new("убрать совсем", "trash", MAct::WidgetDel(id)).danger());
     items
+}
+
+// ── погода и скрипт (#6) ────────────────────────────────────────────────────
+/// погода на столе: значок, температура, что за погода и где; средний и большой — ещё дни
+fn weather(ui: &mut Ui, st: &State, w: &Widget, r: R, c: C) {
+    let t = ui.t;
+    let Some(wt) = crate::weather::ready(st) else {
+        let msg = if crate::weather::key(&st.set).is_empty() { crate::i18n::tr("погода: город — в настройках → службы → сеть").to_string() } else if !st.weather.err.is_empty() { st.weather.err.clone() } else { crate::i18n::tr("спрашиваю open-meteo.com…").to_string() };
+        ui.cv.icon("cloud", r.x, r.y + 2, 2, t.text_faint);
+        ui.wrap(PX, R::new(r.x + 22, r.y, r.w - 22, r.h), &msg, t.text_faint, 3);
+        return;
+    };
+    let (cell, face) = match w.size.as_str() {
+        "s" => (4, font::px(32)),
+        "l" => (7, font::px(64)),
+        _ => (5, font::px(48)),
+    };
+    ui.cv.icon(crate::weather::icon(wt.code, wt.day), r.x, r.y + 4, cell, c);
+    let x = r.x + cell * 7 + 12;
+    let tw = ui.cv.text(ui.f, face, x, r.y, &crate::weather::deg(wt.temp), t.text);
+    let tx = x + tw + 12;
+    ui.text_in(PX, R::new(tx, r.y + 2, r.right() - tx, 18), crate::weather::text(wt.code), t.text_dim);
+    ui.cv.text_in(ui.f, PX, R::new(tx, r.y + 22, r.right() - tx, 18), &wt.place, t.text_faint);
+    let n = match w.size.as_str() {
+        "s" => 0,
+        "l" => 5,
+        _ => 4,
+    }
+    .min(wt.days.len());
+    if n == 0 {
+        return;
+    }
+    let y = r.bottom() - 54;
+    let cw = r.w / n as i32;
+    for (i, d) in wt.days.iter().take(n).enumerate() {
+        let b = R::new(r.x + i as i32 * cw, y, cw, 54);
+        let name = if i == 0 { "сегодня" } else { crate::weather::wday(&d.date).map(|k| crate::app::RU_DAY[k]).unwrap_or("?") };
+        ui.text_center(PX, R::new(b.x, b.y, b.w, 16), name, t.text_dim);
+        ui.cv.icon(crate::weather::icon(d.code, true), b.x + b.w / 2 - 7, b.y + 18, 2, c);
+        ui.cv.text_center(ui.f, PX, R::new(b.x, b.y + 36, b.w, 16), &format!("{} {}", crate::weather::deg(d.hi), crate::weather::deg(d.lo)), t.text_faint);
+    }
+}
+
+/// вывод скрипта из ~/.config/yami/modules на столе: значок и строки текста (как модуль бара,
+/// «\n» в JSON-поле text — новая строка); click — по щелчку
+fn script(ui: &mut Ui, st: &State, w: &Widget, r: R, c: C) {
+    let t = ui.t;
+    let p = st.plugins.shown.get(&format!("x:{}", w.source));
+    let Some(p) = p.filter(|p| !p.text.is_empty() || !p.icon.is_empty()) else {
+        let msg = if w.source.is_empty() { crate::i18n::tr("скрипт не выбран: настройки виджета → скрипт").to_string() } else { crate::tf!("{}: ждёт вывода", "{}: waiting for output", w.source) };
+        ui.cv.icon("term", r.x, r.y + 2, 2, t.text_faint);
+        ui.wrap(PX, R::new(r.x + 22, r.y, r.w - 22, r.h), &msg, t.text_faint, 3);
+        return;
+    };
+    let (cell, face) = match w.size.as_str() {
+        "s" => (2, PX),
+        "l" => (4, crate::font::PX24),
+        _ => (3, PX),
+    };
+    let col = if p.color.is_empty() { c } else { crate::plugins::color(&t, &p.color) };
+    let icon = !p.icon.is_empty() && crate::gfx::icon7(&p.icon).is_some();
+    let x = if icon {
+        ui.cv.icon(&p.icon, r.x, r.y + 2, cell, col);
+        r.x + cell * 7 + 10
+    } else {
+        r.x
+    };
+    let lh = ui.f.line(face) + 4;
+    let mut y = r.y;
+    for (i, l) in p.text.lines().enumerate() {
+        if y + lh > r.bottom() + 4 {
+            break;
+        }
+        ui.cv.text_in(ui.f, face, R::new(x, y, r.right() - x, lh), l, if i == 0 { col } else { t.text_dim });
+        y += lh;
+    }
+    if !p.click.is_empty() {
+        ui.zone(r, Act::Plug(p.click.clone()), Cur::Pointer);
+    }
 }
 
 // ── графики ─────────────────────────────────────────────────────────────────
@@ -394,6 +482,16 @@ fn draw_widget(ui: &mut Ui, st: &State, w: &Widget, sw: i32, sh: i32) {
             panel(ui, w, r);
             let pad = if w.frame { 12 } else { 2 };
             calendar(ui, st, R::new(pad, pad, r.w - 2 * pad, r.h - 2 * pad), 0, c, false);
+        }
+        "weather" => {
+            panel(ui, w, r);
+            let pad = if w.frame { 12 } else { 4 };
+            weather(ui, st, w, R::new(pad, pad, r.w - 2 * pad, r.h - 2 * pad), c);
+        }
+        "script" => {
+            panel(ui, w, r);
+            let pad = if w.frame { 12 } else { 4 };
+            script(ui, st, w, R::new(pad, pad, r.w - 2 * pad, r.h - 2 * pad), c);
         }
         _ => {}
     }

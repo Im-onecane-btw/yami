@@ -113,7 +113,7 @@ yami-shell binds list | print | write     # сочетания клавиш
 
 | Ключ | По умолчанию | Значение |
 |---|---|---|
-| `barLeft`, `barCenter`, `barRight` | см. `config list` | id модулей по порядку: `launcher` `workspaces` `mode` `tasks` `media` `tray` `net` `netspeed` `bt` `kb` `cpu` `ram` `temp` `gpu` `disk` `bat` `vol` `profile` `clock` `notif` `settings` `power` `sep` (`bat`: батарея ноутбука, скрыт без неё; `gpu`: загрузка видеокарты из amdgpu или `nvidia-smi` раз в 3 с, скрыт без обоих, «сон», пока дискретка ноутбука спит; `disk`: заполненность `/`) |
+| `barLeft`, `barCenter`, `barRight` | см. `config list` | id модулей по порядку: `launcher` `workspaces` `mode` `tasks` `media` `tray` `net` `netspeed` `bt` `kb` `cpu` `ram` `temp` `gpu` `disk` `weather` `bat` `vol` `profile` `clock` `notif` `settings` `power` `sep` (`bat`: батарея ноутбука, скрыт без неё; `gpu`: загрузка видеокарты из amdgpu или `nvidia-smi` раз в 3 с, скрыт без обоих, «сон», пока дискретка ноутбука спит; `disk`: заполненность `/`) |
 | `cpuStyle` | `"gauge"` | `gauge` `graph` `number` — для `cpu` `ram` `gpu` `disk` (у `disk` нет истории: `graph` рисует шкалу) |
 | `tempStyle` | `"full"` | модуль `temp`: `full` — как `cpu` и `ram` (подпись и `cpuStyle`), `compact` — столбик-градусник и число |
 | `trayMode` | `"icons"` | `icons` — все значки трея в баре; `arrow` — одна стрелка, по ней они открываются списком (щелчки — как в баре; точка, когда программа зовёт) |
@@ -204,6 +204,7 @@ MangoHud получает конфиг в палитре и пиксельном
 | `audioNames` | `{}` | твои имена звуковых устройств (выходов и микрофонов): имя PipeWire (`pactl list short sinks`, `pactl list short sources`) → подпись, например `{"alsa_output.usb-…-00.analog-stereo": "Headphones"}` |
 | `mediaArtNet` | `true` | обложки альбомов по веб-ссылкам плеера (`curl`, после переадресаций только https, ≤ 16 МБ); выключено — только локальные файлы |
 | `lyricsNet` | `true` | тексты песен с lrclib.net (уходят исполнитель, название и длительность), когда у плеера текста нет и рядом с треком нет файла `.lrc` или `.txt`; спрашивается, только пока всплывашка музыки показывает текст, ответы — в кеше `~/.cache/yami/lyrics` |
+| `weatherCity`, `weatherUnits` | `""`, `"c"` | модуль бара и виджет `weather`: город (`Берлин`) или `широта, долгота`, спрашивается у open-meteo.com раз в 20 минут, пока один из них виден; `f` — °F и mph. Настройки → службы → сеть |
 | `portalFiles`, `portalCast` | `true`, `true` | диалоги файлов от yami-files, выбор экрана для показа от шелла (иначе GTK / GNOME) |
 
 ### Обновления
@@ -251,7 +252,9 @@ yami-niri на уровне этой версии (со следующего в�
 Исполняемый файл в `~/.config/yami/modules/<имя>` становится модулем бара `x:<имя>` (настройки →
 бар показывают его вместе со встроенными). Скрипт печатает строку на каждое обновление — простой
 текст или JSON; скрипт, который работает постоянно, шлёт строки потоком, а завершившийся
-запускается снова через `interval` секунд (по умолчанию 10).
+запускается снова через `interval` секунд (по умолчанию 10). Тот же скрипт может быть и виджетом
+на столе (настройки → виджеты → скрипт), где `\n` в поле JSON `text` начинает новую строку; бар
+показывает первую.
 
 ```sh
 #!/bin/sh
@@ -274,8 +277,8 @@ printf '{"text":"%s","icon":"temp","color":"accent","click":"xdg-open https://wt
 
 `widgets` — список `{"id", "kind", "on", "x", "y", "source", "style", "anim", "size",
 "color", "frame", "label", "seconds", "date", "text"}`: `kind` — `clock` `graph` `net` `media`
-`cal` `note`; графики берут `source` `cpu` `ram` `temp` `gpu` `swap` и `style` `bars` `line`
-`blocks` `wave` `dots`. `x`/`y` равные -1 — место по умолчанию. Расставлять проще мышью:
+`cal` `weather` `script` `note`; графики берут `source` `cpu` `ram` `temp` `gpu` `swap` и
+`style` `bars` `line` `blocks` `wave` `dots`; виджет `script` берёт имя файла скрипта в `source`. `x`/`y` равные -1 — место по умолчанию. Расставлять проще мышью:
 настройки → виджеты, режим правки.
 
 ## yami-files.json

@@ -164,7 +164,10 @@ impl App {
     pub fn side_sync(&mut self) {
         self.night_sync();
         let s = &self.st.set;
-        let on_bar: Vec<String> = s.bar_left.iter().chain(&s.bar_center).chain(&s.bar_right).cloned().collect();
+        let mut on_bar: Vec<String> = s.bar_left.iter().chain(&s.bar_center).chain(&s.bar_right).cloned().collect();
+        // виджет-скрипт на столе — тот же модуль, запущенный один раз
+        on_bar.extend(s.widgets.iter().filter(|w| w.on && w.kind == "script" && !w.source.is_empty()).map(|w| format!("x:{}", w.source)));
+        on_bar.dedup();
         self.st.plugins.sync(&on_bar, &self.tx);
     }
 

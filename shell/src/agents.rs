@@ -84,15 +84,21 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     y = title(ui, b.x, y, b.w, "трей и пароли");
     ui.toggle(R::new(b.x, y, half, 40), "трей", "значки программ в баре", s.agent_tray, Act::SBool("agent_tray"));
     ui.toggle(R::new(x2, y, half, 40), "окно пароля polkit", "выкл — другой агент", s.agent_polkit, Act::SBool("agent_polkit"));
-    y += 52;
+    y += 46;
     y = title(ui, b.x, y, b.w, "порталы");
     ui.toggle(R::new(b.x, y, half, 40), "диалог файлов yami-files", "выкл — диалог GTK", s.portal_files, Act::SBool("portal_files"));
     ui.toggle(R::new(x2, y, half, 40), "выбор экрана для трансляций", "выкл — окно GNOME", s.portal_cast, Act::SBool("portal_cast"));
-    y += 52;
+    y += 46;
     y = title(ui, b.x, y, b.w, "сеть");
     ui.toggle(R::new(b.x, y, half, 40), "обложки музыки из сети", "по ссылкам плеера; выкл — только файлы на диске", s.media_art_net, Act::SBool("media_art_net"));
     ui.toggle(R::new(x2, y, half, 40), "тексты песен из сети", "lrclib.net; выкл — от плеера и файлы .lrc", s.lyrics_net, Act::SBool("lyrics_net"));
+    y += 44;
+    // погода (#6): город или координаты для open-meteo.com, единицы
+    let gf = st.field_focus == Some("weather_city");
+    ui.field(R::new(b.x, y, half, 26), &st.weather_field, if s.weather_city.is_empty() { "погода: город или широта, долгота" } else { &s.weather_city }, gf, false, Act::SField("weather_city"));
+    let units = if s.weather_units == "f" { "°F, mph" } else { "°C, км/ч" };
+    crate::settings::opt_btn(ui, R::new(x2, y, half, 26), "погода", units, Act::SCycle("weather_units"));
     let by = b.bottom() - 34;
-    ui.wrap(crate::font::PX, R::new(b.x, by - 40, b.w, 40), "уведомления, трей и пароли — после перезапуска шелла; порталы — со следующего входа", t.text_faint, 2);
+    ui.text_in(crate::font::PX, R::new(b.x, by - 24, b.w, 20), "уведомления, трей, пароли — после перезапуска; порталы — после входа", t.text_faint);
     ui.button(R::new(b.x, by, 220, 28), "перезапустить шелл", "reboot", Tone::Plain, false, true, Act::SCycle("restart_shell"));
 }
