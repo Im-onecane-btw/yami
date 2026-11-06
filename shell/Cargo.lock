@@ -1454,7 +1454,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "yami-files"
-version = "2.5.0"
+version = "2.5.1"
 dependencies = [
  "blocking",
  "calloop",
@@ -1472,7 +1472,7 @@ dependencies = [
 
 [[package]]
 name = "yami-play"
-version = "2.5.0"
+version = "2.5.1"
 dependencies = [
  "calloop",
  "calloop-wayland-source",
@@ -1486,7 +1486,7 @@ dependencies = [
 
 [[package]]
 name = "yami-px"
-version = "2.5.0"
+version = "2.5.1"
 dependencies = [
  "ab_glyph",
  "image",
@@ -1498,7 +1498,7 @@ dependencies = [
 
 [[package]]
 name = "yami-shell"
-version = "2.5.0"
+version = "2.5.1"
 dependencies = [
  "async-channel",
  "blocking",
@@ -1517,7 +1517,7 @@ dependencies = [
 
 [[package]]
 name = "yami-view"
-version = "2.5.0"
+version = "2.5.1"
 dependencies = [
  "calloop",
  "calloop-wayland-source",

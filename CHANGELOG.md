@@ -9,6 +9,8 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 
 ## Unreleased
 
+## 2.5.1
+
 - Fix: a fresh install got a shorter bar: the settings file the installer writes was taken for the pre-2.0 format, so the right side lost the battery, the power profile and the separators, and a `barRight` written by hand into such a file was dropped. Now only a file with the old keys is converted
 - Fix: skwd-wall videos and Wallpaper Engine scenes (#3): yami now sees that skwd-wall draws them (its `skwd-wall-vk` layer) and no longer draws its own picture on that screen, which after a shell restart could cover the live wallpaper
 - Docs in Russian: CHANGELOG, docs/CONFIG, docs/SECURITY and fork/README have Russian twins (`*.ru.md`), linked at the top of each file and from README.ru.md (which also gets back its missing «building the shell by hand» part); `tools/check.sh` keeps every pair in step (the same structure, code, links and anchors), so neither falls behind. With a Russian interface, settings → updates shows the release notes in Russian
