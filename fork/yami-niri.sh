@@ -101,9 +101,11 @@ on() {
 
 off() {
   rm -f -- "$DROPIN" "$UNITS/dark-niri.conf"
-  # rules only the fork knows would break the packaged niri's config
+  # rules only the fork knows would break the packaged niri's config (it would start with its
+  # default config, without the shell): the same edit as session.sh's fallback, the shell rewrites
+  # the file for the running niri anyway
   local fx="${XDG_CONFIG_HOME:-$HOME/.config}/niri/yami-fx.kdl"
-  [[ -f $fx ]] && sed -i '/allow-tearing/d' "$fx"
+  [[ -f $fx ]] && sed -i '/allow-tearing/d; /show-only-in/d; s/hide-from /block-out-from /' "$fx"
   [[ "$(readlink "$LINK" 2>/dev/null)" == "$LIB"/* ]] && rm -f -- "$LINK"
   systemctl --user daemon-reload 2>/dev/null || true
   say "$(t "со следующего входа — niri из пакета" "packaged niri from the next login")"

@@ -31,6 +31,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - On a weak machine (less than 6 GB of memory or 4 threads) the installer and `yami update` build the apps with thin LTO: the compiler's peak memory is about half (1.3 GB instead of 2.4 GB with two jobs), so a 4 GB laptop no longer swaps through the build.
 - Fix: after an update OBS and other recorders could find no screen to capture until the next login: the update stopped the screen-sharing and file-dialog backend (`yami-files --portal`) and nothing started it again in time. Now `yami-files --portal-reload` hands over to the new binary in the same process (the portal keeps talking to it), waits while a recording or a file dialog is open, and starts the backend when none runs; the installer, `yami update` and `tools/deploy.sh` use it.
 - The installer puts each program into place in one step (a running copy never sees a half-written file) and stops when the apps fail to build, on a first install and on `yami update` alike: it used to go on writing configs for programs that were not there, and to build the compositor fork anyway.
+- Fix: `fork/yami-niri.sh off` left the fork's keys (`allow-tearing`, `show-only-in`, `hide-from`) in `yami-fx.kdl`, so at the next login the packaged niri refused the config and started with its own, without the shell. `off` now strips them the way `session.sh` does, and the shell writes them only while the next login runs the fork too.
 
 ## 2.5.0
 

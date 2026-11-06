@@ -54,7 +54,9 @@ level has it (`show-only-in` from 4, `hide-from` from 5): right after a build th
   apply to the pinned revs. No effects or eye candy in the compositor; the shell draws the look.
 - The config must stay valid for the packaged niri too, except for what the shell writes when it
   sees the fork (`allow-tearing`, `show-only-in`, `hide-from`); `session.sh` strips or downgrades
-  them before falling back.
+  them before falling back, and so does `yami-niri.sh off`. The shell writes them only while the next
+  login runs the fork too (`~/.local/bin/niri` links to the build), so a setting changed after `off`
+  does not bring them back.
 - A patch that adds config the shell writes bumps the level in `VERSION`.
 - Updating: bump `NIRI_REV`/`SMITHAY_REV` in `yami-niri.sh`, rebase the series in
   `~/.cache/yami/niri-src`, re-export with

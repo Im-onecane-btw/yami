@@ -78,7 +78,19 @@ pub fn fork_level() -> u32 {
     let v = request(&json!("Version")).and_then(|v| v["Ok"]["Version"].as_str().map(str::to_string)).unwrap_or_default();
     let Some(i) = v.find("yami") else { return 0 };
     // до уровней в версии: allow-tearing и realtime, три патча
-    v[i + 4..].strip_prefix('.').and_then(|r| r.split(|c: char| !c.is_ascii_digit()).next()?.parse().ok()).unwrap_or(3)
+    let lvl = v[i + 4..].strip_prefix('.').and_then(|r| r.split(|c: char| !c.is_ascii_digit()).next()?.parse().ok()).unwrap_or(3);
+    // форк выключен до следующего входа (`yami-niri.sh off` убирает ссылку ~/.local/bin/niri): его
+    // ключи в yami-fx.kdl сломали бы конфиг пакетному niri — тот стартовал бы со своим, без шелла
+    if next_login_fork() {
+        lvl
+    } else {
+        0
+    }
+}
+
+/// следующий вход — тоже yami-niri: `yami-niri.sh on` ставит ссылку niri в ~/.local/bin на сборку
+fn next_login_fork() -> bool {
+    std::fs::read_link(crate::config::home().join(".local/bin/niri")).map(|t| t.to_string_lossy().contains("/yami-niri/")).unwrap_or(false)
 }
 
 fn socket() -> Option<String> {
