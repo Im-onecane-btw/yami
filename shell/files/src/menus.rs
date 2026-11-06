@@ -149,19 +149,61 @@ pub fn main_menu(fm: &mut Fm) -> Vec<MItem> {
     ]
 }
 
-pub fn for_place(path: &std::path::Path, user: bool) -> Vec<MItem> {
-    let p = path.to_path_buf();
-    let mut m = vec![MItem::new("открыть", "right", "", Cmd::Go(p.clone())), MItem::new("в новой вкладке", "plus", "", Cmd::OpenTab)];
-    m.push(MItem::new("вставить сюда", "down", "", Cmd::PasteInto(p.clone())));
-    if user {
-        m.push(MItem::sep());
-        m.push(MItem::new("убрать из мест", "close", "", Cmd::RemovePlace(p)));
+/// ПКМ по месту: открыть здесь, во вкладке, в соседней панели; вставить; скрыть или убрать
+pub fn for_place(fm: &Fm, i: usize) -> Vec<MItem> {
+    let Some(p) = fm.side.get(i) else { return vec![] };
+    let path = p.path.clone();
+    let mut m = vec![
+        MItem::new("открыть", "right", "", Cmd::Go(path.clone())),
+        MItem::new("в новой вкладке", "plus", "", Cmd::TabAt(path.clone())),
+        MItem::new("в соседней панели", "tile", "", Cmd::PaneAt(path.clone())),
+    ];
+    if p.trash() {
+        m[0].cmd = Cmd::GoTrash;
+        m.push(MItem::new("очистить корзину", "trash", "", Cmd::EmptyTrash).off(fm.trash_n == 0));
+    } else {
+        m.push(MItem::new("вставить сюда", "down", "", Cmd::PasteInto(path.clone())));
+        m.push(MItem::new("свойства", "about", "", Cmd::PropsOf(path.clone())));
     }
+    m.push(MItem::sep());
+    if p.user {
+        m.push(MItem::new("переименовать", "", "", Cmd::RenamePlace(path.clone())));
+        m.push(MItem::new("убрать из мест", "close", "", Cmd::RemovePlace(path)));
+    } else {
+        m.push(MItem::new("скрыть", "close", "", Cmd::HidePlace(p.id.clone())));
+    }
+    m.extend(restore_items(fm));
     m
 }
 
-pub fn for_trash_place(fm: &Fm) -> Vec<MItem> {
-    vec![MItem::new("открыть", "right", "", Cmd::GoTrash), MItem::new("очистить корзину", "trash", "", Cmd::EmptyTrash).off(fm.trash_n == 0)]
+/// ПКМ по пустому месту панели или заголовку раздела: вернуть скрытое, порядок по умолчанию
+pub fn for_side(fm: &Fm) -> Vec<MItem> {
+    let mut m = vec![MItem::new("подключиться к серверу…", "net", "", Cmd::Connect(String::new())).off(!fm.cfg.network)];
+    m.extend(restore_items(fm));
+    m
+}
+
+/// «показать скрытые» (подменю) и «места по умолчанию» — когда есть что вернуть
+fn restore_items(fm: &Fm) -> Vec<MItem> {
+    let mut sub: Vec<MItem> = fm.side_hidden.iter().map(|p| MItem::new(&p.name, "", "", Cmd::ShowPlace(p.id.clone()))).collect();
+    for k in &fm.cfg.devs_hidden {
+        let name = fm.devs.iter().find(|d| d.key() == *k).map(|d| d.title()).unwrap_or_else(|| k.clone());
+        sub.push(MItem::new(&name, "", "", Cmd::ShowDev(k.clone())));
+    }
+    let hidden = !sub.is_empty();
+    let custom = !fm.cfg.places_order.is_empty() || !fm.cfg.collapsed.is_empty() || hidden;
+    let mut m = vec![];
+    if hidden {
+        m.push(MItem::sep());
+        m.push(MItem::sub("показать скрытые", "eye", sub));
+    }
+    if custom {
+        if !hidden {
+            m.push(MItem::sep());
+        }
+        m.push(MItem::new("места по умолчанию", "reboot", "", Cmd::ResetPlaces));
+    }
+    m
 }
 
 pub fn for_dev(fm: &Fm, i: usize) -> Vec<MItem> {
@@ -170,11 +212,16 @@ pub fn for_dev(fm: &Fm, i: usize) -> Vec<MItem> {
     match &d.mount {
         Some(p) => {
             m.push(MItem::new("открыть", "right", "", Cmd::Go(p.clone())));
+            m.push(MItem::new("в новой вкладке", "plus", "", Cmd::TabAt(p.clone())));
+            m.push(MItem::new("в соседней панели", "tile", "", Cmd::PaneAt(p.clone())));
+            m.push(MItem::new("свойства", "about", "", Cmd::PropsOf(p.clone())));
             if p != std::path::Path::new("/") {
                 let eject = d.removable && d.kind != crate::places::DevKind::Net;
+                m.push(MItem::sep());
                 m.push(MItem::new(if eject { "извлечь" } else { "отключить" }, "up", "", Cmd::Unmount(i)));
             }
         }
+        None if d.locked => m.push(MItem::new("открыть паролем…", "lock", "", Cmd::Mount(i))),
         None => m.push(MItem::new("подключить", "down", "", Cmd::Mount(i))),
     }
     // сеть: войти под другим логином и забыть адрес
@@ -187,6 +234,9 @@ pub fn for_dev(fm: &Fm, i: usize) -> Vec<MItem> {
             m.push(MItem::new("забыть адрес", "close", "", Cmd::Forget(keep)));
         }
     }
+    m.push(MItem::sep());
+    m.push(MItem::new("скрыть", "close", "", Cmd::HideDev(d.key())));
+    m.extend(restore_items(fm));
     m
 }
 

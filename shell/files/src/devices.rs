@@ -67,8 +67,48 @@ impl Fm {
         });
     }
 
+    /// окно пароля зашифрованного диска (щелчок по нему или `yami-files --unlock /dev/…`)
+    pub fn unlock_dlg(&mut self, dev: &str, name: String) {
+        if !dev.starts_with("/dev/") || dev.contains("..") {
+            return;
+        }
+        self.dlg = Some((Dlg::Unlock { dev: dev.to_string(), name, pass: Field::default(), err: String::new(), busy: false }, Instant::now()));
+    }
+
+    /// итог открытия зашифрованного диска
+    fn on_unlock(&mut self, res: crate::remote::Mounted) {
+        use crate::remote::Mounted as M;
+        let e = match res {
+            M::Ok(p) => {
+                if matches!(self.dlg, Some((Dlg::Unlock { .. }, _))) {
+                    self.dlg = None;
+                }
+                match p {
+                    Some(p) => self.go(p),
+                    None => self.toast(crate::i18n::tr("подключено")),
+                }
+                return self.refresh_devices();
+            }
+            M::NeedAuth { .. } => crate::i18n::tr("неверный пароль").to_string(),
+            M::Question(q) => q,
+            // udisks: «Failed to activate device: Incorrect passphrase» — по-человечески
+            M::Err(e) if e.contains("passphrase") || e.contains("No key available") => crate::i18n::tr("неверный пароль").to_string(),
+            M::Err(e) => e,
+        };
+        match &mut self.dlg {
+            Some((Dlg::Unlock { err, busy, .. }, _)) => {
+                *err = e;
+                *busy = false;
+            }
+            _ => self.toast(e),
+        }
+    }
+
     pub fn on_remote(&mut self, uri: String, res: crate::remote::Mounted, auth: crate::remote::Auth) {
         use crate::remote::Mounted as M;
+        if uri.starts_with("/dev/") {
+            return self.on_unlock(res);
+        }
         let was_dlg = matches!(self.dlg, Some((Dlg::Server { .. }, _)));
         match res {
             M::Ok(p) => {
@@ -166,6 +206,9 @@ impl Fm {
         if d.kind != places::DevKind::Disk {
             return self.mount_remote(d, on, tx);
         }
+        if on && d.locked {
+            return self.unlock_dlg(&d.dev, d.title());
+        }
         self.toast(if on { crate::tf!("подключаю {}…", "mounting {}…", d.title()) } else { crate::tf!("отключаю {}…", "unmounting {}…", d.title()) });
         // уходим из папки на отключаемом диске
         if !on {
@@ -177,7 +220,7 @@ impl Fm {
         }
         let (disks, net, servers) = (self.cfg.devices, self.cfg.network, self.cfg.servers.clone());
         std::thread::spawn(move || {
-            let out = std::process::Command::new("udisksctl").args([if on { "mount" } else { "unmount" }, "-b", &d.dev, "--no-user-interaction"]).output();
+            let out = std::process::Command::new("udisksctl").args([if on { "mount" } else { "unmount" }, "-b", &d.dev]).stdin(std::process::Stdio::null()).output();
             let (err, open) = match out {
                 Ok(o) if o.status.success() => {
                     if on {
@@ -186,9 +229,13 @@ impl Fm {
                         let p = s.split(" at ").nth(1).map(|x| PathBuf::from(x.trim().trim_end_matches('.')));
                         (None, p)
                     } else {
-                        if d.removable {
-                            let disk = d.dev.trim_end_matches(|c: char| c.is_ascii_digit()).trim_end_matches('p').to_string();
-                            let _ = std::process::Command::new("udisksctl").args(["power-off", "-b", &disk, "--no-user-interaction"]).output();
+                        let ud = |a: &[&str]| std::process::Command::new("udisksctl").args(a).stdin(std::process::Stdio::null()).output();
+                        // открытый LUKS — закрыть: без этого содержимое диска осталось бы открытым
+                        if !d.crypt.is_empty() {
+                            let _ = ud(&["lock", "-b", &d.crypt, "--no-user-interaction"]);
+                        }
+                        if d.removable && !d.disk.is_empty() {
+                            let _ = ud(&["power-off", "-b", &d.disk, "--no-user-interaction"]);
                         }
                         (None, None)
                     }

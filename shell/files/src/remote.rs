@@ -114,7 +114,6 @@ struct GVol {
     name: String,
     monitor: String,
     root: String,
-    unix: bool,
 }
 
 /// тома и подключения gvfs, кроме дисков (их показывает lsblk)
@@ -129,7 +128,7 @@ pub fn gvfs_devices() -> Vec<Dev> {
     for l in text.lines() {
         let s = l.trim_start();
         if let Some(rest) = s.strip_prefix("Volume(").and_then(|r| r.split_once("): ")) {
-            vols.push(GVol { name: rest.1.to_string(), monitor: String::new(), root: String::new(), unix: false });
+            vols.push(GVol { name: rest.1.to_string(), monitor: String::new(), root: String::new() });
             cur = 1;
         } else if let Some(rest) = s.strip_prefix("Mount(").and_then(|r| r.split_once("): ")) {
             let (name, uri) = rest.1.split_once(" -> ").unwrap_or((rest.1, ""));
@@ -150,18 +149,15 @@ pub fn gvfs_devices() -> Vec<Dev> {
                 if let Some(v) = vols.last_mut() {
                     v.root = r.trim().to_string();
                 }
-            } else if s.starts_with("unix-device:") {
-                if let Some(v) = vols.last_mut() {
-                    v.unix = true;
-                }
             }
         }
     }
     let kind_of = |monitor: &str, uri: &str| -> Option<DevKind> {
         let scheme = uri.split("://").next().unwrap_or("");
-        if monitor.contains("MTP") || scheme == "mtp" || monitor.contains("AFC") || scheme == "afc" {
+        let m = monitor.to_ascii_lowercase();
+        if m.contains("mtp") || scheme == "mtp" || m.contains("afc") || scheme == "afc" {
             Some(DevKind::Phone)
-        } else if monitor.contains("GPhoto2") || scheme == "gphoto2" {
+        } else if m.contains("gphoto2") || scheme == "gphoto2" {
             Some(DevKind::Camera)
         } else if known_scheme(uri) {
             Some(DevKind::Net)
@@ -171,14 +167,16 @@ pub fn gvfs_devices() -> Vec<Dev> {
     };
     let mut out: Vec<Dev> = vec![];
     for v in &vols {
-        // диски (udisks2) уже есть из lsblk; Goa и прочее без адреса пропускаем
-        if v.unix || v.monitor.contains("UDisks2") || v.root.is_empty() {
+        // диски (udisks2) уже есть из lsblk; Goa и прочее без адреса пропускаем. У томов телефонов
+        // и камер тоже есть unix-device (/dev/bus/usb/…): по нему их не отсеивать — раньше из-за
+        // этого телефон в панели не появлялся, пока его не подключали руками
+        if v.monitor.contains("UDisks2") || v.root.is_empty() {
             continue;
         }
         let Some(kind) = kind_of(&v.monitor, &v.root) else { continue };
         let m = mounts.iter().find(|m| m.1.trim_end_matches('/') == v.root.trim_end_matches('/') || m.0 == v.name && !m.2.contains("UDisks2"));
         let mount = m.and_then(|m| local_path(&m.1));
-        out.push(Dev { dev: String::new(), uri: m.map(|m| m.1.clone()).unwrap_or_else(|| v.root.clone()), label: v.name.clone(), size: 0, mount, removable: true, fstype: String::new(), kind });
+        out.push(Dev { uri: m.map(|m| m.1.clone()).unwrap_or_else(|| v.root.clone()), label: v.name.clone(), mount, removable: true, kind, ..Default::default() });
     }
     // подключения без тома: сетевые ресурсы, телефон, подключённый адресом
     for (name, uri, mon) in &mounts {
@@ -187,7 +185,7 @@ pub fn gvfs_devices() -> Vec<Dev> {
         }
         let Some(kind) = kind_of(mon, uri) else { continue };
         let label = if kind == DevKind::Net { title_of(uri) } else { name.clone() };
-        out.push(Dev { dev: String::new(), uri: uri.clone(), label, size: 0, mount: local_path(uri), removable: true, fstype: String::new(), kind });
+        out.push(Dev { uri: uri.clone(), label, mount: local_path(uri), removable: true, kind, ..Default::default() });
     }
     out.extend(usb_phones_without_backend());
     out
@@ -211,21 +209,28 @@ pub fn kernel_net() -> Vec<Dev> {
         let mp = PathBuf::from(unesc(f[1]));
         let src = unesc(f[0]);
         let name = mp.file_name().map(|s| s.to_string_lossy().to_string()).filter(|s| !s.is_empty()).unwrap_or_else(|| src.clone());
-        out.push(Dev { dev: src, uri: String::new(), label: name, size: 0, mount: Some(mp), removable: true, fstype: fs.to_string(), kind: DevKind::Net });
+        out.push(Dev { dev: src, label: name, mount: Some(mp), removable: true, fstype: fs.to_string(), kind: DevKind::Net, ..Default::default() });
     }
     out
 }
 
-/// подключить адрес gvfs; на вопросы отвечаем из `auth`, чего нет — спрашиваем пользователя
+/// подключить адрес gvfs или раздел («/dev/sdb1» — зашифрованный: пароль спросит gio, udisks
+/// откроет LUKS и смонтирует содержимое); на вопросы отвечаем из `auth`, чего нет — спрашиваем
 pub fn mount(uri: &str, auth: &Auth) -> Mounted {
-    let anon = auth.user.is_empty() && auth.pass.is_empty() && !uri.contains('@');
+    let dev = uri.starts_with("/dev/");
+    let anon = !dev && auth.user.is_empty() && auth.pass.is_empty() && !uri.contains('@');
     let mut c = gio();
     c.arg("mount");
     // без логина — гостем: иначе gio сразу спросит имя и пароль
     if anon {
         c.arg("-a");
     }
-    let mut ch = match c.arg("--").arg(uri).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn() {
+    if dev {
+        c.arg("-d").arg(uri);
+    } else {
+        c.arg("--").arg(uri);
+    }
+    let mut ch = match c.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn() {
         Ok(ch) => ch,
         Err(_) => return Mounted::Err(crate::i18n::tr("нет gio (пакет glib2 / gvfs)").to_string()),
     };
@@ -319,6 +324,12 @@ pub fn mount(uri: &str, auth: &Auth) -> Mounted {
     let ok = st.map(|s| s.success()).unwrap_or(false);
     // «уже подключено» — тоже успех
     if ok || e.contains("already mounted") {
+        if dev {
+            // открытый LUKS смонтирован в своём разделе-потомке: первая точка из lsblk
+            let o = Command::new("lsblk").args(["-nr", "-o", "MOUNTPOINT", uri]).stdin(Stdio::null()).output();
+            let p = o.ok().and_then(|o| String::from_utf8_lossy(&o.stdout).lines().map(|l| l.trim().replace("\\x20", " ")).find(|l| l.starts_with('/'))).map(PathBuf::from);
+            return Mounted::Ok(p);
+        }
         // том (телефон) подключается под своим адресом: ищем точку по имени из списка
         let p = local_path(uri).or_else(|| gvfs_devices().into_iter().find(|d| d.uri.starts_with(uri.trim_end_matches('/')) || uri.starts_with(d.uri.trim_end_matches('/'))).and_then(|d| d.mount));
         return Mounted::Ok(p);
@@ -398,7 +409,7 @@ pub fn usb_phones_without_backend() -> Vec<Dev> {
             continue;
         }
         let kind = if name.contains("MTP") || apple { DevKind::Phone } else { DevKind::Camera };
-        out.push(Dev { dev, uri: String::new(), label, size: 0, mount: None, removable: true, fstype: String::new(), kind });
+        out.push(Dev { dev, label, removable: true, kind, ..Default::default() });
     }
     out
 }

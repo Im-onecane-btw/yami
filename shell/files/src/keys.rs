@@ -481,6 +481,11 @@ impl Fm {
                     }
                 }
             }
+            Dlg::Unlock { pass, err, busy, .. } => {
+                if !*busy && edit(pass, k) {
+                    err.clear();
+                }
+            }
             Dlg::OpenWith { f, sel, scroll, .. } => match k.sym {
                 Keysym::Down => *sel += 1,
                 Keysym::Up => *sel = sel.saturating_sub(1),

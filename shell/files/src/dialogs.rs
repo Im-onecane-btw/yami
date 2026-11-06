@@ -59,6 +59,7 @@ pub(crate) fn dialog(ui: &mut Ui, fm: &Fm, d: &Dlg, born: Instant, w: i32, h: i3
                 NameKind::NewFolder => "новая папка",
                 NameKind::NewFile => "новый файл",
                 NameKind::Compress => "сжать в архив",
+                NameKind::Bookmark(_) => "имя в местах",
             };
             let r = dlg_frame(ui, fm, born, w, h, 440, 170, if matches!(kind, NameKind::Compress) { "copy" } else { "plus" }, title);
             let fr = R::new(r.x + 16, r.y + 52, r.w - 32, 34);
@@ -100,6 +101,22 @@ pub(crate) fn dialog(ui: &mut Ui, fm: &Fm, d: &Dlg, born: Instant, w: i32, h: i3
             buttons(ui, r, &[("отмена", "cancel", Tone::Plain), (if question.is_some() { "подключиться всё равно" } else { "подключить" }, "ok", Tone::Primary)]);
             dissolve_dlg(ui, fm, born, r);
         }
+        Dlg::Unlock { name, pass, err, busy, .. } => {
+            let r = dlg_frame(ui, fm, born, w, h, 460, 210, "lock", "зашифрованный диск");
+            raw(ui, PX, R::new(r.x + 16, r.y + 48, r.w - 32, 20), name, t.text);
+            ui.field(R::new(r.x + 16, r.y + 76, r.w - 32, 32), pass, "пароль диска", !busy, true, Act::DlgField);
+            if *busy {
+                let dots = ".".repeat(1 + (born.elapsed().as_millis() / 300 % 3) as usize);
+                raw(ui, PX, R::new(r.x + 16, r.y + 116, r.w - 32, 20), &format!("{}{dots}", crate::i18n::tr("открываю")), t.text_dim);
+                ui.anim = true;
+            } else if !err.is_empty() {
+                raw(ui, PX, R::new(r.x + 16, r.y + 116, r.w - 32, 20), err, t.warn);
+            } else {
+                ui.text_in(PX, R::new(r.x + 16, r.y + 116, r.w - 32, 20), "пароль не сохраняется", t.text_faint);
+            }
+            buttons(ui, r, &[("отмена", "cancel", Tone::Plain), ("открыть", "ok", Tone::Primary)]);
+            dissolve_dlg(ui, fm, born, r);
+        }
         Dlg::Confirm { title, text, ok, .. } => {
             let r = dlg_frame(ui, fm, born, w, h, 460, 160, "trash", title);
             let lines = label_lines(ui.f, PX, crate::i18n::tr(text), r.w - 32, 3);
@@ -138,7 +155,7 @@ pub(crate) fn dialog(ui: &mut Ui, fm: &Fm, d: &Dlg, born: Instant, w: i32, h: i3
             buttons(ui, r, &[("понятно", "cancel", Tone::Primary)]);
             dissolve_dlg(ui, fm, born, r);
         }
-        Dlg::Props { paths, du, .. } => props(ui, fm, born, w, h, paths, du),
+        Dlg::Props { paths, du, free, .. } => props(ui, fm, born, w, h, paths, du, *free),
         Dlg::OpenWith { mime: m, f, sel, remember, scroll, files } => {
             let r = dlg_frame(ui, fm, born, w, h, 480, (h - 80).min(520), "dots", "открыть с помощью");
             let what = if files.len() == 1 { files[0].file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default() } else { crate::tf!("файлов: {}", "{} files", files.len()) };
@@ -188,7 +205,8 @@ pub fn open_list_cache(fm: &Fm) -> Vec<(usize, bool)> {
     fm.open_list.borrow().clone()
 }
 
-pub(crate) fn props(ui: &mut Ui, fm: &Fm, born: Instant, w: i32, h: i32, paths: &[std::path::PathBuf], du: &Option<((u64, u64, u64), bool)>) {
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn props(ui: &mut Ui, fm: &Fm, born: Instant, w: i32, h: i32, paths: &[std::path::PathBuf], du: &Option<((u64, u64, u64), bool)>, free: Option<(u64, u64)>) {
     let t = ui.t;
     let r = dlg_frame(ui, fm, born, w, h, 480, 400, "about", "свойства");
     let one = paths.len() == 1;
@@ -236,7 +254,7 @@ pub(crate) fn props(ui: &mut Ui, fm: &Fm, born: Instant, w: i32, h: i32, paths: 
                 kv(ui, "ссылка на", &tg.display().to_string());
             }
         }
-        if let Some((free, total)) = fsx::disk_free(&e.path) {
+        if let Some((free, total)) = free {
             kv(ui, "на диске", &crate::tf!("свободно {} из {}", "{} free of {}", fsx::human(free), fsx::human(total)));
         }
         // права: три строки по три флажка
@@ -275,8 +293,8 @@ pub(crate) fn settings(ui: &mut Ui, fm: &Fm, born: Instant, w: i32, h: i32) {
     let mut y = r.y + 50;
     let c = &fm.cfg;
     let col2 = x + cw + 16;
-    section(ui, x, y, cw, "вид");
-    section(ui, col2, y, cw, "поведение");
+    heading(ui, x, y, cw, "вид");
+    heading(ui, col2, y, cw, "поведение");
     y += 24;
     let rows_l: [(&str, &str, bool, &str); 5] = [
         ("скрытые файлы", "ctrl+h", c.hidden, "hidden"),

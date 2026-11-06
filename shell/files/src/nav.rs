@@ -62,6 +62,25 @@ impl Fm {
         }
     }
 
+    /// место боковой панели: корзина (её папка files) — особым видом, остальное — как папка
+    pub fn go_place(&mut self, p: PathBuf) {
+        if p == crate::trash::home_trash().join("files") {
+            self.go_trash();
+        } else {
+            self.go(p);
+        }
+    }
+
+    /// место — в новой вкладке (корзина тоже)
+    pub fn open_place_tab(&mut self, p: PathBuf) {
+        if p == crate::trash::home_trash().join("files") {
+            self.open_tab(crate::paths::home());
+            self.go_trash();
+        } else if p.is_dir() {
+            self.open_tab(p);
+        }
+    }
+
     pub fn go_trash(&mut self) {
         let v = self.vm();
         if !v.trash && v.search.is_none() {

@@ -20,7 +20,9 @@ use std::sync::{mpsc, Arc};
 use std::time::Instant;
 
 pub enum Msg {
-    Listed { view: u32, gen: u32, res: Result<Vec<Entry>, String> },
+    /// папка прочитана; свободное место её диска меряется там же, в нити (statvfs сетевой папки
+    /// может висеть — окно не должно)
+    Listed { view: u32, gen: u32, res: Result<Vec<Entry>, String>, free: Option<(u64, u64)> },
     Changed(PathBuf),
     Thumb(PathBuf, i32, Option<Img>),
     Op(ops::Ev),
@@ -179,6 +181,20 @@ pub enum Cmd {
     Link,
     AddPlace,
     RemovePlace(PathBuf),
+    /// своё имя закладки
+    RenamePlace(PathBuf),
+    /// скрыть место (ключ) или устройство (Dev::key) из боковой панели и показать снова
+    HidePlace(String),
+    ShowPlace(String),
+    HideDev(String),
+    ShowDev(String),
+    /// места — как после установки: порядок, скрытое, свёрнутое
+    ResetPlaces,
+    /// папка — в новой вкладке, в соседней панели (из меню мест и устройств)
+    TabAt(PathBuf),
+    PaneAt(PathBuf),
+    /// свойства папки места или устройства (не выделенного)
+    PropsOf(PathBuf),
     SelectAll,
     Invert,
     Hidden,
@@ -265,19 +281,24 @@ pub enum NameKind {
     NewFolder,
     NewFile,
     Compress,
+    /// своё имя закладки боковой панели
+    Bookmark(PathBuf),
 }
 
 pub enum Dlg {
     Name { kind: NameKind, f: Field, err: String },
     Confirm { title: String, text: String, ok: String, cmd: Cmd },
     Conflict { src: PathBuf, dst: PathBuf, all: bool, reply: mpsc::Sender<(ops::Resolve, bool)> },
-    Props { paths: Vec<PathBuf>, gen: u32, du: Option<((u64, u64, u64), bool)>, stop: Arc<AtomicBool> },
+    /// `free` — место на диске, замерено при открытии (не в каждом кадре)
+    Props { paths: Vec<PathBuf>, gen: u32, du: Option<((u64, u64, u64), bool)>, stop: Arc<AtomicBool>, free: Option<(u64, u64)> },
     OpenWith { mime: &'static str, files: Vec<PathBuf>, f: Field, sel: usize, remember: bool, scroll: i32 },
     Settings,
     Errors(Vec<String>),
     /// подключение к серверу или телефону: адрес, логин, домен, пароль; `field` — где курсор;
     /// `question` — вопрос сервера (неизвестный ключ), `busy` — ждём gio
     Server { addr: Field, user: Field, pass: Field, field: u8, err: String, question: Option<String>, busy: bool },
+    /// пароль зашифрованного диска (LUKS, BitLocker): раздел, его имя для заголовка
+    Unlock { dev: String, name: String, pass: Field, err: String, busy: bool },
 }
 
 pub struct Job {
@@ -349,8 +370,14 @@ pub struct Fm {
     pub cfg_saved: Cfg,
     pub tabs: Vec<Tab>,
     pub tab: usize,
-    pub places: Vec<Place>,
-    pub marks: Vec<Place>,
+    /// места боковой панели в своём порядке (стандартные, закладки, корзина) и скрытые из них
+    pub side: Vec<Place>,
+    pub side_hidden: Vec<Place>,
+    /// прокрутка боковой панели и высота её содержимого с прошлого кадра
+    pub side_scroll: i32,
+    pub side_h: Cell<i32>,
+    /// место, которое тянут мышью (номер в `side`), и где сейчас курсор по y
+    pub side_drag: Option<(usize, f64)>,
     pub devs: Vec<Dev>,
     pub trash_n: usize,
     pub(crate) apps: Option<Apps>,
@@ -436,8 +463,11 @@ impl Fm {
             cfg,
             tabs: vec![],
             tab: 0,
-            places: places::standard(),
-            marks: places::bookmarks(),
+            side: vec![],
+            side_hidden: vec![],
+            side_scroll: 0,
+            side_h: Cell::new(0),
+            side_drag: None,
             devs: vec![],
             trash_n: crate::trash::count(),
             apps: None,
@@ -475,6 +505,7 @@ impl Fm {
             dev_busy: Arc::new(AtomicBool::new(false)),
             open_list: RefCell::new(vec![]),
         };
+        fm.reload_places();
         let dirs = if dirs.is_empty() { vec![crate::paths::home()] } else { dirs };
         for d in dirs {
             fm.open_tab(d);
@@ -485,6 +516,28 @@ impl Fm {
         }
         fm.refresh_devices();
         fm
+    }
+
+    /// места боковой панели заново: после закладок, скрытия, перетаскивания, «обновить»
+    pub fn reload_places(&mut self) {
+        let (shown, hidden) = places::sidebar(&self.cfg.places_order, &self.cfg.places_hidden);
+        self.side = shown;
+        self.side_hidden = hidden;
+        self.side_drag = None;
+    }
+
+    /// перенести место `from` на позицию `to` (номера в `side`) и запомнить весь порядок
+    pub fn move_place(&mut self, from: usize, to: usize) {
+        if from >= self.side.len() {
+            return;
+        }
+        let p = self.side.remove(from);
+        let to = to.min(self.side.len());
+        self.side.insert(to, p);
+        // скрытые сохраняют своё место в порядке: в конце, чтобы «показать» вернуло их вниз
+        let mut order: Vec<String> = self.side.iter().map(|p| p.id.clone()).collect();
+        order.extend(self.side_hidden.iter().map(|p| p.id.clone()));
+        self.cfg.places_order = order;
     }
 
     pub fn apps(&mut self) -> &mut Apps {
@@ -607,30 +660,31 @@ impl Fm {
         v.loading = true;
         v.err = None;
         let (id, gen, dir, trash) = (v.id, v.gen, v.dir.clone(), v.trash);
-        v.free = fsx::disk_free(&dir);
         self.watch_dirty = true;
-        let work = move || if trash { Ok(crate::trash::list()) } else { fsx::list(&dir) };
+        let work = move || (if trash { Ok(crate::trash::list()) } else { fsx::list(&dir) }, fsx::disk_free(&dir));
         match &self.tx {
             Some(tx) => {
                 let tx = tx.clone();
                 std::thread::spawn(move || {
-                    let _ = tx.send(Msg::Listed { view: id, gen, res: work() });
+                    let (res, free) = work();
+                    let _ = tx.send(Msg::Listed { view: id, gen, res, free });
                 });
             }
             None => {
-                let res = work();
-                self.on_listed(id, gen, res);
+                let (res, free) = work();
+                self.on_listed(id, gen, res, free);
             }
         }
     }
 
-    pub fn on_listed(&mut self, id: u32, gen: u32, res: Result<Vec<Entry>, String>) {
+    pub fn on_listed(&mut self, id: u32, gen: u32, res: Result<Vec<Entry>, String>, free: Option<(u64, u64)>) {
         let cfg = self.cfg.clone();
         let pickf = self.pick_filter();
         let Some(v) = self.view_by_id(id) else { return };
         if v.gen != gen {
             return;
         }
+        v.free = free;
         let first = v.loading && v.all.is_empty();
         let old: HashSet<PathBuf> = v.all.iter().map(|e| e.path.clone()).collect();
         let was_loading = v.loading;
@@ -696,18 +750,18 @@ impl Fm {
             let v = &mut self.tabs[t].panes[p];
             v.gen += 1;
             let (id, gen, d, trash) = (v.id, v.gen, v.dir.clone(), v.trash);
-            v.free = fsx::disk_free(&d);
-            let work = move || if trash { Ok(crate::trash::list()) } else { fsx::list(&d) };
+            let work = move || (if trash { Ok(crate::trash::list()) } else { fsx::list(&d) }, fsx::disk_free(&d));
             match &self.tx {
                 Some(tx) => {
                     let tx = tx.clone();
                     std::thread::spawn(move || {
-                        let _ = tx.send(Msg::Listed { view: id, gen, res: work() });
+                        let (res, free) = work();
+                    let _ = tx.send(Msg::Listed { view: id, gen, res, free });
                     });
                 }
                 None => {
-                    let r = work();
-                    self.on_listed(id, gen, r);
+                    let (r, free) = work();
+                    self.on_listed(id, gen, r, free);
                 }
             }
         }

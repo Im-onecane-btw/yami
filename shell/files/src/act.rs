@@ -13,8 +13,12 @@ pub enum Act {
     PathBar,
     Crumb(PathBuf),
     PathField,
-    Place(PathBuf, bool),
-    PlaceTrash,
+    /// место боковой панели (номер в Fm::side)
+    Place(usize),
+    /// заголовок раздела боковой панели: places | devices | network — свернуть
+    Section(&'static str),
+    /// пустое место боковой панели (колесо, ПКМ)
+    Side,
     Dev(usize),
     Eject(usize),
     /// «подключиться к серверу…» в разделе «сеть»

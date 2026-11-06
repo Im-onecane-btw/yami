@@ -15,9 +15,25 @@ impl Fm {
         if matches!(self.dlg, Some((Dlg::Server { .. }, _))) {
             return self.server_ok();
         }
+        if let Some((Dlg::Unlock { dev, pass, busy, err, .. }, _)) = &mut self.dlg {
+            if *busy || pass.text.is_empty() {
+                return;
+            }
+            *busy = true;
+            err.clear();
+            let mut auth = crate::remote::Auth::default();
+            auth.pass = pass.text.clone();
+            let dev = dev.clone();
+            pass.wipe();
+            return self.remote_mount(dev, auth);
+        }
         let dir = self.v().dir.clone();
         let Some((d, born)) = self.dlg.take() else { return };
         match d {
+            Dlg::Name { kind: NameKind::Bookmark(p), f, .. } => {
+                crate::places::rename_bookmark(&p, &f.text);
+                self.reload_places();
+            }
             Dlg::Name { kind, f, .. } => {
                 let name = f.text.trim().to_string();
                 let err = if name.is_empty() {
@@ -42,6 +58,7 @@ impl Fm {
                         self.job(ops::Kind::Compress, t, dir.clone(), name);
                         return;
                     }
+                    NameKind::Bookmark(_) => return,
                 };
                 match r {
                     Ok(()) => {
@@ -68,7 +85,7 @@ impl Fm {
                 let _ = reply.send((ops::Resolve::Rename, all));
             }
             Dlg::Props { stop, .. } => stop.store(true, std::sync::atomic::Ordering::Relaxed),
-            Dlg::Settings | Dlg::Errors(_) | Dlg::Server { .. } => {}
+            Dlg::Settings | Dlg::Errors(_) | Dlg::Server { .. } | Dlg::Unlock { .. } => {}
         }
     }
 
@@ -78,7 +95,7 @@ impl Fm {
                 let _ = reply.send((ops::Resolve::Cancel, false));
             }
             Some((Dlg::Props { stop, .. }, _)) => stop.store(true, std::sync::atomic::Ordering::Relaxed),
-            Some((Dlg::Server { mut pass, .. }, _)) => pass.wipe(),
+            Some((Dlg::Server { mut pass, .. }, _)) | Some((Dlg::Unlock { mut pass, .. }, _)) => pass.wipe(),
             _ => {}
         }
     }
@@ -110,7 +127,14 @@ impl Fm {
             }
         }
         let du = if has_dir { None } else { Some(((paths.iter().map(|p| std::fs::metadata(p).map(|m| m.len()).unwrap_or(0)).sum(), paths.len() as u64, 0), true)) };
-        self.dlg = Some((Dlg::Props { paths, gen, du, stop }, Instant::now()));
+        // место на диске: папка панели уже замерена в нити чтения; иначе — один раз сейчас
+        let v = self.v();
+        let free = match paths.first() {
+            Some(p) if p.parent() == Some(v.dir.as_path()) && v.free.is_some() => v.free,
+            Some(p) => fsx::disk_free(p),
+            None => None,
+        };
+        self.dlg = Some((Dlg::Props { paths, gen, du, stop, free }, Instant::now()));
     }
 
     pub fn on_du(&mut self, g: u32, v: (u64, u64, u64), done: bool) {

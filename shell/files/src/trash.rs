@@ -127,11 +127,22 @@ pub fn put(p: &Path) -> Result<PathBuf, String> {
     Ok(target)
 }
 
+/// файловая система диска (своя корзина .Trash-UID бывает только у таких)
+fn local_fs(fs: &str) -> bool {
+    matches!(fs, "ext2" | "ext3" | "ext4" | "btrfs" | "xfs" | "f2fs" | "vfat" | "exfat" | "ntfs" | "ntfs3" | "fuseblk" | "hfsplus" | "jfs" | "reiserfs" | "zfs" | "bcachefs" | "nilfs2" | "udf" | "msdos")
+}
+
 fn trash_dirs() -> Vec<(PathBuf, Option<PathBuf>)> {
     let mut v = vec![(home_trash(), None)];
     if let Ok(m) = std::fs::read_to_string("/proc/self/mounts") {
         for l in m.lines() {
-            let Some(mp) = l.split(' ').nth(1) else { continue };
+            let mut f = l.split(' ');
+            let (Some(_), Some(mp), Some(fs)) = (f.next(), f.next(), f.next()) else { continue };
+            // только диски: служебные ФС смотреть незачем, а stat на зависшей сети (nfs, smb,
+            // sshfs, gvfs) повесил бы окно — подсчёт корзины идёт при открытии и в кадре
+            if !local_fs(fs) {
+                continue;
+            }
             let mp = PathBuf::from(mp.replace("\\040", " "));
             let t = mp.join(format!(".Trash-{}", uid()));
             if t.join("files").is_dir() && !v.iter().any(|(x, _)| *x == t) {

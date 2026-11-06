@@ -101,6 +101,20 @@ impl App {
                     self.after_input();
                     return;
                 }
+                // место отпустили в другой щели — переставить
+                if let (Act::Place(_), Some((from, py))) = (&p.act, self.fm.side_drag.take()) {
+                    if p.moved {
+                        let l = draw::lay(&self.fm, self.w, self.h);
+                        if let Some(sr) = l.side {
+                            let slot = draw::side_slot(&self.fm, draw::side_top(&self.fm, sr), py);
+                            if slot != from && slot != from + 1 {
+                                self.fm.move_place(from, if slot > from { slot - 1 } else { slot });
+                            }
+                        }
+                        self.after_input();
+                        return;
+                    }
+                }
                 let z = self.zone_at(x, y);
                 if z.as_ref().map(|z| z.act == p.act).unwrap_or(false) {
                     let double = matches!(&self.last_click, Some((a, t)) if *a == p.act && t.elapsed() < Duration::from_millis(400));
@@ -171,26 +185,18 @@ impl App {
                     let items = crate::menus::for_bg(fm);
                     crate::menus::open(fm, items, xi, yi, "");
                 }
-                Act::Place(path, user) => {
-                    let items = crate::menus::for_place(path, *user);
-                    // «в новой вкладке» берёт цель из выделения: подставим путь
-                    let items = items.into_iter().map(|mut it| {
-                        if it.cmd == Cmd::OpenTab {
-                            it.cmd = Cmd::Go(path.clone());
-                            it.label = "открыть".into();
-                        }
-                        it
-                    }).collect::<Vec<_>>();
-                    let mut items = items;
-                    items.dedup_by(|a, b| a.label == b.label);
-                    crate::menus::open(fm, items, xi, yi, &path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default());
-                }
-                Act::PlaceTrash => {
-                    let items = crate::menus::for_trash_place(fm);
-                    crate::menus::open(fm, items, xi, yi, "");
+                Act::Place(i) => {
+                    let items = crate::menus::for_place(fm, *i);
+                    let title = fm.side.get(*i).map(|p| if p.user { p.name.clone() } else { crate::i18n::tr(&p.name).to_string() }).unwrap_or_default();
+                    crate::menus::open(fm, items, xi, yi, &title);
                 }
                 Act::Dev(i) => {
                     let items = crate::menus::for_dev(fm, *i);
+                    let title = fm.devs.get(*i).map(|d| d.title()).unwrap_or_default();
+                    crate::menus::open(fm, items, xi, yi, &title);
+                }
+                Act::Side | Act::Section(_) => {
+                    let items = crate::menus::for_side(fm);
                     crate::menus::open(fm, items, xi, yi, "");
                 }
                 _ => {}
@@ -208,10 +214,14 @@ impl App {
                     }
                 }
             }
-            if let Act::Place(path, _) = a {
-                let keep = fm.tab;
-                fm.open_tab(path.clone());
-                fm.tab = keep;
+            // средняя по месту или подключённому устройству — вкладка рядом
+            let path = match a {
+                Act::Place(i) => fm.side.get(*i).map(|p| p.path.clone()),
+                Act::Dev(i) => fm.devs.get(*i).and_then(|d| d.mount.clone()),
+                _ => None,
+            };
+            if let Some(p) = path {
+                fm.run(Cmd::TabAt(p));
             }
             return;
         }
@@ -326,6 +336,11 @@ impl App {
                     self.window.move_(s, serial);
                 }
             }
+            // место тянут вдоль панели: переставить (левой; в окне выбора файлов — тоже можно)
+            Act::Place(i) if p.button == 0x110 => {
+                self.fm.side_drag = Some((i, y));
+                self.dirty = true;
+            }
             Act::Item(pi, i) if self.drag_src.is_none() => {
                 let paths: Vec<PathBuf> = {
                     let v = self.fm.pane(pi);
@@ -399,6 +414,13 @@ impl App {
         if self.fm.dlg.is_some() {
             return;
         }
+        // боковая панель длиннее окна — листается колесом
+        let l = draw::lay(&self.fm, self.w, self.h);
+        if let Some(sr) = l.side.filter(|r| r.contains(x, y)) {
+            let max = (self.fm.side_h.get() - sr.h).max(0);
+            self.fm.side_scroll = (self.fm.side_scroll + (d * 40.0) as i32).clamp(0, max);
+            return;
+        }
         let Some(pi) = self.pane_at(x, y) else { return };
         let Some(v) = self.fm.pane(pi) else { return };
         let g = v.geo.get();
@@ -419,10 +441,21 @@ impl App {
             Act::Up => fm.up(),
             Act::PathBar => fm.edit_path(),
             Act::Crumb(p) => fm.go(p),
-            Act::Place(p, _) => {
-                fm.go(p);
+            Act::Place(i) => {
+                if let Some(p) = fm.side.get(i).map(|p| p.path.clone()) {
+                    fm.go_place(p);
+                }
             }
-            Act::PlaceTrash => fm.go_trash(),
+            Act::Section(k) => {
+                let c = &mut fm.cfg.collapsed;
+                match c.iter().position(|x| x == k) {
+                    Some(i) => {
+                        c.remove(i);
+                    }
+                    None => c.push(k.to_string()),
+                }
+                fm.side_scroll = 0;
+            }
             Act::Dev(i) => match fm.devs.get(i).and_then(|d| d.mount.clone()) {
                 Some(m) => fm.go(m),
                 None => fm.run(Cmd::Mount(i)),
@@ -573,7 +606,7 @@ impl App {
                     fm.dlg_cancel();
                 }
             }
-            Act::Block | Act::PathField | Act::DlgField | Act::SZoom | Act::Bar(_) => {}
+            Act::Block | Act::Side | Act::PathField | Act::DlgField | Act::SZoom | Act::Bar(_) => {}
         }
     }
 
@@ -599,8 +632,7 @@ impl App {
                 }
                 Some((if v.trash { crate::trash::home_trash().join("files") } else { v.dir.clone() }, Some((p, None))))
             }
-            Act::Place(path, _) => Some((path, Some((usize::MAX, None)))),
-            Act::PlaceTrash => Some((crate::trash::home_trash().join("files"), Some((usize::MAX, None)))),
+            Act::Place(i) => Some((self.fm.side.get(i)?.path.clone(), Some((usize::MAX, None)))),
             Act::Crumb(path) => Some((path, None)),
             _ => None,
         }

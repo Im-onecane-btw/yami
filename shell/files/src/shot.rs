@@ -11,7 +11,7 @@ use crate::icons::Icons;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-const TARGETS: &[&str] = &["grid", "list", "split", "info", "menu", "menu-bg", "main-menu", "props", "settings", "new-folder", "conflict", "open-with", "pick-save", "pick-open", "trash", "rename", "empty", "icons", "server"];
+const TARGETS: &[&str] = &["grid", "list", "split", "info", "menu", "menu-bg", "main-menu", "props", "settings", "new-folder", "conflict", "open-with", "pick-save", "pick-open", "trash", "rename", "empty", "icons", "server", "places", "drag", "unlock"];
 
 fn fixture(root: &Path) {
     let _ = std::fs::remove_dir_all(root);
@@ -103,10 +103,11 @@ pub fn run(args: &[String]) -> i32 {
         fm.born = Instant::now() - Duration::from_secs(5);
         {
             use crate::places::{Dev, DevKind};
-            let d = |dev: &str, uri: &str, label: &str, size: u64, mount: Option<&str>, kind: DevKind| Dev { dev: dev.into(), uri: uri.into(), label: label.into(), size, mount: mount.map(Into::into), removable: kind != DevKind::Disk || dev == "/dev/sdb1", fstype: if kind == DevKind::Disk { "btrfs".into() } else { String::new() }, kind };
+            let d = |dev: &str, uri: &str, label: &str, size: u64, mount: Option<&str>, kind: DevKind| Dev { dev: dev.into(), uri: uri.into(), label: label.into(), size, mount: mount.map(Into::into), removable: kind != DevKind::Disk || dev == "/dev/sdb1", fstype: if kind == DevKind::Disk { "btrfs".into() } else { String::new() }, kind, ..Default::default() };
             fm.devs = vec![
-                d("/dev/nvme0n1p2", "", "", 1_000_000_000_000, Some("/"), DevKind::Disk),
+                Dev { free: Some((612_000_000_000, 1_000_000_000_000)), ..d("/dev/nvme0n1p2", "", "", 1_000_000_000_000, Some("/"), DevKind::Disk) },
                 d("/dev/sdb1", "", "FLASH", 32_000_000_000, None, DevKind::Disk),
+                Dev { locked: true, fstype: "crypto_LUKS".into(), ..d("/dev/sdc1", "", "", 64_000_000_000, None, DevKind::Disk) },
                 d("", "mtp://Google_Pixel_8/", "Pixel 8", 0, None, DevKind::Phone),
                 d("", "smb://nas/media/", "", 0, None, DevKind::Net),
             ];
@@ -156,6 +157,32 @@ pub fn run(args: &[String]) -> i32 {
                 }
             }
             "new-folder" => fm.run(crate::fm::Cmd::NewFolder),
+            "places" | "drag" => {
+                // скрытое место, своя закладка; меню по «изображениям» или место в руке
+                fm.side.push(crate::places::Place { id: root.join("проекты").to_string_lossy().into(), name: "проекты".into(), path: root.join("проекты"), sp: crate::picons::Special::Star, user: true }); // i18n-ok
+                if let Some(i) = fm.side.iter().position(|p| p.id == "videos") {
+                    let p = fm.side.remove(i);
+                    fm.side_hidden.push(p);
+                }
+                let at = fm.side.iter().position(|p| p.id == "pictures" || p.id == "downloads").unwrap_or(1);
+                let top = 47 + 10 + 22;
+                if t == "drag" {
+                    fm.side_drag = Some((at, (top + 26 + 13) as f64));
+                } else {
+                    let items = crate::menus::for_place(&fm, at);
+                    crate::menus::open(&mut fm, items, 140, top + 26 * at as i32 + 14, "");
+                    if let Some(m) = &mut fm.menu {
+                        m.born = Instant::now() - Duration::from_secs(5);
+                    }
+                }
+            }
+            "unlock" => {
+                fm.unlock_dlg("/dev/sdc1", "BACKUP · 64G".into());
+                if let Some((Dlg::Unlock { pass, err, .. }, _)) = &mut fm.dlg {
+                    pass.set("secret");
+                    *err = crate::i18n::tr("неверный пароль").to_string();
+                }
+            }
             "conflict" => {
                 let (tx, _rx) = std::sync::mpsc::channel();
                 fm.dlg = Some((Dlg::Conflict { src: root.join("notes.txt"), dst: root.join("README.md"), all: false, reply: tx }, Instant::now()));

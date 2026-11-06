@@ -419,61 +419,124 @@ pub(crate) fn side_row(ui: &mut Ui, fm: &Fm, r: R, name: &str, sp: Special, acti
     ui.zone(r, act, Cur::Pointer);
 }
 
-pub(crate) fn section(ui: &mut Ui, x: i32, y: i32, w: i32, s: &str) {
+/// заголовок группы без сворачивания (окно настроек)
+pub(crate) fn heading(ui: &mut Ui, x: i32, y: i32, w: i32, s: &str) {
     let t = ui.t;
     ui.cv.fill(R::new(x, y + 7, 4, 4), t.red);
     ui.text_in(PX, R::new(x + 10, y, w - 10, 18), s, t.text_faint);
+}
+
+/// заголовок раздела: квадрат, имя, стрелка; щелчок сворачивает. Отдаёт y под ним
+pub(crate) fn section(ui: &mut Ui, x: i32, y: i32, w: i32, s: &str, key: &'static str, open: bool) -> i32 {
+    let t = ui.t;
+    let r = R::new(x - 4, y - 2, w + 8, 20);
+    let hov = ui.hover(r);
+    ui.cv.fill(R::new(x, y + 7, 4, 4), if hov { t.ember } else { t.red });
+    ui.text_in(PX, R::new(x + 10, y, w - 30, 18), s, if hov { t.text_dim } else { t.text_faint });
+    if hov || !open {
+        ui.cv.icon(if open { "down" } else { "right" }, x + w - 14, y + 2, 2, t.text_faint);
+    }
+    ui.zone(r, Act::Section(key), Cur::Pointer);
+    y + 22
+}
+
+/// высота строки места и устройства в боковой панели
+pub(crate) const SIDE_RH: i32 = 26;
+const DEV_RH: i32 = 36;
+
+/// куда встанет место, которое тянут: номер щели между строками по y курсора
+pub(crate) fn side_slot(fm: &Fm, top: i32, py: f64) -> usize {
+    let k = ((py as i32 - top + SIDE_RH / 2) / SIDE_RH).max(0) as usize;
+    k.min(fm.side.len())
+}
+
+/// верх первой строки мест (с учётом прокрутки): по нему и рисуем, и ловим перетаскивание
+pub(crate) fn side_top(fm: &Fm, r: R) -> i32 {
+    r.y + 10 + 22 - fm.side_scroll
 }
 
 pub(crate) fn sidebar(ui: &mut Ui, fm: &Fm, r: R) {
     let t = ui.t;
     ui.cv.fill(r, t.panel.alpha(0.6));
     ui.cv.fill(R::new(r.right() - 1, r.y, 1, r.h), t.border);
-    ui.zone(r, Act::Block, Cur::Default);
+    ui.zone(r, Act::Side, Cur::Default);
     let v = fm.v();
     let x = r.x + 8;
     let w = r.w - 16;
-    let mut y = r.y + 10;
-    let rh = 26;
+    let rh = SIDE_RH;
     ui.cv.push_clip(r);
-    section(ui, x, y, w, "места");
-    y += 22;
-    for p in &fm.places {
-        let active = !v.trash && v.search.is_none() && v.dir == p.path;
-        side_row(ui, fm, R::new(x, y, w, rh), &p.name, p.sp, active, Act::Place(p.path.clone(), false), true);
-        y += rh;
+    let open = |k: &str| !fm.cfg.collapsed.iter().any(|c| c == k);
+    let mut y = section(ui, x, r.y + 10 - fm.side_scroll, w, "места", "places", open("places"));
+    if open("places") {
+        let top = y;
+        for (i, p) in fm.side.iter().enumerate() {
+            let active = if p.trash() { v.trash } else { !v.trash && v.search.is_none() && v.dir == p.path };
+            let dragged = fm.side_drag.is_some_and(|(f, _)| f == i);
+            let sp = if p.trash() && fm.trash_n > 0 { picons::Special::TrashFull } else { p.sp };
+            let rr = R::new(x, y, w, rh);
+            if dragged {
+                // строку несут: на её месте — пунктир, сама она едет за курсором (ниже)
+                ui.cv.ants(rr.inset(1), t.border, 2, 0);
+            } else {
+                side_row(ui, fm, rr, &p.name, sp, active, Act::Place(i), !p.user);
+                if p.trash() && fm.trash_n > 0 {
+                    let n = fm.trash_n.to_string();
+                    let nw = ui.f.width(PX, &n) + 10;
+                    let br = R::new(x + w - nw - 4, y + 5, nw, rh - 10);
+                    ui.cv.pxbox(br, &BoxStyle::new(t.surface_hi, C(0)));
+                    raw_center(ui, PX, br, &n, t.text_dim);
+                }
+            }
+            y += rh;
+        }
+        if let Some((from, py)) = fm.side_drag {
+            // щель, куда встанет, — полоса акцента; несомая строка — под курсором
+            let slot = side_slot(fm, top, py);
+            if slot != from && slot != from + 1 {
+                ui.cv.fill(R::new(x, top + slot as i32 * rh - 1, w, 2), t.red);
+            }
+            if let Some(p) = fm.side.get(from) {
+                let gr = R::new(x, (py as i32 - rh / 2).clamp(top - rh / 2, top + fm.side.len() as i32 * rh - rh / 2), w, rh);
+                ui.cv.pxbox(gr, &BoxStyle::new(t.surface_hi, t.red));
+                picons::draw(&mut ui.cv, &t, Kind::Dir, p.sp, gr.x + 8, gr.y + (rh - 16) / 2, 1, picons::Look { dim: false, link: false, selected: true });
+                let tr = R::new(gr.x + 32, gr.y, gr.w - 40, rh);
+                if p.user {
+                    raw(ui, PX, tr, &p.name, t.text_hi);
+                } else {
+                    ui.text_in(PX, tr, &p.name, t.text_hi);
+                }
+            }
+        }
     }
-    for p in &fm.marks {
-        let active = !v.trash && v.search.is_none() && v.dir == p.path;
-        side_row(ui, fm, R::new(x, y, w, rh), &p.name, picons::Special::Star, active, Act::Place(p.path.clone(), true), false);
-        y += rh;
-    }
-    let sp = if fm.trash_n > 0 { Special::TrashFull } else { Special::Trash };
-    side_row(ui, fm, R::new(x, y, w, rh), "корзина", sp, v.trash, Act::PlaceTrash, true);
-    if fm.trash_n > 0 {
-        let n = fm.trash_n.to_string();
-        let nw = ui.f.width(PX, &n) + 10;
-        let br = R::new(x + w - nw - 4, y + 5, nw, rh - 10);
-        ui.cv.pxbox(br, &BoxStyle::new(t.surface_hi, C(0)));
-        raw_center(ui, PX, br, &n, t.text_dim);
-    }
-    y += rh + 12;
-    let local: Vec<usize> = (0..fm.devs.len()).filter(|&i| fm.devs[i].kind != DevKind::Net).collect();
+    y += 12;
+    let shown = |d: &crate::places::Dev| !fm.cfg.devs_hidden.contains(&d.key());
+    let local: Vec<usize> = (0..fm.devs.len()).filter(|&i| fm.devs[i].kind != DevKind::Net && shown(&fm.devs[i])).collect();
     if !local.is_empty() {
-        section(ui, x, y, w, "устройства");
-        y += 22;
-        for i in local {
-            y = dev_row(ui, fm, i, x, y, w, rh);
+        y = section(ui, x, y, w, "устройства", "devices", open("devices"));
+        if open("devices") {
+            for i in local {
+                y = dev_row(ui, fm, i, x, y, w, rh);
+            }
         }
     }
     if fm.cfg.network {
         y += 2;
-        section(ui, x, y, w, "сеть");
-        y += 22;
-        for i in (0..fm.devs.len()).filter(|&i| fm.devs[i].kind == DevKind::Net) {
-            y = dev_row(ui, fm, i, x, y, w, rh);
+        y = section(ui, x, y, w, "сеть", "network", open("network"));
+        if open("network") {
+            for i in (0..fm.devs.len()).filter(|&i| fm.devs[i].kind == DevKind::Net && shown(&fm.devs[i])) {
+                y = dev_row(ui, fm, i, x, y, w, rh);
+            }
+            side_row(ui, fm, R::new(x, y, w, rh), "подключиться…", Special::Net, false, Act::Connect, true);
+            y += rh;
         }
-        side_row(ui, fm, R::new(x, y, w, rh), "подключиться…", Special::Net, false, Act::Connect, true);
+    }
+    // высота содержимого — для прокрутки колесом; полоса справа, если не влезло
+    let full = y + fm.side_scroll + 10 - r.y;
+    fm.side_h.set(full);
+    if full > r.h {
+        let th = (r.h * r.h / full).max(16);
+        let ty = r.y + (r.h - th) * fm.side_scroll / (full - r.h).max(1);
+        ui.cv.fill(R::new(r.right() - 4, ty, 2, th), t.border);
     }
     ui.cv.pop_clip();
 }
@@ -483,7 +546,8 @@ pub(crate) fn dev_row(ui: &mut Ui, fm: &Fm, i: usize, x: i32, y: i32, w: i32, rh
     let t = ui.t;
     let v = fm.v();
     let d = &fm.devs[i];
-    let rr = R::new(x, y, w, rh + 8);
+    let _ = rh;
+    let rr = R::new(x, y, w, DEV_RH - 2);
     let root = d.mount.as_deref() == Some(std::path::Path::new("/"));
     let active = d.mount.as_ref().map(|m| !v.trash && v.dir.starts_with(m) && (m != std::path::Path::new("/") || !fm.devs.iter().any(|o| o.mount.as_ref().map(|om| om != m && v.dir.starts_with(om)).unwrap_or(false)) && !v.dir.starts_with(crate::paths::home()))).unwrap_or(false);
     let hov = ui.hover(rr);
@@ -508,7 +572,7 @@ pub(crate) fn dev_row(ui: &mut Ui, fm: &Fm, i: usize, x: i32, y: i32, w: i32, rh
     raw(ui, PX, R::new(rr.x + 32, rr.y + 1, rr.w - 40 - if eject { 22 } else { 0 }, 18), &title, tc);
     match &d.mount {
         // заполненность — шкала из клеток (у сети и телефонов её может не быть)
-        Some(m) => match fsx::disk_free(m).filter(|_| d.kind == DevKind::Disk || d.kind == DevKind::Phone) {
+        Some(_) => match d.free {
             Some((free, total)) if total > 0 => {
                 let used = 1.0 - free as f32 / total as f32;
                 let c = if used > 0.9 { t.warn } else { t.red };
@@ -520,7 +584,13 @@ pub(crate) fn dev_row(ui: &mut Ui, fm: &Fm, i: usize, x: i32, y: i32, w: i32, rh
             }
         },
         None => {
-            let s = if d.kind != DevKind::Disk && d.uri.is_empty() { "нужен gvfs-mtp" } else { "не подключён" };
+            let s = if d.kind != DevKind::Disk && d.uri.is_empty() {
+                "нужен gvfs-mtp"
+            } else if d.locked {
+                "зашифрован"
+            } else {
+                "не подключён"
+            };
             ui.text_in(PX, R::new(rr.x + 32, rr.y + 16, rr.w - 40, 16), s, t.text_faint);
         }
     }
@@ -528,7 +598,7 @@ pub(crate) fn dev_row(ui: &mut Ui, fm: &Fm, i: usize, x: i32, y: i32, w: i32, rh
     if eject {
         ui.button(R::new(rr.right() - 24, rr.y + 4, 20, 20), "", "up", Tone::Ghost, false, true, Act::Eject(i));
     }
-    y + rh + 10
+    y + DEV_RH
 }
 
 // ── сведения ────────────────────────────────────────────────────────────────

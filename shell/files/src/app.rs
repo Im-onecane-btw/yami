@@ -297,7 +297,7 @@ impl App {
             self.dirty = true;
         }
         // мигание курсора в полях
-        let typing = self.fm.focus != Focus::Content || self.fm.dlg.as_ref().map(|d| matches!(d.0, Dlg::Name { .. } | Dlg::OpenWith { .. } | Dlg::Server { .. })).unwrap_or(false) || self.fm.v().rename.is_some() || self.fm.pick.as_ref().map(|p| p.name_focus).unwrap_or(false);
+        let typing = self.fm.focus != Focus::Content || self.fm.dlg.as_ref().map(|d| matches!(d.0, Dlg::Name { .. } | Dlg::OpenWith { .. } | Dlg::Server { .. } | Dlg::Unlock { .. })).unwrap_or(false) || self.fm.v().rename.is_some() || self.fm.pick.as_ref().map(|p| p.name_focus).unwrap_or(false);
         if typing && self.blink_at.elapsed().as_millis() > 530 {
             self.blink = !self.blink;
             self.blink_at = Instant::now();
@@ -333,7 +333,7 @@ impl App {
     pub(crate) fn on_ev(&mut self, e: Ev) {
         match e {
             Ev::Fm(m) => match m {
-                Msg::Listed { view, gen, res } => self.fm.on_listed(view, gen, res),
+                Msg::Listed { view, gen, res, free } => self.fm.on_listed(view, gen, res, free),
                 Msg::Changed(p) => {
                     self.fm.changed.insert(p, Instant::now());
                     // тик сейчас редкий: перечитать через 150 мс, а не через секунду

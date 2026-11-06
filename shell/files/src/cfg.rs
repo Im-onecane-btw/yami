@@ -24,6 +24,14 @@ pub struct Cfg {
     pub network: bool,
     /// адреса серверов, к которым подключались (без паролей)
     pub servers: Vec<String>,
+    /// порядок мест в боковой панели: «home», «desktop»… «trash» и пути закладок (тянут мышью)
+    pub places_order: Vec<String>,
+    /// скрытые места (ключи как в placesOrder)
+    pub places_hidden: Vec<String>,
+    /// скрытые устройства: UUID раздела, адрес или имя устройства
+    pub devs_hidden: Vec<String>,
+    /// свёрнутые разделы боковой панели: places | devices | network
+    pub collapsed: Vec<String>,
     /// панель сведений справа
     pub info: bool,
     pub terminal: String,
@@ -50,6 +58,10 @@ impl Default for Cfg {
             devices: true,
             network: true,
             servers: vec![],
+            places_order: vec![],
+            places_hidden: vec![],
+            devs_hidden: vec![],
+            collapsed: vec![],
             info: false,
             terminal: "kitty".into(),
             confirm_trash: false,

@@ -9,6 +9,7 @@
 //   yami-files --portal                бэкенд org.freedesktop.impl.portal.FileChooser и
 //                                      org.freedesktop.FileManager1 («показать в папке»)
 //   yami-files --props ФАЙЛ…           свойства файлов
+//   yami-files --unlock /dev/…         пароль зашифрованного диска (карточка автоподключения шелла)
 //   yami-files shot [ЦЕЛЬ…] [--lang en] [-o ПАПКА]   снимки окна в PNG без Wayland
 
 mod act;
@@ -100,7 +101,7 @@ fn main() {
             return;
         }
         Some("-h") | Some("--help") => {
-            println!("yami-files [DIR…] | --pick open|save|dir [--multiple] [--title T] [--accept T] [--name N] [--folder DIR] [--filter 'Name|*.ext;mime/type']… | --portal | --portal-reload | shot [TARGET…] [--lang en] [-o DIR]");
+            println!("yami-files [DIR…] | --unlock /dev/… | --pick open|save|dir [--multiple] [--title T] [--accept T] [--name N] [--folder DIR] [--filter 'Name|*.ext;mime/type']… | --portal | --portal-reload | shot [TARGET…] [--lang en] [-o DIR]");
             return;
         }
         Some("shot") => std::process::exit(shot::run(&args[2..])),
@@ -149,9 +150,10 @@ fn main() {
     }
     let trash = args[1..].iter().any(|a| a.starts_with("trash:"));
     let props = args[1..].iter().any(|a| a == "--props");
+    let unlock = args.iter().position(|a| a == "--unlock").and_then(|i| args.get(i + 1)).filter(|d| d.starts_with("/dev/")).cloned();
     let dirs: Vec<PathBuf> = args[1..]
         .iter()
-        .filter(|a| !a.starts_with('-') && !a.starts_with("trash:"))
+        .filter(|a| !a.starts_with('-') && !a.starts_with("trash:") && Some(*a) != unlock.as_ref())
         .map(|a| icons::uri_path(a).unwrap_or_else(|| PathBuf::from(a)))
         .map(|p| if p.is_relative() { std::env::current_dir().unwrap_or_default().join(p) } else { p })
         .collect();
@@ -183,6 +185,12 @@ fn main() {
             if !t.is_empty() {
                 f.open_props(t);
             }
+        }
+        if let Some(dev) = unlock {
+            // имя для заголовка: метка и размер раздела
+            let o = std::process::Command::new("lsblk").args(["-dno", "LABEL,SIZE", &dev]).output().ok();
+            let name = o.map(|o| String::from_utf8_lossy(&o.stdout).split_whitespace().collect::<Vec<_>>().join(" · ")).filter(|s| !s.is_empty()).unwrap_or_else(|| dev.clone());
+            f.unlock_dlg(&dev, name);
         }
         f
     });

@@ -163,12 +163,62 @@ impl Fm {
                 for p in &t {
                     places::add_bookmark(p);
                 }
-                self.marks = places::bookmarks();
+                self.reload_places();
                 self.toast(crate::i18n::tr("добавлено в места"));
             }
             Cmd::RemovePlace(p) => {
                 places::remove_bookmark(&p);
-                self.marks = places::bookmarks();
+                let id = p.to_string_lossy().into_owned();
+                self.cfg.places_order.retain(|o| *o != id);
+                self.cfg.places_hidden.retain(|o| *o != id);
+                self.reload_places();
+            }
+            Cmd::RenamePlace(p) => {
+                let mut f = Field::default();
+                f.set(&self.side.iter().find(|x| x.path == p && x.user).map(|x| x.name.clone()).unwrap_or_default());
+                f.select_all();
+                self.dlg = Some((Dlg::Name { kind: NameKind::Bookmark(p), f, err: String::new() }, Instant::now()));
+            }
+            Cmd::HidePlace(id) => {
+                if !self.cfg.places_hidden.contains(&id) {
+                    self.cfg.places_hidden.push(id);
+                }
+                self.reload_places();
+            }
+            Cmd::ShowPlace(id) => {
+                self.cfg.places_hidden.retain(|h| *h != id);
+                self.reload_places();
+            }
+            Cmd::HideDev(k) => {
+                if !self.cfg.devs_hidden.contains(&k) {
+                    self.cfg.devs_hidden.push(k);
+                }
+            }
+            Cmd::ShowDev(k) => self.cfg.devs_hidden.retain(|h| *h != k),
+            Cmd::ResetPlaces => {
+                self.cfg.places_order.clear();
+                self.cfg.places_hidden.clear();
+                self.cfg.devs_hidden.clear();
+                self.cfg.collapsed.clear();
+                self.side_scroll = 0;
+                self.reload_places();
+            }
+            Cmd::TabAt(p) => {
+                // вкладка рядом, фокус остаётся здесь — как у средней кнопки
+                let keep = self.tab;
+                self.open_place_tab(p);
+                self.tab = keep;
+                self.watch_dirty = true;
+            }
+            Cmd::PropsOf(p) => self.open_props(vec![p]),
+            Cmd::PaneAt(p) => {
+                if self.tabv().panes.len() < 2 {
+                    self.toggle_split();
+                } else {
+                    let other = 1 - self.tabv().active;
+                    self.set_active(other);
+                }
+                self.go_place(p);
             }
             Cmd::SelectAll => {
                 let v = self.vm();
@@ -218,8 +268,7 @@ impl Fm {
                 }
             }
             Cmd::Reload => {
-                self.places = places::standard();
-                self.marks = places::bookmarks();
+                self.reload_places();
                 self.refresh_devices();
                 self.load_active();
             }
