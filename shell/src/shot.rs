@@ -97,6 +97,8 @@ const TARGETS: &[&str] = &[
     "settings:keys-custom",
     "settings:keys-layout",
     "settings:agents",
+    "settings:notif",
+    "settings:system-scroll",
     "settings:updates",
     "settings:updates-new",
     "settings:updates-busy",
@@ -241,7 +243,7 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
         }
         "settings" => {
             st.modal = Some(Modal::Settings);
-            st.stab = crate::settings::TABS.iter().find(|t| t.0 == arg).map(|t| t.0).unwrap_or("color");
+            st.stab = crate::settings::find(arg).map(|t| t.id).unwrap_or("color");
             if st.sel_widget == 0 {
                 st.sel_widget = st.set.widgets.first().map(|w| w.id).unwrap_or(0);
             }
@@ -286,6 +288,12 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
                 }
                 st.set.widgets = ws;
                 st.sel_widget = 1;
+            }
+            if arg == "system-scroll" {
+                // вкладка пролистана: шапка и полоса прокрутки на месте, зоны под шапкой обрезаны
+                st.stab = "system";
+                st.sscroll = (90, "system");
+                st.sscroll_h.set(900);
             }
             if arg.starts_with("updates") {
                 // образец, а не то, что стоит на этой машине

@@ -38,7 +38,8 @@ def check(SRC: Path) -> tuple:
     problems = []
     seen = {}
     for ru, en in pairs:
-        if ru in seen and seen[ru] != en:
+        if ru in seen:
+            # тот же перевод дважды — мусор в таблице, другой — неясно, какой победит
             problems.append(f"{SRC.name}/i18n.rs: duplicate key «{ru}»: «{seen[ru]}» / «{en}»")
         seen[ru] = en
         if CYR.search(en) and en not in NATIVE:

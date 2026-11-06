@@ -239,18 +239,6 @@ pub(crate) fn tab_system(ui: &mut Ui, st: &State, b: R) {
     ui.slider(R::new(lx, y, half, 40), "заблокировать через", s.lock_after as f32 / 60.0, &mins(s.lock_after), 12, Act::SSlider("lock_after", 0.0, 60.0, 20));
     ui.slider(R::new(rx, y, half, 40), "погасить экран через", s.screen_off_after as f32 / 60.0, &mins(s.screen_off_after), 12, Act::SSlider("screen_off_after", 0.0, 60.0, 20));
     y += 52;
-    y = title(ui, b.x, y, b.w, "уведомления");
-    ui.toggle(R::new(lx, y, half, 40), "не беспокоить", "только срочные", s.dnd, Act::SBool("dnd"));
-    ui.slider(R::new(rx, y, half, 40), "сколько висит", (s.notif_timeout as f32 - 2.0) / 28.0, &crate::tf!("{} с", "{} s", s.notif_timeout), 12, Act::SSlider("notif_timeout", 2.0, 30.0, 14));
-    y += 48;
-    opt_btn(ui, R::new(lx, y, half, 26), "место", crate::widgets::name_of(crate::notif::POS, &s.notif_pos), Act::SCycle("notif_pos"));
-    opt_btn(ui, R::new(rx, y, half, 26), "громкость и яркость", crate::widgets::name_of(crate::notif::OSD_POS, &s.osd_pos), Act::SCycle("osd_pos"));
-    y += 32;
-    num_btn(ui, R::new(lx, y, half, 26), "от края", s.num("notif_offset"), "notif_offset");
-    if s.osd_pos != "center" {
-        num_btn(ui, R::new(rx, y, half, 26), "от края", s.num("osd_offset"), "osd_offset");
-    }
-    y += 38;
     // ночной свет: wlsunset; по координатам — от заката до восхода, иначе по часам
     y = title(ui, b.x, y, b.w, "ночной свет: по солнцу или по часам");
     let has = crate::doctor::which("wlsunset");
@@ -287,6 +275,34 @@ pub(crate) fn tab_system(ui: &mut Ui, st: &State, b: R) {
     // для тех, кто правит руками: файл открывается в редакторе, справка — yami-shell config
     ui.button(R::new(b.x, y, bw * 2 + 6, 28), "файл настроек", "pen", Tone::Plain, false, true, Act::SCycle("open_config"));
     ui.text_in(PX, R::new(b.x + bw * 2 + 18, y, b.w - bw * 2 - 18, 28), "или: yami-shell config list", ui.t.text_faint);
+}
+
+/// уведомления: как ведут себя карточки, где они и где громкость с яркостью
+pub(crate) fn tab_notif(ui: &mut Ui, st: &State, b: R) {
+    let s = &st.set;
+    let half = (b.w - 20) / 2;
+    let (lx, rx) = (b.x, b.x + half + 20);
+    let mut y = title(ui, b.x, b.y, b.w, "карточки");
+    ui.toggle(R::new(lx, y, half, 40), "не беспокоить", "только срочные", s.dnd, Act::SBool("dnd"));
+    ui.slider(R::new(rx, y, half, 40), "сколько висит", (s.notif_timeout as f32 - 2.0) / 28.0, &crate::tf!("{} с", "{} s", s.notif_timeout), 12, Act::SSlider("notif_timeout", 2.0, 30.0, 14));
+    y += 48;
+    ui.toggle(R::new(lx, y, half, 40), "картинки в карточках", "значки и превью от программ", s.notif_images, Act::SBool("notif_images"));
+    ui.toggle(R::new(rx, y, half, 40), "в записи и трансляциях", "выкл — зрители их не видят", s.notif_cast, Act::SBool("notif_cast"));
+    y += 46;
+    opt_btn(ui, R::new(lx, y, half, 26), "на экране сразу", &s.notif_max.to_string(), Act::SCycle("notif_max"));
+    opt_btn(ui, R::new(rx, y, half, 26), "в истории", &s.notif_history.to_string(), Act::SCycle("notif_history"));
+    y += 40;
+    y = title(ui, b.x, y, b.w, "где на экране");
+    opt_btn(ui, R::new(lx, y, half, 26), "карточки", crate::widgets::name_of(crate::notif::POS, &s.notif_pos), Act::SCycle("notif_pos"));
+    opt_btn(ui, R::new(rx, y, half, 26), "громкость и яркость", crate::widgets::name_of(crate::notif::OSD_POS, &s.osd_pos), Act::SCycle("osd_pos"));
+    y += 32;
+    num_btn(ui, R::new(lx, y, half, 26), "от края", s.num("notif_offset"), "notif_offset");
+    if s.osd_pos != "center" {
+        num_btn(ui, R::new(rx, y, half, 26), "от края", s.num("osd_offset"), "osd_offset");
+    }
+    y += 40;
+    y = title(ui, b.x, y, b.w, "сервер");
+    ui.toggle(R::new(lx, y, b.w, 40), "сервер уведомлений yami", "выкл — mako, dunst и т.п. (после перезапуска шелла)", s.agent_notif, Act::SBool("agent_notif"));
 }
 
 pub(crate) fn tab_dock(ui: &mut Ui, st: &State, b: R) {

@@ -6,7 +6,7 @@
 use crate::app::{App, State};
 use crate::config::Settings;
 use crate::gfx::R;
-use crate::settings::{opt_btn, step_in, title};
+use crate::settings::{step_in, title};
 use crate::ui::{Act, Tone, Ui};
 
 const PORTALS_HEAD: &str = "# yami: written by yami-shell (settings → services); edit it there or in yami-shell.json";
@@ -73,18 +73,13 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     let t = ui.t;
     let half = (b.w - 20) / 2;
     let x2 = b.x + half + 20;
-    let mut y = title(ui, b.x, b.y, b.w, "уведомления");
-    ui.toggle(R::new(b.x, y, half, 40), "сервер уведомлений", "выкл — mako, dunst и т.п.", s.agent_notif, Act::SBool("agent_notif"));
-    ui.toggle(R::new(x2, y, half, 40), "картинки в карточках", "значки и превью от программ", s.notif_images, Act::SBool("notif_images"));
-    y += 46;
-    opt_btn(ui, R::new(b.x, y, half, 26), "на экране сразу", &s.notif_max.to_string(), Act::SCycle("notif_max"));
-    opt_btn(ui, R::new(x2, y, half, 26), "в истории", &s.notif_history.to_string(), Act::SCycle("notif_history"));
-    y += 34;
-    ui.toggle(R::new(b.x, y, b.w, 40), "уведомления в записи и трансляциях", "выкл — зрители и запись их не видят", s.notif_cast, Act::SBool("notif_cast"));
-    y += 46;
-    y = title(ui, b.x, y, b.w, "трей и пароли");
+    let mut y = title(ui, b.x, b.y, b.w, "трей и пароли");
     ui.toggle(R::new(b.x, y, half, 40), "трей", "значки программ в баре", s.agent_tray, Act::SBool("agent_tray"));
     ui.toggle(R::new(x2, y, half, 40), "окно пароля polkit", "выкл — другой агент", s.agent_polkit, Act::SBool("agent_polkit"));
+    y += 46;
+    y = title(ui, b.x, y, b.w, "флешки и телефоны");
+    ui.toggle(R::new(b.x, y, half, 40), "подключать сами", "флешки, диски, телефоны, камеры", s.automount, Act::SBool("automount"));
+    ui.toggle(R::new(x2, y, half, 40), "сразу открывать в файлах", "иначе — карточка «открыть»", s.automount_open, Act::SBool("automount_open"));
     y += 46;
     y = title(ui, b.x, y, b.w, "порталы");
     ui.toggle(R::new(b.x, y, half, 40), "диалог файлов yami-files", "выкл — диалог GTK", s.portal_files, Act::SBool("portal_files"));
@@ -93,13 +88,14 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     y = title(ui, b.x, y, b.w, "сеть");
     ui.toggle(R::new(b.x, y, half, 40), "обложки музыки из сети", "ссылки плеера; выкл — с диска", s.media_art_net, Act::SBool("media_art_net"));
     ui.toggle(R::new(x2, y, half, 40), "тексты песен из сети", "lrclib.net; выкл — плеер и .lrc", s.lyrics_net, Act::SBool("lyrics_net"));
-    y += 44;
+    y += 46;
     // погода (#6): город или координаты для open-meteo.com, единицы
     let gf = st.field_focus == Some("weather_city");
     ui.field(R::new(b.x, y, half, 26), &st.weather_field, if s.weather_city.is_empty() { "погода: город или широта, долгота" } else { &s.weather_city }, gf, false, Act::SField("weather_city"));
     let units = if s.weather_units == "f" { "°F, mph" } else { "°C, км/ч" };
     crate::settings::opt_btn(ui, R::new(x2, y, half, 26), "погода", units, Act::SCycle("weather_units"));
-    let by = b.bottom() - 34;
-    ui.text_in(crate::font::PX, R::new(b.x, by - 24, b.w, 20), "уведомления, трей, пароли — после перезапуска; порталы — после входа", t.text_faint);
-    ui.button(R::new(b.x, by, 220, 28), "перезапустить шелл", "reboot", Tone::Plain, false, true, Act::SCycle("restart_shell"));
+    y += 44;
+    ui.text_in(crate::font::PX, R::new(b.x, y, b.w, 20), "трей и пароли — после перезапуска; порталы — после входа", t.text_faint);
+    y += 26;
+    ui.button(R::new(b.x, y, 220, 28), "перезапустить шелл", "reboot", Tone::Plain, false, true, Act::SCycle("restart_shell"));
 }

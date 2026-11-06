@@ -31,6 +31,9 @@ pub enum Act {
     PowerDo(usize),
     // настройки
     STab(&'static str),
+    /// колесо над содержимым вкладки и над списком вкладок
+    SScroll,
+    SSideScroll,
     SPreset(usize),
     SBool(&'static str),
     SSlider(&'static str, f32, f32, i32),

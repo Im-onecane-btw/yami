@@ -186,7 +186,15 @@ impl App {
                     return;
                 }
                 if let Some(z) = self.zone_at(sid, x, y) {
-                    self.on_wheel(z.act, if d > 0.0 { 1 } else { -1 });
+                    let d = if d > 0.0 { 1 } else { -1 };
+                    // окно настроек: колесо листает вкладку, если есть куда (ползунки и числа под
+                    // курсором не меняются сами, пока листаешь); листать нечего — как раньше
+                    let settings = self.st.modal == Some(crate::app::Modal::Settings) && self.surfs.get(&sid).is_some_and(|s| s.kind == SKind::Modal);
+                    if settings && matches!(z.act, Act::SSideScroll | Act::STab(_)) {
+                        self.settings_side_scroll(d);
+                    } else if !(settings && self.settings_scroll(d)) {
+                        self.on_wheel(z.act, d);
+                    }
                 }
             }
         }

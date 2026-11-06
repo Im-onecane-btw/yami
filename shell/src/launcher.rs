@@ -354,8 +354,8 @@ fn calc_item(q: &str) -> Option<Item> {
 /// вкладки настроек, подходящие к запросу: по названию (на обоих языках) и словам вкладки
 fn settings_items(q: &str, min: i32) -> Vec<Item> {
     let mut hits: Vec<(i32, Item)> = vec![];
-    for (id, name, icon) in crate::settings::TABS {
-        let words = crate::settings::FIND.iter().find(|f| f.0 == *id).map(|f| f.1).unwrap_or("");
+    for tb in crate::settings::tabs() {
+        let (id, name, icon, words) = (&tb.id, tb.name, tb.icon, tb.find);
         let s = if q.is_empty() {
             1
         } else {

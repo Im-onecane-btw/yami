@@ -221,6 +221,12 @@ pub struct State {
     pub launcher: launcher::LState,
     pub power_cur: usize,
     pub stab: &'static str,
+    /// прокрутка содержимого настроек: сдвиг и вкладка, к которой он относится
+    pub sscroll: (i32, &'static str),
+    /// высота содержимого открытой вкладки и списка вкладок с прошлого кадра
+    pub sscroll_h: std::cell::Cell<i32>,
+    pub stab_scroll: i32,
+    pub stab_h: std::cell::Cell<i32>,
     pub hex: Field,
     pub field_focus: Option<&'static str>,
     /// запросы polkit: первый — в окне, остальные ждут
@@ -415,6 +421,10 @@ impl State {
             launcher: launcher::LState::default(),
             power_cur: 0,
             stab: "color",
+            sscroll: (0, ""),
+            sscroll_h: Default::default(),
+            stab_scroll: 0,
+            stab_h: Default::default(),
             hex: Field::default(),
             field_focus: None,
             auth: Vec::new(),

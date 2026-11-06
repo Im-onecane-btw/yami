@@ -157,7 +157,7 @@ impl crate::app::App {
 
     /// настройки на вкладке (`yami open settings:keys`, карточка обновления)
     pub fn open_settings_tab(&mut self, tab: &str) {
-        let Some(t) = crate::settings::TABS.iter().find(|x| x.0 == tab).map(|x| x.0) else { return };
+        let Some(t) = crate::settings::find(tab).map(|x| x.id) else { return };
         self.st.stab = t;
         if self.st.modal != Some(Modal::Settings) {
             self.toggle_modal(Modal::Settings, false);

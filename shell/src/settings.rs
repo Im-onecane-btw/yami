@@ -1,99 +1,192 @@
-// Настройки: вкладки слева, содержимое справа. Всё применяется сразу
-// и пишется в ~/.config/yami-shell.json (его можно править и руками — шелл подхватит).
+// Настройки: группы вкладок слева, содержимое справа. Всё применяется сразу и пишется в
+// ~/.config/yami-shell.json (его можно править и руками — шелл подхватит).
+//
+// Вкладка — строка в GROUPS: ключ, имя, значок, слова для поиска и функция рисования (каждая в
+// своём модуле). Содержимое листается колесом: сколько его, узнаём по зонам, которые вкладка
+// нарисовала (Canvas::reach), так что новая строка настроек сама удлиняет прокрутку.
 
 use crate::app::{App, Modal, SKind, State};
 use crate::font::PX;
 use crate::gfx::{BoxStyle, R};
 use crate::ui::{Act, Cur, Tone, Ui};
 pub use crate::bartab::{BDrag, BarEd};
-use crate::bartab::tab_bar;
-use crate::settabs::{tab_about, tab_color, tab_dock, tab_look, tab_shots, tab_system, tab_widgets, tab_windows};
+use crate::settabs::{tab_about, tab_color, tab_dock, tab_look, tab_notif, tab_shots, tab_system, tab_widgets, tab_windows};
 use smithay_client_toolkit::seat::keyboard::{KeyEvent, Keysym};
 
-pub const SIZE: (i32, i32) = (780, 560);
+pub const SIZE: (i32, i32) = (800, 600);
+const SIDE_W: i32 = 168;
+const ROW_H: i32 = 26;
+const HEAD_H: i32 = 22;
+/// шаг колеса, пикселей
+const WHEEL: i32 = 48;
 
-/// вкладки по смыслу: как выглядит (цвет, обои, вид, шрифты), стол (бар, виджеты, док, окна,
-/// экраны), что делает (клавиши, игры, скриншоты), система (система, службы, обновления, о шелле)
-pub const TABS: &[(&str, &str, &str)] = &[
-    ("color", "цвет", "drop"),
-    ("wall", "обои", "image"),
-    ("look", "вид", "eye"),
-    ("fonts", "шрифты", "text"),
-    ("bar", "бар", "menu"),
-    ("widgets", "виджеты", "grid"),
-    ("dock", "док", "tile"),
-    ("windows", "окна", "float"),
-    ("screens", "экраны", "screen"),
-    ("keys", "клавиши", "keys"),
-    ("games", "игры", "play"),
-    ("shots", "скриншоты", "camera"),
-    ("system", "система", "gear"),
-    ("agents", "службы", "bell"),
-    ("updates", "обновления", "down"),
-    ("about", "о шелле", "about"),
+pub struct Tab {
+    pub id: &'static str,
+    pub name: &'static str,
+    pub icon: &'static str,
+    /// слова для поиска из лаунчера («?vrr» → экраны), по-русски и по-английски
+    pub find: &'static str,
+    pub draw: fn(&mut Ui, &State, R),
+    /// у вкладки свой список с прокруткой (клавиши): общую не включать
+    pub own_scroll: bool,
+}
+
+const fn tab(id: &'static str, name: &'static str, icon: &'static str, find: &'static str, draw: fn(&mut Ui, &State, R)) -> Tab {
+    Tab { id, name, icon, find, draw, own_scroll: false }
+}
+
+/// группы по смыслу: как выглядит, рабочий стол, что делают руки, система
+pub const GROUPS: &[(&str, &[Tab])] = &[
+    (
+        "внешний вид",
+        &[
+            tab("color", "цвет", "drop", "палитра акцент цвет тема темы шаблон светлая тёмная стекло прозрачность плотность palette accent colour color theme themes template light dark glass opacity", tab_color), // i18n-ok
+            tab("wall", "обои", "image", "обои картинка фон папка миниатюры skwd skwd-wall видео wallpaper background image folder thumbnails picker video", crate::wall::tab), // i18n-ok
+            tab("look", "вид", "eye", "пиксельность пиксели лёгкий режим слабый тормозит виртуалка анимации эффекты появление развёртка размытие значки иконки курсор pixel pixelation lite slow lag vm animation effects reveal scanlines blur icons cursor", tab_look), // i18n-ok
+            tab("fonts", "шрифты", "text", "шрифт размер терминал fastfetch браузер fonts size terminal browser", crate::fonttab::tab), // i18n-ok
+        ],
+    ),
+    (
+        "рабочий стол",
+        &[
+            tab("bar", "бар", "menu", "бар модули часы разделитель плавающий плашка ширина центр трей стрелка температура bar modules clock separator floating pill width center tray arrow temperature", crate::bartab::tab_bar), // i18n-ok
+            tab("widgets", "виджеты", "grid", "виджеты график часы заметка widgets graph clock note", tab_widgets), // i18n-ok
+            tab("dock", "док", "tile", "док закреплённые dock pinned", tab_dock), // i18n-ok
+            tab("windows", "окна", "float", "окна отступы плавающие стол заголовки углы скругление рамка gaps floating stacking windows titlebars corners rounded radius border", tab_windows), // i18n-ok
+            tab("screens", "экраны", "screen", "экраны монитор разрешение частота масштаб vrr hz герц поворот display monitor resolution refresh scale rotation", crate::displays::tab), // i18n-ok
+        ],
+    ),
+    (
+        "действия",
+        &[
+            Tab { own_scroll: true, ..tab("keys", "клавиши", "keys", "клавиши сочетания хоткеи раскладка keys shortcuts hotkeys layout keyboard", crate::keys::tab) }, // i18n-ok
+            tab("shots", "скриншоты", "camera", "скриншоты снимок лупа screenshot loupe", tab_shots), // i18n-ok
+            tab("games", "игры", "play", "игры steam proton разрывы gamemode ntsync tearing games shader", crate::games::tab), // i18n-ok
+        ],
+    ),
+    (
+        "система",
+        &[
+            tab("system", "система", "gear", "система язык сон блокировка ожидание ночной свет system language idle sleep lock night light", tab_system), // i18n-ok
+            tab("notif", "уведомления", "bell", "уведомления не беспокоить место история osd громкость яркость notifications do not disturb position history osd volume brightness", tab_notif), // i18n-ok
+            tab("agents", "службы", "bolt", "службы трей polkit порталы флешки телефоны автоподключение обложки тексты погода services tray portals automount drives phones covers lyrics weather", crate::agents::tab), // i18n-ok
+            tab("updates", "обновления", "down", "обновления версия откат updates version rollback", crate::update::tab), // i18n-ok
+            tab("about", "о шелле", "about", "о шелле версия память about version memory", tab_about), // i18n-ok
+        ],
+    ),
 ];
 
-/// слова для поиска настроек из лаунчера («vrr» → экраны): по-русски и по-английски
-pub const FIND: &[(&str, &str)] = &[
-    ("color", "палитра акцент цвет тема темы шаблон светлая тёмная стекло прозрачность плотность palette accent colour color theme themes template light dark glass opacity"), // i18n-ok
-    ("wall", "обои картинка фон папка миниатюры skwd skwd-wall видео wallpaper background image folder thumbnails picker video"), // i18n-ok
-    ("look", "пиксельность пиксели лёгкий режим слабый тормозит виртуалка анимации эффекты появление развёртка размытие значки иконки курсор pixel pixelation lite slow lag vm animation effects reveal scanlines blur icons cursor"), // i18n-ok
-    ("fonts", "шрифт размер терминал fastfetch браузер fonts size terminal browser"), // i18n-ok
-    ("bar", "бар модули часы разделитель плавающий плашка ширина центр трей стрелка температура bar modules clock separator floating pill width center tray arrow temperature"), // i18n-ok
-    ("widgets", "виджеты график часы заметка widgets graph clock note"), // i18n-ok
-    ("dock", "док закреплённые dock pinned"), // i18n-ok
-    ("windows", "окна отступы плавающие стол заголовки углы скругление рамка gaps floating stacking windows titlebars corners rounded radius border"), // i18n-ok
-    ("keys", "клавиши сочетания хоткеи раскладка keys shortcuts hotkeys layout keyboard"), // i18n-ok
-    ("games", "игры steam proton разрывы gamemode ntsync tearing games shader"), // i18n-ok
-    ("shots", "скриншоты снимок лупа screenshot loupe"), // i18n-ok
-    ("screens", "экраны монитор разрешение частота масштаб vrr hz герц поворот display monitor resolution refresh scale rotation"), // i18n-ok
-    ("system", "система язык сон блокировка ожидание уведомления место osd громкость system language idle sleep lock notifications position osd volume"), // i18n-ok
-    ("agents", "службы уведомления трей polkit порталы обложки services notifications tray portals"), // i18n-ok
-    ("updates", "обновления версия откат updates version rollback"), // i18n-ok
-    ("about", "о шелле версия память about version memory"), // i18n-ok
-];
+/// все вкладки подряд
+pub fn tabs() -> impl Iterator<Item = &'static Tab> {
+    GROUPS.iter().flat_map(|g| g.1.iter())
+}
+
+/// вкладка по ключу (из IPC, лаунчера, `shot settings:<id>`)
+pub fn find(id: &str) -> Option<&'static Tab> {
+    tabs().find(|t| t.id == id)
+}
+
+/// где рисовать содержимое (видимая часть) — общее для рисования и колеса
+fn body_rect(w: i32, h: i32) -> R {
+    let fr = R::new(0, 0, w - 6, h - 6);
+    R::new(1 + SIDE_W + 20, 48, fr.right() - SIDE_W - 1 - 48, fr.h - 64)
+}
+
+fn side_rect(h: i32) -> R {
+    R::new(1, 31, SIDE_W, h - 6 - 32)
+}
+
+/// прокрутка открытой вкладки (сдвиг запомнен для неё; другая вкладка начинается сверху)
+pub fn scroll_of(st: &State) -> i32 {
+    if st.sscroll.1 == st.stab {
+        st.sscroll.0
+    } else {
+        0
+    }
+}
+
+/// полоса прокрутки: клетки дорожки и бегунок
+fn scrollbar(ui: &mut Ui, r: R, view: i32, full: i32, at: i32) {
+    let t = ui.t;
+    if full <= view {
+        return;
+    }
+    ui.cv.fill(R::new(r.x + 1, r.y, 2, r.h), t.border.alpha(0.5));
+    let th = (r.h * view / full).max(18);
+    let ty = r.y + (r.h - th) * at / (full - view).max(1);
+    ui.cv.fill(R::new(r.x, ty, 4, th), t.red);
+}
 
 pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
     let t = ui.t;
     let fr = R::new(0, 0, w - 6, h - 6);
     ui.frame(fr, false);
-    ui.header(R::new(1, 1, fr.w - 2, 30), "gear", "настройки", "yami-shell");
+    let sub = crate::tf!("yami {} · {:.0} МБ", "yami {} · {:.0} MB", env!("CARGO_PKG_VERSION"), st.rss);
+    ui.header(R::new(1, 1, fr.w - 2, 30), "gear", "настройки", &sub);
     // за заголовок окно двигается (крестик зарегистрирован позже — он сверху)
     ui.zone(R::new(1, 1, fr.w - 2, 30), Act::MDrag, Cur::Default);
     ui.ghost(R::new(fr.right() - 28, 5, 24, 22), "close", Act::CloseModal);
-    // вкладки
-    let side = R::new(1, 31, 160, fr.h - 32);
+    // вкладки группами; список длиннее окна — листается колесом
+    let side = side_rect(h);
     ui.cv.fill(side, t.panel.alpha(0.5));
     ui.cv.fill(R::new(side.right(), side.y, 1, side.h), t.border);
-    for (i, (id, name, icon)) in TABS.iter().enumerate() {
-        let r = R::new(side.x + 8, side.y + 8 + i as i32 * 30, side.w - 16, 26);
-        ui.button(r, name, icon, Tone::Ghost, st.stab == *id, true, Act::STab(id));
-        if st.stab == *id {
-            ui.cv.fill(R::new(r.x - 8, r.y, 3, r.h), t.red);
+    ui.zone(side, Act::SSideScroll, Cur::Default);
+    ui.cv.push_clip(side);
+    let mut y = side.y + 8 - st.stab_scroll;
+    for (gname, tabs) in GROUPS {
+        ui.cv.fill(R::new(side.x + 12, y + 8, 4, 4), t.red.alpha(0.7));
+        ui.text_in(PX, R::new(side.x + 22, y, side.w - 30, HEAD_H - 4), gname, t.text_faint);
+        y += HEAD_H;
+        for tb in tabs.iter() {
+            let r = R::new(side.x + 8, y, side.w - 16, ROW_H - 2);
+            ui.button(r, tb.name, tb.icon, Tone::Ghost, st.stab == tb.id, true, Act::STab(tb.id));
+            if st.stab == tb.id {
+                ui.cv.fill(R::new(r.x - 8, r.y, 3, r.h), t.red);
+            }
+            y += ROW_H;
         }
+        y += 6;
     }
-    ui.text_in(PX, R::new(side.x + 12, side.bottom() - 26, side.w - 20, 20), &crate::tf!("{:.0} МБ памяти", "{:.0} MB of memory", st.rss), t.text_faint);
-    let body = R::new(side.right() + 20, 48, fr.right() - side.right() - 40, fr.h - 64);
-    ui.cv.push_clip(R::new(body.x - 4, body.y - 4, body.w + 8, body.h + 8));
-    match st.stab {
-        "color" => tab_color(ui, st, body),
-        "bar" => tab_bar(ui, st, body),
-        "widgets" => tab_widgets(ui, st, body),
-        "look" => tab_look(ui, st, body),
-        "wall" => crate::wall::tab(ui, st, body),
-        "system" => tab_system(ui, st, body),
-        "shots" => tab_shots(ui, st, body),
-        "windows" => tab_windows(ui, st, body),
-        "dock" => tab_dock(ui, st, body),
-        "screens" => crate::displays::tab(ui, st, body),
-        "keys" => crate::keys::tab(ui, st, body),
-        "games" => crate::games::tab(ui, st, body),
-        "fonts" => crate::fonttab::tab(ui, st, body),
-        "agents" => crate::agents::tab(ui, st, body),
-        "updates" => crate::update::tab(ui, st, body),
-        _ => tab_about(ui, st, body),
-    }
+    let side_full = y + st.stab_scroll - side.y;
+    st.stab_h.set(side_full);
     ui.cv.pop_clip();
+    scrollbar(ui, R::new(side.right() - 5, side.y + 2, 4, side.h - 4), side.h, side_full, st.stab_scroll);
+    // содержимое: фон-зона для колеса, вкладка со сдвигом, полоса прокрутки справа
+    let body = body_rect(w, h);
+    let tb = find(st.stab).unwrap_or(&GROUPS[0].1[0]);
+    let off = if tb.own_scroll { 0 } else { scroll_of(st) };
+    ui.zone(R::new(side.right() + 1, 31, fr.right() - side.right() - 2, fr.h - 32), Act::SScroll, Cur::Default);
+    ui.cv.push_clip(R::new(body.x - 4, body.y - 4, body.w + 8, body.h + 8));
+    ui.cv.reach = i32::MIN;
+    (tb.draw)(ui, st, R::new(body.x, body.y - off, body.w, body.h));
+    let full = if tb.own_scroll { body.h } else { (ui.cv.reach + off + 12 - body.y).max(body.h) };
+    st.sscroll_h.set(full);
+    ui.cv.pop_clip();
+    scrollbar(ui, R::new(body.right() + 18, body.y, 4, body.h), body.h, full, off);
+}
+
+impl App {
+    /// колесо над вкладкой: листать, если есть куда (true — пролистали)
+    pub fn settings_scroll(&mut self, d: i32) -> bool {
+        let (w, h) = SIZE;
+        let view = body_rect(w, h).h;
+        let max = (self.st.sscroll_h.get() - view).max(0);
+        if max == 0 || find(self.st.stab).is_some_and(|t| t.own_scroll) {
+            return false;
+        }
+        let at = (scroll_of(&self.st) + d * WHEEL).clamp(0, max);
+        self.st.sscroll = (at, self.st.stab);
+        self.dirty(&SKind::Modal);
+        true
+    }
+
+    /// колесо над списком вкладок
+    pub fn settings_side_scroll(&mut self, d: i32) {
+        let h = SIZE.1;
+        let max = (self.st.stab_h.get() - side_rect(h).h).max(0);
+        self.st.stab_scroll = (self.st.stab_scroll + d * WHEEL).clamp(0, max);
+        self.dirty(&SKind::Modal);
+    }
 }
 
 pub fn title(ui: &mut Ui, x: i32, y: i32, w: i32, s: &str) -> i32 {
@@ -233,9 +326,22 @@ impl App {
             Keysym::Escape => self.close_modal(),
             Keysym::Tab | Keysym::ISO_Left_Tab | Keysym::Down | Keysym::Up => {
                 let back = e.keysym == Keysym::ISO_Left_Tab || e.keysym == Keysym::Up || self.mods.shift;
-                let n = TABS.len();
-                let i = TABS.iter().position(|x| x.0 == self.st.stab).unwrap_or(0);
-                self.st.stab = TABS[if back { (i + n - 1) % n } else { (i + 1) % n }].0;
+                let ids: Vec<&'static str> = tabs().map(|t| t.id).collect();
+                let n = ids.len();
+                let i = ids.iter().position(|x| *x == self.st.stab).unwrap_or(0);
+                self.st.stab = ids[if back { (i + n - 1) % n } else { (i + 1) % n }];
+                self.tab_probe();
+            }
+            // листать вкладку: страница, начало, конец
+            Keysym::Page_Down | Keysym::Page_Up => {
+                let page = (body_rect(SIZE.0, SIZE.1).h - 40) / WHEEL;
+                self.settings_scroll(if e.keysym == Keysym::Page_Down { page } else { -page });
+            }
+            Keysym::Home => {
+                self.settings_scroll(-1000);
+            }
+            Keysym::End => {
+                self.settings_scroll(1000);
             }
             _ => {}
         }

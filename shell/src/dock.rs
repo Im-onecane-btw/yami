@@ -65,7 +65,7 @@ pub fn items(st: &State) -> Vec<Item> {
         out.push(Item { id: id.clone(), name: a.map(|a| a.name.clone()).unwrap_or_else(|| id.clone()), icon: a.map(|a| a.icon.clone()).unwrap_or_else(|| id.clone()), exec: a.map(|a| a.exec.clone()).unwrap_or_default(), terminal: a.map(|a| a.terminal).unwrap_or(false), pinned: true, wins: vec![] });
     }
     let mut wins: Vec<Win> = st.niri.wins.iter().filter(|w| !w.app_id.is_empty()).cloned().collect();
-    wins.sort_by(|a, b| a.id.cmp(&b.id));
+    wins.sort_by_key(|w| w.id);
     for w in wins {
         let k = key_of(&st.apps, &w);
         if let Some(it) = out.iter_mut().find(|i| i.id == k) {

@@ -128,7 +128,7 @@ fn help_msg(y: &Sty) {
 fn help_open(y: &Sty) {
     y.section(&crate::tf!("что открыть", "what to open"));
     y.row("launcher clipboard power walls", "");
-    y.row("settings[:tab]", &crate::settings::TABS.iter().map(|t| t.0).collect::<Vec<_>>().join(" "));
+    y.row("settings[:tab]", &crate::settings::tabs().map(|t| t.id).collect::<Vec<_>>().join(" "));
     y.row("screenshot[:area|window|screen]", "");
     y.row(&crate::popups::KINDS.join(" "), &crate::tf!("всплывашки бара", "bar popups"));
     println!();
@@ -156,7 +156,7 @@ pub fn msg_ok(cmd: &str) -> bool {
     let one = |w: &mut std::str::SplitWhitespace| w.next().is_none();
     match head {
         "launcher" | "clipboard" | "power" | "lock" | "bar" | "stacking" | "minimize" | "restore" | "edit" | "reload" | "quit" | "ping" | "restart" | "profile" | "night" | "walls" => one(&mut w),
-        "settings" => w.next().is_none_or(|t| crate::settings::TABS.iter().any(|x| x.0 == t)) && one(&mut w),
+        "settings" => w.next().is_none_or(|t| crate::settings::find(t).is_some()) && one(&mut w),
         "popup" => w.next().is_some_and(|k| crate::popups::KINDS.contains(&k)) && one(&mut w),
         "screenshot" => w.next().is_none_or(|m| matches!(m, "area" | "window" | "screen")) && w.next().is_none_or(|d| d.parse::<u32>().is_ok()) && one(&mut w),
         "curtain" => w.next().is_none_or(|a| matches!(a, "on" | "off" | "toggle")) && one(&mut w),
