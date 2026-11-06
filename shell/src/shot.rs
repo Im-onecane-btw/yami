@@ -704,7 +704,7 @@ const MOCK_LYRICS: &str = "[01:02.00]grey morning on the glass
 /// погода для снимков: Берлин, дождь, пять дней; city = false — город не задан
 fn mock_weather(st: &mut State, city: bool) {
     st.set.weather_city = if city { "Berlin".into() } else { String::new() };
-    let at = crate::app::unix_now() - 300;
+    let at = crate::clock::unix_now() - 300;
     let day = |date: &str, code: i32, hi: f32, lo: f32| crate::weather::Day { date: date.into(), code, hi, lo };
     st.weather = crate::weather::Weather {
         key: crate::weather::key(&st.set),

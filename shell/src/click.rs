@@ -276,7 +276,7 @@ impl App {
                 }
             }
             Act::SSlider(key, from, to, seg) => {
-                let cur = crate::app::settings_get_f32(&self.st.set, key);
+                let cur = crate::prefs::settings_get_f32(&self.st.set, key);
                 let step = (to - from) / seg as f32;
                 self.slider_set(key, (cur + if up { step } else { -step }).clamp(from, to));
             }

@@ -142,7 +142,7 @@ fn spawn(id: String, stop: Arc<AtomicBool>, pid: Arc<AtomicU32>, tx: Sender<Msg>
             let mut cmd = Command::new("/bin/sh");
             cmd.arg("-c").arg(LEADER).arg(&path).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null()).process_group(0);
             // шелл упал или перезапустился — лидер получает SIGTERM и гасит группу
-            crate::app::owned(&mut cmd);
+            crate::proc::owned(&mut cmd);
             let child = if runnable { cmd.spawn().ok() } else { None };
             let Some(mut child) = child else {
                 let _ = tx.send(Msg::Plugin(id.clone(), Plug { text: "?".into(), icon: "close".into(), color: "warn".into(), click: String::new() }));

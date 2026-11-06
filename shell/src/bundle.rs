@@ -469,7 +469,7 @@ fn fetch(url: &str) -> Result<Value, String> {
     }
     let dir = yami_px::paths::private_tmp("theme").map_err(|e| e.to_string())?;
     let out = dir.join("theme.json");
-    let ok = crate::app::curl(30, MAX_FILE)
+    let ok = crate::proc::curl(30, MAX_FILE)
         .args(["-fL", "--max-redirs", "3", "-o"])
         .arg(&out)
         .arg("--")
@@ -556,7 +556,7 @@ fn backup() -> Option<PathBuf> {
     std::fs::create_dir_all(&dir).ok()?;
     let mut b = bundle(false, false);
     b["restore"] = json!({ "wallpaper": settings_value().get("wallpaper").and_then(|w| w.as_str()).unwrap_or("") });
-    let stamp = crate::app::unix_now();
+    let stamp = crate::clock::unix_now();
     // два импорта за секунду не затирают копию первого: номер — следующий за самым большим в эту
     // секунду, так копии по имени идут ровно в том порядке, в каком их сняли
     let n = std::fs::read_dir(&dir).ok()?.flatten().filter_map(|e| backup_key(&e.path())).filter(|k| k.0 == stamp).map(|k| k.1 + 1).max().unwrap_or(0);

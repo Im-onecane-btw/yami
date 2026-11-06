@@ -163,7 +163,7 @@ fn weather(ui: &mut Ui, st: &State, b: R) {
         }
         y += 68;
     }
-    let age = (crate::app::unix_now().saturating_sub(w.at) / 60) as i32;
+    let age = (crate::clock::unix_now().saturating_sub(w.at) / 60) as i32;
     let foot = if !st.weather.err.is_empty() { st.weather.err.clone() } else { crate::tf!("open-meteo.com · {} мин назад", "open-meteo.com · {} min ago", age) };
     ui.cv.text_in(ui.f, PX, R::new(b.x, y, b.w, 18), &foot, if st.weather.err.is_empty() { t.text_faint } else { t.ember });
 }
@@ -171,10 +171,10 @@ fn weather(ui: &mut Ui, st: &State, b: R) {
 // ── календарь ───────────────────────────────────────────────────────────────
 fn cal(ui: &mut Ui, st: &State, b: R) {
     let t = ui.t;
-    let now = crate::app::local_now();
+    let now = crate::clock::local_now();
     let face = font::px(32);
     ui.text(face, b.x, b.y - 2, &format!("{:02}:{:02}", now.hour, now.min), t.text);
-    let date = format!("{}, {} {}", crate::i18n::tr(crate::app::RU_DAY_FULL[now.wday as usize]), now.day, crate::i18n::tr(crate::app::RU_MON[(now.mon - 1) as usize]));
+    let date = format!("{}, {} {}", crate::i18n::tr(crate::clock::RU_DAY_FULL[now.wday as usize]), now.day, crate::i18n::tr(crate::clock::RU_MON[(now.mon - 1) as usize]));
     ui.text_in(PX, R::new(b.x, b.y + 34, 300, 20), &date, t.text_dim);
     let cr = R::new(b.x, b.y + 66, 290, b.h - 66);
     widgets::calendar(ui, st, cr, st.cal_month, t.red, true);

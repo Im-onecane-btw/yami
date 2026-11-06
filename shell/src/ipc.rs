@@ -3,7 +3,8 @@
 // Безопасность: сокет 0600, говорим только с процессами своего пользователя (SO_PEERCRED),
 // строка не длиннее 4 КБ и ждём её не дольше 2 с — зависший клиент не заткнёт шелл.
 
-use crate::app::Msg;
+use crate::app::{Modal, Msg, SKind};
+use crate::config::Settings;
 use calloop::channel::Sender;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::fs::PermissionsExt;
@@ -80,4 +81,89 @@ fn same_user(s: &UnixStream) -> bool {
     // SAFETY: getsockopt пишет не больше len байт в cred
     let r = unsafe { libc::getsockopt(s.as_raw_fd(), libc::SOL_SOCKET, libc::SO_PEERCRED, &mut cred as *mut _ as *mut libc::c_void, &mut len) };
     r == 0 && cred.uid == unsafe { libc::getuid() }
+}
+
+impl crate::app::App {
+    // ── команды (IPC) ───────────────────────────────────────────────────────
+    pub fn ipc(&mut self, cmd: &str) {
+        match cmd.trim() {
+            "launcher" => self.toggle_modal(Modal::Launcher, false),
+            "night" => self.night_toggle(),
+            "clipboard" => self.toggle_modal(Modal::Launcher, true),
+            "power" => self.toggle_modal(Modal::Power, false),
+            "settings" => self.toggle_modal(Modal::Settings, false),
+            "walls" => self.walls_open(false),
+            "lock" => self.lock_now(),
+            "bar" => self.toggle_bar(),
+            "stacking" => {
+                let on = !self.st.niri.stacking;
+                self.st.niri.set_stacking(on);
+                self.st.set.stacking = on;
+                // фокус за мышью есть только в ленте (keys::kdl)
+                crate::keys::write(&self.st.set);
+                self.sync_titles();
+                self.dirty_all();
+            }
+            "minimize" => {
+                if let Some(id) = self.st.niri.focused_win().map(|w| w.id) {
+                    self.st.niri.minimize(id);
+                }
+            }
+            "restore" => self.st.niri.restore_last(),
+            "edit" => {
+                self.close_all();
+                self.set_editing(!self.st.editing);
+            }
+            "reload" => {
+                self.st.set = Settings::load();
+                self.st.apps = crate::icons::load_apps();
+                self.settings_changed();
+            }
+            "quit" => self.quit = true,
+            // «жив ли шелл» для install.sh и deploy.sh: ответ сокета, ничего не делает
+            "ping" => {}
+            "restart" => self.restart = true,
+            c if self.update_ipc(c) => {}
+            c if c.starts_with("settings ") => self.open_settings_tab(c[9..].trim()),
+            c if c == "screenshot" || c.starts_with("screenshot ") => {
+                let mode = match c.split_whitespace().nth(1) {
+                    Some("window") => crate::snap::Mode::Window,
+                    Some("screen") => crate::snap::Mode::Screen,
+                    _ => crate::snap::Mode::Area,
+                };
+                let delay = c.split_whitespace().nth(2).and_then(|d| d.parse().ok()).unwrap_or(0);
+                if self.st.snap.is_some() {
+                    self.snap_close();
+                } else {
+                    self.snap_start(mode, delay);
+                }
+            }
+            // следующий профиль питания (для хоткея)
+            "profile" => self.prof_step(1),
+            c if c.starts_with("popup ") => {
+                let kind = crate::popups::KINDS.iter().copied().find(|k| *k == &c[6..]).unwrap_or("sys");
+                // из терминала или хоткея: под правым краем бара
+                let out = self.focus_out();
+                let (ow, _) = self.output_size(&out);
+                let side = crate::bar::geo(&self.st.set, ow).1;
+                self.open_popup(kind, &out, ow - side - 260);
+            }
+            // свои обои: путь; без пути — пиксельные из палитры
+            c if c == "wallpaper" || c.starts_with("wallpaper ") => self.set_wall(&c["wallpaper".len()..]),
+            c if c == "curtain" || c.starts_with("curtain ") => self.curtain_cmd(&c["curtain".len()..]),
+            _ => {}
+        }
+    }
+
+    /// настройки на вкладке (`yami open settings:keys`, карточка обновления)
+    pub fn open_settings_tab(&mut self, tab: &str) {
+        let Some(t) = crate::settings::TABS.iter().find(|x| x.0 == tab).map(|x| x.0) else { return };
+        self.st.stab = t;
+        if self.st.modal != Some(Modal::Settings) {
+            self.toggle_modal(Modal::Settings, false);
+        } else {
+            self.tab_probe();
+        }
+        self.dirty(&SKind::Modal);
+    }
 }

@@ -2,7 +2,8 @@
 // пароля. Ошибка — поле вздрагивает ступенями. Остальные
 // мониторы — только часы.
 
-use crate::app::{local_now, App, State, RU_DAY_FULL, RU_MON};
+use crate::app::{App, State};
+use crate::clock::{local_now, RU_DAY_FULL, RU_MON};
 use crate::font::{self, PX};
 use crate::gfx::{BoxStyle, C};
 use std::time::Instant;

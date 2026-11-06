@@ -82,7 +82,7 @@ impl App {
         self.st.night.stop();
         let mut cmd = Command::new("wlsunset");
         cmd.args(&a).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-        self.st.night.child = crate::app::owned(&mut cmd).spawn().ok();
+        self.st.night.child = crate::proc::owned(&mut cmd).spawn().ok();
         self.st.night.on = self.st.night.child.is_some();
         self.st.night.args = a;
         self.dirty(&SKind::Bar);

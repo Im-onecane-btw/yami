@@ -230,7 +230,7 @@ fn clean(artist: &str, title: &str) -> (String, String) {
 fn from_net(artist: &str, title: &str, len: f64) -> Result<Option<String>, ()> {
     // без -f: 404 («не нашлось») отличаем от сбоя по коду ответа в последней строке
     let get = |url: &str, q: &[(&str, String)]| -> Result<Option<serde_json::Value>, ()> {
-        let o = crate::app::curl_get(8, 2_000_000, url, q).args(["-w", "\n%{http_code}"]).stderr(std::process::Stdio::null()).output().map_err(|_| ())?;
+        let o = crate::proc::curl_get(8, 2_000_000, url, q).args(["-w", "\n%{http_code}"]).stderr(std::process::Stdio::null()).output().map_err(|_| ())?;
         let n = o.stdout.iter().rposition(|b| *b == b'\n').ok_or(())?;
         match (o.status.success(), &o.stdout[n + 1..]) {
             (true, b"200") => Ok(serde_json::from_slice(&o.stdout[..n]).ok()),

@@ -95,7 +95,7 @@ impl App {
         if changed || !config::state_dir().join("wallpaper.png").exists() {
             let tx = self.tx.clone();
             std::thread::spawn(move || {
-                let _ = crate::app::theme_py().arg(&p).status();
+                let _ = crate::proc::theme_py().arg(&p).status();
                 let _ = tx.send(Msg::Theme);
             });
         }
@@ -107,7 +107,7 @@ impl App {
             self.set_pixel_level(v.round().clamp(0.0, 3.0) as usize);
             return;
         }
-        crate::app::settings_set_f32(&mut self.st.set, key, v);
+        crate::prefs::settings_set_f32(&mut self.st.set, key, v);
         self.settings_changed();
     }
 
@@ -115,7 +115,7 @@ impl App {
     /// пиксельные значки и курсор. 3 — всё пиксельное (как по умолчанию), 2 — только yami (GTK и Qt
     /// гладкие), 1 — мягче (пиксельные только панели шелла), 0 — гладко везде
     pub fn set_pixel_level(&mut self, lvl: usize) {
-        if lvl == crate::settings::pixel_level(&self.st.set) {
+        if lvl == crate::settabs::pixel_level(&self.st.set) {
             return;
         }
         let (shell, apps, ui, icons, cursor) = match lvl {
@@ -160,7 +160,7 @@ impl App {
         let _ = config::write_atomic(&config::settings_path(), &j);
         self.set_saved = j;
         std::thread::spawn(|| {
-            let _ = crate::app::theme_py().arg("--cursor").status();
+            let _ = crate::proc::theme_py().arg("--cursor").status();
         });
     }
 
@@ -170,7 +170,7 @@ impl App {
         let _ = config::write_atomic(&config::settings_path(), &j);
         self.set_saved = j;
         std::thread::spawn(|| {
-            let _ = crate::app::theme_py().arg("--fonts").status();
+            let _ = crate::proc::theme_py().arg("--fonts").status();
         });
     }
 
@@ -192,5 +192,51 @@ impl App {
         if std::fs::read_to_string(&p).ok().as_deref() != Some(text.as_str()) {
             let _ = config::write_atomic(&p, &text);
         }
+    }
+}
+
+/// ползунки настроек (SSlider): число в поле Settings по ключу и обратно
+pub fn settings_set_f32(s: &mut Settings, key: &str, v: f32) {
+    match key {
+        "tint" => s.tint = (v * 10.0).round() / 10.0,
+        "glass" => s.glass = (v * 100.0).round() / 100.0,
+        "lift" => s.lift = (v * 100.0).round() / 100.0,
+        "inner" => s.inner = (v * 100.0).round() / 100.0,
+        "dim" => s.dim = (v * 100.0).round() / 100.0,
+        "anim_speed" => s.anim_speed = (v * 10.0).round() / 10.0,
+        "float_w" => s.float_w = (v * 20.0).round() / 20.0,
+        "dock_size" => s.dock_size = ((v / 4.0).round() * 4.0) as i32,
+        "float_h" => s.float_h = (v * 20.0).round() / 20.0,
+        "lock_after" => s.lock_after = v.round() as u32,
+        "screen_off_after" => s.screen_off_after = v.round() as u32,
+        "notif_timeout" => s.notif_timeout = v.round().max(2.0) as u32,
+        "task_width" => s.task_width = (v / 10.0).round() as i32 * 10,
+        "wall_pixel" => s.wall_pixel = v.round().max(1.0) as i32,
+        "wall_dim" => s.wall_dim = (v * 20.0).round() / 20.0,
+        "curtain_cell" => s.curtain_cell = ((v / 4.0).round() * 4.0) as i32,
+        _ => {}
+    }
+}
+
+pub fn settings_get_f32(s: &Settings, key: &str) -> f32 {
+    match key {
+        "pixel_level" => crate::settabs::pixel_level(s) as f32,
+        "tint" => s.tint,
+        "glass" => s.glass,
+        "lift" => s.lift,
+        "inner" => s.inner,
+        "dim" => s.dim,
+        "anim_speed" => s.anim_speed,
+        "float_w" => s.float_w,
+        "dock_size" => s.dock_size as f32,
+        "float_h" => s.float_h,
+        "lock_after" => s.lock_after as f32,
+        "screen_off_after" => s.screen_off_after as f32,
+        "notif_timeout" => s.notif_timeout as f32,
+        "task_width" => s.task_width as f32,
+        "wall_pixel" => s.wall_pixel as f32,
+        "wall_dim" => s.wall_dim,
+        "curtain_cell" => s.curtain_cell as f32,
+        _ => 0.0,
     }
 }

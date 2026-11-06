@@ -2,7 +2,8 @@
 // настройками (вид графика, анимация, размер, цвет, подложка…): ПКМ по виджету или
 // настройки → виджеты. В режиме расстановки таскаются мышью по сетке 8 px.
 
-use crate::app::{local_now, App, SKind, State, RU_DAY_FULL, RU_MON, RU_MON_NOM};
+use crate::app::{App, SKind, State};
+use crate::clock::{local_now, RU_DAY_FULL, RU_MON, RU_MON_NOM};
 use crate::config::Widget;
 use crate::font::{self, PX};
 use crate::gfx::{BoxStyle, C, R};

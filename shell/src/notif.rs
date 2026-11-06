@@ -2,7 +2,8 @@
 // умолчанию, × — убрать, наведение — не гаснет, срочные висят. Все — в истории (календарь).
 // Тут же всплывашка громкости и раскладки (OSD).
 
-use crate::app::{local_now, App, SKind, State};
+use crate::app::{App, SKind, State};
+use crate::clock::local_now;
 use crate::font::{self, PX};
 use crate::gfx::{BoxStyle, Img, R};
 use crate::ui::{Act, Cur, Tone, Ui};
@@ -359,3 +360,30 @@ impl App {
 pub const POS: &[(&str, &str)] =
     &[("top-right", "справа сверху"), ("top-left", "слева сверху"), ("top", "сверху по центру"), ("bottom-right", "справа снизу"), ("bottom-left", "слева снизу"), ("bottom", "снизу по центру")];
 pub const OSD_POS: &[(&str, &str)] = &[("bottom", "снизу"), ("top", "сверху"), ("center", "по центру")];
+
+impl App {
+    /// OSD громкости, яркости, раскладки, таймера снимка (osdPos)
+    pub fn show_osd(&mut self, kind: &'static str) {
+        if self.st.locked {
+            return;
+        }
+        let fresh = self.st.osd.is_none();
+        self.st.osd = Some((kind, Instant::now()));
+        if fresh || self.find(&SKind::Osd).is_empty() {
+            let out = self.focus_out();
+            // osdPos: снизу над доком, сверху под баром, по центру экрана
+            let (anchor, margin) = match self.st.set.osd_pos.as_str() {
+                "top" => (Anchor::TOP, (self.bar_bottom(&out) + self.st.set.num("osd_offset"), 0, 0, 0)),
+                "center" => (Anchor::empty(), (0, 0, 0, 0)),
+                _ => (Anchor::BOTTOM, (0, 0, self.st.set.num("osd_offset"), 0)),
+            };
+            let id = self.mk(SKind::Osd, &out, Layer::Overlay, "yami-osd", anchor, (308, 64 + 8), margin, -1, KeyboardInteractivity::None);
+            if let Some(s) = self.surfs.get(&id) {
+                if let Ok(r) = smithay_client_toolkit::compositor::Region::new(&self.compositor) {
+                    s.layer.wl_surface().set_input_region(Some(r.wl_region()));
+                }
+            }
+        }
+        self.dirty(&SKind::Osd);
+    }
+}

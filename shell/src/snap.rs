@@ -261,11 +261,8 @@ pub(crate) fn copy_text(s: &str) {
 }
 
 pub(crate) fn file_name() -> String {
-    let tm = crate::app::local_now();
-    let mut now: libc::tm = unsafe { std::mem::zeroed() };
-    let t = unsafe { libc::time(std::ptr::null_mut()) };
-    unsafe { libc::localtime_r(&t, &mut now) };
-    format!("yami-{:04}-{:02}-{:02}_{:02}-{:02}-{:02}.png", now.tm_year + 1900, tm.mon, tm.day, tm.hour, tm.min, now.tm_sec)
+    let tm = crate::clock::local_now();
+    format!("yami-{:04}-{:02}-{:02}_{:02}-{:02}-{:02}.png", tm.year, tm.mon, tm.day, tm.hour, tm.min, tm.sec)
 }
 
 impl App {
@@ -775,7 +772,7 @@ impl App {
             let mut err = None;
             if ask {
                 let _ = std::fs::create_dir_all(&dir);
-                match crate::app::files_pick("save", &dir, &["--name", &name, "--filter", "PNG|*.png"]) {
+                match crate::proc::files_pick("save", &dir, &["--name", &name, "--filter", "PNG|*.png"]) {
                     Some(p) => path = Some(PathBuf::from(p)),
                     None => return,
                 }

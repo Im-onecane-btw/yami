@@ -157,7 +157,7 @@ impl Upd {
 
 // ── файлы ───────────────────────────────────────────────────────────────────
 pub(crate) fn now() -> u64 {
-    crate::app::unix_now()
+    crate::clock::unix_now()
 }
 pub fn stamp_path() -> PathBuf {
     crate::config::state_dir().join("install.json")
@@ -211,7 +211,7 @@ pub(crate) fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
     if o.status.success() {
         Ok(String::from_utf8_lossy(&o.stdout).trim().to_string())
     } else {
-        Err(String::from_utf8_lossy(&o.stderr).lines().filter(|l| !l.trim().is_empty()).last().unwrap_or("git failed").trim().to_string())
+        Err(String::from_utf8_lossy(&o.stderr).lines().rfind(|l| !l.trim().is_empty()).unwrap_or("git failed").trim().to_string())
     }
 }
 

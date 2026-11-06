@@ -131,7 +131,7 @@ pub fn day_name(i: usize, d: &Day) -> &'static str {
     if i == 0 {
         return "сегодня";
     }
-    wday(&d.date).map(|k| crate::app::RU_DAY[k]).unwrap_or("?")
+    wday(&d.date).map(|k| crate::clock::RU_DAY[k]).unwrap_or("?")
 }
 
 /// погоды ещё нет: города нет — no_city, ошибка — она, иначе ответ ещё идёт
@@ -147,8 +147,8 @@ pub fn status(st: &crate::app::State, no_city: &str) -> String {
 
 /// запрос к Open-Meteo: https и после переадресаций, 10 с, ответ ≤ 1 МБ
 fn get(url: &str, q: &[(&str, String)]) -> Result<serde_json::Value, String> {
-    let mut c = crate::app::curl_get(10, 1 << 20, url, q);
-    let o = crate::app::owned(c.arg("-f")).output().map_err(|_| crate::tf!("нет curl", "no curl"))?;
+    let mut c = crate::proc::curl_get(10, 1 << 20, url, q);
+    let o = crate::proc::owned(c.arg("-f")).output().map_err(|_| crate::tf!("нет curl", "no curl"))?;
     if !o.status.success() {
         return Err(crate::tf!("open-meteo.com не ответил", "open-meteo.com did not answer"));
     }
@@ -205,7 +205,7 @@ fn forecast(old: &Weather, key: &str, city: &str, fahrenheit: bool) -> Result<We
         code: c["weather_code"].as_i64().unwrap_or(3) as i32,
         day: c["is_day"].as_i64().unwrap_or(1) == 1,
         days,
-        at: crate::app::unix_now(),
+        at: crate::clock::unix_now(),
         err: String::new(),
     })
 }
@@ -228,7 +228,7 @@ impl App {
         }
         let w = &self.st.weather;
         let same = w.key == key;
-        let age = crate::app::unix_now().saturating_sub(w.at);
+        let age = crate::clock::unix_now().saturating_sub(w.at);
         // свежий ответ для этого города или недавняя попытка — ждём
         if same && w.has() && age < EVERY && w.err.is_empty() {
             return;

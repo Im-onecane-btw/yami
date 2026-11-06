@@ -1,7 +1,8 @@
 // Верхний бар: тёмная матовая панель, тонкая линия снизу.
 // Модули и их порядок — в настройках (bar_left / bar_center / bar_right).
 
-use crate::app::{local_now, App, SKind, State, BAR_H, RU_DAY};
+use crate::app::{App, SKind, State, BAR_H};
+use crate::clock::{local_now, RU_DAY};
 use crate::config::Settings;
 use crate::font::{self, PX};
 use crate::gfx::{BoxStyle, R};

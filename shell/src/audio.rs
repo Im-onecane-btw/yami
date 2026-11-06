@@ -215,7 +215,7 @@ pub fn spawn(tx: Sender<Msg>) {
                 let t0 = std::time::Instant::now();
                 let mut last = query();
                 let _ = tx2.send(Msg::Audio(last.clone()));
-                let Ok(mut c) = crate::app::owned(Command::new("pactl").arg("subscribe").stdout(Stdio::piped()).stderr(Stdio::null())).spawn() else {
+                let Ok(mut c) = crate::proc::owned(Command::new("pactl").arg("subscribe").stdout(Stdio::piped()).stderr(Stdio::null())).spawn() else {
                     std::thread::sleep(std::time::Duration::from_secs(30));
                     continue;
                 };
@@ -323,7 +323,7 @@ fn viz_thread(tx: Sender<Msg>) {
                     std::thread::park();
                     continue;
                 }
-                let Ok(mut c) = crate::app::owned(
+                let Ok(mut c) = crate::proc::owned(
                     Command::new("parec")
                         .args(["--raw", "--format=s16le", "--rate=44100", "--channels=1", "--latency-msec=20", "-d", "@DEFAULT_MONITOR@"])
                         .stdout(Stdio::piped())

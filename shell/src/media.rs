@@ -1,7 +1,7 @@
 // Музыка: `playerctl -F metadata` сообщает о смене трека и паузе; обложка скачивается один
 // раз и пикселизуется под стиль. Кнопки — playerctl play-pause / next / previous.
 
-use crate::app::Msg;
+use crate::app::{App, Msg, SKind};
 use calloop::channel::Sender;
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
@@ -65,7 +65,7 @@ pub fn spawn(tx: Sender<Msg>) {
         .name("media".into())
         .spawn(move || loop {
             let fmt = "{{playerName}}\t{{status}}\t{{artist}}\t{{title}}\t{{mpris:artUrl}}\t{{mpris:length}}\t{{position}}";
-            let Ok(mut c) = crate::app::owned(Command::new("playerctl").args(["-F", "metadata", "--format", fmt]).stdout(Stdio::piped()).stderr(Stdio::null())).spawn() else {
+            let Ok(mut c) = crate::proc::owned(Command::new("playerctl").args(["-F", "metadata", "--format", fmt]).stdout(Stdio::piped()).stderr(Stdio::null())).spawn() else {
                 std::thread::sleep(std::time::Duration::from_secs(30));
                 continue;
             };
@@ -119,4 +119,43 @@ pub fn fetch_art(url: String, net: bool, tx: Sender<Msg>) {
         });
         let _ = tx.send(Msg::Art(url, img));
     });
+}
+
+impl App {
+    /// эквалайзер где-то виден: захвату звука (parec) есть для кого работать
+    pub fn media_visible(&self) -> bool {
+        self.st.set.viz_placed() || crate::popups::shows_viz(&self.st)
+    }
+
+    /// захват звука для эквалайзера — пока тот где-то виден и музыка играет
+    pub fn viz_sync(&self) {
+        viz_wanted(self.media_visible() && self.st.media.playing());
+    }
+
+    /// вид всплывашки музыки — следующий по кругу (кнопка в её шапке)
+    pub fn media_view_next(&mut self) {
+        let s = &mut self.st.set;
+        s.media_view = crate::settings::cycle(crate::config::MEDIA_VIEWS, &s.media_view).into();
+        self.media_sync();
+    }
+
+    /// вид или эквалайзер поменялись: текст — если теперь нужен, захват звука — если эквалайзер виден
+    pub fn media_sync(&mut self) {
+        self.lyrics_want();
+        self.viz_sync();
+        self.dirty_where(|k| matches!(k, SKind::Popup | SKind::Bar));
+    }
+
+    /// текст песни нужен (всплывашка музыки открыта в виде с текстом) и ещё не искался для этого трека
+    pub fn lyrics_want(&mut self) {
+        if !self.st.popup_is("media") || !matches!(self.st.set.media_view.as_str(), "lyrics" | "both") || self.st.media.title.is_empty() {
+            return;
+        }
+        let k = crate::lyrics::key(&self.st.media);
+        if self.st.lyrics.key == k {
+            return;
+        }
+        self.st.lyrics = crate::lyrics::Lyrics { key: k, ..Default::default() };
+        crate::lyrics::fetch(&self.st.media, self.st.set.lyrics_net, self.tx.clone());
+    }
 }

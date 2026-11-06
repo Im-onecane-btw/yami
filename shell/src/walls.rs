@@ -407,11 +407,11 @@ impl App {
         let title = crate::i18n::tr(if folder { "папка обоев" } else { "обои" }).to_string();
         std::thread::spawn(move || {
             let got = if folder {
-                crate::app::files_pick("dir", &from, &["--title", &title])
+                crate::proc::files_pick("dir", &from, &["--title", &title])
             } else {
                 let pats: Vec<String> = crate::wall::IMAGES.iter().map(|e| format!("*.{e}")).collect();
                 let filter = format!("Images|{}|image/png;image/jpeg;image/webp", pats.join(";"));
-                crate::app::files_pick("open", &from, &["--title", &title, "--filter", &filter])
+                crate::proc::files_pick("open", &from, &["--title", &title, "--filter", &filter])
             };
             let _ = tx.send(Msg::WallsAsked(folder, got, back));
         });
