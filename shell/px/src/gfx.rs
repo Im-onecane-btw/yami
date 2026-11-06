@@ -416,6 +416,36 @@ impl<'a> Canvas<'a> {
         self.fill(R::new(r.right() - n, r.y + n, n, r.h - 2 * n), c);
     }
 
+    /// фаска a без фаски b: жёсткая тень только там, где её не закрывает панель. Под полупрозрачным
+    /// стеклом тень иначе просвечивает второй рамкой со сдвигом (#16)
+    pub fn notched_minus(&mut self, a: R, b: R, n: i32, c: C) {
+        let span = |r: R, y: i32| -> Option<(i32, i32)> {
+            if y < r.y || y >= r.bottom() {
+                return None;
+            }
+            let cut = r.w > 2 * n && r.h > 2 * n && (y < r.y + n || y >= r.bottom() - n);
+            Some(if cut { (r.x + n, r.right() - n) } else { (r.x, r.right()) })
+        };
+        // полосы, внутри которых обе строки не меняются
+        let mut ys = [a.y, a.y + n, a.bottom() - n, a.bottom(), b.y, b.y + n, b.bottom() - n, b.bottom()].map(|y| y.clamp(a.y, a.bottom()));
+        ys.sort_unstable();
+        for w in ys.windows(2) {
+            let (y0, y1) = (w[0], w[1]);
+            let Some((a0, a1)) = span(a, y0).filter(|_| y1 > y0) else { continue };
+            match span(b, y0) {
+                Some((b0, b1)) if b0 < a1 && b1 > a0 => {
+                    if b0 > a0 {
+                        self.fill(R::new(a0, y0, b0 - a0, y1 - y0), c);
+                    }
+                    if b1 < a1 {
+                        self.fill(R::new(b1, y0, a1 - b1, y1 - y0), c);
+                    }
+                }
+                _ => self.fill(R::new(a0, y0, a1 - a0, y1 - y0), c),
+            }
+        }
+    }
+
     /// размыть фон под r (углы с фаской n остаются чистыми)
     pub fn blur_rect(&mut self, r: R, n: i32) {
         let r = R::new(r.x + self.ox, r.y + self.oy, r.w, r.h);
@@ -437,7 +467,7 @@ impl<'a> Canvas<'a> {
             self.blur_rect(r, n);
         }
         if st.shadow > 0 && !st.pressed {
-            self.notched(R::new(r.x + st.shadow, r.y + st.shadow, r.w, r.h), n, self.shade);
+            self.notched_minus(R::new(r.x + st.shadow, r.y + st.shadow, r.w, r.h), r, n, self.shade);
         }
         self.notched(r, n, st.fill);
         if st.bevel {
