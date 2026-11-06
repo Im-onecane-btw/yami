@@ -68,7 +68,23 @@ pub struct Fonts {
     pub ellipsis: &'static str,
 }
 
+/// найденное fc-match за время жизни процесса: смена шрифта (ползунок «пиксельности» ходит
+/// туда-обратно) не запускает его заново по семь раз в нити Wayland. Промахи не запоминаются:
+/// только что поставленный шрифт найдётся со второй попытки
+static FOUND: std::sync::Mutex<Vec<(String, Option<String>, (String, u32))>> = std::sync::Mutex::new(Vec::new());
+
 fn fc_find(pattern: &str, want: Option<&str>) -> Option<(String, u32)> {
+    if let Some(hit) = FOUND.lock().ok()?.iter().find(|(p, w, _)| (p.as_str(), w.as_deref()) == (pattern, want)).map(|x| x.2.clone()) {
+        return Some(hit);
+    }
+    let r = fc_match(pattern, want)?;
+    if let Ok(mut f) = FOUND.lock() {
+        f.push((pattern.to_string(), want.map(str::to_string), r.clone()));
+    }
+    Some(r)
+}
+
+fn fc_match(pattern: &str, want: Option<&str>) -> Option<(String, u32)> {
     let out = Command::new("fc-match").args(["-f", "%{family}|%{file}|%{index}", pattern]).output().ok()?;
     let s = String::from_utf8_lossy(&out.stdout).to_string();
     let mut it = s.split('|');

@@ -135,11 +135,15 @@ pub fn self_exe() -> PathBuf {
 }
 
 /// процессы этого пользователя по имени программы (последняя часть argv[0]) и, если задан, аргументу
-/// среди остальных; зомби и чужие (cmdline не читается) не попадают
+/// среди остальных; процессы других пользователей и зомби (cmdline пуст) не попадают
 pub fn pids(exe: &str, arg: &str) -> Vec<u32> {
+    use std::os::unix::fs::MetadataExt;
     let Ok(rd) = std::fs::read_dir("/proc") else { return vec![] };
+    let me = unsafe { libc::getuid() };
     rd.flatten()
         .filter_map(|e| e.file_name().to_str()?.parse::<u32>().ok())
+        // cmdline чужих процессов читается всем: владелец папки /proc/PID — их uid
+        .filter(|pid| std::fs::metadata(format!("/proc/{pid}")).is_ok_and(|m| m.uid() == me))
         .filter(|pid| {
             let c = std::fs::read(format!("/proc/{pid}/cmdline")).unwrap_or_default();
             let mut parts = c.split(|b| *b == 0);

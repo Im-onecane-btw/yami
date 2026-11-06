@@ -22,10 +22,7 @@ pub struct Icons {
 fn icon_roots() -> Vec<PathBuf> {
     let h = crate::paths::home();
     let mut v = vec![crate::paths::data_dir().join("icons"), h.join(".icons")];
-    let xdg = std::env::var("XDG_DATA_DIRS").unwrap_or_else(|_| "/usr/local/share:/usr/share".into());
-    for d in xdg.split(':') {
-        v.push(Path::new(d).join("icons"));
-    }
+    v.extend(crate::paths::data_dirs().into_iter().map(|d| d.join("icons")));
     v.push("/var/lib/flatpak/exports/share/icons".into());
     v
 }
@@ -276,11 +273,7 @@ pub fn thumbs_tidy() {
 
 /// где лежит миниатюра (~/.cache/yami/thumbs): ключ — путь, время изменения и размер
 pub fn thumb_path(path: &Path, mtime: i64, size: i32) -> PathBuf {
-    let mut h: u64 = 0xcbf29ce484222325;
-    for b in format!("{}|{}|{}", path.display(), mtime, size).bytes() {
-        h ^= b as u64;
-        h = h.wrapping_mul(0x100000001b3);
-    }
+    let h = crate::fnv(crate::FNV0, format!("{}|{}|{}", path.display(), mtime, size).as_bytes());
     crate::paths::cache_dir().join("yami/thumbs").join(format!("{h:016x}.png"))
 }
 
@@ -404,10 +397,7 @@ pub struct App {
 
 fn app_dirs() -> Vec<PathBuf> {
     let mut v = vec![crate::paths::data_dir().join("applications")];
-    let xdg = std::env::var("XDG_DATA_DIRS").unwrap_or_else(|_| "/usr/local/share:/usr/share".into());
-    for d in xdg.split(':') {
-        v.push(Path::new(d).join("applications"));
-    }
+    v.extend(crate::paths::data_dirs().into_iter().map(|d| d.join("applications")));
     v.push("/var/lib/flatpak/exports/share/applications".into());
     v.push(crate::paths::data_dir().join("flatpak/exports/share/applications"));
     v
