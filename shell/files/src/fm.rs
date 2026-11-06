@@ -334,9 +334,14 @@ pub enum Focus {
 
 pub enum Thumb {
     Wait,
-    Ready(Rc<Img>),
+    /// картинка и номер кадра, в котором её показали последний раз
+    Ready(Rc<Img>, Cell<u32>),
     None,
 }
+
+/// миниатюры в памяти — не больше этого: папка на тысячи фото иначе копила бы их все, пока открыта.
+/// Вытесняются давно не показанные; с диска (кеш миниатюр) они возвращаются за доли миллисекунды
+const THUMB_BUDGET: usize = 32 << 20;
 
 pub struct Fm {
     pub look: Look,
@@ -350,6 +355,10 @@ pub struct Fm {
     pub trash_n: usize,
     pub(crate) apps: Option<Apps>,
     pub thumbs: HashMap<(PathBuf, i32), Thumb>,
+    /// сколько байт пикселей в готовых миниатюрах
+    pub thumb_bytes: usize,
+    /// номер кадра (для вытеснения миниатюр)
+    pub frame: Cell<u32>,
     pub want: RefCell<Vec<crate::thumbs::Req>>,
     pub worker: Option<crate::thumbs::Thumbs>,
     pub menu: Option<Menu>,
@@ -388,6 +397,38 @@ pub struct Fm {
 }
 
 impl Fm {
+    /// готовая миниатюра (или «не вышло») из нити
+    pub fn put_thumb(&mut self, key: (PathBuf, i32), img: Option<Img>) {
+        let t = match img {
+            Some(i) => {
+                self.thumb_bytes += i.px.len() * 4;
+                Thumb::Ready(Rc::new(i), Cell::new(self.frame.get()))
+            }
+            None => Thumb::None,
+        };
+        if let Some(Thumb::Ready(old, _)) = self.thumbs.insert(key, t) {
+            self.thumb_bytes = self.thumb_bytes.saturating_sub(old.px.len() * 4);
+        }
+    }
+
+    /// сверх бюджета: выкинуть давно не показанные, пока не останется половина
+    pub fn trim_thumbs(&mut self) {
+        if self.thumb_bytes <= THUMB_BUDGET {
+            return;
+        }
+        let now = self.frame.get();
+        let mut old: Vec<(u32, (PathBuf, i32))> = self.thumbs.iter().filter_map(|(k, t)| if let Thumb::Ready(_, u) = t { (u.get() != now).then(|| (u.get(), k.clone())) } else { None }).collect();
+        old.sort_unstable_by_key(|o| o.0);
+        for (_, k) in old {
+            if self.thumb_bytes <= THUMB_BUDGET / 2 {
+                break;
+            }
+            if let Some(Thumb::Ready(i, _)) = self.thumbs.remove(&k) {
+                self.thumb_bytes = self.thumb_bytes.saturating_sub(i.px.len() * 4);
+            }
+        }
+    }
+
     pub fn new(look: Look, cfg: Cfg, dirs: Vec<PathBuf>, tx: Option<calloop::channel::Sender<Msg>>) -> Fm {
         let mut fm = Fm {
             look,
@@ -401,6 +442,8 @@ impl Fm {
             trash_n: crate::trash::count(),
             apps: None,
             thumbs: HashMap::new(),
+            thumb_bytes: 0,
+            frame: Cell::new(0),
             want: RefCell::new(vec![]),
             worker: None,
             menu: None,
@@ -744,6 +787,7 @@ impl Fm {
         }
         let keep: HashSet<PathBuf> = self.tabs.iter().flat_map(|t| t.panes.iter().map(|p| p.dir.clone())).collect();
         self.thumbs.retain(|(p, _), _| p.parent().map(|d| keep.contains(d)).unwrap_or(false));
+        self.thumb_bytes = self.thumbs.values().map(|t| if let Thumb::Ready(i, _) = t { i.px.len() * 4 } else { 0 }).sum();
         self.load_active();
         self.fx.push(Fx::Title(self.title()));
         if let Some(p) = &mut self.pick {

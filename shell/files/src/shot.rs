@@ -212,10 +212,7 @@ pub fn run(args: &[String]) -> i32 {
         if !want.is_empty() {
             for r in want {
                 let img = image::open(&r.path).ok().map(|i| crate::icons::from_rgba(&i.thumbnail(r.size as u32, r.size as u32).to_rgba8()));
-                fm.thumbs.insert((r.path, r.size), match img {
-                    Some(i) => crate::fm::Thumb::Ready(std::rc::Rc::new(i)),
-                    None => crate::fm::Thumb::None,
-                });
+                fm.put_thumb((r.path, r.size), img);
             }
             let mut ui = Ui { cv: Canvas::new(&mut buf, w, h), f: &mut fonts, ic: &mut icons, t: look.theme, zones: vec![], ptr: None, down: false, anim: false, blink: true, tr: crate::i18n::tr };
             crate::draw::draw(&mut ui, &fm, w, h);

@@ -669,7 +669,10 @@ pub(crate) fn thumb_of(fm: &Fm, e: &fsx::Entry, size: i32) -> Option<std::rc::Rc
         return None;
     }
     match fm.thumbs.get(&(e.path.clone(), size)) {
-        Some(Thumb::Ready(img)) => Some(img.clone()),
+        Some(Thumb::Ready(img, used)) => {
+            used.set(fm.frame.get());
+            Some(img.clone())
+        }
         Some(_) => None,
         None => {
             fm.want.borrow_mut().push(crate::thumbs::Req { path: e.path.clone(), mtime: e.mtime, size, video });

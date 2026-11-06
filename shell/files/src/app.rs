@@ -342,12 +342,7 @@ impl App {
                         });
                     }
                 }
-                Msg::Thumb(p, s, img) => {
-                    self.fm.thumbs.insert((p, s), match img {
-                        Some(i) => Thumb::Ready(std::rc::Rc::new(i)),
-                        None => Thumb::None,
-                    });
-                }
+                Msg::Thumb(p, s, img) => self.fm.put_thumb((p, s), img),
                 Msg::Op(e) => self.fm.on_op(e),
                 Msg::Du { gen, v, done } => self.fm.on_du(gen, v, done),
                 Msg::Devices(d) => {
@@ -478,6 +473,7 @@ impl App {
         if self.dirty && self.configured && !self.frame_pending {
             self.draw();
         }
+        self.fm.trim_thumbs();
         // заявки на миниатюры, собранные кадром
         let want: Vec<crate::thumbs::Req> = std::mem::take(&mut *self.fm.want.borrow_mut());
         for r in want {
@@ -518,6 +514,7 @@ impl App {
 
     pub(crate) fn draw(&mut self) {
         self.dirty = false;
+        self.fm.frame.set(self.fm.frame.get().wrapping_add(1));
         let scrolling = self.step_scroll();
         let (w, h) = (self.w, self.h);
         // HiDPI: буфер в физических пикселях, холст логический, увеличение ближайшим соседом
