@@ -263,8 +263,28 @@ if [[ -L /etc/systemd/system/display-manager.service ]]; then
   OTHER_DM="$(basename "$(readlink /etc/systemd/system/display-manager.service)" .service)"
   [[ $OTHER_DM == sddm ]] && OTHER_DM=""
 fi
+# SDDM reads its config in this order, a later file winning: /usr/lib/sddm/sddm.conf.d and
+# /etc/sddm.conf.d (each by file name), then /etc/sddm.conf. Ours is named to come last in the folder
+# (KDE writes kde_settings.conf there), 10-yami.conf is its old name.
+SDDM_OURS=/etc/sddm.conf.d/zz-yami.conf
+# the file that sets the SDDM theme last and the theme ("FILE<TAB>NAME"); `skip` leaves out ours
+sddm_theme_by() {
+  local f v last=""
+  for f in /usr/lib/sddm/sddm.conf.d/* /etc/sddm.conf.d/* /etc/sddm.conf; do
+    [[ -f $f && -r $f ]] || continue
+    [[ ${1:-} == skip && ( $f == "$SDDM_OURS" || $f == /etc/sddm.conf.d/10-yami.conf ) ]] && continue
+    v="$(awk -F= '/^[[:space:]]*\[/ { s = $0; gsub(/[[:space:]]/, "", s); next }
+      s == "[Theme]" && $1 ~ /^[[:space:]]*Current[[:space:]]*$/ { v = $2; gsub(/^[[:space:]]+|[[:space:]]+$/, "", v); hit = 1 }
+      END { if (hit) print v; else exit 1 }' "$f" 2>/dev/null)" && last="$f	$v"
+  done
+  printf '%s' "$last"
+}
+# a theme someone chose for SDDM (KDE: System Settings → Login Screen): yami's is then off by default
+SDDM_OTHER="$(sddm_theme_by skip)"
+SDDM_OTHER="${SDDM_OTHER#*	}"
+[[ $SDDM_OTHER == yami ]] && SDDM_OTHER=""
 LOGIN_ON=1
-[[ -n $OTHER_DM ]] && LOGIN_ON=0
+[[ -n $OTHER_DM || -n $SDDM_OTHER ]] && LOGIN_ON=0
 [[ -n $LOGIN_FLAG ]] && LOGIN_ON=$LOGIN_FLAG
 # игры: по умолчанию — только если здесь есть Steam (пакет, flatpak или его папка)
 GAMES_ON=0
@@ -616,7 +636,8 @@ c_desc() {
     apps) t "kitty, fastfetch, pavucontrol, btop, udisks2, миниатюры видео, bsdtar, libmpv для плеера, gvfs: телефоны и сеть" "kitty, fastfetch, pavucontrol, btop, udisks2, video thumbnails, bsdtar, libmpv for the player, gvfs: phones and network" ;;
     tools) t "ночной свет (wlsunset), текст и QR со скриншота (tesseract, zbar)" "night light (wlsunset), text and QR from screenshots (tesseract, zbar)" ;;
     games) t "GameMode и MangoHud в палитре" "GameMode and MangoHud in the palette" ;;
-    login) if [[ -n $OTHER_DM ]]; then t "пиксельная тема как экран блокировки; заменит $OTHER_DM" "pixel theme like the lock screen; replaces $OTHER_DM"; else t "пиксельная тема как экран блокировки, вход в niri" "pixel theme like the lock screen, logs into niri"; fi ;;
+    login) if [[ -n $OTHER_DM ]]; then t "пиксельная тема как экран блокировки; заменит $OTHER_DM" "pixel theme like the lock screen; replaces $OTHER_DM"
+      elif [[ -n $SDDM_OTHER ]]; then t "пиксельная тема как экран блокировки; заменит тему SDDM $SDDM_OTHER" "pixel theme like the lock screen; replaces the SDDM theme $SDDM_OTHER"; else t "пиксельная тема как экран блокировки, вход в niri" "pixel theme like the lock screen, logs into niri"; fi ;;
     look) t "qt6ct + adw-gtk3 + Papirus: Qt, KDE и GTK в палитре райса" "qt6ct + adw-gtk3 + Papirus: Qt, KDE and GTK in the rice palette" ;;
     nvidia) t "переменные драйвера, профиль против утечки VRAM, драйвер с начала загрузки (пароль диска виден и на DisplayPort), NVENC в OBS на старом драйвере" "driver env, a VRAM leak profile, the driver from the start of boot (disk password visible on DisplayPort too), NVENC in OBS on an old driver" ;;
     fork)
@@ -1351,8 +1372,31 @@ do_need_pkgs() {
 }
 
 # ── login screen: SDDM with the yami theme ──────────────────────────────────
+# the theme is Qt 6 (QtVersion=6, SDDM 0.21+); an older SDDM (Qt 5 only) shows a broken login screen
+sddm_qt6() {
+  local d
+  command -v sddm-greeter-qt6 >/dev/null && return 0
+  for d in /usr/bin /usr/libexec /usr/lib/sddm /usr/local/bin; do [[ -x $d/sddm-greeter-qt6 ]] && return 0; done
+  return 1
+}
+# for the summary: a login screen that will not show, and why
+sddm_check() {
+  command -v sddm >/dev/null || return 0
+  if ! sddm_qt6; then
+    warn "$(t "SDDM здесь без Qt 6 (старше 0.21): тема yami не встанет, экран входа оставлен как был" "this SDDM has no Qt 6 greeter (older than 0.21): the yami theme cannot run, the login screen is left as it was")"
+    return 0
+  fi
+  # /etc/sddm.conf is read after the folder: a theme set there still wins
+  local by
+  by="$(sddm_theme_by)"
+  [[ -e $SDDM_OURS && -n $by && ${by%%	*} != "$SDDM_OURS" && ${by#*	} != yami ]] &&
+    warn "$(t "тему SDDM задаёт ${by%%	*} (Current=${by#*	}): поставь там Current=yami" "${by%%	*} sets the SDDM theme (Current=${by#*	}): put Current=yami there")"
+  return 0
+}
 do_sddm() {
   local dst=/usr/share/sddm/themes/yami src="$CACHE/sddm-yami"
+  # the summary says why (sddm_check)
+  sddm_qt6 || return 99
   rm -rf -- "$src"
   "$ROOT/tools/sddm-build.sh" "$src" >/dev/null || return 1
   $SU rm -rf -- "$dst"
@@ -1369,8 +1413,10 @@ do_sddm() {
   $SU rm -rf -- /usr/share/icons/yami-cursor
   $SU cp -r "$CACHE/yami-cursor" /usr/share/icons/yami-cursor || return 1
   rm -rf -- "$CACHE/yami-cursor"
-  printf '%s\n' "# yami: login screen theme (installer)" "[Theme]" "Current=yami" "CursorTheme=yami-cursor" "CursorSize=24" \
-    "" "[Users]" "RememberLastUser=true" "RememberLastSession=true" | $SU tee /etc/sddm.conf.d/10-yami.conf >/dev/null
+  $SU rm -f /etc/sddm.conf.d/10-yami.conf
+  printf '%s\n' "# yami: login screen theme (installer; ./install.sh --uninstall removes it)" "[Theme]" "Current=yami" "CursorTheme=yami-cursor" "CursorSize=24" \
+    "" "[Users]" "RememberLastUser=true" "RememberLastSession=true" | $SU tee "$SDDM_OURS" >/dev/null
+
   # first boot: this user and the Niri session already picked (SDDM keeps its own choice later)
   local st=/var/lib/sddm/state.conf sess
   sess="$(ls /usr/share/wayland-sessions/niri.desktop /usr/local/share/wayland-sessions/niri.desktop 2>/dev/null | head -n1)"
@@ -1387,7 +1433,10 @@ do_sddm() {
     $SU systemctl daemon-reload
   fi
   if ((SYSTEMD)); then
-    # заменить текущий менеджер входа — со следующей загрузки, сеанс не трогаем
+    # заменить текущий менеджер входа — со следующей загрузки, сеанс не трогаем; --uninstall вернёт его
+    if [[ -n $OTHER_DM && ! -s $STATE/login-dm ]]; then
+      mkdir -p "$STATE" && printf '%s\n' "$OTHER_DM" >"$STATE/login-dm"
+    fi
     $SU systemctl enable -f sddm.service || return 1
   fi
 }
@@ -1544,6 +1593,48 @@ do_drop_old() {
 }
 
 # ── uninstall ───────────────────────────────────────────────────────────────
+# the login screen: yami's SDDM theme, its config and cursor go, the login manager it replaced
+# (do_sddm wrote it down) comes back from the next boot; SDDM itself stays with its own theme (KDE
+# and others use it). The plymouth and NVIDIA fixes stay too: they help without yami.
+uninstall_login() {
+  local dm="" f files=() now
+  [[ -r $STATE/login-dm ]] && dm="$(head -n1 "$STATE/login-dm")"
+  [[ $dm =~ ^[A-Za-z0-9_.@-]+$ ]] || dm=""
+  # the manager comes back only while SDDM is still the one: another chosen since then stays
+  now="$(basename "$(readlink /etc/systemd/system/display-manager.service 2>/dev/null)" .service)"
+  if [[ -n $dm && $now != sddm ]]; then
+    dm=""
+    rm -f "$STATE/login-dm"
+  fi
+  for f in "$SDDM_OURS" /etc/sddm.conf.d/10-yami.conf /usr/share/sddm/themes/yami /usr/share/icons/yami-cursor; do
+    [[ -e $f ]] && files+=("$f")
+  done
+  ((${#files[@]})) || [[ -n $dm ]] || return 0
+  local cmd="rm -rf ${files[*]}"
+  [[ -n $dm ]] && cmd+="; systemctl enable -f $dm.service"
+  if ((EUID != 0)) && { [[ -z $SU ]] || ! root_start; }; then
+    warn "$(t "экран входа не убран, нужен root:" "the login screen is not removed, root is needed:") sudo sh -c '$cmd'"
+    return 0
+  fi
+  ((${#files[@]})) && $SU rm -rf -- "${files[@]}"
+  say "$(t "экран входа: тема yami убрана, у SDDM снова своя" "login screen: the yami theme is gone, SDDM has its own again")"
+  if [[ -n $dm ]] && ((SYSTEMD)); then
+    if $SU systemctl enable -f "$dm.service"; then
+      say "$(t "менеджер входа: снова $dm со следующей загрузки" "login manager: $dm again from the next boot")"
+      rm -f "$STATE/login-dm"
+    else
+      warn "$(t "не включился $dm: sudo systemctl enable -f $dm.service" "$dm did not enable: sudo systemctl enable -f $dm.service")"
+    fi
+  elif ((SYSTEMD)) && [[ $now == sddm ]]; then
+    # installed before the replaced manager was written down: name the ones on this system
+    local u others=()
+    for u in gdm lightdm lxdm ly greetd cosmic-greeter plasmalogin; do
+      [[ -f /usr/lib/systemd/system/$u.service || -f /etc/systemd/system/$u.service ]] && others+=("$u")
+    done
+    ((${#others[@]})) && note "$(t "SDDM остаётся менеджером входа; вернуть прежний:" "SDDM stays the login manager; to switch back:") sudo systemctl enable -f ${others[0]}.service$( ((${#others[@]} > 1)) && printf ' (%s)' "${others[*]}")"
+  fi
+  root_stop
+}
 uninstall() {
   printf '\e[H\e[J'
   banner 1
@@ -1564,6 +1655,7 @@ uninstall() {
   # the MangoHud config theme.py wrote (one without its mark is the user's own)
   head -1 "$CFG/MangoHud/MangoHud.conf" 2>/dev/null | grep -q '^# yami: written by tools/theme.py' && rm -f "$CFG/MangoHud/MangoHud.conf"
   rm -rf "$HOME/.local/share/fonts/yami" "$HOME/.local/share/yami" "$CFG/qt6ct/qss/yami"
+  uninstall_login
   rm -f "$STATE/packages-needed" "$STATE/components-known" "$STATE/settings-newer.json"
   # the build cache (gigabytes); yami-niri sources only without patch work in them
   rm -rf -- "$CACHE/target" "$CACHE/sddm-yami" "$CACHE/update.log" "$CACHE/update.lock"
@@ -1744,6 +1836,7 @@ if [[ $FAM == nixos ]]; then
   printf '%s\n' "$NIX_PKGS" | sed "s/^/    $D/; s/\$/$R/"
   note "programs.niri.enable = true;"
 fi
+on login && ((!DRY)) && sddm_check
 niri_ok || ((DRY)) || on fork || warn "$(t "нужен niri $NIRI_MIN или новее — поставь его или запусти без --no-fork" "niri $NIRI_MIN or newer is required: install it or rerun without --no-fork")"
 
 if ((RUNNING_NIRI)); then next="$(t "всё уже применилось; Qt и GTK-программы — после перезапуска" "everything is live; Qt and GTK apps pick it up after a restart")"

@@ -204,11 +204,11 @@ in the finished desktop. Useful flags:
 | `--no-fork` | keep the packaged niri instead of building yami-niri |
 | `--no-tools` | leave out night light, text and QR from screenshots (wlsunset, tesseract, zbar) |
 | `--games`, `--no-games` | GameMode and MangoHud (on by default when Steam is installed) |
-| `--login`, `--no-login` | SDDM with the yami theme even if another login manager is set / leave it alone |
+| `--login`, `--no-login` | SDDM with the yami theme even if another login manager or SDDM theme is set / leave it alone |
 | `--no-sudo` | home directory only: no packages, no system files |
 | `--dry-run` | print the plan, change nothing |
 | `--no-count` | do not add this machine to the «installs» badge (one anonymous download, [details](docs/SECURITY.md#install-count)) |
-| `--uninstall` | remove the shell, the fork and the dotfiles, restore the backups |
+| `--uninstall` | remove the shell, the fork, the dotfiles and the login theme, restore the backups and the previous login manager |
 | `--update` | rebuild from this tree keeping every setting, no sudo (what `yami update apply` runs) |
 | `--no-anim` | disable the installer animations |
 
@@ -230,7 +230,9 @@ What it does:
    from a previous niri config are carried over into `user.kdl`.
 5. Recolours everything around the shell (Qt, KDE, GTK, kitty, btop, browser menus, cursor).
 6. With the «login screen» component: installs the SDDM theme (with the pixel cursor) and makes
-   SDDM the login manager from the next boot (off by default when another one is set).
+   SDDM the login manager from the next boot (off by default when another login manager or SDDM
+   theme is set). `--uninstall` removes the theme and brings back the login manager it replaced;
+   SDDM itself stays, with its own theme.
 7. Builds yami-niri (5–25 minutes, output shown) and enables it from the next login.
 
 An existing install under the old name DARK-4RMY is moved over: settings, palette, widgets

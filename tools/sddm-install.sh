@@ -28,8 +28,10 @@ CUR="$(mktemp -d)/yami-cursor"
 python3 -I "$ROOT/tools/theme.py" --cursor-to "$CUR"
 sudo rm -rf -- /usr/share/icons/yami-cursor
 sudo cp -r "$CUR" /usr/share/icons/yami-cursor
-printf '%s\n' "# yami: login screen theme" "[Theme]" "Current=yami" "CursorTheme=yami-cursor" "CursorSize=24" \
-  "" "[Users]" "RememberLastUser=true" "RememberLastSession=true" | sudo tee /etc/sddm.conf.d/10-yami.conf >/dev/null
+# zz-: read after the other files of the folder (KDE's kde_settings.conf); 10-yami.conf is the old name
+sudo rm -f /etc/sddm.conf.d/10-yami.conf
+printf '%s\n' "# yami: login screen theme (./install.sh --uninstall removes it)" "[Theme]" "Current=yami" "CursorTheme=yami-cursor" "CursorSize=24" \
+  "" "[Users]" "RememberLastUser=true" "RememberLastSession=true" | sudo tee /etc/sddm.conf.d/zz-yami.conf >/dev/null
 # plymouth: never let a hung boot splash block multi-user.target (see system/plymouth)
 if [[ -f /usr/lib/systemd/system/plymouth-quit.service ]]; then
   for u in plymouth-quit plymouth-quit-wait; do
@@ -38,6 +40,11 @@ if [[ -f /usr/lib/systemd/system/plymouth-quit.service ]]; then
   sudo systemctl daemon-reload
 fi
 if ((ENABLE)) && [[ -d /run/systemd/system ]]; then
+  # the login manager SDDM replaces: ./install.sh --uninstall enables it again
+  prev="$(basename "$(readlink /etc/systemd/system/display-manager.service 2>/dev/null)" .service)"
+  if [[ -n $prev && $prev != sddm && ! -s $HOME/.local/state/yami/login-dm ]]; then
+    mkdir -p "$HOME/.local/state/yami" && printf '%s\n' "$prev" >"$HOME/.local/state/yami/login-dm"
+  fi
   sudo systemctl enable -f sddm.service
   echo "sddm: enabled from the next boot (the current session is untouched)"
 fi
