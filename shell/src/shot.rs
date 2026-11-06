@@ -703,7 +703,8 @@ const MOCK_LYRICS: &str = "[01:02.00]grey morning on the glass
 [01:08.00]the street below is quiet
 [01:14.00]i count the drops in eights and fours
 [01:20.00]and every one lands on a whole pixel, never between two of them
-[01:27.00]the kettle hums along
+[01:24.00]
+[01:27.00]the kettle hums along — it’s “café” time
 [01:33.00]a single line of amber
 [01:39.00]stays lit across the dark
 [01:45.00]rain, rain, pixel rain

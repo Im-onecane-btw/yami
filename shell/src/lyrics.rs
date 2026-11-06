@@ -86,10 +86,10 @@ pub fn parse(text: &str) -> (Vec<Line>, bool) {
         if !times.is_empty() {
             synced = true;
             for t in times {
-                out.push(Line { at: t, text: rest.trim().to_string() });
+                out.push(Line { at: t, text: tidy(rest) });
             }
         } else {
-            out.push(Line { at: -1.0, text: raw.trim().to_string() });
+            out.push(Line { at: -1.0, text: tidy(raw) });
         }
         if out.len() >= MAX_LINES {
             break;
@@ -102,21 +102,25 @@ pub fn parse(text: &str) -> (Vec<Line>, bool) {
             l.at = (l.at - offset).max(0.0);
         }
         out.sort_by(|a, b| a.at.total_cmp(&b.at));
-    } else {
-        // пустые строки по краям — прочь, подряд — одна
-        let mut v: Vec<Line> = vec![];
-        for l in out {
-            if l.text.is_empty() && v.last().map_or(true, |p| p.text.is_empty()) {
-                continue;
-            }
-            v.push(l);
-        }
-        while v.last().is_some_and(|l| l.text.is_empty()) {
-            v.pop();
-        }
-        out = v;
+    }
+    // пустые строки (в LRC — проигрыши): подряд — одна, по краям не нужны
+    out.dedup_by(|b, a| a.text.is_empty() && b.text.is_empty());
+    if out.first().is_some_and(|l| l.text.is_empty()) {
+        out.remove(0);
+    }
+    if out.last().is_some_and(|l| l.text.is_empty()) {
+        out.pop();
     }
     (out, synced)
+}
+
+/// строка как есть, только без управляющих символов (табуляция — пробел): шрифту их не нарисовать
+fn tidy(s: &str) -> String {
+    s.trim().chars().filter_map(|c| match c {
+        '\t' => Some(' '),
+        c if c.is_control() => None,
+        c => Some(c),
+    }).collect()
 }
 
 /// «мм:сс», «мм:сс.xx», «мм:сс:xx» → секунды
@@ -254,7 +258,23 @@ fn from_net(artist: &str, title: &str, len: f64) -> Result<Option<String>, ()> {
     }
     let Some(v) = get("https://lrclib.net/api/search", &[("q", format!("{a} {t}").trim().to_string())])? else { return Ok(None) };
     let Some(list) = v.as_array() else { return Ok(None) };
-    Ok(list.iter().find_map(|x| text(x, "syncedLyrics")).or_else(|| list.iter().find_map(|x| text(x, "plainLyrics"))))
+    // поиск возвращает и чужие песни: берём только с тем же названием (и исполнителем, если он
+    // известен и записан так же) и похожей длительностью
+    let (nt, na) = (norm(&t), norm(&a));
+    let fits = |x: &&serde_json::Value| {
+        let (xt, xa) = (norm(x["trackName"].as_str().unwrap_or("")), norm(x["artistName"].as_str().unwrap_or("")));
+        let dur = x["duration"].as_f64().unwrap_or(0.0);
+        let title = !xt.is_empty() && (xt.contains(&nt) || nt.contains(&xt));
+        let artist = na.is_empty() || (!xa.is_empty() && (xa.contains(&na) || na.contains(&xa)));
+        title && (artist || xt == nt) && (len <= 0.0 || dur <= 0.0 || (dur - len).abs() < 15.0)
+    };
+    let good: Vec<&serde_json::Value> = list.iter().filter(fits).collect();
+    Ok(good.iter().find_map(|x| text(x, "syncedLyrics")).or_else(|| good.iter().find_map(|x| text(x, "plainLyrics"))))
+}
+
+/// для сравнения названий: только буквы и цифры, строчные
+fn norm(s: &str) -> String {
+    s.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect()
 }
 
 #[cfg(test)]
@@ -278,6 +298,9 @@ mod tests {
         let (l, s) = parse("[Chorus]\nla la");
         assert!(!s);
         assert_eq!(l.len(), 2);
+        // проигрыши LRC: подряд — один, по краям — прочь; табуляция — пробел
+        let (l, _) = parse("[00:01.00]\n[00:02.00]a\tb\n[00:03.00]\n[00:04.00] \n[00:05.00]c\n[00:06.00]\n");
+        assert_eq!(l.iter().map(|x| (x.at, x.text.as_str())).collect::<Vec<_>>(), vec![(2.0, "a b"), (3.0, ""), (5.0, "c")]);
     }
 
     /// живой запрос к lrclib.net: `cargo test -p yami-shell lyrics -- --ignored`

@@ -345,9 +345,7 @@ fn lyrics(ui: &mut Ui, st: &State, r: R) {
     let lh = ui.f.line(PX) + 6;
     let mut rows: Vec<(usize, String)> = vec![];
     for (i, l) in ly.lines.iter().enumerate() {
-        if l.text.is_empty() {
-            rows.push((i, String::new()));
-        }
+        // пустая строка (проигрыш) — один пустой ряд: wrap("") сам отдаёт [""]
         for part in ui.f.wrap(PX, &l.text, r.w - 8, 3) {
             rows.push((i, part));
         }
@@ -371,6 +369,8 @@ fn lyrics(ui: &mut Ui, st: &State, r: R) {
             Some(c) if *i < c => t.text_faint,
             _ => t.text_dim,
         };
+        // звучит проигрыш: на месте строки — многоточие
+        let s = if s.is_empty() && cur == Some(*i) { "…" } else { s.as_str() };
         ui.cv.text_in(ui.f, PX, R::new(r.x + 4, r.y + k as i32 * lh, r.w - 8, lh), s, c);
     }
     ui.cv.pop_clip();
