@@ -91,13 +91,23 @@ impl V {
         format!("{n}{e} — yami-view")
     }
 
-    /// загрузить текущую и соседние; лишнее из кэша выкинуть
-    pub fn want(&mut self) {
+    /// текущая и соседние — всё, что держим декодированным
+    pub fn keep(&self) -> Vec<PathBuf> {
         let n = self.list.len();
         if n == 0 {
+            return vec![];
+        }
+        let mut k: Vec<PathBuf> = [self.idx, (self.idx + 1) % n, (self.idx + n - 1) % n].iter().map(|&i| self.list[i].clone()).collect();
+        k.dedup();
+        k
+    }
+
+    /// загрузить текущую и соседние; лишнее из кэша выкинуть
+    pub fn want(&mut self) {
+        let keep = self.keep();
+        if keep.is_empty() {
             return;
         }
-        let keep: Vec<PathBuf> = [self.idx, (self.idx + 1) % n, (self.idx + n - 1) % n].iter().map(|&i| self.list[i].clone()).collect();
         self.cache.retain(|p, pic| keep.contains(p) || pic.edited);
         for p in &keep {
             if !self.cache.contains_key(p) && !self.pending.contains(p) && !self.errs.contains_key(p) {
@@ -107,10 +117,17 @@ impl V {
         }
     }
 
+    /// нить декодирования пропустила заявку: картинка уже не нужна
+    pub fn on_skipped(&mut self, p: PathBuf) {
+        self.pending.retain(|x| x != &p);
+    }
+
     pub fn on_loaded(&mut self, p: PathBuf, r: Result<Pic, String>) {
         self.pending.retain(|x| x != &p);
         let cur = self.path() == Some(&p);
         match r {
+            // долистали дальше, пока она декодировалась: не держать (96 МБ на фото 24 Мп)
+            Ok(_) if !self.keep().contains(&p) => return,
             Ok(pic) => {
                 self.cache.insert(p, Rc::new(pic));
             }
@@ -492,8 +509,8 @@ pub fn draw(ui: &mut Ui, v: &V, w: i32, h: i32) {
         _ => ui.cv.clear(t.bg.alpha(t.glass.max(0.9))),
     }
     ui.zone(R::new(0, 0, w, h), Act::Bg, Cur::Default);
-    if let (Some(img), Some((ox, oy, z))) = (v.frame_img(), v.dst()) {
-        let (dw, dh) = ((img.w as f32 * z).round() as i32, (img.h as f32 * z).round() as i32);
+    if let (Some(pic), Some((ox, oy, z))) = (v.pic(), v.dst()) {
+        let (dw, dh) = ((pic.w() as f32 * z).round() as i32, (pic.h() as f32 * z).round() as i32);
         let r = R::new(ox.round() as i32, oy.round() as i32, dw, dh);
         if alpha && v.bg != 1 {
             // шахматка под прозрачностью
@@ -510,15 +527,17 @@ pub fn draw(ui: &mut Ui, v: &V, w: i32, h: i32) {
             }
         }
         if z < 0.999 {
-            // сглаженная копия нужного размера
+            // сглаженная копия нужного размера — прямо из декодированной; полная предумноженная
+            // (для увеличения) здесь не нужна: ещё одна картинка во весь размер в памяти
             let n = v.frame;
+            if !v.px.borrow().is_empty() {
+                v.px.borrow_mut().clear();
+            }
             let mut sm = v.small.borrow_mut();
             let ok = sm.as_ref().map(|s| s.0 == dw && s.1 == dh && s.2 == n).unwrap_or(false);
             if !ok {
-                if let Some(p) = v.pic() {
-                    let f = &p.frames[n.min(p.frames.len() - 1)].0;
-                    *sm = Some((dw, dh, n, Rc::new(pic::scaled(f, dw.max(1) as u32, dh.max(1) as u32))));
-                }
+                let f = &pic.frames[n.min(pic.frames.len() - 1)].0;
+                *sm = Some((dw, dh, n, Rc::new(pic::scaled(f, dw.max(1) as u32, dh.max(1) as u32))));
             }
             if let Some((_, _, _, s)) = sm.as_ref() {
                 if alpha {
@@ -527,10 +546,14 @@ pub fn draw(ui: &mut Ui, v: &V, w: i32, h: i32) {
                     ui.cv.blit(s, r.x, r.y);
                 }
             }
-        } else if (z - 1.0).abs() < 0.001 && !alpha {
-            ui.cv.blit(&img, r.x, r.y);
-        } else {
-            blit_zoom(&mut ui.cv, &img, ox, oy, z);
+        } else if let Some(img) = v.frame_img() {
+            // крупный план: предумноженная копия кадра, её и рисуем клетками
+            *v.small.borrow_mut() = None;
+            if (z - 1.0).abs() < 0.001 && !alpha {
+                ui.cv.blit(&img, r.x, r.y);
+            } else {
+                blit_zoom(&mut ui.cv, &img, ox, oy, z);
+            }
         }
         // смена картинки — проявление клетками
         let k = ease(v.switched, 170.0, v);

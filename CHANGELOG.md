@@ -32,6 +32,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 - Fix: after an update OBS and other recorders could find no screen to capture until the next login: the update stopped the screen-sharing and file-dialog backend (`yami-files --portal`) and nothing started it again in time. Now `yami-files --portal-reload` hands over to the new binary in the same process (the portal keeps talking to it), waits while a recording or a file dialog is open, and starts the backend when none runs; the installer, `yami update` and `tools/deploy.sh` use it.
 - The installer puts each program into place in one step (a running copy never sees a half-written file) and stops when the apps fail to build, on a first install and on `yami update` alike: it used to go on writing configs for programs that were not there, and to build the compositor fork anyway.
 - Fix: `fork/yami-niri.sh off` left the fork's keys (`allow-tearing`, `show-only-in`, `hide-from`) in `yami-fx.kdl`, so at the next login the packaged niri refused the config and started with its own, without the shell. `off` now strips them the way `session.sh` does, and the shell writes them only while the next login runs the fork too.
+- yami-view keeps one copy of a big picture while it fits the window (the full-size copy for zooming in is made when you zoom), drops a picture that finished decoding after you moved on, and holds only the current picture and its neighbours: a 4K picture takes 107 MB instead of 140.
 
 ## 2.5.0
 

@@ -42,6 +42,7 @@ use wayland_protocols::wp::viewporter::client::{wp_viewport, wp_viewporter};
 
 pub enum Ev {
     Loaded(PathBuf, Result<crate::pic::Pic, String>),
+    Skipped(PathBuf),
     Saved(Result<PathBuf, String>),
 }
 
@@ -56,6 +57,8 @@ pub struct App {
     handle: LoopHandle<'static, App>,
     tx: Sender<Ev>,
     load_tx: std::sync::mpsc::Sender<PathBuf>,
+    /// что сейчас нужно (текущая и соседи): нить не декодирует то, мимо чего уже пролистали
+    wanted: std::sync::Arc<std::sync::Mutex<Vec<PathBuf>>>,
     registry: RegistryState,
     seat: SeatState,
     outputs: OutputState,
@@ -109,16 +112,22 @@ pub fn run(mut v: V) {
         .expect("channel");
     // нить декодирования: последний запрос — первым
     let (load_tx, load_rx) = std::sync::mpsc::channel::<PathBuf>();
+    let wanted = std::sync::Arc::new(std::sync::Mutex::new(v.keep()));
     {
         let tx = tx.clone();
+        let wanted = wanted.clone();
         std::thread::spawn(move || {
             while let Ok(first) = load_rx.recv() {
                 let mut q = vec![first];
                 while let Ok(p) = load_rx.try_recv() {
                     q.push(p);
                 }
-                // сначала текущая (её просят первой), потом соседи
+                // сначала текущая (её просят первой), потом соседи; пролистанные — мимо
                 for p in q {
+                    if !wanted.lock().map(|w| w.contains(&p)).unwrap_or(true) {
+                        let _ = tx.send(Ev::Skipped(p));
+                        continue;
+                    }
                     let r = crate::pic::load(&p);
                     let _ = tx.send(Ev::Loaded(p, r));
                     yami_px::trim_heap();
@@ -150,6 +159,7 @@ pub fn run(mut v: V) {
         handle: handle.clone(),
         tx,
         load_tx,
+        wanted,
         registry: RegistryState::new(&globals),
         seat: SeatState::new(&globals, &qh),
         outputs: OutputState::new(&globals, &qh),
@@ -227,6 +237,7 @@ impl App {
     fn on_ev(&mut self, e: Ev) {
         match e {
             Ev::Loaded(p, r) => self.v.on_loaded(p, r),
+            Ev::Skipped(p) => self.v.on_skipped(p),
             Ev::Saved(r) => match r {
                 Ok(p) => {
                     // сохранили копию: показать её
@@ -244,6 +255,9 @@ impl App {
     }
 
     fn effects(&mut self) {
+        if let Ok(mut w) = self.wanted.lock() {
+            *w = self.v.keep();
+        }
         for f in std::mem::take(&mut self.v.fx) {
             match f {
                 Fx::Close => self.quit = true,
