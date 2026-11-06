@@ -295,7 +295,9 @@ current set).
 
 In the bar: left click on a task focuses, minimizes and restores it, middle click closes, right
 click opens the window menu; scroll over workspaces to switch, over the volume to change it. The
-track opens the player (drag its position bar to seek), right click pauses, middle click skips.
+track opens the player (drag its position bar to seek), right click pauses, middle click skips;
+the button in the player's header switches it between the cover with the equalizer, the cover
+with lyrics, lyrics alone (the sung line lit when the lyrics have timestamps) and a short view.
 
 ## The `yami` command
 

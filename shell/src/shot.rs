@@ -43,6 +43,12 @@ const TARGETS: &[&str] = &[
     "popup:cal",
     "popup:sound",
     "popup:media",
+    "popup:media-flat",
+    "popup:media-both",
+    "popup:media-lyrics",
+    "popup:media-plain",
+    "popup:media-minimal",
+    "popup:media-none",
     "popup:net",
     "popup:wifi",
     "popup:bt",
@@ -333,13 +339,28 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
                     ..Default::default()
                 };
             }
-            if arg == "media" || arg == "sound" {
+            if arg.starts_with("media") || arg == "sound" {
                 // играет: эквалайзер виден; за миг снимка позиция не сдвинется (во всплывашке звука
                 // плеер виден, только когда модуля media в баре нет: --defaults)
                 let at = std::time::Instant::now();
                 st.media = crate::media::MediaState { player: "mpv".into(), status: "Playing".into(), artist: "Ash Field".into(), title: "Pixel Rain".into(), art: String::new(), length: 245.0, pos: 83.0, at };
                 st.viz = (0..32).map(|i| ((i * 7 % 11) as f32 / 11.0) * 0.8 + 0.1).collect();
             }
+            // виды всплывашки музыки (#13): без эквалайзера, с текстом (с метками, простым), коротко, текста нет
+            if let Some(v) = arg.strip_prefix("media-") {
+                st.set.media_viz = if v == "flat" { "off" } else { "bars" }.into();
+                st.set.media_view = match v {
+                    "plain" => "lyrics",
+                    "none" => "both",
+                    "flat" => "cover",
+                    v => v,
+                }
+                .into();
+                let text = if v == "plain" { MOCK_LYRICS.lines().map(|l| l.get(10..).unwrap_or("")).collect::<Vec<_>>().join("\n") } else { MOCK_LYRICS.to_string() };
+                let (lines, synced) = crate::lyrics::parse(if v == "none" { "" } else { &text });
+                st.lyrics = crate::lyrics::Lyrics { key: crate::lyrics::key(&st.media), lines, synced, done: true, shown: None };
+            }
+            let arg = if arg.starts_with("media") { "media" } else { arg };
             let k = crate::popups::KINDS.iter().copied().find(|k| *k == arg).unwrap_or(if arg == "wifi" { "net" } else { "cal" });
             st.popup = Some(Popup { kind: k });
             crate::popups::size(k, st)
@@ -624,3 +645,14 @@ fn mock_note() -> crate::notif::Note {
         left: 7.0,
     }
 }
+
+/// текст песни для снимков всплывашки музыки: метки вокруг позиции макета (83 с)
+const MOCK_LYRICS: &str = "[01:02.00]grey morning on the glass
+[01:08.00]the street below is quiet
+[01:14.00]i count the drops in eights and fours
+[01:20.00]and every one lands on a whole pixel, never between two of them
+[01:27.00]the kettle hums along
+[01:33.00]a single line of amber
+[01:39.00]stays lit across the dark
+[01:45.00]rain, rain, pixel rain
+[01:51.00]fall in squares again";

@@ -40,6 +40,7 @@ pub fn toggle(s: &mut Settings, k: &str) -> bool {
         "notif_images" => &mut s.notif_images,
         "notif_cast" => &mut s.notif_cast,
         "media_art_net" => &mut s.media_art_net,
+        "lyrics_net" => &mut s.lyrics_net,
         "portal_files" => &mut s.portal_files,
         "portal_cast" => &mut s.portal_cast,
         _ => return false,
@@ -89,7 +90,8 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     ui.toggle(R::new(x2, y, half, 40), "выбор экрана для трансляций", "выкл — окно GNOME", s.portal_cast, Act::SBool("portal_cast"));
     y += 52;
     y = title(ui, b.x, y, b.w, "сеть");
-    ui.toggle(R::new(b.x, y, b.w, 40), "обложки музыки из сети", "по ссылкам плеера; выкл — только файлы на диске", s.media_art_net, Act::SBool("media_art_net"));
+    ui.toggle(R::new(b.x, y, half, 40), "обложки музыки из сети", "по ссылкам плеера; выкл — только файлы на диске", s.media_art_net, Act::SBool("media_art_net"));
+    ui.toggle(R::new(x2, y, half, 40), "тексты песен из сети", "lrclib.net; выкл — от плеера и файлы .lrc", s.lyrics_net, Act::SBool("lyrics_net"));
     let by = b.bottom() - 34;
     ui.wrap(crate::font::PX, R::new(b.x, by - 40, b.w, 40), "уведомления, трей и пароли — после перезапуска шелла; порталы — со следующего входа", t.text_faint, 2);
     ui.button(R::new(b.x, by, 220, 28), "перезапустить шелл", "reboot", Tone::Plain, false, true, Act::SCycle("restart_shell"));

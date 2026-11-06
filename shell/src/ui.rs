@@ -83,6 +83,8 @@ pub enum Act {
     MediaPrev,
     /// перемотка по полосе позиции (тянуть; сама перемотка — при отпускании)
     MediaSeek,
+    /// вид всплывашки музыки — следующий (#13)
+    MediaView,
     Wifi(bool),
     WifiNet(String),
     WifiRescan,

@@ -324,6 +324,12 @@ pub struct Settings {
     pub notif_cast: bool,
     /// обложки музыки по ссылкам из сети (иначе — только локальные файлы)
     pub media_art_net: bool,
+    /// тексты песен с lrclib.net (иначе — только от плеера и файлы .lrc рядом с треком)
+    pub lyrics_net: bool,
+    /// эквалайзер всплывашки музыки и модуля `media`: стиль виджета (bars, line…) или "off" (#13)
+    pub media_viz: String,
+    /// что показывает всплывашка музыки: cover | lyrics | both | minimal (#13)
+    pub media_view: String,
     /// свои имена звуковых устройств: имя PipeWire (`pactl list sinks`) → как показывать
     pub audio_names: std::collections::BTreeMap<String, String>,
     /// порталы: диалог файлов yami-files и выбор экрана для трансляций (иначе GTK / GNOME)
@@ -381,6 +387,9 @@ pub const ALL_MODULES: &[(&str, &str)] = &[
     ("power", "питание"),
     ("sep", "разделитель"),
 ];
+
+/// виды всплывашки музыки (#13): обложка с эквалайзером, обложка и текст, текст, коротко
+pub const MEDIA_VIEWS: &[(&str, &str)] = &[("cover", "обложка"), ("both", "обложка и текст"), ("lyrics", "текст"), ("minimal", "коротко")];
 
 /// числа в пикселях, что меняются стрелками в настройках: ключ, от, до, шаг
 pub const NUMS: &[(&str, i32, i32, i32)] = &[
@@ -545,6 +554,9 @@ impl Default for Settings {
             notif_images: true,
             notif_cast: false,
             media_art_net: true,
+            lyrics_net: true,
+            media_viz: "bars".into(),
+            media_view: "cover".into(),
             audio_names: Default::default(),
             portal_files: true,
             portal_cast: true,
@@ -618,6 +630,12 @@ impl Settings {
         }
         if self.tray_mode != "arrow" {
             self.tray_mode = "icons".into();
+        }
+        if self.media_viz != "off" && !crate::widgets::STYLES.iter().any(|(k, _)| *k == self.media_viz) {
+            self.media_viz = "bars".into();
+        }
+        if !MEDIA_VIEWS.iter().any(|(k, _)| *k == self.media_view) {
+            self.media_view = "cover".into();
         }
         if self.shot_confirm != "instant" {
             self.shot_confirm = "space".into();
@@ -733,6 +751,11 @@ impl Settings {
     /// плеер виден и без всплывашки звука: модуль `media` в баре или виджет музыки
     pub fn media_placed(&self) -> bool {
         self.on_bar("media") || self.widgets.iter().any(|w| w.on && w.kind == "media")
+    }
+
+    /// эквалайзер рисуется вне всплывашек: в модуле `media` (если не выключен) или в виджете музыки
+    pub fn viz_placed(&self) -> bool {
+        (self.on_bar("media") && self.media_viz != "off") || self.widgets.iter().any(|w| w.on && w.kind == "media")
     }
 
     /// модули стороны бара: 0 — слева, 1 — по центру, 2 — справа

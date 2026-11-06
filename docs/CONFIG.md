@@ -115,6 +115,8 @@ Settings → look → «pixel look» moves these keys, `iconPixel` and `cursor` 
 | `cpuStyle` | `"gauge"` | `gauge` `graph` `number` |
 | `tempStyle` | `"full"` | the `temp` module: `full` like `cpu` and `ram` (label and `cpuStyle`), `compact` a small thermometer column and the number |
 | `trayMode` | `"icons"` | `icons`: every tray icon on the bar; `arrow`: one arrow that opens them as a list (clicks work as on the bar; a dot when an app asks for attention) |
+| `mediaViz` | `"bars"` | the equalizer of the `media` module and the music popup: `bars` `line` `blocks` `wave` `dots`, or `off` (no equalizer, and no audio capture for it) |
+| `mediaView` | `"cover"` | what the music popup shows (the button in its header switches it): `cover` (cover, buttons, equalizer), `both` (cover and lyrics), `lyrics`, `minimal` (title and buttons) |
 | `clockSeconds`, `clockDate` | `false`, `true` | |
 | `taskWidth` | `190` | width of a task button, px (60–400) |
 | `barTaskGap` | `4` | gap between task buttons, px (0–16) |
@@ -197,6 +199,7 @@ polkit change after a shell restart (`yami restart`), portals from the next logi
 | `notifCast` | `false` | notifications show in recordings and streams; off: viewers never see them (yami-niri ≥ `.5` simply leaves them out, other niri blacks them out) |
 | `audioNames` | `{}` | your names for sound devices (outputs and microphones): PipeWire name (`pactl list short sinks`, `pactl list short sources`) → label, e.g. `{"alsa_output.usb-…-00.analog-stereo": "Headphones"}` |
 | `mediaArtNet` | `true` | album covers from the player's web links (`curl`, https after redirects, ≤ 16 MB); off: only local files |
+| `lyricsNet` | `true` | lyrics from lrclib.net (artist, title and length are sent) when the player has none and there is no `.lrc` or `.txt` file next to the track; asked only while the music popup shows lyrics, answers cached in `~/.cache/yami/lyrics` |
 | `portalFiles`, `portalCast` | `true`, `true` | file dialogs from yami-files, the screen-share picker from the shell (else GTK / GNOME) |
 
 ### Updates

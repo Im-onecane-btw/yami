@@ -127,6 +127,7 @@ impl App {
             Act::MediaPlay => media::ctl("play-pause"),
             Act::MediaNext => media::ctl("next"),
             Act::MediaPrev => media::ctl("previous"),
+            Act::MediaView => self.media_view_next(),
             Act::Wifi(on) => net::wifi_cmd(vec!["radio".into(), "wifi".into(), if on { "on" } else { "off" }.into()], self.tx.clone(), self.st.net.clone()),
             Act::WifiNet(ssid) => self.wifi_connect(&ssid),
             Act::WifiRescan => {

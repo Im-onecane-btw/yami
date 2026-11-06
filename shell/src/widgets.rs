@@ -388,7 +388,7 @@ fn draw_widget(ui: &mut Ui, st: &State, w: &Widget, sw: i32, sh: i32) {
         }
         "media" => {
             panel(ui, w, r);
-            media_card(ui, st, R::new(10, 10, r.w - 20, r.h - 20), &w.style, c, w.label);
+            media_card(ui, st, R::new(10, 10, r.w - 20, r.h - 20), &w.style, c, w.label, true);
         }
         "cal" => {
             panel(ui, w, r);
@@ -411,19 +411,25 @@ fn draw_widget(ui: &mut Ui, st: &State, w: &Widget, sw: i32, sh: i32) {
 }
 
 /// карточка музыки: обложка, трек, полоса, кнопки, эквалайзер
-pub fn media_card(ui: &mut Ui, st: &State, r: R, style: &str, c: C, label: bool) {
+/// плеер: обложка (show_art; без неё строки начинаются от края), название, исполнитель, кнопки,
+/// полоса позиции и под ними эквалайзер стилем style ("off" — без него)
+#[allow(clippy::too_many_arguments)]
+pub fn media_card(ui: &mut Ui, st: &State, r: R, style: &str, c: C, label: bool, show_art: bool) {
     let t = ui.t;
     let m = &st.media;
     if m.title.is_empty() {
         ui.cv.icon("music", r.x, r.y + 2, 2, t.text_faint);
         ui.text_in(PX, R::new(r.x + 22, r.y, r.w, 18), "тишина — ничего не играет", t.text_faint);
-        viz(ui, R::new(r.x, r.bottom() - 24, r.w, 24), &[], style, t.border, true);
+        if style != "off" {
+            viz(ui, R::new(r.x, r.bottom() - 24, r.w, 24), &[], style, t.border, true);
+        }
         return;
     }
     let art = st.art.get(&m.art).cloned().flatten();
     let side = (r.h - 30).clamp(32, 64);
     let mut x = r.x;
-    if let Some(img) = &art {
+    if !show_art {
+    } else if let Some(img) = &art {
         ui.cv.image_scaled(img, R::new(r.x, r.y, side, side), 1.0);
         ui.cv.outline(R::new(r.x, r.y, side, side), t.border, 1);
         x += side + 10;
@@ -460,7 +466,7 @@ pub fn media_card(ui: &mut Ui, st: &State, r: R, style: &str, c: C, label: bool)
         }
     }
     let vy = r.y + side + 6;
-    if r.bottom() - vy >= 8 {
+    if style != "off" && r.bottom() - vy >= 8 {
         viz(ui, R::new(r.x, vy, r.w, r.bottom() - vy), &st.viz, style, c, st.viz.is_empty() || !m.playing());
     }
 }

@@ -241,6 +241,11 @@ fn tab_bar_look(ui: &mut Ui, st: &State, b: R) {
     // #11: трей одной стрелкой, температура столбиком
     opt_btn(ui, R::new(col(0), y, cw, 26), "трей", if s.tray_mode == "arrow" { "стрелкой" } else { "значки" }, Act::SCycle("tray_mode"));
     opt_btn(ui, R::new(col(1), y, cw, 26), "температура", if s.temp_style == "compact" { "коротко" } else { "как цп" }, Act::SCycle("temp_style"));
+    // #13: эквалайзер модуля и всплывашки музыки, что всплывашка показывает
+    let eq = if s.media_viz == "off" { "выкл" } else { crate::widgets::name_of(crate::widgets::STYLES, &s.media_viz) };
+    opt_btn(ui, R::new(col(2), y, cw, 26), "эквалайзер", eq, Act::SCycle("media_viz"));
+    y += 32;
+    opt_btn(ui, R::new(col(0), y, cw * 2 + (col(1) - col(0) - cw), 26), "всплывашка музыки", crate::widgets::name_of(crate::config::MEDIA_VIEWS, &s.media_view), Act::SCycle("media_view"));
     y += 40;
     y = title(ui, b.x, y, b.w, "как выглядит");
     shape_preview(ui, st, R::new(b.x, y, b.w, (b.bottom() - y).clamp(40, 96)));

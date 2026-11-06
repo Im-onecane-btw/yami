@@ -181,6 +181,8 @@ pub enum Msg {
     /// файлы для «/» в лаунчере: запрос и найденное
     LFiles(String, Vec<std::path::PathBuf>),
     Art(String, Option<crate::gfx::Img>),
+    /// текст песни нашёлся (или нет) для трека Lyrics.key
+    Lyrics(crate::lyrics::Lyrics),
     Theme,
     /// кадры шторки готовы: номер включения, картинки по мониторам
     Curtain(u64, HashMap<String, crate::gfx::Img>),
@@ -243,6 +245,8 @@ pub struct State {
     pub audio: audio::AudioState,
     pub media: media::MediaState,
     pub art: HashMap<String, Option<std::rc::Rc<crate::gfx::Img>>>,
+    /// текст песни текущего трека (#13): ищется, только когда всплывашка его показывает
+    pub lyrics: crate::lyrics::Lyrics,
     pub viz: Vec<f32>,
     /// куда тянут полосу позиции (доля трека); перемотка — когда отпустят
     pub seek: Option<f32>,
@@ -422,6 +426,7 @@ impl State {
             audio: audio::AudioState::default(),
             media: media::MediaState::default(),
             art: HashMap::new(),
+            lyrics: Default::default(),
             viz: vec![],
             seek: None,
             net: net::NetState::default(),
@@ -1126,7 +1131,15 @@ impl App {
     pub(crate) fn tick_interval(&self) -> Duration {
         let fast = !self.st.notifs.popups.is_empty() || self.st.osd.is_some() || self.st.field_focus.is_some() || self.st.locked || self.st.modal == Some(Modal::Launcher);
         let fast = fast || self.st.upd.busy.is_some() || self.st.snap.is_some() || self.st.snap_countdown.is_some() || self.st.dock_leave.is_some() || !self.st.dock_bounce.is_empty();
-        Duration::from_millis(if fast { 100 } else { 1000 })
+        let ms = if fast { 100 } else { 1000 };
+        // текст песни с метками: следующий тик — к смене строки, а не через секунду
+        let next = self.lyrics_live().then(|| self.st.lyrics.next_in(self.st.media.now_pos())).flatten().map(|s| (s * 1000.0) as u64 + 20);
+        Duration::from_millis(next.map_or(ms, |n| n.clamp(40, ms)))
+    }
+
+    /// всплывашка показывает текст песни с метками времени, и трек играет
+    fn lyrics_live(&self) -> bool {
+        self.st.lyrics.synced && self.st.media.playing() && matches!(crate::popups::media_view(&self.st), "lyrics" | "both") && self.st.popup_is("media")
     }
 
     /// батарея садится: одно уведомление на 10% и одно на 5%, пока не поставят на зарядку
@@ -1153,6 +1166,14 @@ impl App {
             self.shed_at = None;
             yami_px::shed_code();
         }
+        // текст песни: звучит следующая строка — перерисовать
+        if self.lyrics_live() {
+            let at = self.st.lyrics.now(self.st.media.now_pos());
+            if at != self.st.lyrics.shown {
+                self.st.lyrics.shown = at;
+                self.dirty(&SKind::Popup);
+            }
+        }
         // мигание курсора ввода — раз в полсекунды
         let blink = (self.st.started.elapsed().as_millis() / 500) % 2 == 0;
         if blink != self.st.blink {
@@ -1173,6 +1194,10 @@ impl App {
             // память видна только в настройках: не читать её каждую секунду зря
             if self.st.modal == Some(Modal::Settings) || self.st.rss == 0.0 {
                 self.st.rss = crate::sys::self_mem_mb();
+            }
+            // плеер во всплывашке: время и полоса позиции идут (с эквалайзером их двигают его кадры)
+            if crate::popups::shows_player(&self.st) && self.st.media.playing() && !crate::popups::shows_viz(&self.st) {
+                self.dirty(&SKind::Popup);
             }
             let lt = local_now();
             let sec_needed = self.st.set.clock_seconds || self.st.set.widgets.iter().any(|w| w.on && (w.kind == "clock" || w.kind == "graph" || w.kind == "net"));
@@ -1301,8 +1326,8 @@ impl App {
                 // ~30 раз в секунду: перерисовать только то, где эквалайзер (всплывашка с плеером,
                 // виджет музыки, бар с модулем media), а не все бары и виджеты на всех мониторах
                 self.st.viz = v;
-                let (s, pop) = (&self.st.set, crate::popups::shows_media(&self.st));
-                let bar = s.on_bar("media");
+                let (s, pop) = (&self.st.set, crate::popups::shows_viz(&self.st));
+                let bar = s.on_bar("media") && s.media_viz != "off";
                 let ws: Vec<u32> = s.widgets.iter().filter(|w| w.on && w.kind == "media").map(|w| w.id).collect();
                 self.dirty_where(|k| match k {
                     SKind::Popup => pop,
@@ -1322,8 +1347,18 @@ impl App {
                     media::fetch_art(m.art.clone(), self.st.set.media_art_net, self.tx.clone());
                 }
                 self.st.media = m;
+                self.lyrics_want();
                 media::viz_wanted(self.media_visible() && self.st.media.playing());
                 self.dirty_where(|k| matches!(k, SKind::Bar | SKind::Popup | SKind::Widget(_)));
+            }
+            Msg::Lyrics(l) => {
+                // ответ на прошлый трек — мимо
+                if l.key == self.st.lyrics.key {
+                    self.st.lyrics = l;
+                    // текста нет — всплывашка показывает обложку, и эквалайзеру нужен звук
+                    media::viz_wanted(self.media_visible() && self.st.media.playing());
+                    self.dirty(&SKind::Popup);
+                }
             }
             Msg::Art(url, img) => {
                 self.st.art.insert(url, img.map(std::rc::Rc::new));
@@ -1400,8 +1435,36 @@ impl App {
         }
     }
 
+    /// эквалайзер где-то виден: захвату звука (parec) есть для кого работать
     pub fn media_visible(&self) -> bool {
-        self.st.set.media_placed() || crate::popups::shows_media(&self.st)
+        self.st.set.viz_placed() || crate::popups::shows_viz(&self.st)
+    }
+
+    /// вид всплывашки музыки — следующий по кругу (кнопка в её шапке)
+    pub fn media_view_next(&mut self) {
+        let s = &mut self.st.set;
+        s.media_view = crate::settings::cycle(crate::config::MEDIA_VIEWS, &s.media_view).into();
+        self.media_sync();
+    }
+
+    /// вид или эквалайзер поменялись: текст — если теперь нужен, захват звука — если эквалайзер виден
+    pub fn media_sync(&mut self) {
+        self.lyrics_want();
+        media::viz_wanted(self.media_visible() && self.st.media.playing());
+        self.dirty_where(|k| matches!(k, SKind::Popup | SKind::Bar));
+    }
+
+    /// текст песни нужен (всплывашка музыки открыта в виде с текстом) и ещё не искался для этого трека
+    pub fn lyrics_want(&mut self) {
+        if !self.st.popup_is("media") || !matches!(self.st.set.media_view.as_str(), "lyrics" | "both") || self.st.media.title.is_empty() {
+            return;
+        }
+        let k = crate::lyrics::key(&self.st.media);
+        if self.st.lyrics.key == k {
+            return;
+        }
+        self.st.lyrics = crate::lyrics::Lyrics { key: k, ..Default::default() };
+        crate::lyrics::fetch(&self.st.media, self.st.set.lyrics_net, self.tx.clone());
     }
 
     pub(crate) fn on_new_window(&mut self, id: u64) {

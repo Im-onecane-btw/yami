@@ -455,11 +455,16 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
             if !measure {
                 let r = R::new(x, 0, w, H - 1);
                 let hov = ui.hover(r);
-                // маленький эквалайзер: 5 столбиков
-                for i in 0..5 {
-                    let v = st.viz.get(i * 4 + 2).copied().unwrap_or(0.0);
-                    let hh = if me.playing() { (2.0 + v * 12.0).round() as i32 } else { 2 };
-                    ui.cv.fill(R::new(x + i as i32 * 3, cy + 7 - hh, 2, hh), t.red);
+                // маленький эквалайзер: 5 столбиков (mediaViz = off — без него, #13)
+                let eq = st.set.media_viz != "off";
+                if eq {
+                    for i in 0..5 {
+                        let v = st.viz.get(i * 4 + 2).copied().unwrap_or(0.0);
+                        let hh = if me.playing() { (2.0 + v * 12.0).round() as i32 } else { 2 };
+                        ui.cv.fill(R::new(x + i as i32 * 3, cy + 7 - hh, 2, hh), t.red);
+                    }
+                } else {
+                    ui.cv.icon("music", x, cy - 6, 2, if me.playing() { t.red } else { t.text_faint });
                 }
                 let label = if me.artist.is_empty() { me.title.clone() } else { format!("{} — {}", me.artist, me.title) };
                 ui.text_in(PX, R::new(x + 20, 0, w - 20, H - 1), &label, if hov { t.text_hi } else { t.text_dim });

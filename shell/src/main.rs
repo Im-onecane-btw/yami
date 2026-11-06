@@ -35,6 +35,7 @@ mod ipc;
 mod keys;
 mod launcher;
 mod lite;
+mod lyrics;
 mod lock;
 mod media;
 mod menu;

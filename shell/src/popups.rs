@@ -20,10 +20,34 @@ impl State {
     }
 }
 
-/// открытая всплывашка рисует плеер (ей нужен эквалайзер)
-pub fn shows_media(st: &State) -> bool {
+/// открытая всплывашка рисует плеер (время, полоса позиции)
+pub fn shows_player(st: &State) -> bool {
     st.popup_is("media") || (st.popup_is("sound") && sound_media(st))
 }
+
+/// открытая всплывашка рисует эквалайзер (ему нужен захват звука)
+pub fn shows_viz(st: &State) -> bool {
+    st.set.media_viz != "off" && ((st.popup_is("media") && media_view(st) == "cover") || (st.popup_is("sound") && sound_media(st)))
+}
+
+/// вид всплывашки музыки (#13); текста у трека нет — обложка
+pub fn media_view(st: &State) -> &str {
+    let v = st.set.media_view.as_str();
+    match v {
+        "lyrics" | "both" if lyrics_none(st) => "cover",
+        "lyrics" | "both" | "minimal" => v,
+        _ => "cover",
+    }
+}
+
+/// текст хотели показать, искали и не нашли
+fn lyrics_none(st: &State) -> bool {
+    matches!(st.set.media_view.as_str(), "lyrics" | "both") && st.lyrics.done && st.lyrics.lines.is_empty() && !st.media.title.is_empty()
+}
+
+/// высота строк текста песни: в виде «текст» и в виде «обложка и текст»
+const LYR_TALL: i32 = 232;
+const LYR_SHORT: i32 = 160;
 
 pub fn size(kind: &str, st: &State) -> (i32, i32) {
     match kind {
@@ -34,7 +58,20 @@ pub fn size(kind: &str, st: &State) -> (i32, i32) {
             let media = if sound_media(st) { 170 } else { 0 };
             (420, 44 + 56 + list(st.audio.sinks.len()) + 60 + list(st.audio.sources.len()) + if apps > 0 { 30 + apps * 46 } else { 0 } + media + 50)
         }
-        "media" => (420, 44 + 36 + 150 + if st.media.length > 0.0 { 24 } else { 0 } + 4),
+        "media" => {
+            let time = if st.media.length > 0.0 { 24 } else { 0 };
+            let card = match media_view(st) {
+                "cover" if st.set.media_viz != "off" => 156,
+                _ => 70,
+            };
+            let rest = match media_view(st) {
+                "lyrics" => LYR_TALL,
+                "both" => LYR_SHORT,
+                _ if lyrics_none(st) => 22,
+                _ => 0,
+            };
+            (420, 44 + 36 + card + time + rest + 4)
+        }
         "net" => {
             let msg = if st.net.msg.is_empty() { 0 } else { 24 };
             let wifi = if st.net.wifi_present { 40 + msg + if st.net.wifi_on { st.net.nets.len().min(8) as i32 * 28 + if st.wifi_target.is_empty() { 0 } else { 44 } } else { 0 } } else { 0 };
@@ -172,7 +209,7 @@ fn sound(ui: &mut Ui, st: &State, b: R) {
     if sound_media(st) {
         ui.cv.fill(R::new(b.x, y, b.w, 1), t.border);
         y += 10;
-        widgets::media_card(ui, st, R::new(b.x, y, b.w, 150), "bars", t.red, true);
+        widgets::media_card(ui, st, R::new(b.x, y, b.w, 150), &st.set.media_viz, t.red, true, true);
     }
     ui.button(R::new(b.x, b.bottom() - 28, b.w, 28), "микшер pavucontrol", "speaker", Tone::Plain, false, true, Act::Pavu);
 }
@@ -207,15 +244,85 @@ pub fn sound_media(st: &State) -> bool {
 fn media(ui: &mut Ui, st: &State, b: R) {
     let t = ui.t;
     let m = &st.media;
-    let mut y = head(ui, b, "music", "музыка", &m.player);
-    widgets::media_card(ui, st, R::new(b.x, y, b.w, 150), "bars", t.red, true);
-    y += 156;
+    let view = media_view(st);
+    // шапка: справа — какой вид (щелчок — следующий), между — имя плеера
+    let name = crate::widgets::name_of(crate::config::MEDIA_VIEWS, &st.set.media_view);
+    let bw = ui.w(PX, name) + 20;
+    let mut y = head(ui, b, "music", "музыка", "");
+    let tw = ui.w(PX, "музыка");
+    ui.cv.text_in(ui.f, PX, R::new(b.x + 30 + tw, b.y, b.w - bw - 40 - tw, 20), &m.player, t.text_faint);
+    ui.button(R::new(b.right() - bw, b.y - 2, bw, 22), name, "", Tone::Ghost, false, true, Act::MediaView);
+    // обложка с эквалайзером; без эквалайзера и в остальных видах — строка плеера высотой в обложку
+    let viz = if view == "cover" { st.set.media_viz.as_str() } else { "off" };
+    let art = matches!(view, "cover" | "both");
+    if viz != "off" {
+        widgets::media_card(ui, st, R::new(b.x, y, b.w, 150), viz, t.red, true, art);
+        y += 156;
+    } else {
+        widgets::media_card(ui, st, R::new(b.x, y, b.w, 94), "off", t.red, true, art);
+        y += 70;
+    }
     if m.length > 0.0 {
         // время: где сейчас (или куда тянут) и сколько всего
         let at = st.seek.map(|f| f as f64 * m.length).unwrap_or(m.now_pos());
         ui.cv.text_in(ui.f, PX, R::new(b.x, y, b.w / 2, 20), &yami_px::clock(at), if st.seek.is_some() { t.red } else { t.text_dim });
         ui.cv.text_right(ui.f, PX, R::new(b.x, y, b.w, 20), &yami_px::clock(m.length), t.text_faint);
+        y += 24;
     }
+    match view {
+        "lyrics" => lyrics(ui, st, R::new(b.x, y, b.w, LYR_TALL)),
+        "both" => lyrics(ui, st, R::new(b.x, y, b.w, LYR_SHORT)),
+        _ if lyrics_none(st) => {
+            ui.text_in(PX, R::new(b.x, y, b.w, 20), "текста не нашлось", t.text_faint);
+        }
+        _ => {}
+    }
+}
+
+/// текст песни: с метками времени — звучащая строка в акценте и держится на трети высоты,
+/// спетые — тусклее; простой текст листается вместе с треком
+fn lyrics(ui: &mut Ui, st: &State, r: R) {
+    let t = ui.t;
+    let ly = &st.lyrics;
+    ui.cv.fill(R::new(r.x, r.y, r.w, 1), t.border);
+    let r = R::new(r.x, r.y + 8, r.w, r.h - 12);
+    if !ly.done {
+        ui.text_in(PX, R::new(r.x, r.y, r.w, 20), "ищу текст…", t.text_faint);
+        return;
+    }
+    // строки по ширине: (номер строки текста, кусок); текст — как есть, без перевода
+    let lh = ui.f.line(PX) + 6;
+    let mut rows: Vec<(usize, String)> = vec![];
+    for (i, l) in ly.lines.iter().enumerate() {
+        if l.text.is_empty() {
+            rows.push((i, String::new()));
+        }
+        for part in ui.f.wrap(PX, &l.text, r.w - 8, 3) {
+            rows.push((i, part));
+        }
+    }
+    let vis = (r.h / lh).max(1) as usize;
+    let pos = st.media.now_pos();
+    let cur = ly.now(pos);
+    let first = match cur {
+        Some(c) => rows.iter().position(|(i, _)| *i == c).unwrap_or(0).saturating_sub(vis / 3),
+        None if ly.synced => 0,
+        None => {
+            let k = if st.media.length > 0.0 { (pos / st.media.length).clamp(0.0, 1.0) } else { 0.0 };
+            (rows.len().saturating_sub(vis) as f64 * k) as usize
+        }
+    };
+    let first = first.min(rows.len().saturating_sub(vis));
+    ui.cv.push_clip(r);
+    for (k, (i, s)) in rows.iter().skip(first).take(vis).enumerate() {
+        let c = match cur {
+            Some(c) if *i == c => t.red,
+            Some(c) if *i < c => t.text_faint,
+            _ => t.text_dim,
+        };
+        ui.cv.text_in(ui.f, PX, R::new(r.x + 4, r.y + k as i32 * lh, r.w - 8, lh), s, c);
+    }
+    ui.cv.pop_clip();
 }
 
 // ── трей ────────────────────────────────────────────────────────────────────

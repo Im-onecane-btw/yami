@@ -145,6 +145,7 @@ impl App {
         }
         self.close_modal();
         self.st.popup = Some(Popup { kind });
+        self.lyrics_want();
         // модули бара рисуют, открыта ли их всплывашка (стрелка трея, календарь)
         self.dirty(&SKind::Bar);
         match kind {

@@ -733,7 +733,13 @@ impl App {
                         self.dirty(&SKind::Modal);
                         return true;
                     }
-                    k if crate::agents::toggle(s, k) => {}
+                    k if crate::agents::toggle(s, k) => {
+                        // тексты из сети включили: «не нашлось» для текущего трека — искать заново
+                        if k == "lyrics_net" {
+                            self.st.lyrics = Default::default();
+                            self.lyrics_want();
+                        }
+                    }
                     "browser_menus" | "browser_font" => {
                         if *k == "browser_menus" {
                             s.browser_menus = !s.browser_menus;
@@ -777,6 +783,16 @@ impl App {
                 "shot_confirm" => {
                     s.shot_confirm = if s.shot_confirm == "instant" { "space" } else { "instant" }.into();
                     self.settings_changed();
+                }
+                "media_view" => {
+                    s.media_view = cycle(crate::config::MEDIA_VIEWS, &s.media_view).into();
+                    self.media_sync();
+                }
+                "media_viz" => {
+                    let mut l = crate::widgets::STYLES.to_vec();
+                    l.push(("off", "выкл"));
+                    s.media_viz = cycle(&l, &s.media_viz).into();
+                    self.media_sync();
                 }
                 "tray_mode" => {
                     s.tray_mode = if s.tray_mode == "arrow" { "icons" } else { "arrow" }.into();
