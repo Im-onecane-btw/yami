@@ -175,6 +175,8 @@ pub enum Msg {
     /// свои темы (themetab.rs): список, что сделано, применена ли тема (перечитать настройки)
     Themes(Vec<crate::bundle::Card>, String, bool),
     Theme,
+    /// theme.py --templates закончил: итог в restyle.json (restyle.rs)
+    Restyled,
     /// кадры шторки готовы: номер включения, картинки по мониторам
     Curtain(u64, HashMap<String, crate::gfx::Img>),
     /// обои готовы (wall.rs): номер задания, картинка, акцент из неё
@@ -259,6 +261,9 @@ pub struct State {
     /// вкладка «цвет»: страница «темы», свои темы и последнее действие с ними (themetab.rs)
     /// раздел вкладки «цвет»: 0 — палитра, 1 — свои темы, 2 — программы (#17)
     pub color_page: u8,
+    /// итог перекраски программ и своих шаблонов (restyle.rs) и слепок папки шаблонов
+    pub restyle: crate::restyle::Status,
+    pub tpl_stamp: Option<u64>,
     pub themes: Vec<crate::bundle::Card>,
     pub theme_note: String,
     pub viz: Vec<f32>,
@@ -463,6 +468,8 @@ impl State {
             weather_try: None,
             weather_field: Field::default(),
             color_page: 0,
+            restyle: crate::restyle::load(),
+            tpl_stamp: None,
             themes: vec![],
             theme_note: String::new(),
             viz: vec![],

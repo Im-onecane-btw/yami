@@ -360,6 +360,7 @@ yami report                   # an archive for an issue: versions, doctor, journ
 yami ocr image.png            # text from an image (like «text» in the screenshot overlay)
 yami theme export ~/my.yami   # the look as one file (import: yami theme import FILE or https link)
 yami theme save night         # keep the current look in your themes (list | apply NAME | remove NAME)
+yami templates                # render your templates, show what came out (force NAME overwrites one)
 yami export ~/all.yami        # every setting as one file for a new system (yami import FILE)
 yami version                  # every part, the installed commit, the update channel
 yami update                   # what is new; apply | list | to X.Y.Z | rollback | status | log | need

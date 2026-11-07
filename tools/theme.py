@@ -16,6 +16,9 @@ cursor (yami или system). Экрану входа (yami-greet) вид отд�
     theme.py --cursor             только курсор (после смены его в настройках шелла)
     theme.py --profiles           вывести профили Firefox/LibreWolf/Floorp/Zen
     theme.py --fonts              только шрифты: размер по сетке Tiny5 под экран (или fontSize)
+    theme.py --templates [--force NAME]   только свои шаблоны; NAME — перезаписать изменённый руками
+
+Что вышло у программ и шаблонов — в ~/.local/state/yami/restyle.json (настройки → цвет → программы).
 """
 import colorsys
 import json
@@ -116,8 +119,11 @@ def derive_light(accent, tint=1.0):
 
 def write(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists() and path.read_text() == text:
-        return
+    try:
+        if path.read_bytes() == text.encode():
+            return
+    except OSError:
+        pass
     tmp = path.with_name(path.name + ".tmp")
     try:
         tmp.write_text(text)
@@ -125,6 +131,37 @@ def write(path, text):
     except PermissionError:
         # папка чужая (у root), а сам файл наш: пишем на месте
         path.write_text(text)
+
+
+def tilde(path):
+    """Путь для людей и для ключей состояния: «~/…» внутри дома (переезд дома ничего не ломает)."""
+    path = Path(path)
+    try:
+        return "~/" + str(path.relative_to(HOME))
+    except ValueError:
+        return str(path)
+
+
+def status(key, value):
+    """~/.local/state/yami/restyle.json: что вышло у программ и своих шаблонов (#27). Шелл показывает
+    это в настройках → цвет → программы, yami templates — в терминале. None убирает запись."""
+    path = STATE / "restyle.json"
+    try:
+        d = json.loads(path.read_text())
+    except (OSError, ValueError):
+        d = {}
+    if not isinstance(d, dict):
+        d = {}
+    if key == "templates":
+        d["templates"] = value
+    else:
+        apps = d.get("apps") if isinstance(d.get("apps"), dict) else {}
+        if value is None:
+            apps.pop(key, None)
+        else:
+            apps[key] = value
+        d["apps"] = apps
+    write(path, json.dumps(d, ensure_ascii=False, indent=1) + "\n")
 
 
 # ── Qt: qt6ct ────────────────────────────────────────────────────────────────
@@ -674,10 +711,38 @@ def _signal(sig, name):
     subprocess.run(["pkill", f"-{sig}", "-x", name], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+FOOT_MARK = "# YAMI: settings → color → apps → foot off takes these lines out"
+
+
+def _foot_strip(t):
+    """foot.ini без наших строк: include на yami-colors.ini (и прежний, первой строкой), пометка и [main] под ней."""
+    out, lines, i = [], t.splitlines(keepends=True), 0
+    while i < len(lines):
+        if lines[i].strip() == FOOT_MARK:
+            i += 1
+            if i < len(lines) and lines[i].strip() == "[main]":
+                i += 1
+            continue
+        if re.match(r"\s*include\s*=.*yami-colors\.ini\s*$", lines[i]):
+            i += 1
+            continue
+        out.append(lines[i])
+        i += 1
+    body = "".join(out).rstrip("\n")
+    return body + "\n" if body else ""
+
+
 def foot(p):
-    """foot: цвета в foot/yami-colors.ini и include на него первой строкой foot.ini (свои [colors]
-    ниже перекрывают наши). foot читает их при запуске нового окна."""
-    if "foot" not in _apps() or not (shutil.which("foot") or (CFG / "foot").is_dir()):
+    """foot: цвета в foot/yami-colors.ini, include на него — в конце foot.ini под своим [main] (#27): так
+    наши цвета перекрывают [colors] выше, пока foot отмечен; путь — «~/…», как у переносимых
+    дотфайлов. Не отмечен — наши строки уходят, остальное в foot.ini твоё. foot читает его при запуске
+    нового окна."""
+    ini = CFG / "foot/foot.ini"
+    if "foot" not in _apps():
+        if ini.exists() and "yami-colors.ini" in ini.read_text(errors="replace"):
+            write(ini, _foot_strip(ini.read_text(errors="replace")))
+        return
+    if not (shutil.which("foot") or (CFG / "foot").is_dir()):
         return
     a = ansi(p)
     s = lambda k: a[k].lstrip("#")
@@ -697,11 +762,10 @@ def foot(p):
     lines += [f"regular{i}={s(f'color{i}')}" for i in range(8)] + [f"bright{i}={s(f'color{i + 8}')}" for i in range(8)]
     inc_file = CFG / "foot/yami-colors.ini"
     write(inc_file, "\n".join(lines) + "\n")
-    ini = CFG / "foot/foot.ini"
-    inc = f"include={inc_file}"
-    t = ini.read_text() if ini.exists() else ""
-    if "yami-colors.ini" not in t:
-        write(ini, inc + "\n" + t)
+    # foot раскрывает «~/» в include сам; вне дома (XDG_CONFIG_HOME где-то ещё) — полный путь
+    body = _foot_strip(ini.read_text(errors="replace")) if ini.exists() else ""
+    block = f"{FOOT_MARK}\n[main]\ninclude={tilde(inc_file)}\n"
+    write(ini, body + ("\n" if body else "") + block)
 
 
 def cava(p):
@@ -736,8 +800,9 @@ def cava(p):
 
 
 def starship(p):
-    """starship: палитра [palettes.yami] и palette = "yami". Палитра переопределяет и обычные
-    имена (red, green…), так что стандартное приглашение тоже окрашивается."""
+    """starship: палитра [palettes.yami] и palette = "yami", если палитры не выбрано (#27): выбранную
+    свою не трогаем, [palettes.yami] лежит рядом. Палитра переопределяет и обычные имена (red,
+    green…), так что стандартное приглашение тоже окрашивается."""
     conf = CFG / "starship.toml"
     if "starship" not in _apps() or not conf.exists():
         return
@@ -749,8 +814,8 @@ def starship(p):
            "accent": p["accent"], "accent_deep": p["deep"], "accent_bright": p["bright"],
            "text": p["text"], "text_dim": p["textDim"], "text_faint": p["textFaint"], "bg": p["bg"], "panel": p["panel"]}
     lines = conf.read_text().splitlines()
-    # своя таблица палитры — заново; строка palette = … верхнего уровня — наша
-    out, skip, seen_table, has_palette = [], False, False, False
+    # своя таблица палитры — заново; строка palette = … верхнего уровня — только если её нет
+    out, skip, seen_table, chosen = [], False, False, None
     for line in lines:
         head = re.match(r"\s*\[([^\]]+)\]", line)
         if head:
@@ -760,11 +825,13 @@ def starship(p):
                 continue
         if skip:
             continue
-        if not seen_table and re.match(r"\s*palette\s*=", line):
-            line, has_palette = 'palette = "yami"', True
+        m = None if seen_table else re.match(r"""\s*palette\s*=\s*['"]?([^'"#\s]*)""", line)
+        if m:
+            chosen = m.group(1)
         out.append(line)
-    if not has_palette:
+    if chosen is None:
         out.insert(0, 'palette = "yami"')
+    status("starship", None if chosen in (None, "yami") else {"palette": chosen})
     while out and not out[-1].strip():
         out.pop()
     out += ["", "# YAMI: пишет tools/theme.py по палитре шелла", "[palettes.yami]"] + [f'{k} = "{v}"' for k, v in pal.items()]
@@ -778,13 +845,19 @@ _TPL_DIR = re.compile(r"yami-(output|reload):\s*(\S.*?)\s*$")
 _TPL_ROOTS = (CFG, HOME / ".local/share", HOME / ".cache")
 
 
-def templates(p):
+def templates(p, force=None):
     """Свои шаблоны: файлы в ~/.config/yami/templates. Строка «yami-output: ~/путь» — куда писать,
     «yami-reload: USR1 программа» — кому послать сигнал (USR1, USR2 или HUP); {{accent}}, {{bg}},
     {{color4}}… — цвета (.strip — без «#», .rgb — «r, g, b»). Пишем только в ~/.config, ~/.local/share
-    и ~/.cache и только в свой файл: чужой (изменённый руками) не перезаписываем."""
+    и ~/.cache и только в свой файл: изменённый руками не перезаписываем, пока не попросят (force =
+    имя шаблона: прежний файл остаётся как *.bak-yami). Шаблон с неизвестным {{именем}} не пишется
+    (опечатка не должна ломать конфиг программы). Итог каждого — в restyle.json (#27)."""
+    import hashlib
+
     d = CFG / "yami/templates"
+    rows = []
     if not d.is_dir():
+        status("templates", rows)
         return
     cols = {**{k: v for k, v in p.items() if isinstance(v, str) and v.startswith("#")}, **ansi(p)}
     state = STATE / "templates.json"
@@ -794,12 +867,12 @@ def templates(p):
         sums = {}
     if not isinstance(sums, dict):
         sums = {}
-    import hashlib
+    # ключи — «~/…» (до 2.7 были полные пути: переезд дома ломал сверку)
+    sums = {(tilde(k) if k.startswith("/") else k): v for k, v in sums.items() if isinstance(v, str)}
+    sha = lambda b: hashlib.sha256(b).hexdigest()
 
     def fill(m):
-        v = cols.get(m.group(1))
-        if v is None:
-            return m.group(0)
+        v = cols[m.group(1)]
         if m.group(2) == "strip":
             return v.lstrip("#")
         if m.group(2) == "rgb":
@@ -809,9 +882,12 @@ def templates(p):
     for f in sorted(d.iterdir()):
         if not f.is_file() or f.name.startswith(".") or f.suffix == ".md":
             continue
+        row = {"file": f.name}
+        rows.append(row)
         try:
             src = f.read_text()
         except (OSError, UnicodeDecodeError):
+            row["state"] = "unreadable"
             continue
         out, reload, body = None, None, []
         for line in src.splitlines(keepends=True):
@@ -823,24 +899,38 @@ def templates(p):
             else:
                 body.append(line)
         if out is None:
-            print(f"theme: template {f.name}: no yami-output line", file=sys.stderr)
+            row["state"] = "nooutput"
             continue
+        row["output"] = tilde(out)
         real = Path(os.path.realpath(out))
         if not out.is_absolute() or not any(str(real).startswith(str(Path(os.path.realpath(r))) + os.sep) for r in _TPL_ROOTS):
-            print(f"theme: template {f.name}: {out} is outside ~/.config, ~/.local/share and ~/.cache", file=sys.stderr)
+            row["state"] = "outside"
             continue
-        text = _TPL_KEY.sub(fill, "".join(body))
-        key = str(real)
+        body = "".join(body)
+        unknown = sorted({m.group(1) for m in _TPL_KEY.finditer(body) if m.group(1) not in cols})
+        if unknown:
+            row["state"], row["keys"] = "unknown", unknown
+            continue
+        text = _TPL_KEY.sub(fill, body)
+        key, new = tilde(real), sha(text.encode())
         if real.exists():
-            have = hashlib.sha256(real.read_bytes()).hexdigest()
-            if have != sums.get(key) and real.read_text(errors="replace") != text:
-                print(f"theme: template {f.name}: {out} was changed by hand, not overwritten", file=sys.stderr)
+            try:
+                have = sha(real.read_bytes())
+            except OSError:
+                row["state"] = "unreadable"
                 continue
+            if have != sums.get(key) and have != new:
+                if force != f.name:
+                    row["state"] = "hand"
+                    continue
+                shutil.copy2(real, real.with_name(real.name + ".bak-yami"))
         write(real, text)
-        sums[key] = hashlib.sha256(text.encode()).hexdigest()
+        sums[key] = new
+        row["state"] = "ok"
         if reload and len(reload) == 2 and reload[0] in ("USR1", "USR2", "HUP") and re.fullmatch(r"[A-Za-z0-9._+-]{1,32}", reload[1]):
             _signal(reload[0], reload[1])
     write(state, json.dumps(sums, indent=1) + "\n")
+    status("templates", rows)
 
 
 # ── Firefox, LibreWolf, Floorp, Zen: меню, подсказки, панели ─────────────────
@@ -1067,8 +1157,17 @@ def fastfetch(p):
         },
         "modules": mods,
     }
-    write(CFG / "fastfetch/config.jsonc", "// YAMI: пишет tools/theme.py по палитре шелла\n" +
-          json.dumps(conf, ensure_ascii=False, indent=2) + "\n")
+    # config.jsonc — наш, пока его первая строка наша (или его нет); свой (#27) не перезаписываем:
+    # наш вид ложится рядом, в yami.jsonc (fastfetch -c ~/.config/fastfetch/yami.jsonc)
+    main = CFG / "fastfetch/config.jsonc"
+    try:
+        first = main.read_text(errors="replace").lstrip().split("\n", 1)[0]
+    except OSError:
+        first = None
+    own = first is not None and not first.startswith(("// YAMI", "// DARK-4RMY"))
+    target = CFG / "fastfetch/yami.jsonc" if own else main
+    write(target, "// YAMI: пишет tools/theme.py по палитре шелла\n" + json.dumps(conf, ensure_ascii=False, indent=2) + "\n")
+    status("fastfetch", {"file": tilde(target)} if own else None)
 
 
 # ── niri: рамки, обзор, Alt+Tab ──────────────────────────────────────────────
@@ -1510,6 +1609,11 @@ def main():
         for step in (fonts, firefox):
             step(p)
         subprocess.run(["pkill", "-USR1", "-x", "kitty"], check=False)
+        return
+    if args[:1] == ["--templates"]:
+        # только свои шаблоны (шелл: папка шаблонов изменилась; yami templates; «перезаписать»)
+        force = args[2] if args[1:2] == ["--force"] and len(args) > 2 else None
+        templates(_palette(), force)
         return
     if args[:1] == ["--fetch"]:
         # шелл переключил вид fastfetch (настройки → вид): только его конфиг

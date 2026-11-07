@@ -41,6 +41,7 @@ yami report [-o FILE]                     # versions, doctor, this boot's journa
 yami ocr FILE                             # text from an image, the same recognition as «text» in the screenshot overlay (needs tesseract)
 yami theme export FILE | import FILE|URL  # the look as one file: palette, effects, fonts, bar, widgets, wallpaper (never commands); an imported theme is kept in your themes, a URL must be https
 yami theme save [NAME] | list | apply NAME | remove NAME   # your themes in ~/.config/yami/themes (settings → color → themes); save with no name names it after the palette
+yami templates [force NAME]                # render your templates and print what came out of each (force overwrites one changed by hand)
 yami export FILE | import FILE [--yes]    # every setting as one file; user.kdl, custom keys and bar scripts only with --yes; before an import the current state goes to ~/.local/state/yami/before-import-*.json (undo: yami import that file --yes)
 yami login sync                           # give the login screen the shell's look now (the shell does it on every change)
 yami login status | log | preview         # the login screen: installed, greetd enabled, its last start; its log; it over the desktop (password yami or Esc)
@@ -96,7 +97,7 @@ yami-shell binds list | print | write     # keybindings
 | `iconPixel` | `true` | app icons redrawn as 16×16 pixel art in the palette tones |
 | `fetchFull` | `false` | fastfetch with the hardware (kernel, packages, CPU, GPU, memory, disk, display); off: who, OS, wm, shell, terminal, uptime |
 | `lang` | `""` | `ru`, `en`, `pt-BR`, or empty to follow `LC_ALL`, `LC_MESSAGES`, then `$LANG`; `pt_BR.UTF-8` and `pt` are also accepted |
-| `themeApps` | all of them | the other programs theme.py recolours (settings → color → apps, the installer's `--restyle`): `gtk` (gtk.css, settings.ini, gsettings), `qt` (qt6ct, the KDE colour scheme, kdeglobals), `kitty` (its colours and font; off takes the `include yami.conf` line out of `kitty.conf`), `fastfetch`, `btop`, `firefox` (menus), `mangohud` (only a config yami wrote), `foot` (`foot/yami-colors.ini` and an `include=` line at the top of `foot.ini`, new windows), `cava` (a gradient in the `[color]` section of its config, open cava reloads at once), `starship` (`palette = "yami"` and a `[palettes.yami]` table that also retints `red`, `green` and the other names). A program left out is not touched. Up to 2.6 it was `appThemes` (foot, cava and starship only), read once and carried over |
+| `themeApps` | all of them | the other programs theme.py recolours (settings → color → apps, the installer's `--restyle`): `gtk` (gtk.css, settings.ini, gsettings), `qt` (qt6ct, the KDE colour scheme, kdeglobals), `kitty` (its colours and font; off takes the `include yami.conf` line out of `kitty.conf`), `fastfetch` (its `config.jsonc` while that is yami's; your own one is kept and yami's look goes to `yami.jsonc` next to it), `btop`, `firefox` (menus), `mangohud` (only a config yami wrote), `foot` (`foot/yami-colors.ini` and an `include=~/…` line at the end of `foot.ini` under its own `[main]`, so it wins over colours set above; new windows), `cava` (a gradient in the `[color]` section of its config, open cava reloads at once), `starship` (a `[palettes.yami]` table that also retints `red`, `green` and the other names, and `palette = "yami"` unless you chose another palette). A program left out is not touched. Up to 2.6 it was `appThemes` (foot, cava and starship only), read once and carried over |
 
 ### Apps in the palette colours
 
@@ -106,9 +107,17 @@ in `themeApps` (all of them unless you untick some). For any other
 app write a template: a file in `~/.config/yami/templates` that is the app's colour config with
 `{{accent}}`, `{{bg}}`, `{{text}}`, `{{color0}}`…`{{color15}}` and the other palette names
 (`.strip` drops the `#`, `.rgb` gives `r, g, b`), plus a line saying where it goes and, if the app
-can reload, whom to signal. Every palette change renders it again. It is written only under
-`~/.config`, `~/.local/share` or `~/.cache`, and never over a file you changed by hand (delete
-the target once to hand it to the template); files ending in `.md` are skipped.
+can reload, whom to signal. Every palette change renders it again, and so does any change in the
+templates folder (the shell looks every 5 s). It is written only under `~/.config`,
+`~/.local/share` or `~/.cache`, never over a file you changed by hand, and not at all while it
+names a colour the palette does not have (a typo would break the app's config); files ending in
+`.md` are skipped.
+
+Settings → color → apps lists what came out of each template: written, changed by hand (an
+«overwrite» button renders it over your edit and keeps that as `*.bak-yami`), an unknown colour, no
+`yami-output` line or a target outside those folders. In a terminal, `yami templates` renders them
+and prints the same, `yami templates force NAME` overwrites one; the record is
+`~/.local/state/yami/restyle.json`.
 
 ```ini
 # yami-output: ~/.config/mako/config

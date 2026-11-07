@@ -85,6 +85,7 @@ fn help(y: &Sty, me: &str) {
     y.section(&crate::tf!("настройки", "config", "configuração"));
     y.row("theme export | import FILE|URL", &crate::tf!("тема одним файлом: поделиться и поставить чужую (только вид)", "a theme as one file: share yours, apply others' (the look only)", "um tema em um arquivo: compartilhe o seu e aplique outros (apenas a aparência)"));
     y.row("theme save | list | apply NAME", &crate::tf!("свои темы: сохранить вид, список, применить (remove — удалить)", "your themes: keep the look, list, apply (remove deletes)", "seus temas: salvar o visual, listar e aplicar (remove exclui)"));
+    y.row("templates [force NAME]", &crate::tf!("свои шаблоны: отрисовать и показать, что вышло (force — перезаписать изменённый руками)", "your templates: render them and show what came out (force overwrites one changed by hand)", "seus modelos: renderizar e mostrar o resultado (force sobrescreve um alterado à mão)"));
     y.row("export | import FILE", &crate::tf!("все настройки одним файлом: переезд на новую систему", "every setting as one file: move to a new system", "todas as configurações num arquivo: migrar para outro sistema"));
     y.row("config …", &crate::tf!("все настройки: list get set reset check path kdl", "every setting: list get set reset check path kdl", "todas as configurações: list get set reset check path kdl"));
     y.row("binds …", &crate::tf!("клавиши: list print write", "keybindings: list print write", "atalhos: list print write"));
@@ -123,6 +124,7 @@ fn help_msg(y: &Sty) {
         ("profile", "следующий профиль питания", "next power profile"),
         ("night", "ночной свет вкл-выкл", "night light on-off"),
         ("reload | restart | quit", "перечитать настройки / перезапуск / выход", "reload settings / restart / quit"),
+        ("ping", "жив ли шелл: ответит pong", "is the shell alive: answers pong"),
     ] {
         y.row(c, crate::i18n::select(ru, en));
     }
@@ -468,7 +470,12 @@ pub fn run(args: &[String], me: &str) -> i32 {
                 eprintln!(" {} {}", y.bad("✕"), crate::tf!("шелл не знает такой команды: {} (yami help msg)", "the shell has no such command: {} (yami help msg)", "o shell não tem esse comando: {} (yami help msg)", cmd));
                 return 2;
             }
-            send(&y, &cmd)
+            let rc = send(&y, &cmd);
+            // проверка «жив ли шелл» (#27): ответ словом, а не тишиной
+            if rc == 0 && cmd == "ping" {
+                println!("pong");
+            }
+            rc
         }
         Some("open") => match a.get(1) {
             Some(w) => open(&y, w),
@@ -487,6 +494,7 @@ pub fn run(args: &[String], me: &str) -> i32 {
             Some(&w @ ("export" | "import" | "save" | "list" | "apply" | "remove")) => crate::bundle::run(&y, &format!("theme-{w}"), &a[2..]),
             _ => crate::bundle::run(&y, "", &[]),
         },
+        Some("templates") => crate::restyle::cli(&y, &a[1..]),
         Some("export") => crate::bundle::run(&y, "export", &a[1..]),
         Some("import") => crate::bundle::run(&y, "import", &a[1..]),
         Some("clean") => crate::clean::run(&y, &a[1..]),

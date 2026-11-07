@@ -34,6 +34,7 @@ const TARGETS: &[&str] = &[
     "settings:bar-look",
     "settings:color-themes",
     "settings:color-apps",
+    "settings:color-apps-scroll",
     "settings:wall-skwd",
     "settings:widgets",
     "settings:look",
@@ -276,9 +277,22 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
             // вкладка «цвет», раздел «темы» (#8): свои темы карточками
             st.color_page = match arg {
                 "color-themes" => 1,
-                "color-apps" => 2,
+                "color-apps" | "color-apps-scroll" => 2,
                 _ => 0,
             };
+            // #27: итог перекраски — свой fastfetch, своя палитра starship, шаблоны с разным итогом
+            if st.color_page == 2 {
+                let tpl = |file: &str, output: &str, state: &str, keys: &[&str]| crate::restyle::Tpl { file: file.into(), output: output.into(), state: state.into(), keys: keys.iter().map(|k| k.to_string()).collect() };
+                st.restyle = crate::restyle::Status {
+                    fetch: Some("~/.config/fastfetch/yami.jsonc".into()),
+                    starship: Some("catppuccin_mocha".into()),
+                    tpls: vec![
+                        tpl("equibop.css", "~/.config/equibop/themes/yami.css", "ok", &[]),
+                        tpl("waybar.css", "~/.config/waybar/colors.css", "hand", &[]),
+                        tpl("rofi.rasi", "~/.config/rofi/yami.rasi", "unknown", &["acccent"]),
+                    ],
+                };
+            }
             if st.color_page == 1 {
                 let card = |name: &str, accent: u32, light: bool, wall: bool| crate::bundle::Card { name: name.into(), accent, light, wall };
                 st.themes = vec![card("ash-dark", 0xa8a29c, false, false), card("sakura evening", 0xd9577c, false, true), card("paper", 0x3a9fd0, true, false), card("amber-light", 0xd98e1f, true, true), card("venom", 0x5fae34, false, false)];
@@ -316,6 +330,12 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
                 }
                 st.set.widgets = ws;
                 st.sel_widget = 1;
+            }
+            if arg == "color-apps-scroll" {
+                // низ страницы «программы»: итог своих шаблонов (#27)
+                st.stab = "color";
+                st.sscroll = (400, "color");
+                st.sscroll_h.set(1200);
             }
             if arg == "system-scroll" {
                 // вкладка пролистана: шапка и полоса прокрутки на месте, зоны под шапкой обрезаны

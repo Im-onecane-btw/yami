@@ -111,6 +111,7 @@ impl App {
             }
             if self.st.started.elapsed().as_secs() % 5 == 0 {
                 self.session_tick();
+                self.templates_tick();
             }
             // профиль могли сменить снаружи (powerprofilesctl, другой апплет)
             if self.st.started.elapsed().as_secs() % 15 == 0 && self.st.set.on_bar("profile") {

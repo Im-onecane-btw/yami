@@ -40,6 +40,11 @@ impl App {
                     _ => {}
                 }
             }
+            Act::STplForce(i) => {
+                if let Some(f) = self.st.restyle.tpls.get(*i).map(|t| t.file.clone()) {
+                    self.templates_run(Some(f));
+                }
+            }
             Act::SThemeApp(id) => {
                 let on = match s.theme_apps.iter().position(|a| a == id) {
                     Some(i) => {
@@ -202,6 +207,9 @@ impl App {
                     };
                     if self.st.color_page == 1 {
                         self.theme_do("list", 0);
+                    }
+                    if self.st.color_page == 2 {
+                        self.st.restyle = crate::restyle::load();
                     }
                     self.dirty(&SKind::Modal);
                 }

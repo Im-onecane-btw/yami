@@ -38,6 +38,8 @@ pub enum Act {
     SBool(&'static str),
     /// настройки → цвет → программы: красить ли эту программу (config::THEME_APPS)
     SThemeApp(&'static str),
+    /// свой шаблон, изменённый руками, — перезаписать (#27)
+    STplForce(usize),
     SSlider(&'static str, f32, f32, i32),
     SCycle(&'static str),
     /// число в пикселях (config::NUMS): на шаг вниз (-1) или вверх (+1); колесо — тоже

@@ -219,7 +219,12 @@ pub fn spawn(tx: Sender<Msg>) {
                     std::thread::sleep(std::time::Duration::from_secs(30));
                     continue;
                 };
-                let out = c.stdout.take().unwrap();
+                // stdout у piped-ребёнка есть всегда; паники в потоке звука не будет в любом случае
+                let Some(out) = c.stdout.take() else {
+                    let _ = c.kill();
+                    let _ = c.wait();
+                    continue;
+                };
                 let (ltx, lrx) = mpsc::channel::<u8>();
                 std::thread::spawn(move || {
                     for l in BufReader::new(out).lines() {
@@ -333,7 +338,11 @@ fn viz_thread(tx: Sender<Msg>) {
                     std::thread::sleep(std::time::Duration::from_secs(5));
                     continue;
                 };
-                let mut out = c.stdout.take().unwrap();
+                let Some(mut out) = c.stdout.take() else {
+                    let _ = c.kill();
+                    let _ = c.wait();
+                    continue;
+                };
                 ring.fill(0.0);
                 let mut smooth = vec![0f32; BANDS];
                 let mut bands = [0f32; BANDS];

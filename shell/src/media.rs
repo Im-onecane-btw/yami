@@ -113,7 +113,11 @@ pub fn spawn(tx: Sender<Msg>) {
                 std::thread::sleep(std::time::Duration::from_secs(30));
                 continue;
             };
-            let out = c.stdout.take().unwrap();
+            let Some(out) = c.stdout.take() else {
+                let _ = c.kill();
+                let _ = c.wait();
+                continue;
+            };
             for l in BufReader::new(out).lines() {
                 let Ok(l) = l else { break };
                 let f: Vec<&str> = l.split('\t').collect();

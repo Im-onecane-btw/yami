@@ -103,12 +103,21 @@ fn app_themes(ui: &mut Ui, st: &State, b: R, tw: i32) {
     }
     ui.wrap(PX, R::new(b.x, y, b.w, 40), "выключенную программу yami не трогает; всегда в палитре: шелл, экран входа, рамки niri, свои шаблоны. Курсор — окна → курсор", t.text_faint, 2);
     y += 48;
+    // свой конфиг fastfetch, своя палитра starship (#27): yami их не перезаписывает и говорит об этом
+    for n in crate::restyle::app_notes(&st.restyle) {
+        ui.wrap(PX, R::new(b.x, y, b.w, 40), &n, t.text_dim, 2);
+        y += 40;
+    }
+    y += 6;
     y = title(ui, b.x, y, b.w, "свои шаблоны");
-    let help = "файл в ~/.config/yami/templates — конфиг программы, где цвета записаны как {{accent}}, {{bg}}, {{text}}, {{color1}}… (.strip — без #, .rgb — r, g, b). Строка «yami-output: ~/путь» — куда писать, «yami-reload: USR1 программа» — кому сказать перечитать. Чужой файл не перезаписывается.";
-    ui.wrap(PX, R::new(b.x, y, b.w, 100), help, t.text_dim, 5);
-    y += 104;
+    let help = "файл в ~/.config/yami/templates — конфиг программы, где цвета записаны как {{accent}}, {{bg}}, {{text}}, {{color1}}… (.strip — без #, .rgb — r, g, b). Строка «yami-output: ~/путь» — куда писать, «yami-reload: USR1 программа» — кому сказать перечитать. Изменённый руками файл не перезаписывается, шаблон с неизвестным цветом не пишется; правка в папке шаблонов применяется сама.";
+    ui.wrap(PX, R::new(b.x, y, b.w, 120), help, t.text_dim, 6);
+    y += 124;
     ui.button(R::new(b.x, y, 220, 28), "папка шаблонов", "folder", Tone::Plain, false, true, Act::SCycle("templates_open"));
     ui.button(R::new(b.x + 230, y, 220, 28), "перекрасить сейчас", "reboot", Tone::Plain, false, true, Act::SCycle("theme_rerun"));
+    y += 40;
+    // что вышло у каждого шаблона в последний раз (restyle.json)
+    crate::restyle::draw(ui, st, b, y);
 }
 
 pub(crate) fn tab_widgets(ui: &mut Ui, st: &State, b: R) {

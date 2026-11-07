@@ -164,6 +164,12 @@ impl App {
             Msg::Theme => {
                 self.sync_wall();
                 self.res.icons.drop_cache();
+                self.st.restyle = crate::restyle::load();
+                self.dirty(&SKind::Modal);
+            }
+            Msg::Restyled => {
+                self.st.restyle = crate::restyle::load();
+                self.dirty(&SKind::Modal);
             }
         }
     }

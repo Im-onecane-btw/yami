@@ -366,6 +366,7 @@ yami report                   # архив для issue: версии, doctor, �
 yami ocr картинка.png         # текст с картинки (как «текст» на скриншоте)
 yami theme export ~/my.yami   # вид одним файлом (поставить: yami theme import ФАЙЛ или https-ссылка)
 yami theme save night         # текущий вид — в свои темы (list | apply ИМЯ | remove ИМЯ)
+yami templates                # собрать свои шаблоны и показать, что вышло (force ИМЯ перезаписывает один)
 yami export ~/all.yami        # все настройки одним файлом для новой системы (yami import ФАЙЛ)
 yami version                  # все части, установленный коммит, канал обновлений
 yami update                   # что нового; apply | list | to X.Y.Z | rollback | status | log | need
