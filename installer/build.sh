@@ -3,6 +3,10 @@
 # the binaries into ~/.local/bin, each swapped in whole.
 # shellcheck shell=bash
 
+plan_build() {
+  add "$(t "шелл: сборка из исходников" "shell: build from source" "shell: compilar do código-fonte")" do_build_shell
+}
+
 ver_ge() { [[ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" == "$2" ]]; }
 rust_ok() {
   local v

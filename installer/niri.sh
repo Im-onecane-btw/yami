@@ -1,7 +1,30 @@
-# Niri itself. Upstream niri from source when the distro's is older than 26.04,
-# and yami-niri (fork/): built when its patch series moved, its realtime capability, and its sources
-# (~4 GB) removed after a build unless they hold patch work.
+# Niri itself. Upstream niri from source when the distro's is older than 26.04 (the one root step
+# here), and yami-niri (fork/): built into ~/.local/lib when its patch series moved, its sources (~4 GB)
+# removed after a build unless they hold patch work. Realtime priority is never granted behind your
+# back: `yami-niri.sh status` says how (a realtime group or setcap) when the system has no rtprio limit.
 # shellcheck shell=bash
+
+plan_niri() {
+  on core && add "$(t "niri $NIRI_MIN+ из исходников, если пакет старее" "niri $NIRI_MIN+ from source if the package is older" "niri $NIRI_MIN+ compilado se o pacote for mais antigo")" do_niri_source
+  return 0
+}
+# after the steps: yami-niri is built last (minutes of output, nothing waits on it)
+fork_after() {
+  on fork || return 0
+  if ((DRY)); then
+    printf '  %s·%s %s%s%s\n' "$A" "$R" "$T" "$(t "yami-niri: сборка и включение со следующего входа" "yami-niri: build and enable from the next login" "yami-niri: compilar e ativar a partir do próximo login")" "$R"
+    return 0
+  fi
+  ((!BUILD_FAILED)) || return 0
+  if ((UPDATE)); then
+    # an update builds it only when the patch series moved and nothing else failed
+    ((${#FAILED[@]} == 0)) && fork_stale || return 0
+    say "$(t "yami-niri: новая серия патчей — сборка (5–25 минут)" "yami-niri: a new patch series, building (5–25 minutes)" "yami-niri: nova série de patches, compilando (5–25 minutos)")"
+  else
+    printf '\n  %s%s%s\n\n' "$T" "$(t "сборка yami-niri — 5–25 минут, вывод прямо здесь:" "building yami-niri takes 5–25 minutes, output below:" "compilar o yami-niri leva de 5 a 25 minutos; saída abaixo:")" "$R"
+  fi
+  fork_build || FAILED+=("yami-niri")
+}
 
 niri_ok() {
   local v
@@ -61,12 +84,8 @@ fork_tidy() {
   rm -rf -- "$src" && note "$(t "исходники yami-niri удалены (${sz:-?}): бинарник стоит, следующая сборка скачает их заново (--keep-build — оставить)" "yami-niri sources removed (${sz:-?}): the binary stays, the next build fetches them again (--keep-build keeps them)" "código-fonte do yami-niri removido (${sz:-?}): o binário permanece; a próxima compilação baixa novamente (--keep-build preserva)")"
 }
 
-# yami-niri: build (5–25 min, the output stays on the terminal), realtime priority without the
-# rtprio limit (the capability on the binary, dropped at start), then the sources go
+# yami-niri: build (5–25 min, the output stays on the terminal), then the sources go
 fork_build() {
   need_rust && "$ROOT/fork/yami-niri.sh" build 2>&1 | tee -a "$LOG" || return 1
-  if [[ "$(ulimit -r)" == 0 ]] && ((SUDO)) && command -v setcap >/dev/null; then
-    $SU setcap cap_sys_nice=ep "$(readlink -f "$HOME/.local/lib/yami-niri/current/niri")" || true
-  fi
   fork_tidy
 }

@@ -258,6 +258,16 @@ pub fn run(y: &Sty) -> i32 {
         let note = if set.lite { crate::tf!("лёгкий режим включён", "lite mode is on", "o modo leve está ativado") } else { crate::tf!("включи лёгкий режим: yami config set lite true (настройки → вид)", "turn on lite mode: yami config set lite true (settings → look)", "ative o modo leve: yami config set lite true (configurações → visual)") };
         line(y, &if set.lite { y.ok("✓") } else { y.warn("·") }, &why, &note);
     }
+    // драйвер NVIDIA в initramfs от yami ≤ 2.6 (nvboot): теперь yami в драйвер не лезет, файлы — человеку решать
+    let old: Vec<&str> = ["/etc/modprobe.d/yami-nvidia-kms.conf", "/etc/mkinitcpio.conf.d/90-yami-nvidia.conf", "/etc/dracut.conf.d/90-yami-nvidia.conf"]
+        .into_iter()
+        .filter(|f| std::path::Path::new(f).exists())
+        .collect();
+    if !old.is_empty() {
+        y.section("NVIDIA");
+        let rebuild = if std::path::Path::new("/usr/bin/mkinitcpio").exists() { "sudo mkinitcpio -P" } else { "sudo dracut -f --regenerate-all" };
+        line(y, &y.dim("·"), &crate::tf!("драйвер в initramfs от старой yami", "the driver in the initramfs from an older yami", "o driver no initramfs de um yami antigo"), &crate::tf!("не нужен, если пароль диска виден и так; убрать: sudo rm {} && {}", "not needed if the disk password shows anyway; to remove: sudo rm {} && {}", "desnecessário se a senha do disco já aparece; para remover: sudo rm {} && {}", old.join(" "), rebuild));
+    }
     // кеш сборки лежит на диске, пока его не уберут: не проблема, но гигабайты стоит показать
     let cache = crate::clean::total();
     if cache >= 100 << 20 {

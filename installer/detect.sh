@@ -60,19 +60,9 @@ detect_machine() {
     export CARGO_BUILD_JOBS=$j
   fi
 
-  NVIDIA=0 HYBRID=0 RUNNING_NIRI=0 SYSTEMD=0
-  { [[ -e /proc/driver/nvidia/version ]] || lspci 2>/dev/null | grep -qiE '(vga|3d).*nvidia'; } && NVIDIA=1
-  # NVIDIA next to another GPU (Optimus laptops, an iGPU driving a screen): the driver's global env
-  # (GBM, GLX, VA-API) would pull every app onto the NVIDIA card or break it, so it is left out
-  if ((NVIDIA)); then
-    for v in /sys/class/drm/card[0-9]*/device/vendor; do
-      [[ -r $v && $v != *-* ]] && [[ $(cat "$v") != 0x10de ]] && HYBRID=1
-    done
-  fi
-  # the driver in the initramfs (nvboot) touches /etc and rebuilds the boot images: never by default,
-  # on only where an earlier install already put it there (an update keeps it, unchecked it goes)
-  NVBOOT_ON=0
-  [[ -e /etc/modprobe.d/yami-nvidia-kms.conf ]] && NVBOOT_ON=1
+  NVIDIA=0 RUNNING_NIRI=0 SYSTEMD=0
+  # the proprietary driver, loaded or installed (nouveau needs nothing from us)
+  { [[ -e /proc/driver/nvidia/version ]] || modinfo nvidia >/dev/null 2>&1; } && NVIDIA=1
   [[ -n "${NIRI_SOCKET:-}" ]] && RUNNING_NIRI=1
   [[ -d /run/systemd/system ]] && SYSTEMD=1
   return 0

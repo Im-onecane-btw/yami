@@ -196,13 +196,6 @@ system() {
   # the SDDM theme yami had before its own login screen
   rm -rf -- /usr/share/sddm/themes/yami /etc/sddm.conf.d/zz-yami.conf /etc/sddm.conf.d/10-yami.conf
   relabel /var/lib/yami-greet /usr/local/lib/yami /usr/local/share/yami-greet /usr/share/icons/yami-cursor /etc/greetd
-  if [[ $INIT == systemd && -f /usr/lib/systemd/system/plymouth-quit.service ]]; then
-    # plymouth: never let a hung boot splash block multi-user.target (see system/plymouth)
-    for u in plymouth-quit plymouth-quit-wait; do
-      install -Dm644 "$ROOT/system/plymouth/10-yami.conf" "/etc/systemd/system/$u.service.d/10-yami.conf"
-    done
-    systemctl daemon-reload
-  fi
   ((enable)) && enable_greetd
   return 0
 }

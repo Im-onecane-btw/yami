@@ -5,6 +5,22 @@
 # brings back the login manager it replaced.
 # shellcheck shell=bash
 
+# the root half is the last root step (run_steps closes the root shell before the build)
+plan_login() {
+  on login && add "$(t "экран входа: greetd, вид и страховка" "login screen: greetd, look and safety net" "tela de login: greetd, aparência e rede de segurança")" do_greet
+  return 0
+}
+# after the steps: the binary (an update only offers it, login_offer)
+login_after() {
+  if ((UPDATE)); then
+    login_offer
+    return 0
+  fi
+  on login && ((SUDO && !DRY && !BUILD_FAILED)) || return 0
+  say "$(t "экран входа: ставлю yami-greet (пароль администратора ещё раз)" "login screen: installing yami-greet (the administrator password once more)" "tela de login: instalando o yami-greet (a senha de administrador mais uma vez)")"
+  greet_bin || { FAILED+=("yami-greet"); warn "$(t "yami-greet не встал: до него вход будет текстовым; поставить потом:" "yami-greet is not installed: the login is text until then; install it later:" "o yami-greet não foi instalado: até lá o login será em texto; instale depois:") $ROOT/tools/greet-install.sh"; }
+}
+
 # the installed login screen is older than this build (or still the SDDM theme of before 2.6)
 greet_stale() {
   [[ -d /usr/share/sddm/themes/yami ]] && return 0
@@ -30,7 +46,7 @@ do_greet() {
   rm -rf -- "$CACHE/yami-cursor"
 }
 # after the build: the binary, root-owned in /usr/local/bin (the root shell is closed by then: the
-# password is asked once more, like for the yami-niri capability), and the shell's look for it
+# password is asked once more), and the shell's look for it
 greet_bin() {
   [[ -x $CACHE/target/release/yami-greet ]] || return 1
   $SU "$ROOT/tools/greet-install.sh" --system "$(id -un)" --bin "$CACHE/target/release/yami-greet" --bin-only || return 1
@@ -67,7 +83,7 @@ login_offer() {
 
 # the login screen: yami-greet, its files, cursor and greetd config go (greetd gets its own config
 # back), the login manager it replaced (do_greet wrote it down) comes back from the next boot;
-# greetd itself stays. The plymouth and NVIDIA fixes stay too: they help without yami.
+# greetd itself stays.
 uninstall_login() {
   local dm="" f files=() now
   [[ -r $STATE/login-dm ]] && dm="$(head -n1 "$STATE/login-dm")"

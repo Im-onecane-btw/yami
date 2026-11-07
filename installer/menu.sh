@@ -166,8 +166,7 @@ pick_components() {
       up | k) cur=$(((cur + n - 1) % n)) ;;
       down | j) cur=$(((cur + 1) % n)) ;;
       space) k=$(c_idx "${rows[$cur]}"); can "${rows[$cur]}" && C_ON[k]=$((1 - C_ON[k])) ;;
-      # «all» without the initramfs: that one is only ever chosen on its own
-      a | "ф") for id in "${rows[@]}"; do [[ $id != nvboot ]] && can "$id" && c_set "$id" 1; done ;;
+      a | "ф") for id in "${rows[@]}"; do can "$id" && c_set "$id" 1; done ;;
       s | "ы") shell_only ;;
       enter) return 0 ;;
       q | esc | eof) bye ;;

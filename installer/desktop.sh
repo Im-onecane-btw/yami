@@ -1,114 +1,34 @@
-# The steps that put the desktop into the home folder. Our apps (yami-files for
-# folders and file dialogs, yami-view, yami-play: each only when chosen, and taken out again when
-# unchecked), the fonts, niri's config, the palette and what is made from it, the app theme, the
-# system services, the install record and counter, and the shell restarted in place.
+# The steps that put the desktop into the home folder: the fonts, niri's config, the palette and what is
+# made from it (only the programs chosen to restyle, restyle.sh), the app theme, then the install
+# record, the counter and the shell restarted in place. One root step: the system services the
+# desktop needs (bluetooth, power profiles, NetworkManager when nothing else runs the network).
 # shellcheck shell=bash
 
-# ── our apps: each one only when chosen; unchecked over an earlier install, it goes ──
-add_apps() {
-  if on files; then add "$(t "файлы: yami-files и диалог выбора файлов" "files: yami-files and the file dialog" "arquivos: yami-files e diálogo de arquivos")" do_files
-  elif app_here yami-files; then add "$(t "файлы: убрать yami-files (не выбран)" "files: remove yami-files (not chosen)" "arquivos: remover o yami-files (não escolhido)")" drop_files; fi
-  if on view; then add "$(t "картинки: yami-view" "images: yami-view" "imagens: yami-view")" do_view
-  elif app_here yami-view; then add "$(t "картинки: убрать yami-view (не выбран)" "images: remove yami-view (not chosen)" "imagens: remover o yami-view (não escolhido)")" drop_app yami-view; fi
-  if on play; then add "$(t "плеер: yami-play" "player: yami-play" "player: yami-play")" do_play
-  elif app_here yami-play; then add "$(t "плеер: убрать yami-play (не выбран)" "player: remove yami-play (not chosen)" "player: remover o yami-play (não escolhido)")" drop_app yami-play; fi
+plan_services() {
+  on core && ((SUDO)) && add "$(t "службы: bluetooth, профили питания, сеть" "services: bluetooth, power profiles, network" "serviços: bluetooth, perfis de energia e rede")" do_services
   return 0
 }
-app_here() { [[ -e $BIN/$1 || -e ${XDG_DATA_HOME:-$HOME/.local/share}/applications/$1.desktop ]]; }
-# the .desktop file and the default for its MimeType list
-app_desktop() {
-  local data="${XDG_DATA_HOME:-$HOME/.local/share}"
-  # на чистой системе ~/.config ещё нет, а xdg-mime его не создаёт
-  mkdir -p "$CFG" "$data/applications"
-  install -Dm644 "$ROOT/config/applications/$1.desktop" "$data/applications/$1.desktop" || return 1
-  command -v xdg-mime >/dev/null || return 0
-  # shellcheck disable=SC2046 # one argument per MIME type
-  xdg-mime default "$1.desktop" $(sed -n 's/^MimeType=//p' "$ROOT/config/applications/$1.desktop" | tr ';' ' ')
-}
-# pictures open in yami-view, video and music in yami-play
-do_view() { app_desktop yami-view; }
-do_play() { app_desktop yami-play; }
-# an app that is no longer chosen: its binary, .desktop and the defaults pointing at it
-drop_app() {
-  local data="${XDG_DATA_HOME:-$HOME/.local/share}"
-  rm -f -- "$BIN/$1" "$data/applications/$1.desktop"
-  mime_forget "$1.desktop"
-}
-# mimeapps.list without the given .desktop (xdg-mime default wrote it); other entries stay as they are
-mime_forget() {
-  python3 -I - "$CFG/mimeapps.list" "$1" <<'PY'
-import sys
-from pathlib import Path
-p, app = Path(sys.argv[1]), sys.argv[2]
-try:
-    lines = p.read_text().splitlines()
-except OSError:
-    sys.exit(0)
-out = []
-for l in lines:
-    k, eq, v = l.partition("=")
-    if eq and not l.startswith(("[", "#")) and app in v.split(";"):
-        rest = [a for a in v.split(";") if a and a != app]
-        if not rest:
-            continue
-        l = f"{k}={';'.join(rest)};"
-    out.append(l)
-if out != lines:
-    p.write_text("\n".join(out) + "\n")
-PY
-}
-
-# ── files: yami-files as the folder handler, the portal file dialog ─────────
-do_files() {
-  local data="${XDG_DATA_HOME:-$HOME/.local/share}"
-  app_desktop yami-files || return 1
-  # xdg-desktop-portal: FileChooser → yami-files (browsers, Telegram, GTK/KDE apps)
-  install -Dm644 "$ROOT/config/portal/yami.portal" "$data/xdg-desktop-portal/portals/yami.portal"
-  # which backend serves what: a niri-portals.conf of your own (no «# yami:» line) stays yours
-  local pc="$CFG/xdg-desktop-portal/niri-portals.conf"
-  if [[ ! -e $pc ]] || head -1 "$pc" | grep -q '^# yami:'; then install -Dm644 "$ROOT/config/portal/niri-portals.conf" "$pc"; fi
-  mkdir -p "$data/dbus-1/services"
-  sed "s|@BIN@|$BIN/yami-files|" "$ROOT/config/portal/org.freedesktop.impl.portal.desktop.yami.service" \
-    >"$data/dbus-1/services/org.freedesktop.impl.portal.desktop.yami.service"
-  # «показать в папке» из браузеров и прочих: org.freedesktop.FileManager1
-  sed "s|@BIN@|$BIN/yami-files|" "$ROOT/config/portal/org.freedesktop.FileManager1.service" \
-    >"$data/dbus-1/services/org.freedesktop.FileManager1.service"
-  # Firefox and its forks pick the portal dialog only with this pref
-  # profiles from profiles.ini too (they may live outside the browser folder)
-  local prof
-  while IFS= read -r prof; do
-    [[ -f $prof/prefs.js ]] || continue
-    grep -qs 'use-xdg-desktop-portal.file-picker' "$prof/user.js" ||
-      printf '// yami: file dialogs through the portal (yami-files)\nuser_pref("widget.use-xdg-desktop-portal.file-picker", 1);\n' >>"$prof/user.js"
-  done < <(python3 -I "$ROOT/tools/theme.py" --profiles 2>/dev/null)
-  # the backend left from the previous build moves to the new binary as soon as no screencast or
-  # file dialog is open (a running stream is not cut), and is started when it is not running:
-  # xdg-desktop-portal takes ScreenCast's source types from the live backend, without it OBS and
-  # browsers see nothing to capture. Only in a niri session or over a running backend: installed
-  # from another desktop, it would take «show in folder» (FileManager1) there until logout
-  if ((RUNNING_NIRI)) || pgrep -f '^[^ ]*yami-files --portal$' >/dev/null; then
-    "$BIN/yami-files" --portal-reload 2>/dev/null
+# the home folder: a first install writes the settings it was given, an update only regenerates
+plan_desktop() {
+  if ((UPDATE)); then
+    add "$(t "шрифты" "fonts" "fontes")" do_fonts
+    add "$(t "niri: конфиг" "niri: config" "niri: configuração")" do_niri_config
+    add "$(t "палитра: всё, что из неё выводится" "palette: everything derived from it" "paleta: tudo deriva dela")" do_refresh
+    return 0
   fi
-  # a first install: the portal frontend reads niri-portals.conf only when it starts
-  if ((!UPDATE && SYSTEMD)) && systemctl --user is-active -q xdg-desktop-portal 2>/dev/null; then
-    busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig >/dev/null 2>&1
-    systemctl --user restart xdg-desktop-portal
-  fi
+  add "$(t "шрифты: Tiny5, DotGothic16, Terminess" "fonts: Tiny5, DotGothic16, Terminess" "fontes: Tiny5, DotGothic16 e Terminess")" do_fonts
+  add "$(t "niri: конфиг" "niri: config" "niri: configuração")" do_niri_config
+  add "$(t "палитра «$(pal_name "$pal")»: шелл, обои и выбранные программы" "palette «$(pal_name "$pal")»: the shell, wallpaper and the chosen programs" "paleta «$(pal_name "$pal")»: o shell, o papel de parede e os programas escolhidos")" do_dotfiles
+  on look && add "$(t "тема программ: Qt, KDE, GTK" "app theme: Qt, KDE, GTK" "tema dos aplicativos: Qt, KDE e GTK")" do_look
   return 0
 }
-# yami-files unchecked: the backend stops, the portal and D-Bus files go (dialogs fall back to GTK),
-# niri-portals.conf goes if it is ours
-drop_files() {
-  local data="${XDG_DATA_HOME:-$HOME/.local/share}" pc="$CFG/xdg-desktop-portal/niri-portals.conf"
-  pkill -f "^$BIN/yami-files --portal" 2>/dev/null
-  drop_app yami-files
-  rm -f -- "$data/xdg-desktop-portal/portals/yami.portal" "$data/dbus-1/services/org.freedesktop.impl.portal.desktop.yami.service" \
-    "$data/dbus-1/services/org.freedesktop.FileManager1.service"
-  head -1 "$pc" 2>/dev/null | grep -q '^# yami:' && rm -f -- "$pc"
-  if ((SYSTEMD)) && systemctl --user is-active -q xdg-desktop-portal 2>/dev/null; then
-    busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig >/dev/null 2>&1
-    systemctl --user restart xdg-desktop-portal
-  fi
+# last: what was installed, what the chosen components still miss (an update has no sudo: the
+# shell offers one command for it), the counter, the running shell restarted
+plan_record() {
+  add "$(t "запись об установке (для yami update)" "install record (for yami update)" "registro de instalação (para yami update)")" do_stamp
+  add "$(t "каких пакетов ещё не хватает" "packages still missing" "pacotes ainda ausentes")" do_need_pkgs
+  add "$(t "счётчик установок (один раз, без данных)" "install counter (once, no data)" "contador de instalações (uma vez, sem dados)")" do_count
+  ((RUNNING_NIRI)) && add "$(t "перезапуск шелла" "restart the shell" "reiniciar o shell")" do_restart_shell
   return 0
 }
 
@@ -142,23 +62,10 @@ do_fonts() {
 }
 
 # ── niri config ─────────────────────────────────────────────────────────────
-# the proprietary NVIDIA driver is loaded or installed (nouveau is not it)
-nv_driver() { [[ -e /proc/driver/nvidia/version ]] || modinfo nvidia_drm >/dev/null 2>&1; }
+# the machine's own niri settings: nothing for now (the GPU needs no environment from us); config.kdl
+# includes the file, so it is always there
 write_local_kdl() {
-  local env=()
   echo "// YAMI: written by install.sh for this machine. Re-run the installer to regenerate."
-  # the polkit password window is yami-shell's own (no Qt/GTK agent)
-  # the proprietary driver only (nouveau has no nvidia-drm GBM) and only when NVIDIA is the one GPU;
-  # the __GL_ ones touch NVIDIA's own GL alone, so prime-run apps on a laptop keep them
-  if on nvidia && nv_driver; then
-    ((HYBRID)) || env+=('GBM_BACKEND "nvidia-drm"' '__GLX_VENDOR_LIBRARY_NAME "nvidia"' 'LIBVA_DRIVER_NAME "nvidia"' 'NVD_BACKEND "direct"')
-    env+=('__GL_GSYNC_ALLOWED "1"' '__GL_VRR_ALLOWED "1"' '__GL_MaxFramesAllowed "1"' '__GL_SHADER_DISK_CACHE_SKIP_CLEANUP "1"')
-  fi
-  if ((${#env[@]})); then
-    echo "environment {"
-    printf '    %s\n' "${env[@]}"
-    echo "}"
-  fi
 }
 do_niri_config() {
   local n="$CFG/niri" old=""
@@ -236,9 +143,6 @@ PY
     touch "$CFG/kitty/kitty.conf"
     grep -qx 'include yami.conf' "$CFG/kitty/kitty.conf" ||
       printf '\n# YAMI: settings → color → apps → kitty off takes this line out\ninclude yami.conf\n' >>"$CFG/kitty/kitty.conf"
-  fi
-  if t_on fastfetch && [[ -f "$CFG/fastfetch/config.jsonc" ]] && ! grep -qE "YAMI|DARK-4RMY" "$CFG/fastfetch/config.jsonc"; then
-    cp "$CFG/fastfetch/config.jsonc" "$CFG/fastfetch/config.jsonc.bak-$STAMP"
   fi
   # wallpaper, niri borders and what is chosen to restyle (kitty, fastfetch, GTK, Qt, the cursor…)
   local lt=()

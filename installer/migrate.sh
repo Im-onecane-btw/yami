@@ -3,6 +3,17 @@
 # Every step here is «not needed» on a machine that never had them.
 # shellcheck shell=bash
 
+# a first install over DARK-4RMY moves it (root: its packages are already ours); later, its files go
+plan_migrate() {
+  old_install && ((!UPDATE)) && add "$(t "переезд со старого имени DARK-4RMY" "move from the old name DARK-4RMY" "migrar do nome antigo DARK-4RMY")" do_migrate
+  return 0
+}
+plan_legacy() {
+  add "$(t "следы прошлых версий" "leftovers of earlier versions" "restos de versões anteriores")" do_legacy
+  old_install && ((!UPDATE)) && add "$(t "убрать файлы под старым именем" "remove files under the old name" "remover arquivos com o nome antigo")" do_drop_old
+  return 0
+}
+
 # leftovers of earlier versions, removed once: the old fork (dark-niri on angel-niri) with its
 # drop-in, a font never used (Handjet), the blur rule that covered whole shell surfaces (the shell
 # now sends exact blur regions and rewrites yami-fx.kdl itself)

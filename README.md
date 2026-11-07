@@ -237,12 +237,11 @@ The components (the `c` page), each one on its own:
 | `drives` | udisks2 and gvfs: drives, phones, cameras, network shares | on |
 | `tools` | night light, text and QR from screenshots (wlsunset, tesseract, zbar) | on |
 | `games` | GameMode and MangoHud | on when Steam is installed |
-| `nvidia` | the NVIDIA driver profile against VRAM growth, NVENC in OBS on an old driver | on with an NVIDIA card |
-| `nvboot` | the NVIDIA driver in the initramfs (the disk password on any output): writes `/etc/modprobe.d` and the initramfs config, rebuilds the boot images | off, never on by itself |
+| `nvidia` | niri's profile against its VRAM growth: one file in `/etc/nvidia`, nothing else of the driver | on with the NVIDIA driver |
 | `fork` | yami-niri built from source | on unless the machine is weak |
 
 A component unticked later goes on the next run or update: yami-files, yami-view and yami-play
-with their file associations, `nvboot` with its files (the boot images are rebuilt without them).
+with their file associations.
 
 What it does:
 
@@ -259,9 +258,9 @@ What it does:
    in your file manager.
 3. Installs the pixel fonts (Tiny5, DotGothic16, Terminess; Monocraft, pinned and checksummed,
    for kitty) and, with GTK or Qt restyled, a fontconfig rule for crisp text.
-4. Writes the niri configuration, `yami-local.kdl` for this machine's GPU, the keybindings and the
-   game rules; `output` blocks from a previous niri config are carried over into `user.kdl`. kitty
-   gets one `include yami.conf` line at the end of `kitty.conf`, nothing else of it changes.
+4. Writes the niri configuration, the keybindings and the game rules; `output` blocks from a
+   previous niri config are carried over into `user.kdl`. kitty gets one `include yami.conf` line
+   at the end of `kitty.conf`, nothing else of it changes.
 5. Recolours what was chosen (GTK, Qt and KDE, the cursor, kitty, fastfetch, btop, browser menus,
    MangoHud, foot, cava, starship); a file it replaces is kept as `*.bak-yami` or `*.bak-DATE`.
 6. With the «login screen» component: installs greetd, yami-greet (root-owned, in `/usr/local/bin`),
@@ -269,9 +268,11 @@ What it does:
    next boot (off by default when another login manager is set; an SDDM with the old yami theme is
    replaced; systemd, OpenRC and runit). `--uninstall` removes it, gives greetd its own config back and
    brings back the login manager it replaced.
-7. Builds yami-niri (5–25 minutes, output shown) and enables it from the next login.
-8. With an NVIDIA card: the driver profile and, on Pascal-era drivers, obs-gstreamer. The
-   initramfs is left alone unless `nvboot` is ticked.
+7. Builds yami-niri (5–25 minutes, output shown) and enables it from the next login. Realtime
+   priority stays your call: `yami-niri.sh status` says how to grant it.
+8. With the NVIDIA driver: niri's application profile against its VRAM growth, the fix the niri
+   wiki gives. Nothing else of the driver is touched: no session environment, no module options,
+   no initramfs.
 
 An existing install under the old name DARK-4RMY is moved over: settings, palette, widgets
 and clipboard pins are kept, the old files are removed; the old dark-niri fork is removed too.
@@ -447,7 +448,7 @@ yami-shell binds list                  # keybindings: id, keys, action
 | `docs/` | configuration reference, security notes, packaging and Nix (each also in Russian: `*.ru.md`) |
 | `keys/` | release signing keys (`allowed_signers`), read by `yami update` |
 | `VERSION`, `CHANGELOG.md` | the release version and what changed in each release (`CHANGELOG.ru.md` in Russian) |
-| `system/nvidia/` | driver profile against VRAM growth in the compositor; modeset options for early KMS (only with the `nvboot` component does the installer put the driver into the initramfs; on Pascal-era drivers it adds obs-gstreamer: OBS 33 needs NVENC API 13.1, driver 610+) |
+| `system/nvidia/` | niri's application profile against VRAM growth with the NVIDIA driver |
 
 ## yami-niri
 

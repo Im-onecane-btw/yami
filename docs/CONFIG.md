@@ -16,7 +16,7 @@ of the file is kept), unknown keys are ignored: `yami-shell config check` lists 
 | `~/.config/niri/yami-fx.kdl` | the shell (windows, look, games) | no, rewritten |
 | `~/.config/niri/yami-colors.kdl`, `yami-cursor.kdl` | `tools/theme.py` | no, rewritten |
 | `~/.config/niri/yami-outputs.kdl` | the shell (settings → screens) | no, rewritten |
-| `~/.config/niri/yami-local.kdl` | the installer (GPU environment) | no |
+| `~/.config/niri/yami-local.kdl` | the installer (this machine's own niri settings; empty now) | no |
 | `/var/lib/yami-greet/look/` | the shell: what the login screen is drawn from (`look.json`: palette, language, monitors, layouts; `wall.png`: the wallpaper), yours since the install | no, rewritten |
 | `/var/lib/yami-greet/log/` | the login screen: `greet.log` (its starts, niri's messages), `last` (how the last start went) | no, read with `yami login status` / `log` |
 | `~/.local/state/yami/palette.json` | the shell: the derived palette other apps are coloured from | no |

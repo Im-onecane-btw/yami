@@ -5,7 +5,7 @@
 # shellcheck shell=bash
 
 # the order of the components page; look is not on it (restyle.sh sets it)
-C_ID=(core files view play login apps drives tools games nvidia nvboot fork look)
+C_ID=(core files view play login apps drives tools games nvidia fork look)
 # components this installer offered last time: one that came later starts at its default on an
 # update instead of «off because it was not in the list»
 KNOWN_F="$STATE/components-known"
@@ -16,14 +16,14 @@ c_idx() { local i; for i in "${!C_ID[@]}"; do [[ ${C_ID[$i]} == "$1" ]] && { ech
 c_set() { local i; i="$(c_idx "$1")" && C_ON[i]=$2; }
 
 components_init() {
-  # core files view play login apps drives tools games nvidia nvboot fork look
-  C_ON=(1 1 1 1 "$LOGIN_ON" 1 1 1 "$GAMES_ON" "$NVIDIA" "$NVBOOT_ON" "$FORK_ON" 1)
+  # core files view play login apps drives tools games nvidia fork look
+  C_ON=(1 1 1 1 "$LOGIN_ON" 1 1 1 "$GAMES_ON" "$NVIDIA" "$FORK_ON" 1)
   COMP=""
   local known i f id
   if ((UPDATE)); then
     [[ -f $INSTALLED ]] && COMP="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("components",""))' "$INSTALLED" 2>/dev/null)"
     if [[ -n $COMP ]]; then
-      # files, view, play, drives and nvboot came in 2.7: before that they went with core and apps
+      # files, view, play and drives came in 2.7: before that they went with core and apps
       known="$(cat "$KNOWN_F" 2>/dev/null || echo "core apps look login nvidia fork")"
       for i in "${!C_ID[@]}"; do
         if [[ " $COMP " == *" ${C_ID[$i]} "* ]]; then C_ON[i]=1
@@ -61,8 +61,7 @@ c_name() {
     drives) t "диски и телефоны" "drives and phones" "discos e telefones" ;;
     tools) t "инструменты" "tools" "ferramentas" ;;
     games) t "игры" "games" "jogos" ;;
-    nvidia) t "фикс NVIDIA" "NVIDIA fixes" "Correções NVIDIA" ;;
-    nvboot) t "NVIDIA в initramfs" "NVIDIA in the initramfs" "NVIDIA no initramfs" ;;
+    nvidia) t "профиль NVIDIA для niri" "NVIDIA profile for niri" "perfil NVIDIA para o niri" ;;
     fork) t "yami-niri (форк)" "yami-niri (fork)" "yami-niri (fork)" ;;
     look) t "тема Qt и GTK" "Qt and GTK theme" "tema Qt e GTK" ;;
   esac
@@ -79,20 +78,18 @@ c_desc() {
     drives) t "udisks2 и gvfs: флешки монтируются сами, телефоны, камеры, сетевые папки" "udisks2 and gvfs: drives mount by themselves, phones, cameras, network shares" "udisks2 e gvfs: pendrives montam sozinhos, telefones, câmeras, pastas de rede" ;;
     tools) t "ночной свет (wlsunset), текст и QR со скриншота (tesseract, zbar)" "night light (wlsunset), text and QR from screenshots (tesseract, zbar)" "luz noturna (wlsunset), texto e QR de capturas de tela (tesseract, zbar)" ;;
     games) t "GameMode и MangoHud в палитре" "GameMode and MangoHud in the palette" "GameMode e MangoHud na paleta" ;;
-    nvidia) t "переменные драйвера, профиль против утечки VRAM, NVENC в OBS на старом драйвере; initramfs не трогает" "driver env, a VRAM leak profile, NVENC in OBS on an old driver; the initramfs is left alone" "variáveis do driver, perfil contra vazamento de VRAM, NVENC no OBS com driver antigo; o initramfs fica intocado" ;;
-    nvboot) t "пароль диска виден и на DisplayPort: пишет /etc/modprobe.d и /etc/mkinitcpio.conf.d (или dracut) и пересобирает initramfs — только если выбрать" "the disk password shows on DisplayPort too: writes /etc/modprobe.d and /etc/mkinitcpio.conf.d (or dracut) and rebuilds the initramfs, only when chosen" "a senha do disco aparece também no DisplayPort: grava /etc/modprobe.d e /etc/mkinitcpio.conf.d (ou dracut) e recria o initramfs, só se escolhido" ;;
+    nvidia) t "против роста VRAM у niri (так советует вики niri): один файл в /etc/nvidia; больше в драйвер ничего не пишется" "against niri's VRAM growth (the niri wiki's fix): one file in /etc/nvidia; nothing else of the driver is touched" "contra o crescimento de VRAM do niri (a correção da wiki do niri): um arquivo em /etc/nvidia; nada mais do driver é alterado" ;;
     fork)
       if ((LIGHT)); then t "наш niri из исходников: здесь ($MEM_GB ГБ, $THREADS потоков) сборка идёт около часа, поэтому выключен; пакетный niri — тот же стол" "our niri from source: here ($MEM_GB GB, $THREADS threads) the build takes about an hour, so it is off; the packaged niri is the same desktop" "nosso niri compilado: aqui ($MEM_GB GB, $THREADS threads) a compilação leva cerca de uma hora, por isso está desativada; o niri do pacote oferece o mesmo desktop"
       else t "наш niri из исходников, 5–25 мин: под этот процессор, tearing и realtime для игр; пакетный niri — запасной" "our niri from source, 5–25 min: built for this CPU, tearing and realtime for games; packaged niri stays as a fallback" "nosso niri compilado, 5–25 min: otimizado para esta CPU, tearing e tempo real nos jogos; o niri do pacote fica como alternativa"; fi ;;
     look) t "qt6ct, adw-gtk3, Papirus" "qt6ct, adw-gtk3, Papirus" "qt6ct, adw-gtk3, Papirus" ;;
   esac
 }
-# on the components page: look follows the restyle page; NVIDIA rows only with an NVIDIA card
+# on the components page: look follows the restyle page; the NVIDIA row only with its driver
 c_shown() {
   case $1 in
     look) return 1 ;;
     nvidia) ((NVIDIA || ${C_ON[$(c_idx nvidia)]})) ;;
-    nvboot) ((NVIDIA && !HYBRID || ${C_ON[$(c_idx nvboot)]})) ;;
     *) return 0 ;;
   esac
 }

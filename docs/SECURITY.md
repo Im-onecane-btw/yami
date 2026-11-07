@@ -44,10 +44,10 @@ Please do not post it in public issues: send a [private report on GitHub](https:
 
 ## Installer
 
-- Runs as the user; `sudo`/`doas` only for packages, services, the login screen, the NVIDIA profile and,
-  when the user has no realtime limit, `setcap cap_sys_nice=ep` on the yami-niri binary (the
-  compositor drops every capability right after taking its scheduling class; any write to the file
-  clears the capability).
+- Runs as the user; `sudo`/`doas` only for packages, services, the login screen and niri's NVIDIA
+  profile (one file in `/etc/nvidia`). Nothing else of the system: no driver environment, module
+  options or initramfs, no capability on a binary (yami-niri's realtime priority is the user's
+  call, `yami-niri.sh status` says how).
 - Downloads: the repository itself (git over HTTPS), rustup when the distro's Rust is too old
   (`https` only, TLS 1.2+), Monocraft at a pinned version checked against its SHA-256. niri and
   smithay are fetched at pinned commits, the patches come from this repository.

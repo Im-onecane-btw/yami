@@ -37,6 +37,31 @@ root_start() {
   case $tool in sudo) sudo -k ;; doas) doas -L 2>/dev/null ;; esac
   return 0
 }
+# the install asks once, before the root steps; without root it goes on with the home folder only
+root_begin() {
+  ((SUDO && !DRY)) && [[ -n $SU ]] || return 0
+  say "$(t "нужен пароль администратора — один раз на всю установку" "the administrator password, once for the whole install" "a senha de administrador, uma vez para toda a instalação")"
+  if ! root_start; then
+    if $SU true; then
+      # the password is right but the root shell did not come up (an unusual sudo setup): every
+      # root command asks on its own, the steps run in the foreground so the prompts are seen
+      warn "$(t "общий root-сеанс не поднялся — пароль может спрашиваться не раз" "the shared root session did not start: the password may be asked more than once" "a sessão root compartilhada não iniciou: a senha pode ser solicitada mais de uma vez")"
+    else
+      warn "$(t "без root — ставлю только домашнюю папку" "no root: home directory only" "sem root: apenas a pasta pessoal")"
+      SUDO=0
+      local i
+      for i in "${!C_ID[@]}"; do can "${C_ID[$i]}" || C_ON[i]=0; done
+    fi
+  fi
+  printf '\n'
+}
+# after the steps: the root shell is already closed (run_steps, before the build); what follows asks
+# for the password on its own, and only where it is needed
+root_end() {
+  [[ $SU == asroot ]] || return 0
+  root_stop
+  SU=$ROOT_TOOL
+}
 asroot() {
   local q rc me=$BASHPID
   [[ -n $ROOT_W ]] || return 1

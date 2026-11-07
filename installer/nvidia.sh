@@ -1,56 +1,34 @@
-# The NVIDIA fixes (the proprietary driver only). Component nvidia: a profile against niri's VRAM
-# leak and the GPU encoder in OBS on drivers too old for its NVENC. Component nvboot, never on by
-# itself: the driver in the initramfs (a picture at the disk password on any output), which writes
-# to /etc/modprobe.d and the initramfs config and rebuilds the boot images; unchecked, it goes again.
+# NVIDIA (the proprietary driver only): one file and nothing else of the driver. niri's own fix for
+# its VRAM use (the niri wiki, «Nvidia»): an application profile that applies to the niri process
+# alone. No environment for the session, no modprobe options, no initramfs. Versions up to 2.6 could
+# put the driver into the initramfs (/etc/modprobe.d, mkinitcpio.conf.d or dracut.conf.d): those
+# files stay where they are, `yami doctor` names them, --uninstall takes them out.
 # shellcheck shell=bash
 
-do_nvidia_profile() {
-  $SU install -Dm644 "$ROOT/system/nvidia/50-niri-vram.json" \
-    /etc/nvidia/nvidia-application-profiles-rc.d/50-niri-vram.json
-}
+NV_PROFILE=/etc/nvidia/nvidia-application-profiles-rc.d/50-niri-vram.json
+NV_OLD=(/etc/modprobe.d/yami-nvidia-kms.conf /etc/mkinitcpio.conf.d/90-yami-nvidia.conf /etc/dracut.conf.d/90-yami-nvidia.conf)
 
-# NVIDIA early KMS: without the driver in the initramfs the LUKS prompt and the splash only show
-# where the firmware lit a picture (often HDMI only, a black DisplayPort)
-NV_MODS="nvidia nvidia_modeset nvidia_uvm nvidia_drm"
-do_nvidia_early() {
-  modinfo nvidia_drm >/dev/null 2>&1 || return 99
-  # a hybrid laptop shows its panel through the other GPU: nothing to gain, and the driver would load early
-  ((HYBRID)) && return 99
-  $SU install -Dm644 "$ROOT/system/nvidia/yami-nvidia-kms.conf" /etc/modprobe.d/yami-nvidia-kms.conf || return 1
-  if [[ -x /usr/bin/mkinitcpio ]]; then
-    grep -qs '^[^#]*MODULES.*nvidia_drm' /etc/mkinitcpio.conf /etc/mkinitcpio.conf.d/*.conf && return 0
-    printf '# yami: NVIDIA in the initramfs, a picture at the disk password prompt on any output\nMODULES+=(%s)\n' "$NV_MODS" |
-      $SU tee /etc/mkinitcpio.conf.d/90-yami-nvidia.conf >/dev/null || return 1
-    # CachyOS/Limine wrap mkinitcpio so that boot entries are updated too
-    if command -v limine-mkinitcpio >/dev/null; then $SU limine-mkinitcpio; else $SU /usr/bin/mkinitcpio -P; fi
-  elif command -v dracut >/dev/null; then
-    printf '# yami: NVIDIA in the initramfs\nadd_drivers+=" %s "\ninstall_items+=" /etc/modprobe.d/yami-nvidia-kms.conf "\n' "$NV_MODS" |
-      $SU tee /etc/dracut.conf.d/90-yami-nvidia.conf >/dev/null || return 1
-    $SU dracut -f --regenerate-all
-  else
-    return 99
-  fi
+plan_nvidia() {
+  on nvidia && add "$(t "NVIDIA: профиль niri против роста VRAM" "NVIDIA: niri's profile against VRAM growth" "NVIDIA: perfil do niri contra o crescimento de VRAM")" do_nvidia_profile
+  return 0
 }
-nvboot_installed() { [[ -e /etc/modprobe.d/yami-nvidia-kms.conf || -e /etc/mkinitcpio.conf.d/90-yami-nvidia.conf || -e /etc/dracut.conf.d/90-yami-nvidia.conf ]]; }
-# nvboot unchecked over an earlier install: our files out, the boot images rebuilt without them
-do_nvidia_early_drop() {
-  local had=0
-  [[ -e /etc/mkinitcpio.conf.d/90-yami-nvidia.conf || -e /etc/dracut.conf.d/90-yami-nvidia.conf ]] && had=1
-  $SU rm -f /etc/modprobe.d/yami-nvidia-kms.conf /etc/mkinitcpio.conf.d/90-yami-nvidia.conf /etc/dracut.conf.d/90-yami-nvidia.conf || return 1
-  ((had)) || return 0
+do_nvidia_profile() { $SU install -Dm644 "$ROOT/system/nvidia/50-niri-vram.json" "$NV_PROFILE"; }
+
+nvidia_old() { local f; for f in "${NV_OLD[@]}"; do [[ -e $f ]] && return 0; done; return 1; }
+# --uninstall: the profile goes, and the driver in the initramfs from ≤ 2.6 (the boot images are
+# rebuilt without it)
+nvidia_uninstall() {
+  [[ -e $NV_PROFILE ]] || nvidia_old || return 0
+  say "$(t "NVIDIA: убираю наши системные файлы" "NVIDIA: removing our system files" "NVIDIA: removendo nossos arquivos de sistema")"
+  $SU rm -f "$NV_PROFILE"
+  nvidia_old || return 0
+  local rebuild=0
+  [[ -e ${NV_OLD[1]} || -e ${NV_OLD[2]} ]] && rebuild=1
+  $SU rm -f "${NV_OLD[@]}" || return 1
+  ((rebuild)) || return 0
   if [[ -x /usr/bin/mkinitcpio ]]; then
     if command -v limine-mkinitcpio >/dev/null; then $SU limine-mkinitcpio; else $SU /usr/bin/mkinitcpio -P; fi
   elif command -v dracut >/dev/null; then
     $SU dracut -f --regenerate-all
   fi
-}
-
-# OBS on Pascal and older: OBS and ffmpeg want NVENC API 13.1 (driver 610+), these cards end on
-# the 580 branch (13.0), so OBS lists no NVENC at all. GStreamer's nvcodec works with any driver;
-# obs-gstreamer brings it into OBS as «GStreamer Encoder» (nvh264enc, nvh265enc)
-do_nvidia_obs() {
-  command -v obs-nvenc-test >/dev/null || return 99
-  obs-nvenc-test 2>/dev/null | grep -q '^reason=outdated_driver' || return 99
-  [[ $PM == pacman ]] && pacman -Si obs-gstreamer >/dev/null 2>&1 || return 99
-  pkgs obs-gstreamer gst-plugins-bad
 }

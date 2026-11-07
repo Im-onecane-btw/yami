@@ -9,7 +9,7 @@
 # (drives, phones, network shares); files — yami-files' thumbnails and archives; play — libmpv for
 # yami-play; look — the Qt/GTK theme; games — GameMode, MangoHud;
 # tools — night light, text and QR from screenshots; login — greetd for yami-greet (agreety: the text
-# fallback); nirisrc — to build niri itself (and setcap for yami-niri's realtime priority)
+# fallback); nirisrc — to build niri itself
 packages_for_family() {
 case "$FAM" in
   arch)
@@ -26,7 +26,7 @@ case "$FAM" in
     P_games=(gamemode mangohud)
     P_tools=(wlsunset tesseract tesseract-data-eng tesseract-data-rus zbar)
     P_login=(greetd greetd-agreety)
-    P_nirisrc=(git clang pkgconf libinput libxkbcommon mesa libdisplay-info seatd pango cairo pipewire systemd-libs libcap) ;;
+    P_nirisrc=(git clang pkgconf libinput libxkbcommon mesa libdisplay-info seatd pango cairo pipewire systemd-libs) ;;
   fedora)
     P_niri=(niri xwayland-satellite xdg-desktop-portal-gnome xdg-desktop-portal-gtk)
     P_base=(polkit gnome-keyring pipewire pipewire-pulseaudio wireplumber pulseaudio-utils NetworkManager bluez
@@ -42,7 +42,7 @@ case "$FAM" in
     P_tools=(wlsunset tesseract tesseract-langpack-eng tesseract-langpack-rus zbar)
     P_login=(greetd)
     P_nirisrc=(git clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel
-      libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel libcap) ;;
+      libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel) ;;
   debian)
     P_niri=(niri xwayland-satellite xdg-desktop-portal-gnome xdg-desktop-portal-gtk)
     P_base=(polkit gnome-keyring pipewire pipewire-pulse wireplumber pulseaudio-utils network-manager bluez
@@ -58,7 +58,7 @@ case "$FAM" in
     P_tools=(wlsunset tesseract-ocr tesseract-ocr-eng tesseract-ocr-rus zbar-tools)
     P_login=(greetd)
     P_nirisrc=(git clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev
-      libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev libcap2-bin) ;;
+      libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev) ;;
   suse)
     P_niri=(niri xwayland-satellite xdg-desktop-portal-gnome xdg-desktop-portal-gtk)
     P_base=(polkit gnome-keyring pipewire pipewire-pulseaudio wireplumber pulseaudio-utils NetworkManager bluez
@@ -74,7 +74,7 @@ case "$FAM" in
     P_tools=(wlsunset tesseract-ocr tesseract-ocr-traineddata-eng tesseract-ocr-traineddata-rus zbar)
     P_login=(greetd)
     P_nirisrc=(git clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-1-devel systemd-devel
-      libseat-devel pipewire-devel pango-devel cairo-devel libdisplay-info-devel libcap-progs) ;;
+      libseat-devel pipewire-devel pango-devel cairo-devel libdisplay-info-devel) ;;
   void)
     P_niri=(niri xwayland-satellite xdg-desktop-portal-gnome xdg-desktop-portal-gtk)
     P_base=(polkit gnome-keyring pipewire wireplumber pulseaudio-utils NetworkManager bluez
@@ -90,7 +90,7 @@ case "$FAM" in
     P_tools=(wlsunset tesseract-ocr tesseract-ocr-eng tesseract-ocr-rus zbar)
     P_login=(greetd)
     P_nirisrc=(git clang eudev-libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel
-      libseat-devel pipewire-devel pango-devel libdisplay-info-devel libcap-progs) ;;
+      libseat-devel pipewire-devel pango-devel libdisplay-info-devel) ;;
   alpine)
     P_niri=(niri xwayland-satellite xdg-desktop-portal-gnome xdg-desktop-portal-gtk)
     P_base=(polkit gnome-keyring pipewire pipewire-pulse wireplumber pulseaudio-utils networkmanager networkmanager-cli bluez
@@ -106,7 +106,7 @@ case "$FAM" in
     P_tools=(wlsunset tesseract-ocr tesseract-ocr-data-rus zbar)
     P_login=(greetd greetd-agreety)
     P_nirisrc=(git clang eudev-dev mesa-dev libxkbcommon-dev wayland-dev libinput-dev dbus-dev libseat-dev pipewire-dev
-      pango-dev libdisplay-info-dev libcap-utils) ;;
+      pango-dev libdisplay-info-dev) ;;
   gentoo)
     P_niri=(gui-wm/niri gui-apps/xwayland-satellite sys-apps/xdg-desktop-portal-gnome sys-apps/xdg-desktop-portal-gtk)
     P_base=(sys-auth/polkit gnome-base/gnome-keyring media-video/pipewire media-video/wireplumber
@@ -122,7 +122,7 @@ case "$FAM" in
     P_games=(games-util/gamemode games-util/mangohud)
     P_tools=(gui-apps/wlsunset app-text/tesseract media-gfx/zbar)
     P_login=(gui-libs/greetd)
-    P_nirisrc=(dev-vcs/git llvm-core/clang dev-libs/libinput sys-auth/seatd media-libs/mesa x11-libs/pango media-libs/libdisplay-info sys-libs/libcap) ;;
+    P_nirisrc=(dev-vcs/git llvm-core/clang dev-libs/libinput sys-auth/seatd media-libs/mesa x11-libs/pango media-libs/libdisplay-info) ;;
   *)
     P_niri=() P_base=() P_build=() P_apps=() P_drives=() P_files=() P_play=() P_look=() P_games=() P_tools=() P_login=() P_nirisrc=() ;;
 esac
@@ -135,6 +135,36 @@ print_packages() {
     declare -n arr=$a
     printf '%s: %s\n' "$a" "${arr[*]}"
   done
+}
+
+# ── the package steps of the chosen components (root: they come first) ───────
+plan_packages() {
+  ((SUDO)) || return 0
+  if on core || on apps || on drives || on files || on play || on look || on tools || on games || on login; then
+    add "$(t "пакеты: обновить списки" "packages: refresh index" "pacotes: atualizar índice")" pm_refresh
+  fi
+  on core && add "$(t "пакеты: niri" "packages: niri" "pacotes: niri")" pkgs "${P_niri[@]}"
+  on core && add "$(t "пакеты: сеанс и шелл" "packages: session and shell" "pacotes: sessão e shell")" pkgs "${P_base[@]}"
+  # a working toolchain (rustup included) is kept: only the libraries and pkg-config are added
+  local p need=()
+  for p in "${P_build[@]}"; do
+    case "$p" in rust | rustc | cargo | virtual/rust) rust_ok && continue ;; esac
+    need+=("$p")
+  done
+  add "$(t "пакеты: сборка шелла" "packages: shell build deps" "pacotes: dependências de compilação do shell")" pkgs "${need[@]}"
+  on apps && add "$(t "пакеты: программы" "packages: apps" "pacotes: aplicativos")" pkgs "${P_apps[@]}"
+  on drives && add "$(t "пакеты: диски и телефоны" "packages: drives and phones" "pacotes: discos e telefones")" pkgs "${P_drives[@]}"
+  on files && add "$(t "пакеты: миниатюры видео и архивы для файлов" "packages: video thumbnails and archives for files" "pacotes: miniaturas de vídeo e arquivos compactados")" pkgs "${P_files[@]}"
+  on play && add "$(t "пакеты: libmpv для плеера" "packages: libmpv for the player" "pacotes: libmpv para o player")" pkgs "${P_play[@]}"
+  on look && add "$(t "пакеты: тема Qt и GTK" "packages: Qt and GTK theme" "pacotes: tema Qt e GTK")" pkgs "${P_look[@]}"
+  on tools && add "$(t "пакеты: ночной свет, текст и QR со скриншота" "packages: night light, text and QR from screenshots" "pacotes: luz noturna, texto e QR de capturas de tela")" pkgs "${P_tools[@]}"
+  on games && add "$(t "пакеты: GameMode, MangoHud" "packages: GameMode, MangoHud" "pacotes: GameMode e MangoHud")" pkgs "${P_games[@]}"
+  on login && add "$(t "пакеты: greetd" "packages: greetd" "pacotes: greetd")" pkgs "${P_login[@]}"
+  # niri's build libraries: for yami-niri, or for upstream niri when the packaged one is too old
+  if on fork || { on core && ! niri_ok && ((!DRY)); }; then
+    add "$(t "пакеты: сборка niri" "packages: niri build deps" "pacotes: dependências de compilação do niri")" pkgs "${P_nirisrc[@]}"
+  fi
+  return 0
 }
 
 # ── package manager ─────────────────────────────────────────────────────────

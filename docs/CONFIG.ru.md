@@ -17,7 +17,7 @@
 | `~/.config/niri/yami-fx.kdl` | шелла (окна, вид, игры) | нет, переписывается |
 | `~/.config/niri/yami-colors.kdl`, `yami-cursor.kdl` | `tools/theme.py` | нет, переписывается |
 | `~/.config/niri/yami-outputs.kdl` | шелла (настройки → экраны) | нет, переписывается |
-| `~/.config/niri/yami-local.kdl` | установщика (окружение GPU) | нет |
+| `~/.config/niri/yami-local.kdl` | установщика (свои настройки niri этой машины; сейчас пустой) | нет |
 | `/var/lib/yami-greet/look/` | шелла: то, из чего рисуется экран входа (`look.json`: палитра, язык, мониторы, раскладки; `wall.png`: обои), твоя с установки | нет, переписывается |
 | `/var/lib/yami-greet/log/` | экрана входа: `greet.log` (его запуски, сообщения niri), `last` (как прошёл последний запуск) | нет, читать `yami login status` / `log` |
 | `~/.local/state/yami/palette.json` | шелла: производная палитра, по которой красятся другие программы | нет |
