@@ -492,7 +492,12 @@ still built, checked (`tools/check.sh`) and used every day on a real machine bef
 
 ## License
 
-Code: MIT, see [LICENSE](LICENSE). Bundled fonts keep their own licenses (SIL Open Font
-License, texts in `fonts/`). Monocraft is downloaded from its upstream release at install time
-(pinned version, checked against its SHA-256). yami-niri is built from upstream niri (GPL-3.0)
+Code: MIT, see [LICENSE](LICENSE). You may use, change and share it, in your own projects too,
+as long as every copy and every substantial part of it keeps the copyright line and the license
+text. Bundled fonts keep their own licenses (SIL Open Font License, texts in `fonts/`). Monocraft
+is downloaded from its upstream release at install time (pinned version, checked against its
+SHA-256). yami-niri is built from upstream niri (GPL-3.0)
 with the patches in `fork/`.
+
+The license is for the code and gives no rights to the project's name: a fork or a rebuild goes
+under its own name and logo and does not present itself as yami or as made by its authors.
