@@ -1,6 +1,6 @@
 [package]
 name = "yami-greet"
-version = "2.6.0"
+version = "2.7.0"
 edition = "2021"
 description = "Pixel-art login screen of the yami desktop: a greetd greeter inside niri"
 license = "MIT"
