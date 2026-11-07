@@ -116,6 +116,31 @@ fn login(y: &Sty) {
         let mark = if bad { y.warn("·") } else { y.ok("✓") };
         line(y, &mark, &crate::tf!("последний запуск", "last start", "última inicialização"), &format!("{last} · yami login log"));
     }
+    if let Some(cmd) = sddm_unused(&last) {
+        line(y, &y.warn("·"), "SDDM", &crate::tf!("стоит, но не нужен: убери, если им не пользуется KDE или другой стол", "installed but unused: remove it unless KDE or another desktop uses it", "instalado, mas sem uso: remova se o KDE ou outra área de trabalho não o usar"));
+        println!("   {}", y.bold(&cmd));
+    }
+}
+
+/// SDDM остался после перехода на greetd (до 2.6 его ставил сам установщик): пакет есть, службы нет.
+/// Команда удаления — только когда greetd уже менеджер входа и новый экран входа хоть раз впустил
+/// (последний запуск «ok»): чужой стол (KDE) решает сам, удалять ли, поэтому только подсказка
+fn sddm_unused(last: &str) -> Option<String> {
+    let ok = last.split(' ').nth(2) == Some("ok");
+    if !ok || crate::login::dm() != Some(true) || !which("sddm") {
+        return None;
+    }
+    let su = if which("sudo") || !which("doas") { "sudo" } else { "doas" };
+    let rm = [
+        ("pacman", "pacman -Rns sddm"),
+        ("dnf", "dnf remove sddm"),
+        ("apt-get", "apt autoremove --purge sddm"),
+        ("zypper", "zypper remove --clean-deps sddm"),
+        ("xbps-remove", "xbps-remove -R sddm"),
+        ("apk", "apk del sddm"),
+        ("emerge", "emerge --depclean x11-misc/sddm"),
+    ];
+    rm.iter().find(|(pm, _)| which(pm)).map(|(_, c)| format!("{su} {c}"))
 }
 
 /// службы D-Bus: (имя, для чего RU, EN); ours — должен держать шелл (если служба включена)

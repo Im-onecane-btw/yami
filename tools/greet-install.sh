@@ -251,3 +251,6 @@ $SU "$ROOT/tools/greet-install.sh" --system "$(id -un)" --bin "$TARGET/release/y
 # the look of the shell, now (it keeps it current itself)
 yami-shell login sync >/dev/null 2>&1 || "$ROOT/shell/target/release/yami-shell" login sync >/dev/null 2>&1 || true
 echo "login screen: yami-greet in greetd ($(/usr/local/bin/yami-greet --version))"
+# SDDM (the login screen before 2.6, often installed by this installer) is off now, not removed: it
+# may be KDE's. Once the new login screen has let you in, `yami doctor` prints the command to remove it
+command -v sddm >/dev/null && echo "SDDM is turned off, not removed; after the first login here, yami doctor tells how to remove it if nothing else uses it"
