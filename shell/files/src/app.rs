@@ -133,7 +133,11 @@ type ZoneA = Zone<Act>;
 use yami_px::ui::Zone;
 
 pub fn run(fm_init: impl FnOnce(Option<calloop::channel::Sender<Msg>>) -> Fm) -> Fm {
-    let conn = Connection::connect_to_env().expect("no Wayland display");
+    // из TTY или по ssh: понятная строка вместо паники
+    let Ok(conn) = Connection::connect_to_env() else {
+        eprintln!("yami-files: no Wayland display (start it inside niri, or set WAYLAND_DISPLAY)");
+        std::process::exit(1);
+    };
     let (globals, mut queue) = registry_queue_init::<App>(&conn).expect("wayland registry");
     let qh = queue.handle();
     let mut ev: EventLoop<'static, App> = EventLoop::try_new().expect("event loop");
