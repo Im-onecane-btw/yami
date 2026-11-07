@@ -41,7 +41,12 @@ pub(crate) fn tab_color(ui: &mut Ui, st: &State, b: R) {
         ui.text_center(PX, R::new(r.x, r.y + 38, r.w, 22), p.name, if sel { t.text_hi } else { t.text_dim });
         ui.zone(r, Act::SPreset(i), Cur::Pointer);
     }
-    y += 80;
+    y += 76;
+    // палитра из обоев (#26): акцент из картинки, от него фон, панели, рамки и 16 цветов терминала;
+    // та же галочка, что во вкладке «обои», пресет её снимает
+    let ph = if s.wall_skwd && s.wall_skwd_colors { "палитру ведёт skwd-wall" } else { "акцент из картинки, с новыми обоями — заново" };
+    ui.toggle(R::new(b.x, y, b.w, 40), "палитра из обоев", ph, s.wall_accent, Act::SWall("accent"));
+    y += 50;
     y = title(ui, b.x, y, b.w, "свой цвет");
     let ok = parse_hex(&st.hex.text).is_some();
     let focused = st.field_focus == Some("hex");
@@ -51,7 +56,7 @@ pub(crate) fn tab_color(ui: &mut Ui, st: &State, b: R) {
         ui.cv.pxbox(R::new(b.x + 210, y, 30, 30), &BoxStyle::new(c, t.border).bevel(true));
     }
     ui.button(R::new(b.x + 250, y + 2, 110, 26), "применить", "check", Tone::Primary, false, ok, Act::SCycle("hex_apply"));
-    ui.text_in(PX, R::new(b.x + 370, y, b.w - 370, 30), if s.accent.is_empty() { "сейчас: пресет" } else { "сейчас: свой" }, t.text_faint);
+    ui.text_in(PX, R::new(b.x + 370, y, b.w - 370, 30), if s.wall_accent { "сейчас: из обоев" } else if s.accent.is_empty() { "сейчас: пресет" } else { "сейчас: свой" }, t.text_faint);
     y += 46;
     y = title(ui, b.x, y, b.w, "оттенки");
     // по два ползунка в ряд: цвет фона слева, прозрачность справа

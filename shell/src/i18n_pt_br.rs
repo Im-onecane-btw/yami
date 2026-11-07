@@ -363,6 +363,8 @@ const PT_BR: &[(&str, &str)] = &[
     ("drives, phones, cameras", "discos, telefones e câmeras"),
     ("drizzle", "garoa"),
     ("dusk", "crepúsculo"),
+    ("now: from the wallpaper", "agora: do papel de parede"),
+    ("the accent from the picture, again with every new wallpaper", "o destaque vem da imagem, de novo a cada papel de parede"),
     ("edge gap, shadow", "espaço nas bordas e sombra"),
     ("empty", "vazio"),
     ("empty so far: keep the current look with the button below", "ainda vazio: salve a aparência atual com o botão abaixo"),

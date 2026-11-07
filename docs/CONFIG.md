@@ -31,7 +31,7 @@ prints the help instead of starting the shell. `yami help <command>` explains on
 
 ```sh
 yami open settings:updates                # a panel: launcher clipboard settings[:tab] power lock walls screenshot cal sound media net bt sys profile tray
-yami palette | yami palette ash | yami palette '#3a9fd0'
+yami palette | yami palette ash | yami palette '#3a9fd0' | yami palette wallpaper
 yami wallpaper ~/Pictures/x.png           # no path: the palette's pixel wallpaper
 yami restart                              # restart the shell (refuses while a game has focus; --force)
 yami status                               # shell, portal, niri, last update check
@@ -89,7 +89,7 @@ yami-shell binds list | print | write     # keybindings
 | `wallPixel` | `1` | pixel cells of your image: 1 as is, 2…8 → cells of 2, 3, 4, 6, 8, 12, 16 px |
 | `wallTone` | `""` | colouring of your image: `""` as is, `tint` the accent's shades, `palette` palette tones with Bayer dithering |
 | `wallDim` | `0.0` | darken the wallpaper towards the background colour, 0…0.8 |
-| `wallAccent` | `false` | take the accent (and with it the whole palette) from your image; picking a colour by hand turns it off |
+| `wallAccent` | `false` | take the accent from your image, again with every new one; the whole palette follows it (background, panels, borders, the 16 terminal colours, every recoloured program and template). Settings → color → «palette from the wallpaper» or `yami palette wallpaper`; picking a colour by hand turns it off |
 | `wallKanji` | `true` | the 闇 glyph in the wallpaper corner |
 | `wallSkwd` | `false` | the wallpaper comes from [skwd-wall](https://github.com/liixini/skwd-wall): the shell reads what it writes (`~/.cache/skwd-wall-v2/last-wallpaper.json`, `colors.json`; `SKWD_WALL_V2_CACHE` and `paths.cache` respected) and changes nothing in its config. On a monitor where skwd-wall draws (pictures by skwd-paper, videos and scenes by skwd-wall-vk, transitions; seen from its niri layer) the shell hides its own wallpaper; otherwise (skwd-wall's pick-only mode) the shell draws the picked image itself in its cells and tones, a video or scene by its preview frame. The lock and login screens show the same picture. `yami-fx.kdl` gets the layer rule that puts skwd-paper's overview backdrop behind the workspaces |
 | `wallSkwdColors` | `true` | with `wallSkwd`: the accent is skwd-wall's `primary` and the theme follows its background (light or dark), so a palette made in its theme designer recolours the whole rice |

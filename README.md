@@ -350,7 +350,7 @@ One command for the whole desktop (`~/.local/bin/yami`, the same binary as `yami
 
 ```sh
 yami open settings:keys       # launcher clipboard settings[:tab] power lock walls screenshot cal sound media net bt sys profile tray
-yami palette ash              # list palettes without an argument; or a colour: yami palette '#3a9fd0'
+yami palette ash              # list palettes without an argument; a colour: '#3a9fd0'; or wallpaper
 yami wallpaper ~/x.png        # own wallpaper; no path: the palette's pixel art
 yami restart                  # restart the shell (waits while a game has focus)
 yami status                   # what runs: shell, portal, niri, the last update check

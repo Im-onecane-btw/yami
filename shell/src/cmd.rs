@@ -209,10 +209,21 @@ fn palette(y: &Sty, args: &[&str]) -> i32 {
                 let name = if crate::i18n::translated() { p.id.to_string() } else { format!("{} · {}", p.id, p.name) }; // i18n-ok: preset names are Russian data
                 println!("   {mark} {} {}  {}", y.swatch(p.accent), y.bold(&format!("{:<8}", p.id)), y.dim(&format!("#{:06x}  {name}", p.accent)));
             }
-            if crate::theme::PRESETS.iter().all(|p| p.accent != cur) {
+            if s.wall_accent {
+                println!("   {} {} {}  {}", y.acc("●"), y.swatch(cur), y.bold(&format!("{:<8}", "wallpaper")), y.dim(&crate::tf!("#{:06x}  из обоев", "#{:06x}  from the wallpaper", "#{:06x}  do papel de parede", cur)));
+            } else if crate::theme::PRESETS.iter().all(|p| p.accent != cur) {
                 println!("   {} {} {}", y.acc("●"), y.swatch(cur), y.bold(&format!("#{cur:06x}")));
             }
-            println!("\n   {}\n", y.dim(&crate::tf!("сменить: yami palette ash  ·  свой цвет: yami palette '#3a9fd0'", "switch: yami palette ash  ·  own colour: yami palette '#3a9fd0'", "trocar: yami palette ash  ·  cor personalizada: yami palette '#3a9fd0'")));
+            println!("\n   {}\n", y.dim(&crate::tf!("сменить: yami palette ash  ·  свой цвет: yami palette '#3a9fd0'  ·  из обоев: yami palette wallpaper", "switch: yami palette ash  ·  own colour: yami palette '#3a9fd0'  ·  from the wallpaper: yami palette wallpaper", "trocar: yami palette ash  ·  cor personalizada: yami palette '#3a9fd0'  ·  do papel de parede: yami palette wallpaper")));
+            0
+        }
+        Some(&"wallpaper") => {
+            // акцент из обоев (#26): его достаёт шелл, когда перечитает настройки, и пересчитывает с каждой новой картинкой
+            s.wall_accent = true;
+            if crate::config::write_atomic(&crate::config::settings_path(), &s.to_json()).is_err() {
+                return 1;
+            }
+            println!(" {} {}", y.bold("wallpaper"), y.dim(&crate::tf!("— палитра пойдёт за обоями", "— the palette follows the wallpaper", "— a paleta acompanha o papel de parede")));
             0
         }
         Some(v) => {

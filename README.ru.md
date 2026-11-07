@@ -356,7 +356,7 @@ install -Dm755 target/release/yami-shell ~/.local/bin/yami-shell
 
 ```sh
 yami open settings:keys       # launcher clipboard settings[:вкладка] power lock walls screenshot cal sound media net bt sys profile tray
-yami palette ash              # без аргумента — список палитр; или свой цвет: yami palette '#3a9fd0'
+yami palette ash              # без аргумента — список палитр; свой цвет: '#3a9fd0'; или wallpaper
 yami wallpaper ~/x.png        # свои обои; без пути — пиксельные из палитры
 yami restart                  # перезапустить шелл (подождёт, пока в фокусе игра)
 yami status                   # что работает: шелл, портал, niri, последняя проверка обновлений
