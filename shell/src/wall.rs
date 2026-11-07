@@ -270,16 +270,21 @@ const PARK: i32 = 640;
 
 /// уменьшение в целое число раз средним по квадрату k×k
 fn shrink(img: &Img, max: i32) -> Img {
+    if img.w <= 0 || img.h <= 0 || img.px.len() < (img.w * img.h) as usize {
+        return Img { w: 1, h: 1, px: vec![0xff00_0000] };
+    }
     let k = ((img.w.max(img.h) + max - 1) / max).max(1);
-    let (w, h) = ((img.w / k).max(1), (img.h / k).max(1));
-    let n = (k * k) as u32;
+    // по узкой стороне квадрат не шире самой картинки (полоса 4000×3 не выйдет за буфер)
+    let (kx, ky) = (k.min(img.w), k.min(img.h));
+    let (w, h) = (img.w / kx, img.h / ky);
+    let n = (kx * ky) as u32;
     let mut px = Vec::with_capacity((w * h) as usize);
     for y in 0..h {
         for x in 0..w {
             let [mut a, mut r, mut g, mut b] = [0u32; 4];
-            for j in 0..k {
-                let row = ((y * k + j) * img.w + x * k) as usize;
-                for &p in &img.px[row..row + k as usize] {
+            for j in 0..ky {
+                let row = ((y * ky + j) * img.w + x * kx) as usize;
+                for &p in &img.px[row..row + kx as usize] {
                     a += p >> 24;
                     r += (p >> 16) & 255;
                     g += (p >> 8) & 255;
@@ -528,5 +533,19 @@ impl App {
         }
         self.settings_changed();
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use yami_px::gfx::Img;
+    #[test]
+    fn shrink_odd_sizes() {
+        for (w, h) in [(4000, 3), (3, 4000), (1, 1), (1920, 1080), (641, 2)] {
+            let img = Img { w, h, px: vec![0xff10_2030; (w * h) as usize] };
+            let s = super::shrink(&img, 640);
+            assert!(s.w >= 1 && s.h >= 1 && s.w <= 640 && s.h <= 640 && s.px.len() == (s.w * s.h) as usize);
+            assert_eq!(s.px[0], 0xff10_2030);
+        }
     }
 }
