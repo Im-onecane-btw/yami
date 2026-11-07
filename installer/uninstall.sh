@@ -1,5 +1,6 @@
 # ./install.sh --uninstall. The shell, its apps and files go, backups come
 # back, the login screen goes (login.sh), the settings file stays.
+# shellcheck shell=bash
 
 uninstall() {
   printf '\e[H\e[J'

@@ -2,6 +2,7 @@
 # an install that drops names a release lacks and goes on) and what the chosen components still miss
 # (packages-needed: an update has no sudo, the shell offers one command for it). NixOS has no lists:
 # flake.nix with its NixOS and Home Manager modules is the way there.
+# shellcheck shell=bash
 
 # niri — the compositor; base — what the shell and the session use at runtime;
 # build — to compile the shell; apps, look — optional; games — GameMode, MangoHud;

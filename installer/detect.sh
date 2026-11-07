@@ -2,6 +2,7 @@
 # doas, memory and threads (how hard to build, whether yami-niri is worth it), the GPU (NVIDIA alone
 # or next to another one), systemd, a running niri, the login manager in use and Steam. Defaults
 # of the components come from here; the flags of install.sh override them.
+# shellcheck shell=bash
 
 detect_distro() {
   local id pm

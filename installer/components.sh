@@ -1,6 +1,7 @@
 # What can be installed. core and apps always; tools, games, the app theme,
 # the login screen, the NVIDIA fixes and yami-niri by what this machine is (detect.sh) and the flags.
 # An update repeats the choice of the first install (install.json, written by `yami update stamp`).
+# shellcheck shell=bash
 
 C_ID=(core apps tools games look login nvidia fork)
 # components this installer offered last time: one that came later (games, tools) starts at its

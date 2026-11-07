@@ -1,6 +1,7 @@
 # The NVIDIA fixes (component nvidia, the proprietary driver only): a profile
 # against niri's VRAM leak, the driver in the initramfs (a picture at the disk password on any
 # output) and the GPU encoder in OBS on drivers too old for its NVENC.
+# shellcheck shell=bash
 
 do_nvidia_profile() {
   $SU install -Dm644 "$ROOT/system/nvidia/50-niri-vram.json" \

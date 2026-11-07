@@ -1,6 +1,7 @@
 # Rust (the distro's if new enough, else rustup into ~/.cargo) and the build of
 # the shell, yami-files, yami-view, yami-play and yami-greet into the cache, then the binaries into
 # ~/.local/bin, each swapped in whole.
+# shellcheck shell=bash
 
 ver_ge() { [[ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" == "$2" ]]; }
 rust_ok() {

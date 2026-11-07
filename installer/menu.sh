@@ -1,6 +1,7 @@
 # The choices (palette, panels, theme, app font, fastfetch) and the interactive
 # pages: the language, the summary first (enter installs the defaults), «c» walks through the
 # pages. Without a terminal or with --yes nothing is asked. An update keeps what is set.
+# shellcheck shell=bash
 
 # ── the choices; the palettes are the shell's own ──────────────────────────
 PAL_ID=(blood ash sakura amber venom ice dusk)

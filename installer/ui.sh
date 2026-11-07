@@ -2,6 +2,7 @@
 # message helpers (say, note, warn), the animated banner, keys for the menus and the step runner:
 # a spinner and a progress bar, the log, «not needed» (exit 99) and failures with the log's tail.
 # Sourced by install.sh; defines only (install.sh calls paint and ui_traps).
+# shellcheck shell=bash
 
 # t "русский" "english": the text in the chosen language
 t() { if [[ $L == ru ]]; then printf '%s' "$1"; else printf '%s' "$2"; fi; }

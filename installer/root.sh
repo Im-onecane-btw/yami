@@ -11,6 +11,7 @@
 # A command runs with the caller's stdin, stdout and stderr (through /proc), so pipes into `tee`
 # and the log work as before (a socket cannot be reopened: /dev/null instead); it returns the
 # command's exit code.
+# shellcheck shell=bash
 ROOT_W="" ROOT_R="" ROOT_TOOL=""
 root_start() {
   local tool=$SU

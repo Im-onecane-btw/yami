@@ -1,6 +1,7 @@
 # The steps that put the desktop into the home folder. yami-files for folders
 # and file dialogs, the fonts, niri's config, the palette and everything made from it, the app theme,
 # the system services, the install record and counter, and the shell restarted in place.
+# shellcheck shell=bash
 
 # ── files: yami-files as the folder handler, the portal file dialog ─────────
 do_files() {

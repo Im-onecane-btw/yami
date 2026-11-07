@@ -1,6 +1,7 @@
 # Niri itself. Upstream niri from source when the distro's is older than 26.04,
 # and yami-niri (fork/): built when its patch series moved, its realtime capability, and its sources
 # (~4 GB) removed after a build unless they hold patch work.
+# shellcheck shell=bash
 
 niri_ok() {
   local v

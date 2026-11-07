@@ -3,6 +3,7 @@
 # the lock screen's look. The root half is tools/greet-install.sh --system. An update (no sudo) only
 # offers it: now from a terminal, else one button in settings → updates. --uninstall takes it out and
 # brings back the login manager it replaced.
+# shellcheck shell=bash
 
 # the installed login screen is older than this build (or still the SDDM theme of before 2.6)
 greet_stale() {

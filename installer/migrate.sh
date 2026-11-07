@@ -1,6 +1,7 @@
 # Moving installs of earlier versions forward. The old name (DARK-4RMY: its
 # settings, state and clipboard pins come along, its files go) and the leftovers of old releases.
 # Every step here is «not needed» on a machine that never had them.
+# shellcheck shell=bash
 
 # leftovers of earlier versions, removed once: the old fork (dark-niri on angel-niri) with its
 # drop-in, a font never used (Handjet), the blur rule that covered whole shell surfaces (the shell
