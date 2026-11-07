@@ -2,7 +2,17 @@
 
 English · [Русский](SECURITY.ru.md)
 
-What yami trusts, what it exposes, and what was checked (audits of 2026-11-03 and 2026-11-04).
+What yami trusts, what it exposes, and what was checked (audits of 2026-11-03, 2026-11-04 and 2026-11-07).
+
+## Reporting a vulnerability
+
+Please do not post it in public issues: send a [private report on GitHub](https://github.com/Trendorin/yami/security/advisories/new). Only the maintainer sees it, the answer comes there, and the details are published once the fix is released.
+
+## The repository
+
+- `main` and the `stats` branch cannot be rewritten or deleted, release tags `v*` cannot be moved or deleted (repository rules with no exceptions, the owner included), and published releases are immutable: a release keeps the tag and the files it was published with.
+- CI runs with a read-only token and sees no secrets on pull requests; a pull request from outside runs no workflow until the maintainer approves it. Third-party CI steps are pinned to a commit; Dependabot bumps them and reports vulnerable crates.
+- This guards the repository; what you install is still checked by the release signature (see «Updates»).
 
 ## Surfaces
 
