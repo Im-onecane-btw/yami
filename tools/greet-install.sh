@@ -130,6 +130,81 @@ uninit() {
   return 0
 }
 
+# SELinux (Fedora): files copied by root keep the label of where they came from, greetd could not run them
+relabel() { command -v restorecon >/dev/null 2>&1 && restorecon -R "$@" 2>/dev/null || true; }
+
+# the root half: the binary, folders, greet-session, fonts, cursor, greetd's config, the init system
+system() {
+  local user="" bin="" cursor="" enable=1 only=0
+  while (($#)); do
+    case "$1" in
+      --system) user="$2"; shift ;;
+      --bin) bin="$2"; shift ;;
+      --cursor) cursor="$2"; shift ;;
+      --no-enable) enable=0 ;;
+      --bin-only) only=1 ;;
+      *) echo "unknown: $1" >&2; exit 2 ;;
+    esac
+    shift
+  done
+  ((EUID == 0)) || { echo "greet-install.sh --system runs as root" >&2; exit 1; }
+  [[ $user =~ ^[a-z_][a-z0-9_.-]*\$?$ ]] && getent passwd "$user" >/dev/null || { echo "no such user: $user" >&2; exit 1; }
+  if [[ -n $bin ]]; then
+    install -Dm755 "$bin" /usr/local/bin/.yami-greet.new && mv -f /usr/local/bin/.yami-greet.new /usr/local/bin/yami-greet
+    relabel /usr/local/bin/yami-greet
+  fi
+  ((only)) && return 0
+  command -v greetd >/dev/null || { echo "greetd is not installed" >&2; exit 1; }
+  INIT="$(init_kind)"
+  local g gg
+  g="$(greeter_user)" || { echo "greetd has no greeter user" >&2; exit 1; }
+  gg="$(id -gn "$g")"
+  # what yami-greet reads: the look (yours, the shell writes it), its memory and log (the greeter's own)
+  install -d -m755 /var/lib/yami-greet
+  install -d -m755 -o "$user" -g "$(id -gn "$user")" "$LOOK"
+  install -d -m700 -o "$g" -g "$gg" "$STATE"
+  install -d -m755 -o "$g" -g "$gg" "$LOGD"
+  # the first boot: this user and the niri session already picked
+  if [[ ! -e $STATE/last ]]; then
+    printf '%s\nniri\n' "$user" >"$STATE/last"
+    chown "$g:$gg" "$STATE/last"
+  fi
+  install -Dm755 "$ROOT/system/greet/greet-session" /usr/local/lib/yami/greet-session
+  install -Dm644 -t /usr/local/share/yami-greet/fonts "$ROOT/fonts/Tiny5.ttf" "$ROOT/fonts/DotGothic16-Regular.ttf" "$ROOT/fonts/OFL-tiny5.txt" "$ROOT/fonts/OFL-dotgothic16.txt"
+  # the pixel cursor: niri of the login screen reads /usr/share/icons only
+  if [[ -n $cursor && -d $cursor ]]; then
+    rm -rf -- /usr/share/icons/yami-cursor
+    cp -r "$cursor" /usr/share/icons/yami-cursor
+    chmod -R a+rX /usr/share/icons/yami-cursor
+  fi
+  seat_setup "$g"
+  # greetd's own config is kept once (./install.sh --uninstall puts it back); its terminal stays
+  mkdir -p /etc/greetd
+  if [[ -f $CONF ]] && ! head -n1 "$CONF" | grep -q '^# yami:' && [[ ! -e $CONF.yami-orig ]]; then
+    cp -p "$CONF" "$CONF.yami-orig"
+  fi
+  local vt
+  vt="$(awk '/^[[:space:]]*\[/ { s = $0 } s ~ /terminal/ && /^[[:space:]]*vt[[:space:]]*=/ { sub(/^[^=]*=[[:space:]]*/, ""); print; exit }' "$CONF.yami-orig" 2>/dev/null)"
+  [[ $vt =~ ^([0-9]+|\"[a-z]+\")$ ]] || vt=1
+  # without systemd nothing stops the getty on tty1 for greetd: the login screen takes VT 7
+  [[ $INIT != systemd && $vt == 1 ]] && vt=7
+  printf '%s\n' "# yami: the login screen (tools/greet-install.sh; ./install.sh --uninstall puts the old file back)" \
+    "[terminal]" "vt = $vt" "" "[default_session]" "command = \"/usr/local/lib/yami/greet-session\"" "user = \"$g\"" >"$CONF.new"
+  mv -f "$CONF.new" "$CONF"
+  # the SDDM theme yami had before its own login screen
+  rm -rf -- /usr/share/sddm/themes/yami /etc/sddm.conf.d/zz-yami.conf /etc/sddm.conf.d/10-yami.conf
+  relabel /var/lib/yami-greet /usr/local/lib/yami /usr/local/share/yami-greet /usr/share/icons/yami-cursor /etc/greetd
+  if [[ $INIT == systemd && -f /usr/lib/systemd/system/plymouth-quit.service ]]; then
+    # plymouth: never let a hung boot splash block multi-user.target (see system/plymouth)
+    for u in plymouth-quit plymouth-quit-wait; do
+      install -Dm644 "$ROOT/system/plymouth/10-yami.conf" "/etc/systemd/system/$u.service.d/10-yami.conf"
+    done
+    systemctl daemon-reload
+  fi
+  ((enable)) && enable_greetd
+  return 0
+}
+
 if [[ ${1:-} == --system ]]; then
   system "$@"
   exit 0
