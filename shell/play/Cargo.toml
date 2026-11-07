@@ -1,6 +1,6 @@
 [package]
 name = "yami-play"
-version = "2.5.1"
+version = "2.6.0"
 edition = "2021"
 description = "Pixel-art video and music player of the yami shell (libmpv, loaded at run time)"
 license = "MIT"
