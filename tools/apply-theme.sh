@@ -22,7 +22,7 @@ done
 keep() { [[ -e "$1" && ! -e "$1.bak-yami" ]] && cp -a -- "$1" "$1.bak-yami"; return 0; }
 
 # light or dark base for GTK (settings → color → theme); theme.py switches it later on its own
-PALETTE="${YAMI_PALETTE:-$HOME/.local/state/yami/palette.json}"
+PALETTE="${YAMI_PALETTE:-${XDG_STATE_HOME:-$HOME/.local/state}/yami/palette.json}"
 GTK_THEME=adw-gtk3-dark PREFER_DARK=true SCHEME=prefer-dark
 if grep -qs '"mode": "light"' "$PALETTE"; then
   GTK_THEME=adw-gtk3 PREFER_DARK=false SCHEME=prefer-light

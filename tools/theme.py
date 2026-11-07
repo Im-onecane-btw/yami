@@ -26,6 +26,8 @@ import sys
 from pathlib import Path
 
 HOME = Path.home()
+# состояние шелла: XDG_STATE_HOME, как у самого шелла (yami-px paths::state_dir)
+STATE = Path(os.environ.get("XDG_STATE_HOME") or HOME / ".local/state") / "yami"
 CFG = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config")
 
 
@@ -742,7 +744,7 @@ def templates(p):
     if not d.is_dir():
         return
     cols = {**{k: v for k, v in p.items() if isinstance(v, str) and v.startswith("#")}, **ansi(p)}
-    state = HOME / ".local/state/yami/templates.json"
+    state = STATE / "templates.json"
     try:
         sums = json.loads(state.read_text())
     except (OSError, ValueError):
@@ -1120,7 +1122,7 @@ def wallpaper_img(p, w=480, h=270):
 
 def wallpaper(p):
     img = wallpaper_img(p)
-    out = HOME / ".local/state/yami/wallpaper.png"
+    out = STATE / "wallpaper.png"
     out.parent.mkdir(parents=True, exist_ok=True)
     tmp = out.with_name("wallpaper.tmp.png")
     img.save(tmp)
@@ -1436,7 +1438,7 @@ def _palette(args=()):
     чем пишет палитру шелла), иначе palette.json шелла, иначе красная по умолчанию."""
     if "--accent" in args and args.index("--accent") + 1 < len(args):
         return derive(args[args.index("--accent") + 1], 1.0, "--light" in args)
-    path = HOME / ".local/state/yami/palette.json"
+    path = STATE / "palette.json"
     return json.loads(path.read_text()) if path.exists() else derive("#c4161c")
 
 
