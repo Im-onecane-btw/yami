@@ -120,7 +120,7 @@ pub fn sessions() -> Vec<Session> {
             }
             let Ok(t) = std::fs::read_to_string(&p) else { continue };
             let mut sec = false;
-            let (mut name, mut exec, mut desk, mut hidden) = (String::new(), String::new(), String::new(), false);
+            let (mut name, mut exec, mut desk, mut hidden, mut try_exec) = (String::new(), String::new(), String::new(), false, String::new());
             for l in t.lines() {
                 let l = l.trim();
                 if l.starts_with('[') {
@@ -132,18 +132,34 @@ pub fn sessions() -> Vec<Session> {
                     "Name" => name = val.trim().to_string(),
                     "Exec" => exec = val.trim().to_string(),
                     "DesktopNames" => desk = val.trim().trim_end_matches(';').replace(';', ":"),
+                    "TryExec" => try_exec = val.trim().to_string(),
                     "Hidden" | "NoDisplay" => hidden |= val.trim() == "true",
                     _ => {}
                 }
             }
             let cmd = split_exec(&exec);
-            if hidden || cmd.is_empty() {
+            // программы сеанса нет (удалили пакет, остался .desktop): такой сеанс не показывать
+            if hidden || cmd.is_empty() || !runnable(&try_exec) || (cmd[0].starts_with('/') && !runnable(&cmd[0])) {
                 continue;
             }
             v.push(Session { id: id.clone(), name: if name.is_empty() { id } else { name }, cmd, desktops: desk });
         }
     }
     v
+}
+
+/// TryExec: пусто — не проверять; путь — исполняемый файл; имя — есть в PATH
+fn runnable(p: &str) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    let x = |f: &Path| std::fs::metadata(f).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0);
+    if p.is_empty() {
+        return true;
+    }
+    if p.contains('/') {
+        return x(Path::new(p));
+    }
+    let path = std::env::var("PATH").ok().filter(|s| !s.is_empty()).unwrap_or_else(|| "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin".into());
+    path.split(':').filter(|d| d.starts_with('/')).any(|d| x(&Path::new(d).join(p)))
 }
 
 impl Session {
@@ -171,31 +187,86 @@ pub fn remember(user: &str, session: &str) {
     }
 }
 
-/// вид, выложенный шеллом: настройки в формате yami-shell.json
+/// вид, выложенный шеллом: настройки в формате yami-shell.json. Файл пишет пользователь: читается
+/// только обычный файл и не больше мегабайта (fifo или /dev/zero под этим именем не подвесят вход)
 pub fn look_json() -> serde_json::Value {
-    let p = look_dir().join("look.json");
-    // больше мегабайта — не наш файл
-    if std::fs::metadata(&p).map(|m| m.len() > 1 << 20).unwrap_or(true) {
-        return serde_json::Value::Null;
-    }
-    std::fs::read_to_string(p).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(serde_json::Value::Null)
+    yami_px::paths::read_capped(&look_dir().join("look.json"), 1 << 20).and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(serde_json::Value::Null)
 }
 
-/// обои: картинка шелла, уже обрезанная и в тонах палитры. Не больше 8K по стороне
+/// что настроено для экрана входа (вкладка шелла «экран входа», ключи greet* в look.json)
+#[derive(Clone, Debug)]
+pub struct Opts {
+    /// пользователи списком (иначе имя вводят сами)
+    pub list: bool,
+    pub host: bool,
+    pub clock: bool,
+    pub power: bool,
+    pub kanji: bool,
+    /// плотность вуали над обоями
+    pub dim: f32,
+    /// погасить мониторы после стольких минут простоя (0 — никогда)
+    pub off_min: u32,
+}
+
+impl Opts {
+    pub fn from(v: &serde_json::Value) -> Opts {
+        let b = |k: &str, d: bool| v.get(k).and_then(|x| x.as_bool()).unwrap_or(d);
+        Opts {
+            list: v.get("greetUsers").and_then(|x| x.as_str()) != Some("name"),
+            host: b("greetHost", true),
+            clock: b("greetClock", true),
+            power: b("greetPower", true),
+            kanji: b("wallKanji", true),
+            dim: v.get("greetDim").and_then(|x| x.as_f64()).map(|x| x as f32).filter(|x| x.is_finite()).unwrap_or(0.55).clamp(0.0, 0.95),
+            off_min: v.get("greetOff").and_then(|x| x.as_u64()).unwrap_or(2).min(240) as u32,
+        }
+    }
+}
+
+/// обои: картинка шелла, уже обрезанная и в тонах палитры (размер первого монитора). Читается с
+/// потолками: файл ≤ 48 МБ, сторона ≤ 8K, память декодера ≤ 160 МБ; RGB сразу в пиксели холста
 pub fn wall() -> Option<Img> {
-    let p = look_dir().join("wall.png");
-    let r = image::ImageReader::open(p).ok()?.with_guessed_format().ok()?;
-    let mut d = r;
+    let bytes = yami_px::paths::read_capped(&look_dir().join("wall.png"), 48 << 20)?;
+    let mut r = image::ImageReader::with_format(std::io::Cursor::new(&bytes), image::ImageFormat::Png);
     let mut lim = image::Limits::default();
     lim.max_image_width = Some(8192);
     lim.max_image_height = Some(8192);
-    lim.max_alloc = Some(300 << 20);
-    d.limits(lim);
-    let img = d.decode().ok()?.to_rgba8();
-    let out = yami_px::icons::from_rgba(&img);
-    drop(img);
+    lim.max_alloc = Some(160 << 20);
+    r.limits(lim);
+    let img = r.decode().ok()?;
+    drop(bytes);
+    let (w, h) = (img.width() as i32, img.height() as i32);
+    let px: Vec<u32> = match img {
+        image::DynamicImage::ImageRgb8(i) => i.pixels().map(|p| 0xff00_0000 | (p.0[0] as u32) << 16 | (p.0[1] as u32) << 8 | p.0[2] as u32).collect(),
+        other => {
+            let i = other.to_rgba8();
+            let out = yami_px::icons::from_rgba(&i);
+            drop(i);
+            yami_px::trim_heap();
+            return Some(out);
+        }
+    };
     yami_px::trim_heap();
-    Some(out)
+    Some(Img { w, h, px })
+}
+
+/// logind или elogind: кнопки питания работают (loginctl; polkit пускает активный местный сеанс).
+/// Без них (голый seatd) выключить машину экран входа не может — кнопок нет
+pub fn power_ok() -> bool {
+    Path::new("/run/systemd/seats").is_dir() && runnable("loginctl")
+}
+
+/// как идёт запуск — для greet-session ($XDG_RUNTIME_DIR/yami-greet.status, папка своя): «up N» —
+/// первый кадр на экране через N мс после старта, «session N» — greetd запускает сеанс. Пишется
+/// до выхода, поэтому быстрый вход никогда не сочтётся сбоем
+pub fn status(what: &str, ms: u128) {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+    let Some(d) = std::env::var_os("XDG_RUNTIME_DIR").filter(|d| !d.is_empty()) else { return };
+    let p = Path::new(&d).join("yami-greet.status");
+    if let Ok(mut f) = std::fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).custom_flags(libc::O_NOFOLLOW).open(p) {
+        let _ = writeln!(f, "{what} {ms}");
+    }
 }
 
 pub fn hostname() -> String {

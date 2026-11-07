@@ -3,7 +3,8 @@
 // шелл в /var/lib/yami-greet/look; пароль уходит только в greetd.
 //
 //   yami-greet                  экран входа (его запускает niri из greet-session)
-//   yami-greet --demo           то же без greetd, пароль «yami» (попробовать в окне niri)
+//   yami-greet --demo           то же без greetd, пароль «yami», Esc — выйти (в окне niri или
+//                               поверх своего сеанса: кнопка «показать» в настройках шелла)
 //   yami-greet kdl [--plain]    конфиг niri экрана входа в stdout
 //   yami-greet shot [-o DIR] [--lang en]   снимки состояний в PNG без Wayland
 
@@ -56,15 +57,20 @@ fn fonts(look: &Look) -> Fonts {
 fn state(v: &serde_json::Value, demo: bool) -> G {
     let look = Look::from_json(v, None);
     i18n::set(&look.lang);
-    let users = data::users();
+    let opts = data::Opts::from(v);
+    // «имя вводят сами»: список пользователей не читается и не показывается
+    let users = if opts.list { data::users() } else { vec![] };
     let sessions = data::sessions();
     let (lu, ls) = data::last();
     let user = users.iter().position(|u| u.name == lu).unwrap_or(0);
     let session = sessions.iter().position(|s| s.id == ls).or_else(|| sessions.iter().position(|s| s.id.contains("niri"))).unwrap_or(0);
     let layouts: Vec<String> = v.get("kbLayout").and_then(|x| x.as_str()).unwrap_or("").split(',').map(|s| s.split('(').next().unwrap_or("").trim().to_string()).filter(|s| !s.is_empty()).collect();
-    let phase = if users.is_empty() { Phase::Name } else { Phase::Pass };
-    G {
-        kanji: v.get("wallKanji").and_then(|x| x.as_bool()).unwrap_or(true),
+    // поле с запасом: пароль не переезжает в памяти, пока его набирают (старые копии не остаются)
+    let mut field = yami_px::ui::Field::default();
+    field.text.reserve(1024);
+    let mut g = G {
+        veil: yami_px::face::veil(&look.theme, Some(opts.dim)),
+        opts,
         look,
         wall: None,
         users,
@@ -75,22 +81,41 @@ fn state(v: &serde_json::Value, demo: bool) -> G {
         layouts,
         layout: 0,
         caps: false,
-        field: Default::default(),
-        phase,
+        field,
+        phase: Phase::Pass,
         prompt: String::new(),
         status: String::new(),
         bad: false,
         fails: 0,
         shake: None,
         host: data::hostname(),
+        power: data::power_ok(),
         blink: true,
         born: Instant::now(),
         gone: None,
         demo,
+    };
+    g.phase = g.first_phase();
+    g
+}
+
+/// через эту память проходят пароли: ни дампа ядра, ни ptrace от других процессов пользователя
+/// экрана входа, ни новых привилегий у дочерних (loginctl их и не просит)
+fn harden() {
+    // SAFETY: prctl и setrlimit с постоянными аргументами
+    unsafe {
+        libc::prctl(libc::PR_SET_DUMPABLE, 0, 0, 0, 0);
+        libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+        let r = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        libc::setrlimit(libc::RLIMIT_CORE, &r);
     }
 }
 
 fn greet(demo: bool) -> i32 {
+    let t0 = Instant::now();
+    if !demo {
+        harden();
+    }
     // обои декодируются, пока niri отвечает на первые запросы
     let wall = std::thread::spawn(data::wall);
     let v = data::look_json();
@@ -106,10 +131,11 @@ fn greet(demo: bool) -> i32 {
         g.status = i18n::tr("нет сеансов Wayland").to_string();
     }
     let f = fonts(&g.look);
-    g.wall = wall.join().ok().flatten();
+    let w = wall.join().ok().flatten();
+    g.set_wall(w);
     g.born = Instant::now();
     yami_px::shed_code_later(10);
-    app::run(g, f)
+    app::run(g, f, t0)
 }
 
 /// offscreen-снимки: ввод пароля, проверка, ошибка, вопрос PAM, ввод имени
@@ -144,13 +170,16 @@ fn shot(args: &[String]) -> i32 {
     let wall = data::wall();
     let mut fonts = fonts(&Look::from_json(&v, None));
     let mut ic = yami_px::icons::Icons::new("");
-    for target in ["pass", "busy", "wrong", "prompt", "name", "second"] {
-        let mut g = state(&v, false);
-        g.wall = wall.clone();
+    for target in ["pass", "busy", "wrong", "prompt", "name", "other", "second", "minimal", "demo"] {
+        let mut g = state(&v, target == "demo");
+        g.opts.list = true;
+        g.set_wall(if target == "minimal" { None } else { wall.clone() });
         g.host = "yami".into();
+        g.power = true;
         g.blink = true;
         g.users = vec![data::User { name: "yami".into(), real: "Yami".into() }, data::User { name: "guest".into(), real: String::new() }];
         g.user = 0;
+        g.phase = Phase::Pass;
         g.sessions = vec![data::Session { id: "niri".into(), name: "Niri".into(), cmd: vec!["niri-session".into()], desktops: "niri".into() }];
         g.session = 0;
         match target {
@@ -162,9 +191,20 @@ fn shot(args: &[String]) -> i32 {
                 g.prompt = "Verification code:".into();
             }
             "name" => {
+                g.opts.list = false;
                 g.users.clear();
                 g.phase = Phase::Name;
                 g.field.set("yami");
+            }
+            "other" => {
+                g.user = g.users.len();
+                g.phase = Phase::Name;
+            }
+            "minimal" => {
+                g.opts.clock = false;
+                g.opts.host = false;
+                g.opts.power = false;
+                g.opts.kanji = false;
             }
             _ => {}
         }

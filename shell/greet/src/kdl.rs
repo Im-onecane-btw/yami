@@ -82,13 +82,13 @@ fn q(s: &str) -> String {
 /// весь конфиг; me — путь к yami-greet
 pub fn config(look: &Value, plain: bool, me: &str) -> String {
     let s = |k: &str| look.get(k).and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
-    let t = yami_px::look::Look::from_json(look, None).theme;
     let mut c = String::from("// yami-greet: niri of the login screen (written by `yami-greet kdl` at every start)\n\n");
     c += "hotkey-overlay {\n    skip-at-startup\n}\nprefer-no-csd\nscreenshot-path null\nanimations {\n    off\n}\n";
     if !plain {
         // ключи niri 25.x: без них старый niri конфиг не примет, тогда идёт --plain
         c += "config-notification {\n    disable-failed\n}\nxwayland-satellite {\n    off\n}\n";
-        c += &format!("layout {{\n    background-color \"#{:06x}\"\n}}\n", t.bg.0 & 0xffffff);
+        // чёрный: из него экран входа проявляется и в него уходит (между ним и сеансом — тоже чёрный)
+        c += "layout {\n    background-color \"#000000\"\n}\n";
     }
     if std::path::Path::new("/usr/share/icons/yami-cursor/cursors").is_dir() {
         c += "cursor {\n    xcursor-theme \"yami-cursor\"\n    xcursor-size 24\n    hide-when-typing\n}\n";
@@ -102,17 +102,19 @@ pub fn config(look: &Value, plain: bool, me: &str) -> String {
         }
         c += "        }\n";
     }
-    if !plain {
+    if !plain && look.get("greetNumlock").and_then(|v| v.as_bool()).unwrap_or(true) {
         c += "        numlock\n";
     }
     c += "    }\n    touchpad {\n        tap\n    }\n}\n";
     if !plain {
         c += &outputs(&s("outputs"));
     }
-    // экран входа вышел (вошли, упал, выключают) — niri следом; код выхода — greet-session
+    // экран входа вышел (вошли, упал, выключают) — niri следом; код выхода — greet-session (в свою
+    // папку XDG_RUNTIME_DIR, её создаёт greet-session; без неё — никуда, не в общий /tmp). niri
+    // отдаёт запущенным /dev/null: сообщения экрана входа — в журнал greet-session (YAMI_GREET_LOG)
     c += &format!(
         "\nspawn-at-startup \"sh\" \"-c\" {} {}\n",
-        q("\"$0\"; echo $? >\"${XDG_RUNTIME_DIR:-/tmp}/yami-greet.rc\"; niri msg action quit --skip-confirmation"),
+        q("\"$0\" 2>>\"${YAMI_GREET_LOG:-/dev/null}\"; rc=$?; [ -d \"$XDG_RUNTIME_DIR\" ] && echo $rc >\"$XDG_RUNTIME_DIR/yami-greet.rc\"; \"${YAMI_GREET_NIRI:-niri}\" msg action quit --skip-confirmation"),
         q(me)
     );
     c

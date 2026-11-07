@@ -60,7 +60,9 @@ struct Conn {
 
 impl Conn {
     fn send(&mut self, mut body: Vec<u8>) -> std::io::Result<()> {
-        let mut msg = (body.len() as u32).to_ne_bytes().to_vec();
+        // сразу нужного размера: при росте буфера старый (с паролем) ушёл бы в кучу нестёртым
+        let mut msg = Vec::with_capacity(4 + body.len());
+        msg.extend_from_slice(&(body.len() as u32).to_ne_bytes());
         msg.extend_from_slice(&body);
         let r = self.s.write_all(&msg);
         wipe(&mut msg);
@@ -85,7 +87,9 @@ impl Conn {
         self.send(b)
     }
     fn answer(&mut self, resp: Option<&str>) -> std::io::Result<()> {
-        let mut b = br#"{"type":"post_auth_message_response","response":"#.to_vec();
+        // запас под экранирование (\u00XX — 6 байт на знак): буфер не растёт и не копируется
+        let mut b = Vec::with_capacity(64 + 6 * resp.map_or(0, str::len));
+        b.extend_from_slice(br#"{"type":"post_auth_message_response","response":"#);
         match resp {
             Some(r) => esc(&mut b, r),
             None => b.extend_from_slice(b"null"),

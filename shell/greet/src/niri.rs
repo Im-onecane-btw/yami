@@ -1,5 +1,5 @@
 // niri экрана входа ($NIRI_SOCKET): выйти после входа, следующая раскладка, погасить мониторы
-// в простое. Запрос — строка JSON, ответ — строка JSON.
+// в простое, включить монитор, если конфиг погасил все. Запрос — строка JSON, ответ — строка JSON.
 
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
@@ -31,4 +31,19 @@ pub fn layouts() -> Option<(Vec<String>, usize)> {
     let k = &v["Ok"]["KeyboardLayouts"];
     let names = k["names"].as_array()?.iter().filter_map(|n| n.as_str().map(str::to_string)).collect();
     Some((names, k["current_idx"].as_u64().unwrap_or(0) as usize))
+}
+
+/// все мониторы выключены (конфиг): включить подключённый, встроенный — первым
+pub fn any_output_on() {
+    let Some(v) = request(r#""Outputs""#) else { return };
+    let Some(outs) = v["Ok"]["Outputs"].as_object() else { return };
+    if outs.values().any(|o| !o["logical"].is_null()) {
+        return;
+    }
+    let mut names: Vec<&String> = outs.keys().collect();
+    names.sort_by_key(|n| (!n.starts_with("eDP") && !n.starts_with("LVDS") && !n.starts_with("DSI"), n.to_string()));
+    if let Some(n) = names.first() {
+        let req = serde_json::json!({ "Output": { "output": n, "action": "On" } });
+        let _ = request(&req.to_string());
+    }
 }

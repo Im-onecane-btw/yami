@@ -40,7 +40,8 @@ impl C {
     pub fn hex_str(self) -> String {
         format!("#{:06x}", self.0 & 0xffffff)
     }
-    fn premul(self) -> u32 {
+    /// предумноженное значение для буфера
+    pub fn premul(self) -> u32 {
         let a = self.a();
         if a == 255 {
             return self.0;
@@ -332,22 +333,7 @@ impl<'a> Canvas<'a> {
 
     #[inline]
     fn blend_at(&mut self, i: usize, src: u32) {
-        let sa = src >> 24;
-        if sa == 255 {
-            self.buf[i] = src;
-            return;
-        }
-        if sa == 0 {
-            return;
-        }
-        let d = self.buf[i];
-        let inv = 255 - sa;
-        let ch = |s: u32| {
-            let sv = (src >> s) & 255;
-            let dv = (d >> s) & 255;
-            ((sv + (dv * inv + 127) / 255).min(255)) << s
-        };
-        self.buf[i] = ch(24) | ch(16) | ch(8) | ch(0);
+        self.buf[i] = over(self.buf[i], src);
     }
 
     fn eff(&self, c: C) -> u32 {
@@ -585,6 +571,43 @@ impl<'a> Canvas<'a> {
         }
     }
 
+    /// картинка ближайшим соседом на r без смешивания и прозрачности (обои на весь экран):
+    /// строка картинки пересчитывается один раз, её повтор — копия готовой строки, при равной
+    /// ширине — копия строки целиком. На 1080p это ~1 мс против ~10 у image_scaled
+    pub fn image_fast(&mut self, img: &Img, r: R) {
+        if img.w <= 0 || img.h <= 0 || r.empty() || img.px.len() < (img.w as usize) * (img.h as usize) {
+            return;
+        }
+        let o = R::new(r.x + self.ox, r.y + self.oy, r.w, r.h);
+        let d = o.inter(&self.clip);
+        if d.empty() {
+            return;
+        }
+        let (w, n, iw) = (self.w as usize, d.w as usize, img.w as usize);
+        let same = img.w == o.w;
+        let xs: Vec<usize> = if same { vec![] } else { (d.x..d.right()).map(|x| (((x - o.x) as i64 * img.w as i64 / o.w as i64) as usize).min(iw - 1)).collect() };
+        let mut prev: Option<(i32, usize)> = None;
+        for y in d.y..d.bottom() {
+            let sy = (((y - o.y) as i64 * img.h as i64 / o.h as i64) as i32).clamp(0, img.h - 1);
+            let row = y as usize * w + d.x as usize;
+            if let Some((py, prow)) = prev.filter(|p| p.0 == sy) {
+                self.buf.copy_within(prow..prow + n, row);
+                prev = Some((py, row));
+                continue;
+            }
+            let src = &img.px[sy as usize * iw..(sy as usize + 1) * iw];
+            if same {
+                let a = (d.x - o.x) as usize;
+                self.buf[row..row + n].copy_from_slice(&src[a..a + n]);
+            } else {
+                for (p, &sx) in self.buf[row..row + n].iter_mut().zip(&xs) {
+                    *p = src[sx];
+                }
+            }
+            prev = Some((sy, row));
+        }
+    }
+
     // ── текст ───────────────────────────────────────────────────────────────
     /// строка от левого края; y — верх строки высотой face.line(). Возвращает ширину.
     pub fn text(&mut self, fonts: &mut Fonts, face: Face, x: i32, y: i32, s: &str, c: C) -> i32 {
@@ -680,6 +703,25 @@ impl<'a> Canvas<'a> {
             self.fill(R::new(x, cy - 8 + i * 4, 2, 2), c);
         }
     }
+}
+
+/// src поверх d (оба предумножены)
+#[inline]
+pub fn over(d: u32, src: u32) -> u32 {
+    let sa = src >> 24;
+    if sa == 255 {
+        return src;
+    }
+    if sa == 0 {
+        return d;
+    }
+    let inv = 255 - sa;
+    let ch = |s: u32| {
+        let sv = (src >> s) & 255;
+        let dv = (d >> s) & 255;
+        ((sv + (dv * inv + 127) / 255).min(255)) << s
+    };
+    ch(24) | ch(16) | ch(8) | ch(0)
 }
 
 #[inline]

@@ -1,11 +1,13 @@
 // Состояние экрана входа и его отрисовка. Лицо — общее с экраном блокировки шелла
 // (yami_px::face): обои под вуалью, часы, дата, 闇. Под ним — пользователь, поле пароля, строка
 // состояния; внизу слева — сеанс и раскладка, по центру — сон, перезагрузка, выключение,
-// вверху слева — имя машины. Появление и уход — проявлением клетками, как у панелей шелла.
+// вверху слева — имя машины (что из этого видно — настройки, data::Opts). Появление — проявлением
+// клетками из чёрного, уход — в чёрный; последний кадр ухода целиком чёрный: его и видно, пока
+// greetd запускает сеанс.
 
-use crate::data::{Session, User};
+use crate::data::{Opts, Session, User};
 use yami_px::font::{self, PX};
-use yami_px::gfx::{BoxStyle, Img, R};
+use yami_px::gfx::{BoxStyle, Img, C, R};
 use yami_px::look::Look;
 use yami_px::ui::{Action, Cur, Field, Tone};
 use std::time::Instant;
@@ -47,9 +49,12 @@ pub enum Phase {
 
 pub struct G {
     pub look: Look,
-    pub kanji: bool,
+    pub opts: Opts,
+    /// обои с впечённой вуалью (face::bake)
     pub wall: Option<Img>,
+    pub veil: C,
     pub users: Vec<User>,
+    /// выбранный; users.len() — «другой пользователь» (имя вводят)
     pub user: usize,
     /// имя, введённое руками (Phase::Name)
     pub typed: String,
@@ -69,6 +74,8 @@ pub struct G {
     pub fails: u32,
     pub shake: Option<Instant>,
     pub host: String,
+    /// выключить и перезагрузить можно (logind или elogind)
+    pub power: bool,
     pub blink: bool,
     /// появление; уход — с момента входа
     pub born: Instant,
@@ -81,10 +88,37 @@ const OUT_MS: f32 = 260.0;
 
 impl G {
     pub fn user_name(&self) -> String {
-        match self.phase {
-            Phase::Name => self.typed.clone(),
-            _ => self.users.get(self.user).map(|u| u.name.clone()).unwrap_or_else(|| self.typed.clone()),
+        if self.name_mode() {
+            return self.typed.clone();
         }
+        self.users.get(self.user).map(|u| u.name.clone()).unwrap_or_else(|| self.typed.clone())
+    }
+
+    /// имя вводят руками: так настроено, списка нет или выбран «другой пользователь»
+    pub fn name_mode(&self) -> bool {
+        !self.opts.list || self.user >= self.users.len()
+    }
+
+    /// с чего начинать ввод (после ошибки, отмены, смены пользователя)
+    pub fn first_phase(&self) -> Phase {
+        if self.name_mode() {
+            Phase::Name
+        } else {
+            Phase::Pass
+        }
+    }
+
+    /// стрелки выбора: список включён и в нём кто-то есть (последняя позиция — «другой»)
+    pub fn can_pick(&self) -> bool {
+        self.opts.list && !self.users.is_empty()
+    }
+
+    /// новая картинка обоев: вуаль впекается сразу, кадр потом — копирование
+    pub fn set_wall(&mut self, wall: Option<Img>) {
+        self.wall = wall.map(|mut i| {
+            yami_px::face::bake(&mut i, self.veil);
+            i
+        });
     }
 
     /// проявление: 0..1 при появлении, 1..0 при уходе
@@ -115,16 +149,25 @@ fn layout_label(g: &G) -> String {
 
 pub fn draw(ui: &mut Ui, g: &G, w: i32, h: i32, main: bool) {
     let t = ui.t;
-    yami_px::face::backdrop(ui, g.wall.as_ref(), w, h);
-    let dy = yami_px::face::clock(ui, w, h) - 30;
-    if g.kanji {
+    let k = g.reveal();
+    if g.gone.is_some() && k <= 0.0 {
+        // ушли: целиком чёрный кадр (его держит экран, пока запускается сеанс)
+        ui.cv.clear(C(0xff000000));
+        ui.anim = true;
+        return;
+    }
+    yami_px::face::backdrop_with(ui, g.wall.as_ref(), w, h, g.veil, g.wall.is_some());
+    let dy = if g.opts.clock { yami_px::face::clock(ui, w, h) - 30 } else { h / 2 - 90 };
+    if g.opts.kanji {
         yami_px::face::kanji(ui, w, h);
     }
     ui.zone(R::new(0, 0, w, h), Act::Block, Cur::Default);
     if main {
         draw_login(ui, g, w, dy);
         // имя машины, внизу — сеанс, раскладка, питание
-        ui.text(PX, 24, 20, &g.host.clone(), t.text_faint);
+        if g.opts.host {
+            ui.text(PX, 24, 20, &g.host.clone(), t.text_faint);
+        }
         let by = h - 56;
         let mut x = 24;
         if !g.sessions.is_empty() {
@@ -138,16 +181,17 @@ pub fn draw(ui: &mut Ui, g: &G, w: i32, h: i32, main: bool) {
             let bw = ui.w(PX, &l) + 44;
             ui.button(R::new(x, by, bw, 32), &l, "keys", Tone::Plain, false, true, Act::Layout);
         }
-        let btns: [(&str, &str, Act); 3] = [("сон", "moon", Act::Sleep), ("перезагрузка", "reboot", Act::Reboot), ("выключить", "power", Act::PowerOff)];
-        let ws: Vec<i32> = btns.iter().map(|b| ui.w(PX, b.0) + 44).collect();
-        let total: i32 = ws.iter().sum::<i32>() + 8 * (ws.len() as i32 - 1);
-        let mut x = (w - total) / 2;
-        for (b, bw) in btns.into_iter().zip(ws) {
-            ui.button(R::new(x, by, bw, 32), b.0, b.1, Tone::Ghost, false, true, b.2);
-            x += bw + 8;
+        if g.opts.power && g.power {
+            let btns: [(&str, &str, Act); 3] = [("сон", "moon", Act::Sleep), ("перезагрузка", "reboot", Act::Reboot), ("выключить", "power", Act::PowerOff)];
+            let ws: Vec<i32> = btns.iter().map(|b| ui.w(PX, b.0) + 44).collect();
+            let total: i32 = ws.iter().sum::<i32>() + 8 * (ws.len() as i32 - 1);
+            let mut x = (w - total) / 2;
+            for (b, bw) in btns.into_iter().zip(ws) {
+                ui.button(R::new(x, by, bw, 32), b.0, b.1, Tone::Ghost, false, true, b.2);
+                x += bw + 8;
+            }
         }
     }
-    let k = g.reveal();
     if k < 1.0 {
         ui.cv.dissolve(k, 2);
         ui.anim = true;
@@ -168,18 +212,20 @@ fn draw_login(ui: &mut Ui, g: &G, w: i32, dy: i32) {
     let fy = dy + 70;
     // кто входит: имя (и настоящее имя бледнее), стрелки — другой пользователь
     let name_phase = g.phase == Phase::Name;
-    ui.cv.icon(if name_phase { "user" } else { "lock" }, fx, fy - 26, 2, t.red);
-    if !name_phase {
-        let u = g.users.get(g.user);
+    let asking_name = name_phase || (g.name_mode() && g.typed.is_empty());
+    ui.cv.icon(if asking_name { "user" } else { "lock" }, fx, fy - 26, 2, t.red);
+    if !asking_name {
+        let u = if g.name_mode() { None } else { g.users.get(g.user) };
         let login = u.map(|u| u.name.clone()).unwrap_or_else(|| g.typed.clone());
         let nw = ui.cv.text_in(ui.f, PX, R::new(fx + 22, fy - 30, fw - 90, 20), &login, t.text);
         if let Some(real) = u.map(|u| u.real.clone()).filter(|r| !r.is_empty() && *r != login) {
             ui.cv.text_in(ui.f, PX, R::new(fx + 30 + nw, fy - 30, fw - 120 - nw, 20), &real, t.text_faint);
         }
     } else {
-        ui.text_in(PX, R::new(fx + 22, fy - 30, fw - 90, 20), "кто входит?", t.text);
+        let q = if g.can_pick() { "другой пользователь" } else { "кто входит?" };
+        ui.text_in(PX, R::new(fx + 22, fy - 30, fw - 90, 20), q, t.text);
     }
-    if g.users.len() > 1 && matches!(g.phase, Phase::Pass) {
+    if g.can_pick() && matches!(g.phase, Phase::Pass | Phase::Name) {
         ui.ghost(R::new(fx + fw - 54, fy - 34, 26, 24), "left", Act::UserPrev);
         ui.ghost(R::new(fx + fw - 26, fy - 34, 26, 24), "right", Act::UserNext);
     }
@@ -202,7 +248,7 @@ fn draw_login(ui: &mut Ui, g: &G, w: i32, dy: i32) {
     } else if g.fails > 0 {
         (crate::tf!("неверно ×{}", "wrong ×{}", g.fails), t.ember)
     } else if g.demo {
-        ("демо: пароль yami".to_string(), t.text_faint)
+        ("демо: пароль yami, esc — выйти".to_string(), t.text_faint)
     } else {
         ("enter — войти".to_string(), t.text_faint)
     };

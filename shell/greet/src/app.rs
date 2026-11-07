@@ -1,6 +1,9 @@
 // Окно экрана входа: по поверхности layer-shell (overlay, на весь экран) на каждый монитор, поле
 // входа — на том, где клавиатура. shm и HiDPI как в шелле: холст логический, увеличение
 // ближайшим соседом. greetd — в своей нити (greetd.rs), события приходят сюда каналом.
+// greet-session узнаёт, как идёт запуск, из data::status: «up» после первого кадра, «session» —
+// как только greetd принял сеанс (до ухода и выхода niri). Уход кончается чёрным кадром, и niri
+// закрывается, только когда этот кадр показан: между экраном входа и сеансом — ровный чёрный.
 
 use crate::draw::{Act, Phase, Ui, G};
 use crate::greetd::{Ask, Ev};
@@ -40,9 +43,12 @@ use yami_px::gfx::Canvas;
 use yami_px::icons::Icons;
 use yami_px::ui::{Cur, Zone};
 
-/// простой без ввода: недописанный пароль стирается, потом гаснут мониторы
+/// простой без ввода: недописанный пароль стирается, курсор поля перестаёт мигать (ни одной
+/// перерисовки до ввода), мониторы гаснут через data::Opts::off_min
 const IDLE_WIPE: Duration = Duration::from_secs(60);
-const IDLE_OFF: Duration = Duration::from_secs(120);
+const IDLE_CALM: Duration = Duration::from_secs(30);
+/// демо (поверх своего сеанса) само закрывается
+const DEMO_MAX: Duration = Duration::from_secs(180);
 
 struct Out {
     id: u32,
@@ -95,11 +101,18 @@ pub struct App {
     minute: u32,
     last_input: Instant,
     screens_off: bool,
+    /// старт процесса: время до первого кадра
+    t0: Instant,
+    /// первый кадр показан (через столько мс после старта)
+    up: Option<u128>,
+    /// уход доигран, чёрный кадр отправлен (когда); показан — можно закрывать niri
+    leaving: Option<Instant>,
+    left: bool,
     pub code: i32,
     quit: bool,
 }
 
-pub fn run(g: G, fonts: Fonts) -> i32 {
+pub fn run(g: G, fonts: Fonts, t0: Instant) -> i32 {
     let Ok(conn) = Connection::connect_to_env() else {
         eprintln!("yami-greet: no Wayland display");
         return 1;
@@ -159,6 +172,10 @@ pub fn run(g: G, fonts: Fonts) -> i32 {
         minute: yami_px::time::local_now().min,
         last_input: Instant::now(),
         screens_off: false,
+        t0,
+        up: None,
+        leaving: None,
+        left: false,
         // без запуска сеанса выход — сбой (niri пропал, greetd отвалился): greet-session их считает
         code: 2,
         quit: false,
@@ -167,6 +184,17 @@ pub fn run(g: G, fonts: Fonts) -> i32 {
         app.tick();
         TimeoutAction::ToDuration(Duration::from_millis(530))
     });
+    // ни одного монитора за 2 с: niri экрана входа погасил все (yami-outputs.kdl выключает тот,
+    // что сейчас не подключён, а подключённый — off). Включить подключённый, иначе войти некуда
+    if !app.g.demo {
+        let _ = handle.insert_source(Timer::from_duration(Duration::from_secs(2)), |_, _, app: &mut App| {
+            if app.surfs.is_empty() {
+                eprintln!("yami-greet: no monitor is on, turning one on");
+                std::thread::spawn(crate::niri::any_output_on);
+            }
+            TimeoutAction::Drop
+        });
+    }
     let _ = WaylandSource::new(conn.clone(), queue).insert(handle.clone());
     // мониторы приходят первым обходом реестра; поверхности — по new_output
     let _ = ev.dispatch(Some(Duration::from_millis(0)), &mut app);
@@ -218,20 +246,33 @@ impl App {
     }
 
     fn tick(&mut self) {
-        self.g.blink = !self.g.blink;
-        self.dirty_main();
+        let idle = self.last_input.elapsed();
+        // мигает курсор поля, пока с экраном что-то делают; потом — ни одной перерисовки
+        let calm = idle > IDLE_CALM || self.screens_off;
+        if !(calm && self.g.blink) {
+            self.g.blink = if calm { true } else { !self.g.blink };
+            if !self.screens_off {
+                self.dirty_main();
+            }
+        }
         let m = yami_px::time::local_now().min;
         if m != self.minute {
             self.minute = m;
-            self.dirty_all();
+            if !self.screens_off {
+                self.dirty_all();
+            }
         }
-        let idle = self.last_input.elapsed();
         if idle > IDLE_WIPE && !self.g.field.text.is_empty() && matches!(self.g.phase, Phase::Pass | Phase::Name) {
             self.g.field.wipe();
+            self.dirty_main();
         }
-        if idle > IDLE_OFF && !self.screens_off && !self.g.demo {
+        let off = self.g.opts.off_min;
+        if off > 0 && idle > Duration::from_secs(off as u64 * 60) && !self.screens_off && !self.g.demo {
             self.screens_off = true;
             std::thread::spawn(crate::niri::monitors_off);
+        }
+        if self.g.demo && idle > DEMO_MAX {
+            self.quit = true;
         }
         self.flush();
     }
@@ -244,18 +285,41 @@ impl App {
             }
         }
         if self.g.out_done() {
-            self.finish();
+            match self.leaving {
+                // уход доигран: следующий кадр — чёрный (draw), ждём, когда его покажут
+                None => {
+                    self.leaving = Some(Instant::now());
+                    self.dirty_all();
+                    let _ = self.handle.insert_source(Timer::from_duration(Duration::from_millis(300)), |_, _, app: &mut App| {
+                        app.flush();
+                        TimeoutAction::Drop
+                    });
+                    self.flush();
+                    return;
+                }
+                // показан (или монитор не отвечает 250 мс) — выходить
+                Some(t) if self.left || t.elapsed() > Duration::from_millis(250) || self.surfs.is_empty() => self.finish(),
+                _ => {}
+            }
         }
         let _ = self.conn.flush();
     }
 
-    /// сеанс запущен и уход доигран: niri экрана входа — выйти (greetd запустит сеанс)
+    /// сеанс запущен, уход доигран и показан: niri экрана входа — выйти (greetd запустит сеанс)
     fn finish(&mut self) {
+        if self.quit {
+            return;
+        }
         self.code = 0;
+        let _ = self.conn.flush();
         if !self.g.demo {
             crate::niri::quit();
         }
         self.quit = true;
+    }
+
+    fn ms(&self) -> u128 {
+        self.t0.elapsed().as_millis()
     }
 
     fn draw(&mut self, i: usize) {
@@ -306,11 +370,24 @@ impl App {
         }
         let _ = buffer.attach_to(&surf);
         surf.commit();
+        if self.up.is_none() {
+            // первый кадр: greet-session больше не считает этот запуск несостоявшимся
+            let ms = self.ms();
+            self.up = Some(ms);
+            eprintln!("yami-greet: first frame in {ms} ms ({w}x{h}, {} monitor(s))", self.surfs.len());
+            if !self.g.demo {
+                crate::data::status("up", ms);
+            }
+        }
     }
 
     fn on_ev(&mut self, e: Ev) {
+        // greetd принял сеанс: greet-session узнаёт об этом сразу, до ухода и выхода niri
+        if matches!(e, Ev::Started) && !self.g.demo {
+            crate::data::status("session", self.up.unwrap_or(0));
+        }
         let g = &mut self.g;
-        let back = if g.users.is_empty() { Phase::Name } else { Phase::Pass };
+        let back = g.first_phase();
         g.bad = matches!(e, Ev::Error(_) | Ev::Lost(_) | Ev::Info { error: true, .. });
         match e {
             Ev::Prompt { secret, text } => {
@@ -325,6 +402,7 @@ impl App {
                 g.shake = Some(Instant::now());
                 g.phase = back;
             }
+            Ev::Started if g.gone.is_some() => {}
             Ev::Error(d) => {
                 g.status = if d.trim().is_empty() { crate::i18n::tr("сеанс не запустился").to_string() } else { d };
                 g.phase = back;
@@ -350,12 +428,18 @@ impl App {
             }
         }
         self.g.field.wipe();
+        // имя вводили руками: после отказа оно уже в поле — Enter спросит пароль снова
+        if self.g.phase == Phase::Name && !self.g.typed.is_empty() && self.g.gone.is_none() {
+            let t = self.g.typed.clone();
+            self.g.field.set(&t);
+            self.g.field.text.reserve(1024);
+        }
         self.dirty_all();
     }
 
     fn submit(&mut self) {
         let g = &mut self.g;
-        let mut text = std::mem::take(&mut g.field.text);
+        let mut text = std::mem::replace(&mut g.field.text, String::with_capacity(1024));
         g.field.wipe();
         g.status.clear();
         g.bad = false;
@@ -375,7 +459,12 @@ impl App {
                     Some(s) => (s.cmd.clone(), s.env()),
                     None => (vec!["niri-session".to_string()], vec!["XDG_SESSION_TYPE=wayland".to_string()]),
                 };
-                let pass = if g.phase == Phase::Pass { Some(text) } else { None };
+                let pass = if g.phase == Phase::Pass {
+                    g.typed.clear();
+                    Some(text)
+                } else {
+                    None
+                };
                 let user = g.user_name();
                 g.phase = Phase::Busy;
                 let _ = self.ask.send(Ask::Login { user, pass, cmd, env });
@@ -392,12 +481,15 @@ impl App {
         let g = &mut self.g;
         let busy = matches!(g.phase, Phase::Busy | Phase::Done);
         match a {
-            Act::UserPrev | Act::UserNext if !busy && g.users.len() > 1 => {
-                let n = g.users.len();
+            // по кругу: пользователи, потом «другой» (имя вводят)
+            Act::UserPrev | Act::UserNext if !busy && g.can_pick() && matches!(g.phase, Phase::Pass | Phase::Name) => {
+                let n = g.users.len() + 1;
                 g.user = if (a == Act::UserPrev) != back { (g.user + n - 1) % n } else { (g.user + 1) % n };
+                g.typed.clear();
                 g.field.wipe();
                 g.fails = 0;
                 g.status.clear();
+                g.phase = g.first_phase();
             }
             Act::Session if !busy && !g.sessions.is_empty() => {
                 let n = g.sessions.len();
@@ -406,7 +498,7 @@ impl App {
             Act::Layout => {
                 std::thread::spawn(crate::niri::next_layout);
             }
-            Act::Sleep | Act::Reboot | Act::PowerOff => {
+            Act::Sleep | Act::Reboot | Act::PowerOff if g.power && g.opts.power => {
                 let (cmd, msg) = match a {
                     Act::Sleep => ("suspend", "засыпаю…"),
                     Act::Reboot => ("reboot", "перезагружаю…"),
@@ -425,10 +517,22 @@ impl App {
         self.dirty_all();
     }
 
-    fn key(&mut self, e: &KeyEvent) {
+    fn wake(&mut self) {
         self.last_input = Instant::now();
-        self.screens_off = false;
+        if self.screens_off {
+            self.screens_off = false;
+            self.dirty_all();
+        }
+    }
+
+    fn key(&mut self, e: &KeyEvent) {
+        self.wake();
         let g = &mut self.g;
+        // демо поверх своего сеанса: Esc на пустом поле закрывает его
+        if g.demo && e.keysym == Keysym::Escape && g.field.text.is_empty() && !matches!(g.phase, Phase::Prompt { .. }) {
+            self.quit = true;
+            return;
+        }
         if matches!(g.phase, Phase::Busy | Phase::Done) {
             return;
         }
@@ -438,13 +542,13 @@ impl App {
             Keysym::Escape => {
                 if matches!(g.phase, Phase::Prompt { .. }) {
                     let _ = self.ask.send(Ask::Cancel);
-                    g.phase = if g.users.is_empty() { Phase::Name } else { Phase::Pass };
+                    g.phase = g.first_phase();
                     g.status.clear();
                 }
                 g.field.wipe();
             }
-            Keysym::Up if g.phase == Phase::Pass => return self.act(Act::UserPrev, false),
-            Keysym::Down if g.phase == Phase::Pass => return self.act(Act::UserNext, false),
+            Keysym::Up if matches!(g.phase, Phase::Pass | Phase::Name) && g.can_pick() => return self.act(Act::UserPrev, false),
+            Keysym::Down if matches!(g.phase, Phase::Pass | Phase::Name) && g.can_pick() => return self.act(Act::UserNext, false),
             Keysym::BackSpace => g.field.backspace(ctrl),
             Keysym::Delete => g.field.delete(),
             Keysym::Left => g.field.left(),
@@ -503,8 +607,7 @@ impl App {
                 self.press = None;
             }
             PointerEventKind::Motion { .. } => {
-                self.last_input = Instant::now();
-                self.screens_off = false;
+                self.wake();
                 self.ptr = Some((id, x, y));
                 let shape = match self.zone_at(id, x, y).map(|z| z.cur) {
                     Some(Cur::Pointer) => Shape::Pointer,
@@ -514,7 +617,7 @@ impl App {
                 self.set_cursor(shape);
             }
             PointerEventKind::Press { button, .. } => {
-                self.last_input = Instant::now();
+                self.wake();
                 if button == 0x110 || button == 0x111 {
                     self.press = self.zone_at(id, x, y).map(|z| (id, z.act));
                 }
@@ -538,8 +641,14 @@ impl CompositorHandler for App {
     fn scale_factor_changed(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_surface::WlSurface, _: i32) {}
     fn transform_changed(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_surface::WlSurface, _: wl_output::Transform) {}
     fn frame(&mut self, _: &Connection, _: &QueueHandle<Self>, surf: &wl_surface::WlSurface, _: u32) {
+        let leaving = self.leaving.is_some();
         for s in self.surfs.iter_mut().filter(|s| s.layer.wl_surface() == surf) {
             s.frame_pending = false;
+            // чёрный кадр ухода показан: больше не рисовать, выходить
+            if leaving && !s.dirty {
+                self.left = true;
+                continue;
+            }
             if s.anim {
                 s.dirty = true;
             }

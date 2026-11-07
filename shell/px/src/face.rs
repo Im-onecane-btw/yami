@@ -3,7 +3,8 @@
 // были одним экраном.
 
 use crate::font;
-use crate::gfx::{Img, C, R};
+use crate::gfx::{over, Img, C, R};
+use crate::theme::Theme;
 use crate::time::{local_now, RU_DAY_FULL, RU_MON};
 use crate::ui::{Action, Ui};
 
@@ -11,18 +12,47 @@ use crate::ui::{Action, Ui};
 pub fn cover<A: Action>(ui: &mut Ui<A>, img: &Img, w: i32, h: i32) {
     let k = (w as f32 / img.w.max(1) as f32).max(h as f32 / img.h.max(1) as f32);
     let (dw, dh) = ((img.w as f32 * k).ceil() as i32, (img.h as f32 * k).ceil() as i32);
-    ui.cv.image_scaled(img, R::new((w - dw) / 2, (h - dh) / 2, dw, dh), 1.0);
+    ui.cv.image_fast(img, R::new((w - dw) / 2, (h - dh) / 2, dw, dh));
 }
 
-/// обои, вуаль к фону темы (в тёмной — затемнить, в светлой — высветлить) и строки развёртки
-pub fn backdrop<A: Action>(ui: &mut Ui<A>, wall: Option<&Img>, w: i32, h: i32) {
-    let t = ui.t;
-    ui.cv.clear(t.bg);
-    if let Some(img) = wall {
-        cover(ui, img, w, h);
+/// вуаль над обоями: в тёмной теме чёрная, в светлой — цветом фона (высветлить). dim — её
+/// плотность (None — как у экрана блокировки)
+pub fn veil(t: &Theme, dim: Option<f32>) -> C {
+    let d = dim.unwrap_or(0.55).clamp(0.0, 0.95);
+    if t.light {
+        t.bg.alpha((d + 0.07).min(0.95))
+    } else {
+        C(0xff000000).alpha(d)
     }
-    let (veil, line) = if t.light { (t.bg.alpha(0.62), t.text.alpha(0.07)) } else { (C(0xff000000).alpha(0.55), C(0xff000000).alpha(0.18)) };
-    ui.cv.fill(R::new(0, 0, w, h), veil);
+}
+
+/// впечь вуаль в картинку один раз (экран входа): дальше каждый кадр — простое копирование
+pub fn bake(img: &mut Img, veil: C) {
+    let v = veil.premul();
+    for p in img.px.iter_mut() {
+        *p = over(*p, v);
+    }
+}
+
+/// обои, вуаль и строки развёртки (экран блокировки: вуаль кладётся каждый кадр)
+pub fn backdrop<A: Action>(ui: &mut Ui<A>, wall: Option<&Img>, w: i32, h: i32) {
+    let v = veil(&ui.t, None);
+    backdrop_with(ui, wall, w, h, v, false);
+}
+
+/// то же; baked — вуаль уже впечена в картинку (bake). Без картинки — фон темы под вуалью
+pub fn backdrop_with<A: Action>(ui: &mut Ui<A>, wall: Option<&Img>, w: i32, h: i32, veil: C, baked: bool) {
+    let t = ui.t;
+    match wall {
+        Some(img) => {
+            cover(ui, img, w, h);
+            if !baked {
+                ui.cv.fill(R::new(0, 0, w, h), veil);
+            }
+        }
+        None => ui.cv.clear(C(over(t.bg.premul(), veil.premul()))),
+    }
+    let line = if t.light { t.text.alpha(0.07) } else { C(0xff000000).alpha(0.18) };
     for y in (0..h).step_by(4) {
         ui.cv.fill(R::new(0, y, w, 1), line);
     }
