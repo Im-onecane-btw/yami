@@ -164,10 +164,12 @@ system() {
   install -d -m755 -o "$user" -g "$(id -gn "$user")" "$LOOK"
   install -d -m700 -o "$g" -g "$gg" "$STATE"
   install -d -m755 -o "$g" -g "$gg" "$LOGD"
-  # the first boot: this user and the niri session already picked
-  if [[ ! -e $STATE/last ]]; then
-    printf '%s\nniri\n' "$user" >"$STATE/last"
-    chown "$g:$gg" "$STATE/last"
+  # the first boot: this user and the niri session already picked. The folder is the greeter's: the
+  # file is made in root's folder and renamed in, so root never writes through a link put there
+  if [[ ! -e $STATE/last && ! -L $STATE/last ]]; then
+    local tmp
+    tmp="$(mktemp /var/lib/yami-greet/.last.XXXXXX)"
+    printf '%s\nniri\n' "$user" >"$tmp" && chown "$g:$gg" "$tmp" && chmod 600 "$tmp" && mv -fT "$tmp" "$STATE/last" || rm -f -- "$tmp"
   fi
   install -Dm755 "$ROOT/system/greet/greet-session" /usr/local/lib/yami/greet-session
   install -Dm644 -t /usr/local/share/yami-greet/fonts "$ROOT/fonts/Tiny5.ttf" "$ROOT/fonts/DotGothic16-Regular.ttf" "$ROOT/fonts/OFL-tiny5.txt" "$ROOT/fonts/OFL-dotgothic16.txt"
@@ -217,16 +219,24 @@ fi
 
 ENABLE=()
 for a; do case "$a" in --no-enable) ENABLE=(--no-enable) ;; *) echo "unknown: $a" >&2; exit 2 ;; esac; done
+((EUID != 0)) || { echo "run it as yourself: it asks for the password itself" >&2; exit 1; }
+SU=sudo
+command -v sudo >/dev/null || SU=doas
 if ! command -v greetd >/dev/null; then
-  if command -v pacman >/dev/null; then sudo pacman -S --needed --noconfirm greetd greetd-agreety
-  elif command -v dnf >/dev/null; then sudo dnf install -y greetd
-  elif command -v apt-get >/dev/null; then sudo apt-get install -y greetd
-  elif command -v zypper >/dev/null; then sudo zypper --non-interactive install greetd
-  elif command -v xbps-install >/dev/null; then sudo xbps-install -y greetd
-  elif command -v apk >/dev/null; then sudo apk add greetd greetd-agreety
+  if command -v pacman >/dev/null; then $SU pacman -S --needed --noconfirm greetd greetd-agreety
+  elif command -v dnf >/dev/null; then $SU dnf install -y greetd
+  elif command -v apt-get >/dev/null; then $SU apt-get install -y greetd
+  elif command -v zypper >/dev/null; then $SU zypper --non-interactive install greetd
+  elif command -v xbps-install >/dev/null; then $SU xbps-install -y greetd
+  elif command -v apk >/dev/null; then $SU apk add greetd greetd-agreety
   else echo "install greetd with your package manager first (./install.sh --login does it)" >&2; exit 1; fi
 fi
-cargo build --release --locked -p yami-greet --manifest-path "$ROOT/shell/Cargo.toml"
+# the updater's clone builds into the cache (install.sh did it a moment ago): the same target, so
+# nothing is built twice; a checkout of your own builds into its shell/target
+TARGET="${CARGO_TARGET_DIR:-}"
+[[ -z $TARGET && $ROOT == "${XDG_DATA_HOME:-$HOME/.local/share}/yami/src" ]] && TARGET="${XDG_CACHE_HOME:-$HOME/.cache}/yami/target"
+TARGET="${TARGET:-$ROOT/shell/target}"
+cargo build --release --locked -p yami-greet --manifest-path "$ROOT/shell/Cargo.toml" --target-dir "$TARGET"
 TMP="$(mktemp -d)"
 trap 'rm -rf -- "$TMP"' EXIT
 python3 -I "$ROOT/tools/theme.py" --cursor-to "$TMP/yami-cursor"
@@ -237,7 +247,7 @@ prev="$(basename "$(readlink /etc/systemd/system/display-manager.service 2>/dev/
 if [[ -n $prev && $prev != greetd && ! -s $STATE_D/login-dm ]]; then
   mkdir -p "$STATE_D" && printf '%s\n' "$prev" >"$STATE_D/login-dm"
 fi
-sudo "$ROOT/tools/greet-install.sh" --system "$(id -un)" --bin "$ROOT/shell/target/release/yami-greet" --cursor "$TMP/yami-cursor" "${ENABLE[@]}"
+$SU "$ROOT/tools/greet-install.sh" --system "$(id -un)" --bin "$TARGET/release/yami-greet" --cursor "$TMP/yami-cursor" "${ENABLE[@]}"
 # the look of the shell, now (it keeps it current itself)
 yami-shell login sync >/dev/null 2>&1 || "$ROOT/shell/target/release/yami-shell" login sync >/dev/null 2>&1 || true
 echo "login screen: yami-greet in greetd ($(/usr/local/bin/yami-greet --version))"
