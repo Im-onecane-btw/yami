@@ -6,7 +6,7 @@
 //   yami-greet --demo           то же без greetd, пароль «yami», Esc — выйти (в окне niri или
 //                               поверх своего сеанса: кнопка «показать» в настройках шелла)
 //   yami-greet kdl [--plain]    конфиг niri экрана входа в stdout
-//   yami-greet shot [-o DIR] [--lang en]   снимки состояний в PNG без Wayland
+//   yami-greet shot [-o DIR] [--lang en] [--size WxH]   снимки состояний в PNG без Wayland
 
 mod app;
 mod data;
@@ -30,7 +30,7 @@ fn main() {
             0
         }
         Some("-h") | Some("--help") => {
-            println!("yami-greet [--demo] | kdl [--plain] | shot [-o DIR] [--lang en]");
+            println!("yami-greet [--demo] | kdl [--plain] | shot [-o DIR] [--lang en|ru|pt-BR] [--size WxH]");
             0
         }
         Some("kdl") => {
@@ -142,11 +142,19 @@ fn greet(demo: bool) -> i32 {
 fn shot(args: &[String]) -> i32 {
     let mut out = PathBuf::from("shots");
     let mut lang = String::new();
+    // размер кадра: 1280×720 для проверок, 1920×1080 для README (tools/readme-shots.sh)
+    let (mut w, mut h) = (1280, 720);
     let mut it = args.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
             "-o" => out = it.next().map(PathBuf::from).unwrap_or(out),
             "--lang" => lang = it.next().cloned().unwrap_or_default(),
+            "--size" => {
+                if let Some((a, b)) = it.next().and_then(|s| s.split_once('x')) {
+                    w = a.parse().unwrap_or(w).clamp(320, 7680);
+                    h = b.parse().unwrap_or(h).clamp(240, 4320);
+                }
+            }
             _ => {}
         }
     }
@@ -208,7 +216,6 @@ fn shot(args: &[String]) -> i32 {
             }
             _ => {}
         }
-        let (w, h) = (1280, 720);
         let mut buf = vec![0u32; (w * h) as usize];
         {
             let mut ui = draw::Ui { cv: yami_px::gfx::Canvas::new(&mut buf, w, h), f: &mut fonts, ic: &mut ic, t: g.look.theme, zones: vec![], ptr: None, down: false, anim: false, blink: true, tr: i18n::tr };

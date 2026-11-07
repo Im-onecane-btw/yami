@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Real screenshots of a running yami session for the README (.github/assets): the desktop with the
-# launcher, settings tabs, yami-files on a demo folder (闇 as in fastfetch on each palette's
+# Real screenshots of a running yami session for the README (.github/assets): the plain desktop
+# (clean.png), the desktop with the launcher, settings tabs, yami-files on a demo folder (闇 as in fastfetch on each palette's
 # wallpaper), yami-view on one of them, the screenshot overlay (`yami-shell shot screenshot --frame`: the same drawing code
-# with a selection and marks, over a real frame of the screen); in English and Russian. Runs on an empty workspace with do-not-disturb on (no live notification or
+# with a selection and marks, over a real frame of the screen), the login screen (`yami-greet shot
+# --size`: its own drawing code at the screen's size, with a made-up user and host, on the look the
+# shell published); in English and Russian. yami-greet comes from this tree's build. Runs on an empty workspace with do-not-disturb on (no live notification or
 # window gets into a picture), the generated pixel wallpaper instead of your own picture, sound
 # devices under plain names (audioNames) and drives hidden in yami-files, and puts the workspace,
 # language, do-not-disturb, wallpaper and names back after.
@@ -33,6 +35,9 @@ if [[ $pal != ash || ( -n $acc && ${acc,,} != "#a8a29c" ) ]]; then
 fi
 ws() { niri msg --json workspaces | python3 -I -c "$1"; }
 out="$(niri msg --json focused-output | python3 -I -c 'import json,sys; print(json.load(sys.stdin)["name"])')"
+size="$(niri msg --json focused-output | python3 -I -c 'import json,sys; l=json.load(sys.stdin)["logical"]; print("%dx%d" % (l["width"], l["height"]))')"
+GREET="$ROOT/shell/target/release/yami-greet"
+[[ -x $GREET ]] || die "$(t "нет $GREET — собери: cargo build --release -p yami-greet" "no $GREET: build it with cargo build --release -p yami-greet")"
 back="$(ws 'import json,sys; print(next(w["idx"] for w in json.load(sys.stdin) if w["is_focused"]))')"
 empty="$(ws "import json,sys; print(max(w['idx'] for w in json.load(sys.stdin) if w['output']=='$out' and w['active_window_id'] is None))")"
 lang0="$(yami config get lang)"
@@ -159,6 +164,14 @@ for lang in en ru; do
   yami config set lang "$lang" >/dev/null
   yami config set audioNames "$(names "$lang")" >/dev/null
   sleep 2
+  # чистый стол — один на оба README
+  if [[ $lang == en ]]; then
+    shoot "clean"
+    full clean "$OUT/clean.png"
+  fi
+  # экран входа: его код рисования, размер экрана, вид из того, что выложил шелл
+  "$GREET" shot --lang "$lang" --size "$size" -o "$TMP/greet" >/dev/null
+  full greet/greet-pass "$OUT/login-$lang.png"
   yami msg launcher
   shoot "desktop"
   yami msg launcher
