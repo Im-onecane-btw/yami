@@ -64,20 +64,25 @@ Built from source on your machine (Arch, Fedora, Debian/Ubuntu, openSUSE, Void, 
   local newest latest=false
   newest="$(git tag -l 'v[0-9]*' --sort=-v:refname | head -n1)"
   [[ $newest == "v$v" ]] && latest=true
-  if gh release view "v$v" >/dev/null 2>&1; then
-    gh release edit "v$v" --title "yami $v" --notes "$body" --latest="$latest" >/dev/null
-  else
-    gh release create "v$v" --verify-tag --title "yami $v" --notes "$body" --latest="$latest" >/dev/null
-  fi
   # the install counter (docs/SECURITY.md, «Install count»): install.sh downloads this file from
-  # the latest release once per machine; never --clobber, a re-upload would zero its download count
-  if ! gh release view "v$v" --json assets -q '.assets[].name' 2>/dev/null | grep -qx yami-installs.txt; then
-    local f; f="$(mktemp -d)/yami-installs.txt"
-    printf '%s\n' "yami install counter: install.sh downloads this file once per machine, so its download" \
-      "count is the number of installs. Nothing is sent with it. See docs/SECURITY.md, «Install count»." >"$f"
-    gh release upload "v$v" "$f" >/dev/null && say "$(t "счётчик установок прикреплён" "install counter attached")"
-    rm -rf "${f%/*}"
+  # the latest release once per machine; never --clobber, a re-upload would zero its download count.
+  # Releases are immutable once published (docs/SECURITY.md, «The repository»): the file goes in with
+  # the release itself, files cannot be added to a published one
+  local f; f="$(mktemp -d)/yami-installs.txt"
+  printf '%s\n' "yami install counter: install.sh downloads this file once per machine, so its download" \
+    "count is the number of installs. Nothing is sent with it. See docs/SECURITY.md, «Install count»." >"$f"
+  if gh release view "v$v" >/dev/null 2>&1; then
+    # notes and title stay editable on an immutable release
+    gh release edit "v$v" --title "yami $v" --notes "$body" --latest="$latest" >/dev/null
+    if ! gh release view "v$v" --json assets -q '.assets[].name' 2>/dev/null | grep -qx yami-installs.txt; then
+      gh release upload "v$v" "$f" >/dev/null && say "$(t "счётчик установок прикреплён" "install counter attached")" ||
+        say "$(t "счётчик не прикрепить: выпуск уже неизменяемый" "the counter cannot be attached: the release is immutable")"
+    fi
+  else
+    gh release create "v$v" --verify-tag --title "yami $v" --notes "$body" --latest="$latest" "$f" >/dev/null
+    say "$(t "счётчик установок прикреплён" "install counter attached")"
   fi
+  rm -rf "${f%/*}"
   say "$(t "релиз на GitHub: yami $v" "GitHub release: yami $v")"
 }
 
