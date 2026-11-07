@@ -5,7 +5,9 @@
 # shellcheck shell=bash
 
 # niri — the compositor; base — what the shell and the session use at runtime;
-# build — to compile the shell; apps, look — optional; games — GameMode, MangoHud;
+# build — to compile the shell; apps — kitty, fastfetch, pavucontrol, btop; drives — udisks2 and gvfs
+# (drives, phones, network shares); files — yami-files' thumbnails and archives; play — libmpv for
+# yami-play; look — the Qt/GTK theme; games — GameMode, MangoHud;
 # tools — night light, text and QR from screenshots; login — greetd for yami-greet (agreety: the text
 # fallback); nirisrc — to build niri itself (and setcap for yami-niri's realtime priority)
 packages_for_family() {
@@ -16,7 +18,10 @@ case "$FAM" in
       cliphist wl-clipboard grim brightnessctl playerctl python python-pillow noto-fonts noto-fonts-cjk noto-fonts-emoji
       power-profiles-daemon libxkbcommon pam fontconfig curl)
     P_build=(rust gcc pkgconf libxkbcommon pam)
-    P_apps=(kitty fastfetch pavucontrol btop udisks2 ffmpegthumbnailer libarchive mpv gvfs gvfs-mtp gvfs-gphoto2 gvfs-afc gvfs-smb)
+    P_apps=(kitty fastfetch pavucontrol btop)
+    P_drives=(udisks2 gvfs gvfs-mtp gvfs-gphoto2 gvfs-afc gvfs-smb)
+    P_files=(ffmpegthumbnailer libarchive)
+    P_play=(mpv)
     P_look=(qt6ct adw-gtk-theme papirus-icon-theme)
     P_games=(gamemode mangohud)
     P_tools=(wlsunset tesseract tesseract-data-eng tesseract-data-rus zbar)
@@ -28,7 +33,10 @@ case "$FAM" in
       cliphist wl-clipboard grim brightnessctl playerctl python3 python3-pillow google-noto-sans-fonts google-noto-sans-cjk-fonts
       google-noto-color-emoji-fonts tuned-ppd libxkbcommon pam fontconfig curl)
     P_build=(rust cargo gcc pkgconf-pkg-config libxkbcommon-devel pam-devel)
-    P_apps=(kitty fastfetch pavucontrol btop udisks2 ffmpegthumbnailer bsdtar mpv-libs gvfs gvfs-mtp gvfs-gphoto2 gvfs-afc gvfs-smb gvfs-fuse)
+    P_apps=(kitty fastfetch pavucontrol btop)
+    P_drives=(udisks2 gvfs gvfs-mtp gvfs-gphoto2 gvfs-afc gvfs-smb gvfs-fuse)
+    P_files=(ffmpegthumbnailer bsdtar)
+    P_play=(mpv-libs)
     P_look=(qt6ct adw-gtk3-theme papirus-icon-theme)
     P_games=(gamemode mangohud)
     P_tools=(wlsunset tesseract tesseract-langpack-eng tesseract-langpack-rus zbar)
@@ -41,7 +49,10 @@ case "$FAM" in
       cliphist wl-clipboard grim brightnessctl playerctl python3 python3-pil fonts-noto-core fonts-noto-cjk fonts-noto-color-emoji
       power-profiles-daemon libxkbcommon0 libpam0g fontconfig curl)
     P_build=(cargo rustc gcc pkg-config libxkbcommon-dev libpam0g-dev)
-    P_apps=(kitty fastfetch pavucontrol btop udisks2 ffmpegthumbnailer libarchive-tools libmpv2 gvfs gvfs-backends gvfs-fuse)
+    P_apps=(kitty fastfetch pavucontrol btop)
+    P_drives=(udisks2 gvfs gvfs-backends gvfs-fuse)
+    P_files=(ffmpegthumbnailer libarchive-tools)
+    P_play=(libmpv2)
     P_look=(qt6ct adw-gtk3 papirus-icon-theme)
     P_games=(gamemode mangohud)
     P_tools=(wlsunset tesseract-ocr tesseract-ocr-eng tesseract-ocr-rus zbar-tools)
@@ -54,7 +65,10 @@ case "$FAM" in
       cliphist wl-clipboard grim brightnessctl playerctl python3 python3-Pillow google-noto-sans-fonts google-noto-sans-cjk-fonts
       noto-coloremoji-fonts power-profiles-daemon libxkbcommon0 pam fontconfig curl)
     P_build=(rust cargo gcc pkgconf libxkbcommon-devel pam-devel)
-    P_apps=(kitty fastfetch pavucontrol btop udisks2 ffmpegthumbnailer bsdtar libmpv2 gvfs gvfs-backends gvfs-backend-afc gvfs-fuse)
+    P_apps=(kitty fastfetch pavucontrol btop)
+    P_drives=(udisks2 gvfs gvfs-backends gvfs-backend-afc gvfs-fuse)
+    P_files=(ffmpegthumbnailer bsdtar)
+    P_play=(libmpv2)
     P_look=(qt6ct gtk3-metatheme-adwaita papirus-icon-theme)
     P_games=(gamemode mangohud)
     P_tools=(wlsunset tesseract-ocr tesseract-ocr-traineddata-eng tesseract-ocr-traineddata-rus zbar)
@@ -67,7 +81,10 @@ case "$FAM" in
       cliphist wl-clipboard grim brightnessctl playerctl python3 python3-Pillow noto-fonts-ttf noto-fonts-cjk noto-fonts-emoji
       power-profiles-daemon libxkbcommon pam fontconfig curl)
     P_build=(rust cargo gcc pkg-config libxkbcommon-devel pam-devel)
-    P_apps=(kitty fastfetch pavucontrol btop udisks2 ffmpegthumbnailer bsdtar mpv gvfs gvfs-mtp gvfs-gphoto2 gvfs-afc gvfs-smb)
+    P_apps=(kitty fastfetch pavucontrol btop)
+    P_drives=(udisks2 gvfs gvfs-mtp gvfs-gphoto2 gvfs-afc gvfs-smb)
+    P_files=(ffmpegthumbnailer bsdtar)
+    P_play=(mpv)
     P_look=(qt6ct adw-gtk3 papirus-icon-theme)
     P_games=(gamemode MangoHud)
     P_tools=(wlsunset tesseract-ocr tesseract-ocr-eng tesseract-ocr-rus zbar)
@@ -80,7 +97,10 @@ case "$FAM" in
       cliphist wl-clipboard grim brightnessctl playerctl python3 py3-pillow font-noto font-noto-cjk font-noto-emoji
       power-profiles-daemon libxkbcommon linux-pam fontconfig curl)
     P_build=(rust cargo gcc musl-dev pkgconf libxkbcommon-dev linux-pam-dev)
-    P_apps=(kitty fastfetch pavucontrol btop udisks2 ffmpegthumbnailer libarchive-tools mpv-libs gvfs gvfs-mtp gvfs-gphoto2 gvfs-afc gvfs-smb gvfs-fuse)
+    P_apps=(kitty fastfetch pavucontrol btop)
+    P_drives=(udisks2 gvfs gvfs-mtp gvfs-gphoto2 gvfs-afc gvfs-smb gvfs-fuse)
+    P_files=(ffmpegthumbnailer libarchive-tools)
+    P_play=(mpv-libs)
     P_look=(qt6ct adw-gtk3 papirus-icon-theme)
     P_games=(gamemode mangohud)
     P_tools=(wlsunset tesseract-ocr tesseract-ocr-data-rus zbar)
@@ -94,21 +114,24 @@ case "$FAM" in
       app-misc/brightnessctl media-sound/playerctl dev-python/pillow media-fonts/noto media-fonts/noto-cjk media-fonts/noto-emoji
       sys-power/power-profiles-daemon x11-libs/libxkbcommon sys-libs/pam net-misc/curl)
     P_build=(virtual/rust virtual/pkgconfig)
-    P_apps=(x11-terms/kitty app-misc/fastfetch media-sound/pavucontrol sys-process/btop sys-fs/udisks media-video/ffmpegthumbnailer app-arch/libarchive media-video/mpv gnome-base/gvfs)
+    P_apps=(x11-terms/kitty app-misc/fastfetch media-sound/pavucontrol sys-process/btop)
+    P_drives=(sys-fs/udisks gnome-base/gvfs)
+    P_files=(media-video/ffmpegthumbnailer app-arch/libarchive)
+    P_play=(media-video/mpv)
     P_look=(gui-apps/qt6ct x11-themes/adw-gtk3 x11-themes/papirus-icon-theme)
     P_games=(games-util/gamemode games-util/mangohud)
     P_tools=(gui-apps/wlsunset app-text/tesseract media-gfx/zbar)
     P_login=(gui-libs/greetd)
     P_nirisrc=(dev-vcs/git llvm-core/clang dev-libs/libinput sys-auth/seatd media-libs/mesa x11-libs/pango media-libs/libdisplay-info sys-libs/libcap) ;;
   *)
-    P_niri=() P_base=() P_build=() P_apps=() P_look=() P_games=() P_tools=() P_login=() P_nirisrc=() ;;
+    P_niri=() P_base=() P_build=() P_apps=() P_drives=() P_files=() P_play=() P_look=() P_games=() P_tools=() P_login=() P_nirisrc=() ;;
 esac
 }
 # name: packages, one list per line: tools/ci-distro.sh checks that each exists in the repositories
 print_packages() {
   local a
   printf 'family: %s\n' "$FAM"
-  for a in P_niri P_base P_build P_apps P_look P_games P_tools P_login P_nirisrc; do
+  for a in P_niri P_base P_build P_apps P_drives P_files P_play P_look P_games P_tools P_login P_nirisrc; do
     declare -n arr=$a
     printf '%s: %s\n' "$a" "${arr[*]}"
   done
@@ -191,6 +214,9 @@ do_need_pkgs() {
   local f="$STATE/packages-needed" want=() need=() p
   wants core && want+=("${P_base[@]}")
   wants apps && want+=("${P_apps[@]}")
+  wants drives && want+=("${P_drives[@]}")
+  wants files && want+=("${P_files[@]}")
+  wants play && want+=("${P_play[@]}")
   wants tools && want+=("${P_tools[@]}")
   wants games && want+=("${P_games[@]}")
   wants look && want+=("${P_look[@]}")

@@ -97,12 +97,13 @@ yami-shell binds list | print | write     # сочетания клавиш
 | `iconPixel` | `true` | значки программ перерисованы пиксель-артом 16×16 в тонах палитры |
 | `fetchFull` | `false` | fastfetch с железом (ядро, пакеты, CPU, GPU, память, диск, дисплей); выключено — кто, ОС, wm, оболочка, терминал, время работы |
 | `lang` | `""` | `ru`, `en`, `pt-BR` или пусто — по `LC_ALL`, `LC_MESSAGES`, затем `$LANG`; также принимаются `pt_BR.UTF-8` и `pt` |
-| `appThemes` | `["foot", "cava", "starship"]` | какие программы theme.py красит сверх постоянных (настройки → цвет → программы): `foot` (`foot/yami-colors.ini` и строка `include=` в начале `foot.ini`, для новых окон), `cava` (градиент в секции `[color]` её конфига, открытая cava перечитывает сразу), `starship` (`palette = "yami"` и таблица `[palettes.yami]`, которая перекрашивает и `red`, `green` и другие имена). Каждая — только если её конфиг есть |
+| `themeApps` | все | какие чужие программы theme.py красит (настройки → цвет → программы, `--restyle` установщика): `gtk` (gtk.css, settings.ini, gsettings), `qt` (qt6ct, цветовая схема KDE, kdeglobals), `kitty` (цвета и шрифт; выключенный — строка `include yami.conf` уходит из `kitty.conf`), `fastfetch`, `btop`, `firefox` (меню), `mangohud` (только конфиг, который написал yami), `foot` (`foot/yami-colors.ini` и строка `include=` в начале `foot.ini`, для новых окон), `cava` (градиент в секции `[color]` её конфига, открытая cava перечитывает сразу), `starship` (`palette = "yami"` и таблица `[palettes.yami]`, которая перекрашивает и `red`, `green` и другие имена). Невыбранную программу yami не трогает. До 2.6 включительно — `appThemes` (только foot, cava и starship), его читают один раз и переносят |
 
 ### Программы в цветах палитры
 
-kitty, btop, GTK, Qt и KDE, меню браузеров семейства Firefox, fastfetch, MangoHud, рамки niri и
-экран входа всегда идут за палитрой; `appThemes` добавляет foot, cava и starship. Для любой другой
+Рамки niri, экран входа и твои шаблоны всегда идут за палитрой; GTK, Qt и KDE, kitty, fastfetch,
+btop, меню браузеров семейства Firefox, MangoHud, foot, cava и starship — когда они в `themeApps`
+(все, пока ты не снимешь галочки). Для любой другой
 программы напиши шаблон: файл в `~/.config/yami/templates` — это конфиг цветов программы, где стоят
 `{{accent}}`, `{{bg}}`, `{{text}}`, `{{color0}}`…`{{color15}}` и другие имена палитры (`.strip`
 убирает `#`, `.rgb` даёт `r, g, b`), плюс строка, куда его писать, и, если программа умеет

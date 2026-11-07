@@ -244,7 +244,8 @@ fn version(y: &Sty) -> i32 {
     row("yami", format!("{}{}", if st.version.is_empty() { env!("CARGO_PKG_VERSION") } else { &st.version }, if commit.is_empty() { String::new() } else { format!("  {}", y.dim(&commit)) }));
     row("yami-shell", env!("CARGO_PKG_VERSION").into());
     for b in ["yami-files", "yami-view", "yami-play", "yami-greet"] {
-        row(b, out(b).map(|v| v.split_whitespace().last().unwrap_or("").to_string()).unwrap_or_else(|| y.warn(&crate::tf!("не найден", "not found", "não encontrado"))));
+        // каждое из них ставится по выбору (компоненты установщика): нет — не беда
+        row(b, out(b).map(|v| v.split_whitespace().last().unwrap_or("").to_string()).unwrap_or_else(|| y.dim(&crate::tf!("не установлен", "not installed", "não instalado"))));
     }
     row("niri", out("niri").unwrap_or_else(|| y.warn(&crate::tf!("не найден", "not found", "não encontrado"))));
     row(&crate::tf!("канал", "channel", "canal"), Settings::load().update_channel);

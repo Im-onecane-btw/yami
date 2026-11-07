@@ -1,6 +1,7 @@
 # The choices (palette, panels, theme, app font, fastfetch) and the interactive
-# pages: the language, the summary first (enter installs the defaults), «c» walks through the
-# pages. Without a terminal or with --yes nothing is asked. An update keeps what is set.
+# pages: the language, the summary first (enter installs the defaults, «s» only the shell), «c» walks
+# through the pages (components, what to restyle, the look). Without a terminal or with --yes nothing
+# is asked. An update keeps what is set.
 # shellcheck shell=bash
 
 # ── the choices; the palettes are the shell's own ──────────────────────────
@@ -132,29 +133,42 @@ pick_lang() {
   L="${codes[$cur]}"
 }
 
+# --shell-only and «s»: niri and the shell; nothing else of ours, nothing of anyone else's restyled
+shell_only() {
+  local i
+  for i in "${!C_ID[@]}"; do [[ ${C_ID[$i]} == core ]] || C_ON[i]=0; done
+  t_all 0
+  look_sync
+}
+
 pick_components() {
-  local cur=0 n=${#C_ID[@]} i box mark style lock
+  local rows=() cur=0 n i k id box mark style lock
+  for id in "${C_ID[@]}"; do c_shown "$id" && rows+=("$id"); done
+  n=${#rows[@]}
   printf '\e[?25l'
   while :; do
     screen
     printf '  %s%s%s%s   %s%s%s\n\n' "$T" "$B" "$(t "что ставим" "components" "componentes")" "$R" "$F" \
-      "$(t "↑↓ выбор · пробел — галочка · a — всё · enter — дальше · q — выход" "↑↓ move · space toggle · a all · enter next · q quit" "↑↓ escolher · espaço marcar · a tudo · enter avançar · q sair")" "$R"
+      "$(t "↑↓ · пробел — галочка · a — всё · s — только шелл · enter — дальше · q — выход" "↑↓ · space toggle · a all · s shell only · enter next · q quit" "↑↓ · espaço marcar · a tudo · s só o shell · enter avançar · q sair")" "$R"
     for ((i = 0; i < n; i++)); do
-      if ((C_ON[i])); then box="${A}[■]${R}"; else box="${F}[ ]${R}"; fi
+      id=${rows[$i]} k=$(c_idx "${rows[$i]}")
+      if ((C_ON[k])); then box="${A}[■]${R}"; else box="${F}[ ]${R}"; fi
       if ((i == cur)); then mark="$A▸$R" style="$T$B"; else mark=" " style="$D"; fi
       lock=""
-      can "${C_ID[$i]}" || lock=" $F($(t "нужен root и пакетный менеджер" "needs root and a package manager" "requer root e um gerenciador de pacotes"))$R"
-      printf '  %s %s %s%s%s%s\n' "$mark" "$box" "$style" "$(pad "$(c_name "${C_ID[$i]}")" 20)" "$R" "$lock"
-      printf '        %s%s%s\n' "$F" "$(c_desc "${C_ID[$i]}")" "$R"
+      can "$id" || lock=" $F($(t "нужен root и пакетный менеджер" "needs root and a package manager" "requer root e um gerenciador de pacotes"))$R"
+      printf '  %s %s %s%s%s%s\n' "$mark" "$box" "$style" "$(c_name "$id")" "$R" "$lock"
     done
-    printf '\n  %s%s%s\n' "$F" "$(t "всегда: шелл, файлы, просмотр картинок (сборка из исходников), шрифты, пиксельный курсор, конфиги niri, kitty, fastfetch" \
-      "always: the shell, files, image viewer (built from source), fonts, pixel cursor, niri, kitty and fastfetch configs")" "$R"
+    printf '\n  %s%s%s\n' "$D" "$(c_desc "${rows[$cur]}")" "$R"
+    printf '  %s%s%s\n' "$F" "$(t "всегда: шелл (сборка из исходников), его шрифты, конфиг niri; чужие конфиги — на следующей странице" \
+      "always: the shell (built from source), its fonts, niri's config; other programs' configs: the next page" "sempre: o shell (compilado do código-fonte), suas fontes, a configuração do niri; configurações de outros programas: próxima página")" "$R"
     printf '  %s%s: %s%s%s\n' "$F" "$(t "система" "system" "sistema")" "$D" "$OS_NAME${PM:+ · $PM}" "$R"
     case "$(key)" in
       up | k) cur=$(((cur + n - 1) % n)) ;;
       down | j) cur=$(((cur + 1) % n)) ;;
-      space) can "${C_ID[$cur]}" && C_ON[cur]=$((1 - C_ON[cur])) ;;
-      a) for ((i = 0; i < n; i++)); do can "${C_ID[$i]}" && C_ON[i]=1; done ;;
+      space) k=$(c_idx "${rows[$cur]}"); can "${rows[$cur]}" && C_ON[k]=$((1 - C_ON[k])) ;;
+      # «all» without the initramfs: that one is only ever chosen on its own
+      a | "ф") for id in "${rows[@]}"; do [[ $id != nvboot ]] && can "$id" && c_set "$id" 1; done ;;
+      s | "ы") shell_only ;;
       enter) return 0 ;;
       q | esc | eof) bye ;;
     esac
@@ -308,40 +322,63 @@ confirm() {
   printf '  %s%s%s%s\n\n' "$T" "$B" "$(t "сводка" "summary" "resumo")" "$R"
   local i
   printf '  %s■%s %s%s%s %s(%s)%s\n' "$A" "$R" "$T" "$OS_NAME" "$R" "$F" "${PM:-$(t "без пакетов" "no packages" "sem pacotes")}" "$R"
+  printf '  %s■%s %s%s%s\n' "$A" "$R" "$T" "$(t "шелл, его шрифты, конфиг niri" "the shell, its fonts, niri's config" "o shell, suas fontes, a configuração do niri")" "$R"
   for i in "${!C_ID[@]}"; do
+    [[ ${C_ID[$i]} == look ]] && continue
     ((C_ON[i])) && printf '  %s■%s %s%s%s\n' "$A" "$R" "$T" "$(c_name "${C_ID[$i]}")" "$R"
   done
-  printf '  %s■%s %s%s%s\n' "$A" "$R" "$T" "$(t "шелл, шрифты, niri, kitty, fastfetch" "shell, fonts, niri, kitty, fastfetch" "shell, fontes, niri, kitty e fastfetch")" "$R"
+  local rs="" id
+  for id in "${T_ID[@]}"; do t_on "$id" && rs+="${rs:+, }$(t_name "$id")"; done
+  if [[ -n $rs ]]; then
+    printf '  %s■%s %s%s: %s%s\n' "$A" "$R" "$T" "$(t "перекрасить" "restyle" "recolorir")" "$rs" "$R"
+  else
+    printf '  %s■%s %s%s%s\n' "$A" "$R" "$T" "$(t "чужие программы не трогаю" "other programs left alone" "outros programas ficam intocados")" "$R"
+  fi
   printf '  %s■%s %s%s: %s%s \e[48;2;%sm    %s\n' "$A" "$R" "$T" "$(t "палитра" "palette" "paleta")" "$(pal_name "$pal")" "$R" "$(rgb "${PAL_HEX[$pal]}")" "$R"
   ((LOOK_SET)) && printf '  %s■%s %s%s: %s%s\n' "$A" "$R" "$T" "$(t "панели" "panels" "painéis")" "$(look_name "$look")" "$R"
   printf '  %s■%s %s%s: %s%s\n' "$A" "$R" "$T" "$(t "тема" "theme" "tema")" "$(theme_name "$theme")" "$R"
-  printf '  %s■%s %s%s: %s%s\n' "$A" "$R" "$T" "$(t "шрифт программ" "app font" "fonte dos aplicativos")" "$(font_name "$font")" "$R"
-  printf '  %s■%s %sfastfetch: %s%s\n' "$A" "$R" "$T" "$(fetch_name "$fetch")" "$R"
+  t_any gtk qt && printf '  %s■%s %s%s: %s%s\n' "$A" "$R" "$T" "$(t "шрифт программ" "app font" "fonte dos aplicativos")" "$(font_name "$font")" "$R"
+  t_on fastfetch && printf '  %s■%s %sfastfetch: %s%s\n' "$A" "$R" "$T" "$(fetch_name "$fetch")" "$R"
   printf '  %s■%s %s%s%s\n\n' "$A" "$R" "$T" "$(t "язык: русский" "language: English" "idioma: português do Brasil")" "$R"
   [[ $FAM == nixos ]] && note "$(t "NixOS: так ставится только домашняя папка; вся система — flake.nix (docs/PACKAGING.md)" "NixOS: this installs the home folder only; the whole system: flake.nix (docs/PACKAGING.md)" "NixOS: isto instala só a pasta pessoal; o sistema inteiro: flake.nix (docs/PACKAGING.md)")"
   ((ATOMIC)) && note "$(t "атомарная Fedora: пакеты ставятся слоем rpm-ostree, нужна перезагрузка" "atomic Fedora: packages are layered with rpm-ostree, a reboot is needed" "Fedora atômico: os pacotes são adicionados com rpm-ostree; é necessário reiniciar")"
   ((RUNNING_NIRI)) && note "$(t "niri уже запущен — шелл перезапустится сам, остальное подхватится на лету" "niri is running: the shell restarts by itself, the rest reloads live" "niri está em execução: o shell reinicia sozinho; o restante recarrega na hora")"
   ((DRY)) && note "$(t "--dry-run: только план, ничего не меняется" "--dry-run: plan only, nothing changes" "--dry-run: apenas o plano, nada será alterado")"
-  printf '\n  %s%s%s %s[%s]%s ' "$T" "$(t "поехали?" "go?" "vamos?")" "$R" "$F" "$(t "enter — ставить, c — выбрать иначе, q — выход" "enter install, c customize, q quit" "enter instalar, c personalizar, q sair")" "$R"
+  printf '\n  %s%s%s %s[%s]%s ' "$T" "$(t "поехали?" "go?" "vamos?")" "$R" "$F" "$(t "enter — ставить, c — выбрать иначе, s — только шелл, q — выход" "enter install, c customize, s shell only, q quit" "enter instalar, c personalizar, s só o shell, q sair")" "$R"
   printf '\e[?25h'
   while :; do
     case "$(key)" in
       enter | y) printf '\n'; return 0 ;;
       c | e | "с") return 1 ;;
+      s | "ы") return 2 ;;
       q | esc | eof) bye ;;
     esac
   done
 }
-# the summary first: enter installs what is shown; «c» goes through every page and back here
+# the summary first: enter installs what is shown; «c» goes through every page and back here, «s»
+# leaves only the shell and shows the summary again
 ask_all() {
   ((LANG_ASK)) && pick_lang
-  until confirm; do
-    pick_components
-    C_WANT=("${C_ON[@]}")
-    pick_palette
-    pick_look
-    pick_theme
-    pick_font
-    pick_fetch
+  local r chg=0
+  while :; do
+    confirm
+    r=$?
+    case $r in
+      0) break ;;
+      2) shell_only; chg=1 ;;
+      *)
+        chg=1
+        pick_components
+        pick_restyle
+        pick_palette
+        pick_look
+        pick_theme
+        # the app font is GTK's and Qt's, the fastfetch look is fastfetch's
+        t_any gtk qt && pick_font
+        t_on fastfetch && pick_fetch ;;
+    esac
   done
+  # the choice as made (components_limit already switched off what this run cannot do)
+  ((chg)) && C_WANT=("${C_ON[@]}")
+  return 0
 }

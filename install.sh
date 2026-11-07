@@ -17,12 +17,24 @@
 #   --lang en|ru|pt-BR     --palette blood|ash|sakura|amber|venom|ice|dusk     --theme dark|light
 #   --look matte|glass|light|solid     --font sans|pixel     --fetch mini|full
 #
-# Components (on by default when they fit this machine):
-#   --no-fork        packaged niri instead of yami-niri (built from source, 5–25 min; off by
-#                    default with less than 6 GB of memory or 4 threads, --fork turns it on)
-#   --no-login       leave the login manager alone (--login: ours even if another one is set)
-#   --no-games       no GameMode and MangoHud (--games: even without Steam)
-#   --no-tools       no night light, screen text and QR (wlsunset, tesseract, zbar)
+# Components: each on its own, --no-ID leaves it out, --ID takes it (defaults fit this machine;
+# an update repeats the choice):
+#   core    niri, portals, polkit, pipewire, network: what the shell needs
+#   files   yami-files: folders, the file dialog of every app, «show in folder»
+#   view    yami-view: pictures          play    yami-play: video and music (libmpv)
+#   login   our login screen (off when another login manager is set)
+#   apps    kitty, fastfetch, pavucontrol, btop
+#   drives  udisks2, gvfs: drives mount by themselves, phones, network shares
+#   tools   night light, screen text and QR (wlsunset, tesseract, zbar)
+#   games   GameMode and MangoHud (on when Steam is here)
+#   nvidia  NVIDIA driver env, a VRAM leak profile, NVENC in OBS (no initramfs)
+#   nvboot  NVIDIA in the initramfs: the disk password on DisplayPort too. Writes /etc/modprobe.d and
+#           /etc/mkinitcpio.conf.d (or dracut) and rebuilds the initramfs: only with --nvboot
+#   fork    yami-niri, built from source (5–25 min; off with less than 6 GB of memory or 4 threads)
+#   --shell-only     niri and the shell alone: none of the above, nothing of others restyled
+#   --restyle LIST   what yami may restyle in other programs (all, none, or a list of: gtk qt cursor
+#                    kitty fastfetch btop firefox mangohud foot cava starship); --no-restyle = none.
+#                    Kept in the shell's settings (themeApps), settings → color → apps changes it
 #   --no-sudo        the home folder only: no packages, no system files
 #
 # Rarely needed: --no-monocraft (skip the 31 MB terminal font), --no-count (do not count this
@@ -80,19 +92,14 @@ MONOCRAFT_SHA256="67f88ff9e7c6560f6cf60fb062fd353a72f62dc2654462950c65b63ed53d97
 [[ -d $HOME/.cargo/bin ]] && export PATH="$HOME/.cargo/bin:$PATH"
 
 # ── flags ───────────────────────────────────────────────────────────────────
-YES=0 SUDO=1 FORK_FLAG="" LOGIN_FLAG="" GAMES_FLAG="" TOOLS_FLAG=1 PALETTE="" LOOK_OPT="" THEME_OPT="" LANG_OPT="" FONT_OPT="" FETCH_OPT="" ANIM=1 DRY=0 UNINSTALL=0 UPDATE=0 COUNT=1 KEEP_BUILD=0 MONO="" PRINT_PKGS=0
+YES=0 SUDO=1 SHELL_ONLY=0 RESTYLE="" COMP_FLAGS=() PALETTE="" LOOK_OPT="" THEME_OPT="" LANG_OPT="" FONT_OPT="" FETCH_OPT="" ANIM=1 DRY=0 UNINSTALL=0 UPDATE=0 COUNT=1 KEEP_BUILD=0 MONO="" PRINT_PKGS=0
 while (($#)); do
   case "$1" in
     -y | --yes) YES=1 ;;
     --no-sudo) SUDO=0 ;;
-    --fork) FORK_FLAG=1 ;;
-    --no-fork) FORK_FLAG=0 ;;
-    --games) GAMES_FLAG=1 ;;
-    --no-games) GAMES_FLAG=0 ;;
-    --tools) TOOLS_FLAG=1 ;;
-    --no-tools) TOOLS_FLAG=0 ;;
-    --login) LOGIN_FLAG=1 ;;
-    --no-login) LOGIN_FLAG=0 ;;
+    --shell-only) SHELL_ONLY=1 ;;
+    --restyle) RESTYLE="${2:-}"; shift ;;
+    --no-restyle) RESTYLE=none ;;
     --font) FONT_OPT="${2:-}"; shift ;;
     --fetch) FETCH_OPT="${2:-}"; shift ;;
     --palette) PALETTE="${2:-}"; shift ;;
@@ -109,6 +116,9 @@ while (($#)); do
     --uninstall) UNINSTALL=1 ;;
     --update) UPDATE=1 YES=1 ANIM=0 SUDO=0 ;;
     -h | --help) sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]:-$0}" | sed -e '$d' -e 's/^# \{0,1\}//'; exit 0 ;;
+    # a component: --no-files, --nvboot… (components.sh knows the names and refuses others)
+    --no-[a-z]*) COMP_FLAGS+=("${1#--no-}=0") ;;
+    --[a-z]*) COMP_FLAGS+=("${1#--}=1") ;;
     *) echo "unknown option: $1 (see --help)" >&2; exit 2 ;;
   esac
   shift
@@ -118,7 +128,7 @@ done
 export GIT_TERMINAL_PROMPT=0
 
 # ── the modules: each only defines (installer/*.sh) ─────────────────────────
-for m in ui detect root packages components menu build desktop niri login nvidia migrate uninstall; do
+for m in ui detect root packages components restyle menu build desktop niri login nvidia migrate uninstall; do
   # shellcheck source=/dev/null
   . "$ROOT/installer/$m.sh" || { echo "yami: $ROOT/installer/$m.sh is missing" >&2; exit 1; }
 done
@@ -166,6 +176,7 @@ choices_init
 paint
 ui_traps
 components_init
+restyle_init
 components_limit
 
 # ── go ──────────────────────────────────────────────────────────────────────
@@ -175,7 +186,7 @@ if ((UPDATE)); then
   # rebuild from this tree with the choices of the first install; no packages, no sudo
   say "$(t "обновление из" "update from" "atualizar de") $ROOT"
   add "$(t "шелл: сборка из исходников" "shell: build from source" "shell: compilar do código-fonte")" do_build_shell
-  add "$(t "файлы: yami-files и диалог выбора файлов" "files: yami-files and the file dialog" "arquivos: yami-files e diálogo de arquivos")" do_files
+  add_apps
   add "$(t "шрифты" "fonts" "fontes")" do_fonts
   add "$(t "niri: конфиг" "niri: config" "niri: configuração")" do_niri_config
   add "$(t "палитра: всё, что из неё выводится" "palette: everything derived from it" "paleta: tudo deriva dela")" do_refresh
@@ -227,7 +238,7 @@ if ((SUDO && !DRY)) && [[ -n $SU ]]; then
 fi
 
 # root steps first: the root shell closes before the build (run_steps), see installer/root.sh
-if ((SUDO)) && { on core || on apps || on look; }; then
+if ((SUDO)) && { on core || on apps || on drives || on files || on play || on look; }; then
   add "$(t "пакеты: обновить списки" "packages: refresh index" "pacotes: atualizar índice")" pm_refresh
 fi
 on core && add "$(t "пакеты: niri" "packages: niri" "pacotes: niri")" pkgs "${P_niri[@]}"
@@ -240,7 +251,10 @@ for p in "${P_build[@]}"; do
 done
 ((SUDO)) && add "$(t "пакеты: сборка шелла" "packages: shell build deps" "pacotes: dependências de compilação do shell")" pkgs "${P_build_need[@]}"
 on apps && add "$(t "пакеты: программы" "packages: apps" "pacotes: aplicativos")" pkgs "${P_apps[@]}"
-on look && add "$(t "пакеты: тема Qt и GTK" "packages: Qt and GTK theme" "pacotes: tema Qt e GTK")" pkgs "${P_look[@]}"
+on drives && add "$(t "пакеты: диски и телефоны" "packages: drives and phones" "pacotes: discos e telefones")" pkgs "${P_drives[@]}"
+((SUDO)) && on files && add "$(t "пакеты: миниатюры видео и архивы для файлов" "packages: video thumbnails and archives for files" "pacotes: miniaturas de vídeo e arquivos compactados")" pkgs "${P_files[@]}"
+((SUDO)) && on play && add "$(t "пакеты: libmpv для плеера" "packages: libmpv for the player" "pacotes: libmpv para o player")" pkgs "${P_play[@]}"
+((SUDO)) && on look && add "$(t "пакеты: тема Qt и GTK" "packages: Qt and GTK theme" "pacotes: tema Qt e GTK")" pkgs "${P_look[@]}"
 on tools && add "$(t "пакеты: ночной свет, текст и QR со скриншота" "packages: night light, text and QR from screenshots" "pacotes: luz noturna, texto e QR de capturas de tela")" pkgs "${P_tools[@]}"
 on games && add "$(t "пакеты: GameMode, MangoHud" "packages: GameMode, MangoHud" "pacotes: GameMode e MangoHud")" pkgs "${P_games[@]}"
 on login && add "$(t "пакеты: greetd" "packages: greetd" "pacotes: greetd")" pkgs "${P_login[@]}"
@@ -250,17 +264,19 @@ if ((SUDO)) && { on fork || { on core && ! niri_ok && ((!DRY)); }; }; then
 fi
 on core && add "$(t "niri $NIRI_MIN+ из исходников, если пакет старее" "niri $NIRI_MIN+ from source if the package is older" "niri $NIRI_MIN+ compilado se o pacote for mais antigo")" do_niri_source
 on nvidia && add "$(t "NVIDIA: профиль против утечки VRAM" "NVIDIA: VRAM leak profile" "NVIDIA: perfil contra vazamento de VRAM")" do_nvidia_profile
-on nvidia && add "$(t "NVIDIA: картинка с начала загрузки (пароль диска на любом выходе)" "NVIDIA: picture from the start of boot (disk password on any output)" "NVIDIA: imagem desde o início da inicialização (senha do disco em qualquer saída)")" do_nvidia_early
+on nvboot && add "$(t "NVIDIA в initramfs: картинка с начала загрузки (пересборка initramfs)" "NVIDIA in the initramfs: a picture from the start of boot (rebuilds the initramfs)" "NVIDIA no initramfs: imagem desde o início da inicialização (recria o initramfs)")" do_nvidia_early
+# unchecked over an earlier install: our two files go and the initramfs is rebuilt without them
+((SUDO)) && ! wants nvboot && nvboot_installed && add "$(t "NVIDIA: убрать драйвер из initramfs" "NVIDIA: take the driver out of the initramfs" "NVIDIA: tirar o driver do initramfs")" do_nvidia_early_drop
 on nvidia && add "$(t "NVIDIA: кодек видеокарты в OBS на старом драйвере (GStreamer)" "NVIDIA: the GPU encoder in OBS on an old driver (GStreamer)" "NVIDIA: codificador da GPU no OBS com driver antigo (GStreamer)")" do_nvidia_obs
 on core && ((SUDO)) && add "$(t "службы: bluetooth, профили питания, сеть" "services: bluetooth, power profiles, network" "serviços: bluetooth, perfis de energia e rede")" do_services
 old_install && add "$(t "переезд со старого имени DARK-4RMY" "move from the old name DARK-4RMY" "migrar do nome antigo DARK-4RMY")" do_migrate
 # the login screen is the last root step: it goes before the build (run_steps closes the root shell there)
 on login && add "$(t "экран входа: greetd, вид и страховка" "login screen: greetd, look and safety net" "tela de login: greetd, aparência e rede de segurança")" do_greet
 add "$(t "шелл: сборка из исходников" "shell: build from source" "shell: compilar do código-fonte")" do_build_shell
-add "$(t "файлы: yami-files и диалог выбора файлов" "files: yami-files and the file dialog" "arquivos: yami-files e diálogo de arquivos")" do_files
-add "$(t "шрифты: Tiny5, DotGothic16, Terminess, Monocraft" "fonts: Tiny5, DotGothic16, Terminess, Monocraft" "fontes: Tiny5, DotGothic16, Terminess e Monocraft")" do_fonts
+add_apps
+add "$(t "шрифты: Tiny5, DotGothic16, Terminess" "fonts: Tiny5, DotGothic16, Terminess" "fontes: Tiny5, DotGothic16 e Terminess")" do_fonts
 add "$(t "niri: конфиг и настройки под железо" "niri: config and hardware settings" "niri: configuração e ajustes de hardware")" do_niri_config
-add "$(t "палитра «$(pal_name "$pal")»: шелл, kitty, fastfetch, обои" "palette «$(pal_name "$pal")»: shell, kitty, fastfetch, wallpaper" "paleta «$(pal_name "$pal")»: shell, kitty, fastfetch e papel de parede")" do_dotfiles
+add "$(t "палитра «$(pal_name "$pal")»: шелл, обои и выбранные программы" "palette «$(pal_name "$pal")»: the shell, wallpaper and the chosen programs" "paleta «$(pal_name "$pal")»: o shell, o papel de parede e os programas escolhidos")" do_dotfiles
 on look && add "$(t "тема программ: Qt, KDE, GTK" "app theme: Qt, KDE, GTK" "tema dos aplicativos: Qt, KDE e GTK")" do_look
 add "$(t "следы прошлых версий" "leftovers of earlier versions" "restos de versões anteriores")" do_legacy
 old_install && add "$(t "убрать файлы под старым именем" "remove files under the old name" "remover arquivos com o nome antigo")" do_drop_old

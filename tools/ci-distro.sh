@@ -44,7 +44,7 @@ exists() {
 
 say "do the names exist"
 fail=0
-for list in P_build P_base P_apps P_look P_login P_nirisrc P_niri; do
+for list in P_build P_base P_apps P_drives P_files P_play P_look P_games P_tools P_login P_nirisrc P_niri; do
   missing=()
   for p in $(pkgs "$list"); do
     exists "$p" || missing+=("$p")

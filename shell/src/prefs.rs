@@ -268,3 +268,19 @@ pub fn settings_get_f32(s: &Settings, key: &str) -> f32 {
         _ => 0.0,
     }
 }
+
+/// kitty снова в цветах палитры: наш yami.conf рядом и одна строка include в конце kitty.conf (как у
+/// установщика); остальной kitty.conf — человека
+pub fn kitty_attach() {
+    let dir = config::config_dir().join("kitty");
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = config::write_atomic(&dir.join("yami.conf"), include_str!("../../config/kitty/yami.conf"));
+    let conf = dir.join("kitty.conf");
+    let t = std::fs::read_to_string(&conf).unwrap_or_default();
+    if !t.lines().any(|l| l.trim() == "include yami.conf") {
+        let sep = if t.is_empty() || t.ends_with('\n') { "" } else { "\n" };
+        let text = format!("{t}{sep}\n# YAMI: settings → color → apps → kitty off takes this line out\ninclude yami.conf\n");
+        // ссылка (stow, Home Manager) остаётся ссылкой: пишем сквозь неё, а не подменяем файлом
+        let _ = if conf.is_symlink() { std::fs::write(&conf, text) } else { config::write_atomic(&conf, &text) };
+    }
+}

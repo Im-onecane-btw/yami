@@ -194,7 +194,7 @@ impl App {
             Act::SnapBtn(a) => self.snap_btn(a),
             Act::DockItem(i) => self.dock_click(i, button, sid, zone),
             Act::DockLauncher => self.toggle_modal(Modal::Launcher, button == RMB),
-            Act::DockTrash => App::spawn(&["yami-files".into(), "trash:///".into()]),
+            Act::DockTrash => App::open_dir("trash:///".into()),
             Act::Pavu => {
                 self.close_all();
                 App::spawn(&["pavucontrol".into()]);

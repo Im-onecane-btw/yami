@@ -160,8 +160,9 @@ pub struct Settings {
     pub tray_pixel: bool,
     /// модуль bat прячется от сети без зарядки: полная или держит порог заряда (#21)
     pub bat_hide_full: bool,
-    /// какие программы theme.py красит по палитре сверх постоянных (#17): foot, cava, starship
-    pub app_themes: Vec<String>,
+    /// чужие программы, которые theme.py красит по палитре (THEME_APPS; настройки → цвет → программы,
+    /// установщик); выключенную yami не трогает. До 2.7 — appThemes: foot, cava, starship сверх остальных
+    pub theme_apps: Vec<String>,
     pub clock_seconds: bool,
     pub clock_date: bool,
     pub task_width: i32,
@@ -427,6 +428,23 @@ pub const ALL_MODULES: &[(&str, &str)] = &[
 ];
 
 /// виды всплывашки музыки (#13): обложка с эквалайзером, обложка и текст, текст, коротко
+/// чужие программы в цветах палитры (themeApps): id, имя, что пишется. Шелл, экран входа, рамки niri и
+/// свои шаблоны — всегда; курсор — отдельный ключ cursor
+pub const THEME_APPS: &[(&str, &str, &str)] = &[
+    ("gtk", "GTK", "тема, шрифт, тёмная или светлая"),
+    ("qt", "Qt и KDE", "qt6ct, kdeglobals"),
+    ("kitty", "kitty", "строка include в kitty.conf"),
+    ("fastfetch", "fastfetch", "свой конфиг с логотипом"),
+    ("btop", "btop", "тема yami"),
+    ("firefox", "Firefox", "меню: userChrome.css"),
+    ("mangohud", "MangoHud", "только наш конфиг"),
+    ("foot", "foot", "include в foot.ini"),
+    ("cava", "cava", "градиент полос"),
+    ("starship", "starship", "палитра приглашения"),
+];
+/// ключи прошлых версий: их читает миграция (load), `config check` не зовёт их незнакомыми
+const RETIRED: &[&str] = &["appThemes"];
+
 pub const MEDIA_VIEWS: &[(&str, &str)] = &[("cover", "обложка"), ("both", "обложка и текст"), ("lyrics", "текст"), ("minimal", "коротко")];
 
 /// числа в пикселях, что меняются стрелками в настройках: ключ, от, до, шаг
@@ -499,7 +517,7 @@ impl Default for Settings {
             tray_mode: "icons".into(),
             tray_pixel: false,
             bat_hide_full: false,
-            app_themes: vec!["foot".into(), "cava".into(), "starship".into()],
+            theme_apps: THEME_APPS.iter().map(|a| a.0.to_string()).collect(),
             clock_seconds: false,
             clock_date: true,
             task_width: 190,
@@ -634,6 +652,7 @@ impl Settings {
             Ok(t) => {
                 let mut s = Settings::lenient(&t);
                 s.migrate(&t);
+                s.migrate_theme_apps(&t);
                 s.migrate_seps();
                 // Bibata больше не ставится: свой пиксельный курсор
                 if s.cursor == "bibata" {
@@ -704,8 +723,9 @@ impl Settings {
         if self.temp_style != "compact" {
             self.temp_style = "full".into();
         }
-        self.app_themes.retain(|a| matches!(a.as_str(), "foot" | "cava" | "starship"));
-        self.app_themes.dedup();
+        self.theme_apps.retain(|a| THEME_APPS.iter().any(|t| t.0 == a));
+        self.theme_apps.sort_by_key(|a| THEME_APPS.iter().position(|t| t.0 == a));
+        self.theme_apps.dedup();
         if self.tray_mode != "arrow" {
             self.tray_mode = "icons".into();
         }
@@ -758,7 +778,9 @@ impl Settings {
         let (mut bad, mut unknown) = (vec![], vec![]);
         for (k, x) in user {
             if !known.contains_key(k) {
-                unknown.push(k.clone());
+                if !RETIRED.contains(&k.as_str()) {
+                    unknown.push(k.clone());
+                }
                 continue;
             }
             let mut one = base.clone();
@@ -879,6 +901,17 @@ impl Settings {
     /// старый формат настроек: clockOn/clockX… → список виджетов. Только когда старые ключи есть:
     /// файл установщика (палитра, язык) и написанный руками тоже без `widgets`, но они новые —
     /// иначе barRight заменялся старым набором (без батареи, профиля и разделителей)
+    /// appThemes (≤ 2.6: foot, cava, starship сверх постоянных) → themeApps (все, кого красить)
+    fn migrate_theme_apps(&mut self, raw: &str) {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(raw) else { return };
+        if v.get("themeApps").is_some() {
+            return;
+        }
+        let Some(old) = v.get("appThemes").and_then(|x| x.as_array()) else { return };
+        let had = |id: &str| old.iter().any(|x| x.as_str() == Some(id));
+        self.theme_apps = THEME_APPS.iter().map(|a| a.0).filter(|id| !matches!(*id, "foot" | "cava" | "starship") || had(id)).map(String::from).collect();
+    }
+
     fn migrate(&mut self, raw: &str) {
         const MODS: &[(&str, &str)] = &[("tray", "barTray"), ("net", "barNet"), ("kb", "barKb"), ("cpu", "barCpu"), ("ram", "barRam"), ("vol", "barVol"), ("clock", "barClock")];
         let Ok(v) = serde_json::from_str::<serde_json::Value>(raw) else { return };

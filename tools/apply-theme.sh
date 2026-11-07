@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # YAMI: fonts and style for every app: Qt (qt6ct), GTK 3/4, gsettings.
 # Colors come from tools/theme.py following the shell palette (settings → color); this is the
-# first run. Every file it touches is saved next to itself once as *.bak-yami.
+# first run. Every file it touches is saved next to itself once as *.bak-yami. Only what is chosen
+# to restyle: YAMI_RESTYLE (the installer: the themeApps list, gtk and qt here), all when unset.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -20,6 +21,7 @@ for i in Gruvbox-Plus-Ink Gruvbox-Plus-Dark Papirus-Dark; do
 done
 
 keep() { [[ -e "$1" && ! -e "$1.bak-yami" ]] && cp -a -- "$1" "$1.bak-yami"; return 0; }
+want() { [[ -z ${YAMI_RESTYLE+x} || " $YAMI_RESTYLE " == *" $1 "* ]]; }
 
 # light or dark base for GTK (settings → color → theme); theme.py switches it later on its own
 PALETTE="${YAMI_PALETTE:-${XDG_STATE_HOME:-$HOME/.local/state}/yami/palette.json}"
@@ -30,12 +32,14 @@ if grep -qs '"mode": "light"' "$PALETTE"; then
 fi
 
 # ── colors: back up the old files, then run the generator ──────────────────
-keep "$CFG/kdeglobals"
-for v in 3.0 4.0; do keep "$CFG/gtk-$v/gtk.css"; done
-[[ -f "$CFG/fastfetch/config.jsonc" ]] && ! grep -qE "YAMI|DARK-4RMY" "$CFG/fastfetch/config.jsonc" && keep "$CFG/fastfetch/config.jsonc"
+want qt && keep "$CFG/kdeglobals"
+if want gtk; then for v in 3.0 4.0; do keep "$CFG/gtk-$v/gtk.css"; done; fi
+want fastfetch && [[ -f "$CFG/fastfetch/config.jsonc" ]] && ! grep -qE "YAMI|DARK-4RMY" "$CFG/fastfetch/config.jsonc" && keep "$CFG/fastfetch/config.jsonc"
 python3 -I "$THEME" "$PALETTE"
 
 # ── Qt: qt6ct with Fusion, palette, QSS, font ──────────────────────────────
+if want qt; then
+mkdir -p "$CFG/qt6ct"
 keep "$CFG/qt6ct/qt6ct.conf"
 cat >"$CFG/qt6ct/qt6ct.conf" <<EOF
 [Appearance]
@@ -66,9 +70,10 @@ wheel_scroll_lines=3
 [Troubleshooting]
 force_raster_widgets=1
 EOF
+fi
 
 # ── GTK 3/4: adw-gtk3(-dark) and libadwaita, colors from the generated gtk.css ─
-for v in 3.0 4.0; do
+want gtk && for v in 3.0 4.0; do
   mkdir -p "$CFG/gtk-$v"
   ini="$CFG/gtk-$v/settings.ini"
   keep "$ini"
@@ -81,7 +86,7 @@ for v in 3.0 4.0; do
 done
 
 # ── gsettings: read by GTK4 apps and the portal under niri ─────────────────
-if command -v gsettings >/dev/null; then
+if want gtk && command -v gsettings >/dev/null; then
   s() { gsettings set org.gnome.desktop.interface "$1" "$2" 2>/dev/null || true; }
   s gtk-theme "$GTK_THEME"
   s color-scheme "$SCHEME"

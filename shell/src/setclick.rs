@@ -40,6 +40,25 @@ impl App {
                     _ => {}
                 }
             }
+            Act::SThemeApp(id) => {
+                let on = match s.theme_apps.iter().position(|a| a == id) {
+                    Some(i) => {
+                        s.theme_apps.remove(i);
+                        false
+                    }
+                    None => {
+                        s.theme_apps.push(id.to_string());
+                        true
+                    }
+                };
+                // kitty включили руками: наш файл и строка include (выключение её уберёт theme.py)
+                if on && *id == "kitty" {
+                    crate::prefs::kitty_attach();
+                }
+                self.settings_changed();
+                self.theme_rerun();
+                return true;
+            }
             Act::SBool(k) => {
                 match *k {
                     "animations" => s.animations = !s.animations,
@@ -78,18 +97,6 @@ impl App {
                     "clock_seconds" => s.clock_seconds = !s.clock_seconds,
                     "tray_pixel" => s.tray_pixel = !s.tray_pixel,
                     "bat_hide_full" => s.bat_hide_full = !s.bat_hide_full,
-                    "app_foot" | "app_cava" | "app_starship" => {
-                        let app = &k[4..];
-                        match s.app_themes.iter().position(|a| a == app) {
-                            Some(i) => {
-                                s.app_themes.remove(i);
-                            }
-                            None => s.app_themes.push(app.to_string()),
-                        }
-                        self.settings_changed();
-                        self.theme_rerun();
-                        return true;
-                    }
                     "clock_date" => s.clock_date = !s.clock_date,
                     "dnd" => s.dnd = !s.dnd,
                     "shot_copy" => s.shot_copy = !s.shot_copy,
@@ -202,7 +209,7 @@ impl App {
                 "templates_open" => {
                     let d = crate::config::config_dir().join("yami/templates");
                     crate::prefs::templates_example(&d);
-                    App::spawn(&["yami-files".into(), d.display().to_string()]);
+                    App::open_dir(d.display().to_string());
                 }
                 "theme_save" => self.theme_do("save", 0),
                 "bar_page_mods" | "bar_page_look" => {

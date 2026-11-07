@@ -1,25 +1,72 @@
-# The steps that put the desktop into the home folder. yami-files for folders
-# and file dialogs, the fonts, niri's config, the palette and everything made from it, the app theme,
-# the system services, the install record and counter, and the shell restarted in place.
+# The steps that put the desktop into the home folder. Our apps (yami-files for
+# folders and file dialogs, yami-view, yami-play: each only when chosen, and taken out again when
+# unchecked), the fonts, niri's config, the palette and what is made from it, the app theme, the
+# system services, the install record and counter, and the shell restarted in place.
 # shellcheck shell=bash
+
+# ── our apps: each one only when chosen; unchecked over an earlier install, it goes ──
+add_apps() {
+  if on files; then add "$(t "файлы: yami-files и диалог выбора файлов" "files: yami-files and the file dialog" "arquivos: yami-files e diálogo de arquivos")" do_files
+  elif app_here yami-files; then add "$(t "файлы: убрать yami-files (не выбран)" "files: remove yami-files (not chosen)" "arquivos: remover o yami-files (não escolhido)")" drop_files; fi
+  if on view; then add "$(t "картинки: yami-view" "images: yami-view" "imagens: yami-view")" do_view
+  elif app_here yami-view; then add "$(t "картинки: убрать yami-view (не выбран)" "images: remove yami-view (not chosen)" "imagens: remover o yami-view (não escolhido)")" drop_app yami-view; fi
+  if on play; then add "$(t "плеер: yami-play" "player: yami-play" "player: yami-play")" do_play
+  elif app_here yami-play; then add "$(t "плеер: убрать yami-play (не выбран)" "player: remove yami-play (not chosen)" "player: remover o yami-play (não escolhido)")" drop_app yami-play; fi
+  return 0
+}
+app_here() { [[ -e $BIN/$1 || -e ${XDG_DATA_HOME:-$HOME/.local/share}/applications/$1.desktop ]]; }
+# the .desktop file and the default for its MimeType list
+app_desktop() {
+  local data="${XDG_DATA_HOME:-$HOME/.local/share}"
+  # на чистой системе ~/.config ещё нет, а xdg-mime его не создаёт
+  mkdir -p "$CFG" "$data/applications"
+  install -Dm644 "$ROOT/config/applications/$1.desktop" "$data/applications/$1.desktop" || return 1
+  command -v xdg-mime >/dev/null || return 0
+  # shellcheck disable=SC2046 # one argument per MIME type
+  xdg-mime default "$1.desktop" $(sed -n 's/^MimeType=//p' "$ROOT/config/applications/$1.desktop" | tr ';' ' ')
+}
+# pictures open in yami-view, video and music in yami-play
+do_view() { app_desktop yami-view; }
+do_play() { app_desktop yami-play; }
+# an app that is no longer chosen: its binary, .desktop and the defaults pointing at it
+drop_app() {
+  local data="${XDG_DATA_HOME:-$HOME/.local/share}"
+  rm -f -- "$BIN/$1" "$data/applications/$1.desktop"
+  mime_forget "$1.desktop"
+}
+# mimeapps.list without the given .desktop (xdg-mime default wrote it); other entries stay as they are
+mime_forget() {
+  python3 -I - "$CFG/mimeapps.list" "$1" <<'PY'
+import sys
+from pathlib import Path
+p, app = Path(sys.argv[1]), sys.argv[2]
+try:
+    lines = p.read_text().splitlines()
+except OSError:
+    sys.exit(0)
+out = []
+for l in lines:
+    k, eq, v = l.partition("=")
+    if eq and not l.startswith(("[", "#")) and app in v.split(";"):
+        rest = [a for a in v.split(";") if a and a != app]
+        if not rest:
+            continue
+        l = f"{k}={';'.join(rest)};"
+    out.append(l)
+if out != lines:
+    p.write_text("\n".join(out) + "\n")
+PY
+}
 
 # ── files: yami-files as the folder handler, the portal file dialog ─────────
 do_files() {
   local data="${XDG_DATA_HOME:-$HOME/.local/share}"
-  # на чистой системе ~/.config ещё нет, а xdg-mime его не создаёт
-  mkdir -p "$CFG" "$data/applications"
-  install -Dm644 "$ROOT/config/applications/yami-files.desktop" "$data/applications/yami-files.desktop"
-  install -Dm644 "$ROOT/config/applications/yami-view.desktop" "$data/applications/yami-view.desktop"
-  install -Dm644 "$ROOT/config/applications/yami-play.desktop" "$data/applications/yami-play.desktop"
-  if command -v xdg-mime >/dev/null; then
-    xdg-mime default yami-files.desktop inode/directory
-    # картинки — в yami-view, видео и музыка — в yami-play
-    xdg-mime default yami-view.desktop $(sed -n 's/^MimeType=//p' "$ROOT/config/applications/yami-view.desktop" | tr ';' ' ')
-    xdg-mime default yami-play.desktop $(sed -n 's/^MimeType=//p' "$ROOT/config/applications/yami-play.desktop" | tr ';' ' ')
-  fi
+  app_desktop yami-files || return 1
   # xdg-desktop-portal: FileChooser → yami-files (browsers, Telegram, GTK/KDE apps)
   install -Dm644 "$ROOT/config/portal/yami.portal" "$data/xdg-desktop-portal/portals/yami.portal"
-  install -Dm644 "$ROOT/config/portal/niri-portals.conf" "$CFG/xdg-desktop-portal/niri-portals.conf"
+  # which backend serves what: a niri-portals.conf of your own (no «# yami:» line) stays yours
+  local pc="$CFG/xdg-desktop-portal/niri-portals.conf"
+  if [[ ! -e $pc ]] || head -1 "$pc" | grep -q '^# yami:'; then install -Dm644 "$ROOT/config/portal/niri-portals.conf" "$pc"; fi
   mkdir -p "$data/dbus-1/services"
   sed "s|@BIN@|$BIN/yami-files|" "$ROOT/config/portal/org.freedesktop.impl.portal.desktop.yami.service" \
     >"$data/dbus-1/services/org.freedesktop.impl.portal.desktop.yami.service"
@@ -49,6 +96,21 @@ do_files() {
   fi
   return 0
 }
+# yami-files unchecked: the backend stops, the portal and D-Bus files go (dialogs fall back to GTK),
+# niri-portals.conf goes if it is ours
+drop_files() {
+  local data="${XDG_DATA_HOME:-$HOME/.local/share}" pc="$CFG/xdg-desktop-portal/niri-portals.conf"
+  pkill -f "^$BIN/yami-files --portal" 2>/dev/null
+  drop_app yami-files
+  rm -f -- "$data/xdg-desktop-portal/portals/yami.portal" "$data/dbus-1/services/org.freedesktop.impl.portal.desktop.yami.service" \
+    "$data/dbus-1/services/org.freedesktop.FileManager1.service"
+  head -1 "$pc" 2>/dev/null | grep -q '^# yami:' && rm -f -- "$pc"
+  if ((SYSTEMD)) && systemctl --user is-active -q xdg-desktop-portal 2>/dev/null; then
+    busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig >/dev/null 2>&1
+    systemctl --user restart xdg-desktop-portal
+  fi
+  return 0
+}
 
 # ── fonts ───────────────────────────────────────────────────────────────────
 do_fonts() {
@@ -58,7 +120,9 @@ do_fonts() {
   # updates from bringing it back), theme.py then picks Terminess
   local mono="$dir/Monocraft-nerd-fonts-patched.ttc" skip="$STATE/no-monocraft"
   if [[ $MONO == 0 ]]; then mkdir -p "$STATE" && : >"$skip"; elif [[ $MONO == 1 ]]; then rm -f -- "$skip"; fi
-  if [[ -e $skip ]]; then
+  if ! t_on kitty && [[ $MONO != 1 ]]; then
+    echo "Monocraft: kitty is not restyled, not downloaded"
+  elif [[ -e $skip ]]; then
     rm -f -- "$mono"
     echo "Monocraft skipped (--no-monocraft): the terminal uses Terminess; --monocraft brings it back"
   elif [[ ! -s $mono ]]; then
@@ -68,7 +132,12 @@ do_fonts() {
       echo "Monocraft download failed or did not match its checksum, kitty falls back to Terminess"
     rm -f "$CACHE/monocraft.ttc"
   fi
-  install -Dm644 "$ROOT/config/fontconfig/50-yami-pixel.conf" "$CFG/fontconfig/conf.d/50-yami-pixel.conf"
+  # crisp text in GTK and Qt apps (greyscale smoothing, pixel fonts at their own sizes): with them only
+  if t_any gtk qt; then
+    install -Dm644 "$ROOT/config/fontconfig/50-yami-pixel.conf" "$CFG/fontconfig/conf.d/50-yami-pixel.conf"
+  else
+    rm -f -- "$CFG/fontconfig/conf.d/50-yami-pixel.conf"
+  fi
   fc-cache -f "$dir"
 }
 
@@ -133,7 +202,7 @@ PY
 }
 
 do_dotfiles() {
-  mkdir -p "$STATE" "$HOME/Pictures/Screenshots" "$CFG/kitty" "$CFG/fastfetch"
+  mkdir -p "$STATE" "$HOME/Pictures/Screenshots"
   # shell settings: palette, language and, when chosen, the panel look
   local lk=""
   ((LOOK_SET)) && lk="${LOOK_GLASS[$look]} ${LOOK_LIFT[$look]} ${LOOK_INNER[$look]} ${LOOK_DIM[$look]}"
@@ -159,14 +228,19 @@ if sys.argv[4]:
         d[k] = int(v) / 100
 p.write_text(json.dumps(d, ensure_ascii=False, indent=2) + "\n")
 PY
-  install -m644 "$ROOT/config/kitty/yami.conf" "$CFG/kitty/yami.conf"
-  touch "$CFG/kitty/kitty.conf"
-  grep -qx 'include yami.conf' "$CFG/kitty/kitty.conf" ||
-    printf '\n# YAMI (remove this line to get the previous look back)\ninclude yami.conf\n' >>"$CFG/kitty/kitty.conf"
-  if [[ -f "$CFG/fastfetch/config.jsonc" ]] && ! grep -qE "YAMI|DARK-4RMY" "$CFG/fastfetch/config.jsonc"; then
+  # what to restyle (themeApps, the cursor): theme.py below and every later run keep to it
+  restyle_json || return 1
+  # kitty: our file next to kitty.conf and one include line at its end; the rest of kitty.conf is yours
+  if t_on kitty; then
+    install -Dm644 "$ROOT/config/kitty/yami.conf" "$CFG/kitty/yami.conf"
+    touch "$CFG/kitty/kitty.conf"
+    grep -qx 'include yami.conf' "$CFG/kitty/kitty.conf" ||
+      printf '\n# YAMI: settings → color → apps → kitty off takes this line out\ninclude yami.conf\n' >>"$CFG/kitty/kitty.conf"
+  fi
+  if t_on fastfetch && [[ -f "$CFG/fastfetch/config.jsonc" ]] && ! grep -qE "YAMI|DARK-4RMY" "$CFG/fastfetch/config.jsonc"; then
     cp "$CFG/fastfetch/config.jsonc" "$CFG/fastfetch/config.jsonc.bak-$STAMP"
   fi
-  # wallpaper, kitty and fastfetch colors, niri borders, cursor, fonts
+  # wallpaper, niri borders and what is chosen to restyle (kitty, fastfetch, GTK, Qt, the cursor…)
   local lt=()
   ((theme == 1)) && lt=(--light)
   python3 -I "$ROOT/tools/theme.py" --accent "#${PAL_HEX[$pal]}" "${lt[@]}"
@@ -178,10 +252,13 @@ PY
   "$BIN/yami-shell" config kdl >"$CFG/niri/yami-fx.kdl" || return 1
 }
 
-do_look() { "$ROOT/tools/apply-theme.sh"; }
+# the first Qt/GTK setup, only for the ones chosen to restyle
+do_look() { YAMI_RESTYLE="$(t_list)" "$ROOT/tools/apply-theme.sh"; }
 
 # update: everything generated from the palette again (new theme.py outputs), settings untouched
 do_refresh() {
+  # an older settings file (appThemes) gets themeApps; a --restyle flag lands here too
+  restyle_json || return 1
   python3 -I "$ROOT/tools/theme.py" || return 1
   "$BIN/yami-shell" binds write || return 1
   "$BIN/yami-shell" config kdl >"$CFG/niri/yami-fx.kdl"

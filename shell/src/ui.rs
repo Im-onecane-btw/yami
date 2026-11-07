@@ -36,6 +36,8 @@ pub enum Act {
     SSideScroll,
     SPreset(usize),
     SBool(&'static str),
+    /// настройки → цвет → программы: красить ли эту программу (config::THEME_APPS)
+    SThemeApp(&'static str),
     SSlider(&'static str, f32, f32, i32),
     SCycle(&'static str),
     /// число в пикселях (config::NUMS): на шаг вниз (-1) или вверх (+1); колесо — тоже

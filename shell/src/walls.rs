@@ -66,6 +66,8 @@ pub struct Walls {
     pub back: bool,
     /// сколько картинок не поместилось в MAX
     pub more: usize,
+    /// есть yami-files: «папка…» и «другой файл…» спрашивают его окно выбора
+    pub pick: bool,
     worker: Option<Worker>,
 }
 
@@ -184,8 +186,11 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
     let bx = fr.right() - GX - b1 - b2 - 8;
     ui.cv.icon("folder", GX, 44, 2, t.text_faint);
     ui.cv.text_in(ui.f, PX, R::new(GX + 22, 38, bx - GX - 30, 26), &yami_px::paths::pretty(&wl.dir), t.text_dim);
-    ui.button(R::new(bx, 39, b1, 24), "папка…", "folder", Tone::Plain, false, true, Act::WallsDir);
-    ui.button(R::new(bx + b1 + 8, 39, b2, 24), "другой файл…", "image", Tone::Plain, false, true, Act::WallsFile);
+    // выбор папки и файла — окно yami-files: без него кнопок нет (папка обоев — в настройках)
+    if st.walls.pick {
+        ui.button(R::new(bx, 39, b1, 24), "папка…", "folder", Tone::Plain, false, true, Act::WallsDir);
+        ui.button(R::new(bx + b1 + 8, 39, b2, 24), "другой файл…", "image", Tone::Plain, false, true, Act::WallsFile);
+    }
     // сетка: под клетками — зона для колеса
     let grid = R::new(GX, GY, COLS as i32 * (TW + GAP) - GAP, ROWS as i32 * (TH + GAP) - GAP);
     ui.zone(grid, Act::WallsScroll, Cur::Default);
@@ -276,7 +281,7 @@ impl App {
             }
         }
         let gen = self.st.walls.gen + 1;
-        self.st.walls = Walls { gen, back, ..Default::default() };
+        self.st.walls = Walls { gen, back, pick: crate::proc::have("yami-files"), ..Default::default() };
         let (wd, cur, tx) = (self.st.set.wall_dir.clone(), crate::wall::own(&self.st.set), self.tx.clone());
         let _ = std::thread::Builder::new().name("walls-list".into()).spawn(move || {
             let d = dir(&wd, cur.as_deref());
@@ -480,7 +485,7 @@ pub fn mock(st: &mut State) {
         }
         thumbs.insert(i, if i == 7 { None } else { Some(Rc::new(Img { w, h, px })) });
     }
-    st.walls = Walls { gen: 1, dir, tiles, thumbs, cur: 2, back: true, ..Default::default() };
+    st.walls = Walls { gen: 1, dir, tiles, thumbs, cur: 2, back: true, pick: true, ..Default::default() };
 }
 
 #[cfg(test)]

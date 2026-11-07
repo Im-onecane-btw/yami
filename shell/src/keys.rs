@@ -136,6 +136,7 @@ pub const BINDS: &[Bind] = &[
     b("terminal", "shell", "Mod+T", "", r#"spawn "kitty";"#, "терминал", "Terminal", true),
     b("launcher", "shell", "Mod+Space", NR, r#"spawn "yami-shell" "msg" "launcher";"#, "меню программ", "App launcher", true),
     b("launcher-2", "shell", "Mod+D", NR, r#"spawn "yami-shell" "msg" "launcher";"#, "меню программ (второе)", "App launcher (second)", false),
+    // без yami-files — файловый менеджер по умолчанию (kdl подменяет действие)
     b("files", "shell", "Mod+E", "", r#"spawn "yami-files";"#, "файлы", "Files", true),
     b("clipboard", "shell", "Mod+V", NR, r#"spawn "yami-shell" "msg" "clipboard";"#, "буфер обмена", "Clipboard", true),
     b("settings", "shell", "Mod+S", NR, r#"spawn "yami-shell" "msg" "settings";"#, "настройки шелла", "Shell settings", true),
@@ -322,7 +323,13 @@ pub fn kdl(set: &crate::config::Settings) -> String {
             let title = if desk_max { crate::tf!("развернуть окно", "Maximize window", "Maximizar janela") } else { title_of(b).to_string() };
             line += &format!(" hotkey-overlay-title={}", kdl_str(&title));
         }
-        line += &format!(" {{ {} }}", if desk_max { "maximize-window-to-edges;" } else { b.act });
+        // yami-files не выбран при установке: домашняя папка в файловом менеджере по умолчанию
+        let act = match b.id {
+            _ if desk_max => "maximize-window-to-edges;",
+            "files" if !crate::proc::have("yami-files") => r#"spawn-sh "xdg-open ~";"#,
+            _ => b.act,
+        };
+        line += &format!(" {{ {act} }}");
         l.push(line);
     }
     for c in &set.custom_binds {

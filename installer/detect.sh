@@ -52,7 +52,6 @@ detect_machine() {
   LIGHT=0
   ((MEM_GB < 6 || THREADS < 4)) && LIGHT=1
   FORK_ON=$((1 - LIGHT))
-  [[ -n $FORK_FLAG ]] && FORK_ON=$FORK_FLAG
   # rustc with fat LTO needs up to ~1.3 GB per job: on 4 GB four jobs swap for an hour, two finish
   if [[ -z ${CARGO_BUILD_JOBS:-} ]]; then
     j=$((MEM_GB * 2 / 3))
@@ -70,6 +69,10 @@ detect_machine() {
       [[ -r $v && $v != *-* ]] && [[ $(cat "$v") != 0x10de ]] && HYBRID=1
     done
   fi
+  # the driver in the initramfs (nvboot) touches /etc and rebuilds the boot images: never by default,
+  # on only where an earlier install already put it there (an update keeps it, unchecked it goes)
+  NVBOOT_ON=0
+  [[ -e /etc/modprobe.d/yami-nvidia-kms.conf ]] && NVBOOT_ON=1
   [[ -n "${NIRI_SOCKET:-}" ]] && RUNNING_NIRI=1
   [[ -d /run/systemd/system ]] && SYSTEMD=1
   return 0
@@ -97,10 +100,8 @@ detect_login() {
   esac
   LOGIN_ON=1
   [[ -n $OTHER_DM ]] && LOGIN_ON=0
-  [[ -n $LOGIN_FLAG ]] && LOGIN_ON=$LOGIN_FLAG
   # games: on by default only when Steam is here (a package, flatpak or its folder)
   GAMES_ON=0
   { command -v steam >/dev/null || [[ -d $HOME/.local/share/Steam || -d $HOME/.steam || -d $HOME/.var/app/com.valvesoftware.Steam ]]; } && GAMES_ON=1
-  [[ -n $GAMES_FLAG ]] && GAMES_ON=$GAMES_FLAG
   return 0
 }

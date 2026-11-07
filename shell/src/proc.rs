@@ -38,6 +38,15 @@ pub fn owned(cmd: &mut std::process::Command) -> &mut std::process::Command {
     }
 }
 
+/// исполняемый файл bin в PATH или в ~/.local/bin (туда ставит установщик): yami-files, yami-view и
+/// yami-play ставятся по выбору, шелл без них открывает чужими программами
+pub fn have(bin: &str) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    let local = yami_px::paths::home().join(".local/bin");
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    std::env::split_paths(&path).chain(std::iter::once(local)).any(|d| d.join(bin).metadata().is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0))
+}
+
 /// окно выбора yami-files (`--pick MODE`, папка, свои ключи): первая строка ответа или None
 /// (отмена). Ждёт, пока окно открыто, — только из нити; окно закрывается вместе с нитью (owned)
 pub fn files_pick(mode: &str, folder: &std::path::Path, args: &[&str]) -> Option<String> {
@@ -131,6 +140,12 @@ pub fn theme_script() -> std::path::PathBuf {
 }
 
 impl App {
+    /// папка (или trash:///) — в yami-files, а без него — в файловом менеджере по умолчанию (xdg-open)
+    pub fn open_dir(what: String) {
+        let app = if have("yami-files") { "yami-files" } else { "xdg-open" };
+        App::spawn(&[app.into(), what]);
+    }
+
     // ── запуск программ ─────────────────────────────────────────────────────
     pub fn spawn(argv: &[String]) {
         if argv.is_empty() {

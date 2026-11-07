@@ -1,67 +1,108 @@
-# What can be installed. core and apps always; tools, games, the app theme,
-# the login screen, the NVIDIA fixes and yami-niri by what this machine is (detect.sh) and the flags.
-# An update repeats the choice of the first install (install.json, written by `yami update stamp`).
+# What can be installed, each part on its own: a default for this machine (detect.sh), a flag
+# (--no-ID / --ID, --shell-only), the components page (menu.sh). An update repeats the choice of
+# the first install (install.json, written by `yami update stamp`). What yami restyles in other
+# programs is the other half of the choice (restyle.sh); `look` (the Qt/GTK theme packages) follows it.
 # shellcheck shell=bash
 
-C_ID=(core apps tools games look login nvidia fork)
-# components this installer offered last time: one that came later (games, tools) starts at its
-# default on an update instead of «off because it was not in the list»
+# the order of the components page; look is not on it (restyle.sh sets it)
+C_ID=(core files view play login apps drives tools games nvidia nvboot fork look)
+# components this installer offered last time: one that came later starts at its default on an
+# update instead of «off because it was not in the list»
 KNOWN_F="$STATE/components-known"
 # what was installed (the shell's `update stamp`): an update repeats the same choice
 INSTALLED="$STATE/install.json"
 
+c_idx() { local i; for i in "${!C_ID[@]}"; do [[ ${C_ID[$i]} == "$1" ]] && { echo "$i"; return 0; }; done; return 1; }
+c_set() { local i; i="$(c_idx "$1")" && C_ON[i]=$2; }
+
 components_init() {
-  C_ON=(1 1 "$TOOLS_FLAG" "$GAMES_ON" 1 "$LOGIN_ON" "$NVIDIA" "$FORK_ON")
+  # core files view play login apps drives tools games nvidia nvboot fork look
+  C_ON=(1 1 1 1 "$LOGIN_ON" 1 1 1 "$GAMES_ON" "$NVIDIA" "$NVBOOT_ON" "$FORK_ON" 1)
   COMP=""
-  local known i
+  local known i f id
   if ((UPDATE)); then
     [[ -f $INSTALLED ]] && COMP="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("components",""))' "$INSTALLED" 2>/dev/null)"
     if [[ -n $COMP ]]; then
+      # files, view, play, drives and nvboot came in 2.7: before that they went with core and apps
       known="$(cat "$KNOWN_F" 2>/dev/null || echo "core apps look login nvidia fork")"
       for i in "${!C_ID[@]}"; do
         if [[ " $COMP " == *" ${C_ID[$i]} "* ]]; then C_ON[i]=1
         elif [[ " $known " == *" ${C_ID[$i]} "* ]]; then C_ON[i]=0; fi
       done
+      [[ " $known " == *" drives "* ]] || c_set drives "$(on apps && echo 1 || echo 0)"
     elif [[ ! -x $HOME/.local/lib/yami-niri/current/niri ]]; then
       # no record of the choice (a home-only install of an old version): the fork, a 5–25 minute
       # build and ~4 GB, only for those who already run it
-      for i in "${!C_ID[@]}"; do [[ ${C_ID[$i]} == fork ]] && C_ON[i]=0; done
+      c_set fork 0
     fi
   fi
+  # --shell-only: niri and the shell, nothing else of ours, nothing of anyone else's restyled
+  if ((SHELL_ONLY)); then
+    for i in "${!C_ID[@]}"; do [[ ${C_ID[$i]} == core ]] || C_ON[i]=0; done
+  fi
+  for f in "${COMP_FLAGS[@]}"; do
+    id="${f%=*}"
+    if [[ $id == look ]] || ! c_idx "$id" >/dev/null; then
+      if [[ ${f#*=} == 0 ]]; then echo "unknown option: --no-$id (see --help)" >&2; else echo "unknown option: --$id (see --help)" >&2; fi
+      exit 2
+    fi
+    c_set "$id" "${f#*=}"
+  done
   return 0
 }
 c_name() {
   case $1 in
     core) t "niri и сеанс" "niri and session" "niri e sessão" ;;
+    files) t "файлы (yami-files)" "files (yami-files)" "arquivos (yami-files)" ;;
+    view) t "картинки (yami-view)" "images (yami-view)" "imagens (yami-view)" ;;
+    play) t "плеер (yami-play)" "player (yami-play)" "player (yami-play)" ;;
+    login) t "экран входа" "login screen" "tela de login" ;;
     apps) t "программы" "apps" "aplicativos" ;;
+    drives) t "диски и телефоны" "drives and phones" "discos e telefones" ;;
     tools) t "инструменты" "tools" "ferramentas" ;;
     games) t "игры" "games" "jogos" ;;
-    look) t "тема программ" "app theme" "tema dos aplicativos" ;;
-    login) t "экран входа" "login screen" "tela de login" ;;
     nvidia) t "фикс NVIDIA" "NVIDIA fixes" "Correções NVIDIA" ;;
+    nvboot) t "NVIDIA в initramfs" "NVIDIA in the initramfs" "NVIDIA no initramfs" ;;
     fork) t "yami-niri (форк)" "yami-niri (fork)" "yami-niri (fork)" ;;
+    look) t "тема Qt и GTK" "Qt and GTK theme" "tema Qt e GTK" ;;
   esac
 }
 c_desc() {
   case $1 in
-    core) t "niri, порталы, polkit, pipewire, сеть, bluetooth, буфер, скриншоты" "niri, portals, polkit, pipewire, network, bluetooth, clipboard, screenshots" "niri, portais, polkit, pipewire, rede, bluetooth, área de transferência e capturas de tela" ;;
-    apps) t "kitty, fastfetch, pavucontrol, btop, udisks2, миниатюры видео, bsdtar, libmpv для плеера, gvfs: телефоны и сеть" "kitty, fastfetch, pavucontrol, btop, udisks2, video thumbnails, bsdtar, libmpv for the player, gvfs: phones and network" "kitty, fastfetch, pavucontrol, btop, udisks2, miniaturas de vídeo, bsdtar, libmpv para o player, gvfs: telefones e rede" ;;
-    tools) t "ночной свет (wlsunset), текст и QR со скриншота (tesseract, zbar)" "night light (wlsunset), text and QR from screenshots (tesseract, zbar)" "luz noturna (wlsunset), texto e QR de capturas de tela (tesseract, zbar)" ;;
-    games) t "GameMode и MangoHud в палитре" "GameMode and MangoHud in the palette" "GameMode e MangoHud na paleta" ;;
+    core) t "niri, порталы, polkit, pipewire, сеть, bluetooth, буфер, скриншоты — шеллу без них не жить" "niri, portals, polkit, pipewire, network, bluetooth, clipboard, screenshots: the shell needs them" "niri, portais, polkit, pipewire, rede, bluetooth, área de transferência e capturas: o shell precisa deles" ;;
+    files) t "файловый менеджер, диалог выбора файлов во всех программах, «показать в папке»; миниатюры видео, архивы" "the file manager, the file dialog of every app, «show in folder»; video thumbnails, archives" "o gerenciador de arquivos, o diálogo de arquivos de todos os aplicativos, «mostrar na pasta»; miniaturas de vídeo, arquivos compactados" ;;
+    view) t "открывает картинки по умолчанию; быстрые правки: поворот, обрезка" "opens pictures by default; quick edits: rotate, crop" "abre imagens por padrão; edições rápidas: girar, recortar" ;;
+    play) t "открывает видео и музыку по умолчанию (libmpv)" "opens videos and music by default (libmpv)" "abre vídeos e músicas por padrão (libmpv)" ;;
     login) if [[ -n $OTHER_DM ]]; then t "свой, как экран блокировки: greetd + yami-greet, без Qt; заменит $OTHER_DM" "our own, like the lock screen: greetd + yami-greet, no Qt; replaces $OTHER_DM" "a nossa, como a tela de bloqueio: greetd + yami-greet, sem Qt; substitui $OTHER_DM"
       else t "свой, как экран блокировки: greetd + yami-greet, без Qt, вход в niri" "our own, like the lock screen: greetd + yami-greet, no Qt, logs into niri" "a nossa, como a tela de bloqueio: greetd + yami-greet, sem Qt, entra no niri"; fi ;;
-    look) t "qt6ct + adw-gtk3 + Papirus: Qt, KDE и GTK в палитре райса" "qt6ct + adw-gtk3 + Papirus: Qt, KDE and GTK in the rice palette" "qt6ct + adw-gtk3 + Papirus: Qt, KDE e GTK na paleta do ambiente" ;;
-    nvidia) t "переменные драйвера, профиль против утечки VRAM, драйвер с начала загрузки (пароль диска виден и на DisplayPort), NVENC в OBS на старом драйвере" "driver env, a VRAM leak profile, the driver from the start of boot (disk password visible on DisplayPort too), NVENC in OBS on an old driver" "variáveis do driver, perfil contra vazamento de VRAM, driver desde o início da inicialização (senha do disco também no DisplayPort), NVENC no OBS com driver antigo" ;;
+    apps) t "kitty, fastfetch, pavucontrol, btop" "kitty, fastfetch, pavucontrol, btop" "kitty, fastfetch, pavucontrol, btop" ;;
+    drives) t "udisks2 и gvfs: флешки монтируются сами, телефоны, камеры, сетевые папки" "udisks2 and gvfs: drives mount by themselves, phones, cameras, network shares" "udisks2 e gvfs: pendrives montam sozinhos, telefones, câmeras, pastas de rede" ;;
+    tools) t "ночной свет (wlsunset), текст и QR со скриншота (tesseract, zbar)" "night light (wlsunset), text and QR from screenshots (tesseract, zbar)" "luz noturna (wlsunset), texto e QR de capturas de tela (tesseract, zbar)" ;;
+    games) t "GameMode и MangoHud в палитре" "GameMode and MangoHud in the palette" "GameMode e MangoHud na paleta" ;;
+    nvidia) t "переменные драйвера, профиль против утечки VRAM, NVENC в OBS на старом драйвере; initramfs не трогает" "driver env, a VRAM leak profile, NVENC in OBS on an old driver; the initramfs is left alone" "variáveis do driver, perfil contra vazamento de VRAM, NVENC no OBS com driver antigo; o initramfs fica intocado" ;;
+    nvboot) t "пароль диска виден и на DisplayPort: пишет /etc/modprobe.d и /etc/mkinitcpio.conf.d (или dracut) и пересобирает initramfs — только если выбрать" "the disk password shows on DisplayPort too: writes /etc/modprobe.d and /etc/mkinitcpio.conf.d (or dracut) and rebuilds the initramfs, only when chosen" "a senha do disco aparece também no DisplayPort: grava /etc/modprobe.d e /etc/mkinitcpio.conf.d (ou dracut) e recria o initramfs, só se escolhido" ;;
     fork)
       if ((LIGHT)); then t "наш niri из исходников: здесь ($MEM_GB ГБ, $THREADS потоков) сборка идёт около часа, поэтому выключен; пакетный niri — тот же стол" "our niri from source: here ($MEM_GB GB, $THREADS threads) the build takes about an hour, so it is off; the packaged niri is the same desktop" "nosso niri compilado: aqui ($MEM_GB GB, $THREADS threads) a compilação leva cerca de uma hora, por isso está desativada; o niri do pacote oferece o mesmo desktop"
       else t "наш niri из исходников, 5–25 мин: под этот процессор, tearing и realtime для игр; пакетный niri — запасной" "our niri from source, 5–25 min: built for this CPU, tearing and realtime for games; packaged niri stays as a fallback" "nosso niri compilado, 5–25 min: otimizado para esta CPU, tearing e tempo real nos jogos; o niri do pacote fica como alternativa"; fi ;;
+    look) t "qt6ct, adw-gtk3, Papirus" "qt6ct, adw-gtk3, Papirus" "qt6ct, adw-gtk3, Papirus" ;;
   esac
 }
-needs_root() { [[ $1 != fork ]]; }
+# on the components page: look follows the restyle page; NVIDIA rows only with an NVIDIA card
+c_shown() {
+  case $1 in
+    look) return 1 ;;
+    nvidia) ((NVIDIA || ${C_ON[$(c_idx nvidia)]})) ;;
+    nvboot) ((NVIDIA && !HYBRID || ${C_ON[$(c_idx nvboot)]})) ;;
+    *) return 0 ;;
+  esac
+}
+# packages or files outside the home folder; the rest installs into it (missing packages of those go
+# to packages-needed)
+needs_root() { case $1 in files | view | play | fork | look) return 1 ;; *) return 0 ;; esac; }
 can() { ! needs_root "$1" || ((SUDO)); }
-on() { local i; for i in "${!C_ID[@]}"; do [[ ${C_ID[$i]} == "$1" ]] && return $((1 - C_ON[i])); done; return 1; }
-off() { local i; for i in "${!C_ID[@]}"; do [[ ${C_ID[$i]} == "$1" ]] && C_ON[i]=0; done; }
-wants() { local i; for i in "${!C_ID[@]}"; do [[ ${C_ID[$i]} == "$1" ]] && return $((1 - C_WANT[i])); done; return 1; }
+on() { local i; i="$(c_idx "$1")" || return 1; ((C_ON[i])); }
+off() { c_set "$1" 0; }
+wants() { local i; i="$(c_idx "$1")" || return 1; ((C_WANT[i])); }
 # what was chosen is kept (C_WANT: an update without sudo still knows which packages the chosen
 # components want, do_need_pkgs); what this run cannot do without root is switched off
 components_limit() {

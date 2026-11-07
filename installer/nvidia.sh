@@ -1,6 +1,7 @@
-# The NVIDIA fixes (component nvidia, the proprietary driver only): a profile
-# against niri's VRAM leak, the driver in the initramfs (a picture at the disk password on any
-# output) and the GPU encoder in OBS on drivers too old for its NVENC.
+# The NVIDIA fixes (the proprietary driver only). Component nvidia: a profile against niri's VRAM
+# leak and the GPU encoder in OBS on drivers too old for its NVENC. Component nvboot, never on by
+# itself: the driver in the initramfs (a picture at the disk password on any output), which writes
+# to /etc/modprobe.d and the initramfs config and rebuilds the boot images; unchecked, it goes again.
 # shellcheck shell=bash
 
 do_nvidia_profile() {
@@ -28,6 +29,19 @@ do_nvidia_early() {
     $SU dracut -f --regenerate-all
   else
     return 99
+  fi
+}
+nvboot_installed() { [[ -e /etc/modprobe.d/yami-nvidia-kms.conf || -e /etc/mkinitcpio.conf.d/90-yami-nvidia.conf || -e /etc/dracut.conf.d/90-yami-nvidia.conf ]]; }
+# nvboot unchecked over an earlier install: our files out, the boot images rebuilt without them
+do_nvidia_early_drop() {
+  local had=0
+  [[ -e /etc/mkinitcpio.conf.d/90-yami-nvidia.conf || -e /etc/dracut.conf.d/90-yami-nvidia.conf ]] && had=1
+  $SU rm -f /etc/modprobe.d/yami-nvidia-kms.conf /etc/mkinitcpio.conf.d/90-yami-nvidia.conf /etc/dracut.conf.d/90-yami-nvidia.conf || return 1
+  ((had)) || return 0
+  if [[ -x /usr/bin/mkinitcpio ]]; then
+    if command -v limine-mkinitcpio >/dev/null; then $SU limine-mkinitcpio; else $SU /usr/bin/mkinitcpio -P; fi
+  elif command -v dracut >/dev/null; then
+    $SU dracut -f --regenerate-all
   fi
 }
 

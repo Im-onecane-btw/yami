@@ -200,7 +200,9 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
 
 or from a checkout: `git clone https://github.com/Trendorin/yami yami && yami/install.sh`.
 The installer asks the language and shows what it will install, picked for this machine: Enter
-installs it, `c` walks through the choices (components, palette, panels, theme, app font) first.
+installs it, `c` walks through the choices first (components, what to restyle, palette, panels,
+theme, app font), `s` installs only the shell: niri, the shell and its fonts, nothing of anyone
+else's touched. An update repeats these choices.
 Run it as yourself, not with sudo: it asks for the password once, where it is needed. Reboot
 afterwards (or log out) and pick the **Niri** session: you land in the finished desktop. No flag
 is needed for a normal install; these are for the rest:
@@ -213,10 +215,9 @@ is needed for a normal install; these are for the rest:
 | `--look ID` | panels: `matte` `glass` `light` `solid` |
 | `--font sans\|pixel` | app font: readable sans (default) or the pixel Tiny5 everywhere |
 | `--fetch mini\|full` | fastfetch: who, system and desktop (default) or with the hardware too |
-| `--no-fork` | keep the packaged niri instead of building yami-niri |
-| `--no-tools` | leave out night light, text and QR from screenshots (wlsunset, tesseract, zbar) |
-| `--games`, `--no-games` | GameMode and MangoHud (on by default when Steam is installed) |
-| `--login`, `--no-login` | yami's login screen (greetd + yami-greet) even if another login manager is set / leave it alone |
+| `--shell-only` | niri and the shell only: none of the apps below, no login screen, no other program restyled |
+| `--no-ID`, `--ID` | a component off or on (the table below) |
+| `--restyle LIST` | what yami restyles: `all`, `none` or a comma list of `gtk` `qt` `cursor` `kitty` `fastfetch` `btop` `firefox` `mangohud` `foot` `cava` `starship`; a program left out is never touched (later: settings → color → apps) |
 | `--no-sudo` | home directory only: no packages, no system files |
 | `--dry-run` | print the plan, change nothing |
 | `--no-count` | do not add this machine to the «installs» badge (one anonymous download, [details](docs/SECURITY.md#install-count)) |
@@ -224,29 +225,53 @@ is needed for a normal install; these are for the rest:
 | `--update` | rebuild from this tree keeping every setting, no sudo (what `yami update apply` runs) |
 | `--no-anim` | disable the installer animations |
 
+The components (the `c` page), each one on its own:
+
+| ID | What | Default |
+|---|---|---|
+| `files` | yami-files: the file manager, the file dialog of every app, «show in folder» | on |
+| `view` | yami-view opens pictures | on |
+| `play` | yami-play opens video and music (libmpv) | on |
+| `login` | yami's login screen (greetd + yami-greet) | on unless another login manager is set |
+| `apps` | kitty, fastfetch, pavucontrol, btop | on |
+| `drives` | udisks2 and gvfs: drives, phones, cameras, network shares | on |
+| `tools` | night light, text and QR from screenshots (wlsunset, tesseract, zbar) | on |
+| `games` | GameMode and MangoHud | on when Steam is installed |
+| `nvidia` | the NVIDIA driver profile against VRAM growth, NVENC in OBS on an old driver | on with an NVIDIA card |
+| `nvboot` | the NVIDIA driver in the initramfs (the disk password on any output): writes `/etc/modprobe.d` and the initramfs config, rebuilds the boot images | off, never on by itself |
+| `fork` | yami-niri built from source | on unless the machine is weak |
+
+A component unticked later goes on the next run or update: yami-files, yami-view and yami-play
+with their file associations, `nvboot` with its files (the boot images are rebuilt without them).
+
 What it does:
 
-1. Detects the distribution from `/etc/os-release` and installs packages with its native package
-   manager (niri, portals, polkit, PipeWire, NetworkManager, BlueZ, power-profiles-daemon, Noto
-   fonts, cliphist, grim, kitty, fastfetch, btop, udisks2, ffmpegthumbnailer, bsdtar, mpv (libmpv), gvfs with the MTP/PTP/AFC/SMB backends, qt6ct,
-   adw-gtk3, Papirus, greetd). Names a repository does not carry are reported, not fatal. Enables
+1. Detects the distribution from `/etc/os-release` and installs the packages of the chosen
+   components with its native package manager (niri, portals, polkit, PipeWire, NetworkManager,
+   BlueZ, power-profiles-daemon, Noto fonts, cliphist, grim; then kitty, fastfetch, btop, udisks2,
+   gvfs with the MTP/PTP/AFC/SMB backends, ffmpegthumbnailer, bsdtar, mpv (libmpv), qt6ct, adw-gtk3,
+   Papirus, greetd as chosen). Names a repository does not carry are reported, not fatal. Enables
    Bluetooth and power profiles, and NetworkManager when nothing else manages the network.
-2. Builds the workspace with `cargo build --release --locked` (Rust ≥ 1.89; rustup is used
-   when the distribution's toolchain is older) and installs `yami-shell`, `yami-files`,
-   `yami-view` and `yami-play` into `~/.local/bin`; registers yami-files for folders and as the portal file
-   dialog / FileManager1, yami-view for images, yami-play for video and music, and the Firefox-family portal pref.
-3. Installs the pixel fonts (Tiny5, DotGothic16, Terminess, Monocraft — pinned and checksummed)
-   with fontconfig rules and the pixel cursor in the palette.
-4. Writes the niri, kitty and fastfetch configuration, `yami-local.kdl` for this machine's GPU,
-   the keybindings and the game rules. Existing files are moved to `*.bak-DATE`; `output` blocks
-   from a previous niri config are carried over into `user.kdl`.
-5. Recolours everything around the shell (Qt, KDE, GTK, kitty, btop, browser menus, cursor).
+2. Builds the shell and the chosen apps with `cargo build --release --locked` (Rust ≥ 1.89; rustup
+   is used when the distribution's toolchain is older) into `~/.local/bin`; registers yami-files
+   for folders and as the portal file dialog / FileManager1 (with the Firefox-family portal pref),
+   yami-view for images, yami-play for video and music. Without yami-files the shell opens folders
+   in your file manager.
+3. Installs the pixel fonts (Tiny5, DotGothic16, Terminess; Monocraft, pinned and checksummed,
+   for kitty) and, with GTK or Qt restyled, a fontconfig rule for crisp text.
+4. Writes the niri configuration, `yami-local.kdl` for this machine's GPU, the keybindings and the
+   game rules; `output` blocks from a previous niri config are carried over into `user.kdl`. kitty
+   gets one `include yami.conf` line at the end of `kitty.conf`, nothing else of it changes.
+5. Recolours what was chosen (GTK, Qt and KDE, the cursor, kitty, fastfetch, btop, browser menus,
+   MangoHud, foot, cava, starship); a file it replaces is kept as `*.bak-yami` or `*.bak-DATE`.
 6. With the «login screen» component: installs greetd, yami-greet (root-owned, in `/usr/local/bin`),
    its safety net `greet-session` and the pixel cursor, and makes greetd the login manager from the
    next boot (off by default when another login manager is set; an SDDM with the old yami theme is
    replaced; systemd, OpenRC and runit). `--uninstall` removes it, gives greetd its own config back and
    brings back the login manager it replaced.
 7. Builds yami-niri (5–25 minutes, output shown) and enables it from the next login.
+8. With an NVIDIA card: the driver profile and, on Pascal-era drivers, obs-gstreamer. The
+   initramfs is left alone unless `nvboot` is ticked.
 
 An existing install under the old name DARK-4RMY is moved over: settings, palette, widgets
 and clipboard pins are kept, the old files are removed; the old dark-niri fork is removed too.
@@ -422,7 +447,7 @@ yami-shell binds list                  # keybindings: id, keys, action
 | `docs/` | configuration reference, security notes, packaging and Nix (each also in Russian: `*.ru.md`) |
 | `keys/` | release signing keys (`allowed_signers`), read by `yami update` |
 | `VERSION`, `CHANGELOG.md` | the release version and what changed in each release (`CHANGELOG.ru.md` in Russian) |
-| `system/nvidia/` | driver profile against VRAM growth in the compositor; modeset options for early KMS (the installer also puts the driver into the initramfs, and on Pascal-era drivers adds obs-gstreamer: OBS 33 needs NVENC API 13.1, driver 610+) |
+| `system/nvidia/` | driver profile against VRAM growth in the compositor; modeset options for early KMS (only with the `nvboot` component does the installer put the driver into the initramfs; on Pascal-era drivers it adds obs-gstreamer: OBS 33 needs NVENC API 13.1, driver 610+) |
 
 ## yami-niri
 

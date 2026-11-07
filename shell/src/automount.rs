@@ -332,7 +332,13 @@ impl App {
         for v in vols.into_iter().filter(|v| !seen.contains(&v.key())) {
             if locked(&v) && v.mount.is_empty() {
                 let dev = v.dev.clone();
-                self.automount_note(crate::tf!("зашифрованный диск: {}", "encrypted drive: {}", "disco criptografado: {}", v.name), crate::i18n::tr("нажми, чтобы ввести пароль").to_string(), "drive-removable-media", format!("unlock:{dev}"));
+                let title = crate::tf!("зашифрованный диск: {}", "encrypted drive: {}", "disco criptografado: {}", v.name);
+                // пароль спрашивает yami-files (--unlock); без него — свой файловый менеджер человека
+                if crate::proc::have("yami-files") {
+                    self.automount_note(title, crate::i18n::tr("нажми, чтобы ввести пароль").to_string(), "drive-removable-media", format!("unlock:{dev}"));
+                } else {
+                    self.automount_note(title, crate::i18n::tr("пароль спросит твой файловый менеджер").to_string(), "drive-removable-media", String::new());
+                }
                 continue;
             }
             if !v.wanted() {
@@ -359,7 +365,7 @@ impl App {
                 self.st.am.tries.remove(&v.key());
                 let path = path.unwrap_or_default();
                 if self.st.set.automount_open && !path.is_empty() && !self.st.game.fullscreen {
-                    App::spawn(&["yami-files".into(), path]);
+                    App::open_dir(path);
                     return;
                 }
                 let body = if path.is_empty() { String::new() } else { yami_px::paths::pretty(std::path::Path::new(&path)) };
@@ -412,7 +418,7 @@ impl App {
         let Some(what) = self.st.am.notes.remove(&id) else { return false };
         match what.strip_prefix("unlock:") {
             Some(dev) => App::spawn(&["yami-files".into(), "--unlock".into(), dev.into()]),
-            None => App::spawn(&["yami-files".into(), what]),
+            None => App::open_dir(what),
         }
         true
     }

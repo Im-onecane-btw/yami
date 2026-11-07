@@ -1,6 +1,6 @@
 # Rust (the distro's if new enough, else rustup into ~/.cargo) and the build of
-# the shell, yami-files, yami-view, yami-play and yami-greet into the cache, then the binaries into
-# ~/.local/bin, each swapped in whole.
+# the shell and the chosen apps (yami-files, yami-view, yami-play, yami-greet) into the cache, then
+# the binaries into ~/.local/bin, each swapped in whole.
 # shellcheck shell=bash
 
 ver_ge() { [[ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" == "$2" ]]; }
@@ -22,9 +22,21 @@ need_rust() {
   export PATH="$HOME/.cargo/bin:$PATH"
   rust_ok
 }
+# the crates of the chosen components: the shell always, the login screen's for login_offer/greet_bin
+yami_bins() {
+  local b=(yami-shell)
+  on files && b+=(yami-files)
+  on view && b+=(yami-view)
+  on play && b+=(yami-play)
+  printf '%s\n' "${b[@]}"
+}
 do_build_shell() {
   need_rust || return 1
-  local cmd=(cargo build --release --locked --workspace --manifest-path "$ROOT/shell/Cargo.toml" --target-dir "$CACHE/target")
+  local bins=() pk=() b
+  mapfile -t bins < <(yami_bins)
+  for b in "${bins[@]}"; do pk+=(-p "$b"); done
+  wants login && pk+=(-p yami-greet)
+  local cmd=(cargo build --release --locked "${pk[@]}" --manifest-path "$ROOT/shell/Cargo.toml" --target-dir "$CACHE/target")
   # a weak machine: thin LTO in 16 units instead of fat LTO in one. Measured with two jobs: the
   # rustc peak is 1.3 GB instead of 2.4 GB (fat LTO links each binary with all its crates at once),
   # so 4 GB does not swap; the binaries are ~20 % larger, the speed difference is not visible
@@ -36,8 +48,7 @@ do_build_shell() {
   fi
   # each binary as a copy next to it, then a rename: the running shell keeps its old file, and a
   # full disk or a cut copy leaves the previous binary in place, never half of a new one
-  local b
-  for b in yami-shell yami-files yami-view yami-play; do
+  for b in "${bins[@]}"; do
     install -Dm755 "$CACHE/target/release/$b" "$BIN/.$b.new" && mv -f "$BIN/.$b.new" "$BIN/$b" || { rm -f "$BIN/.$b.new"; return 1; }
   done
   # `yami <command>`: the same binary, help instead of the shell when started without a command

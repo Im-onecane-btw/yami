@@ -83,20 +83,25 @@ pub(crate) fn tab_color(ui: &mut Ui, st: &State, b: R) {
     }
 }
 
-/// программы в цветах палитры (#17): foot, cava, starship по выбору; kitty, btop, GTK, Qt, KDE,
-/// Firefox, fastfetch, niri — всегда; свои шаблоны — папка ~/.config/yami/templates
+/// чужие программы в цветах палитры (themeApps, #17): каждую можно выключить — тогда yami её не трогает
+/// (у kitty уходит наша строка include); шелл, экран входа, рамки niri и свои шаблоны — всегда
 fn app_themes(ui: &mut Ui, st: &State, b: R, tw: i32) {
     let t = ui.t;
     let s = &st.set;
     let half = (b.w - 20) / 2;
     let mut y = title(ui, b.x, b.y, tw, "программы в цветах палитры");
-    let on = |k: &str| s.app_themes.iter().any(|a| a == k);
-    ui.toggle(R::new(b.x, y, half, 40), "foot", "терминал: include в foot.ini", on("foot"), Act::SBool("app_foot"));
-    ui.toggle(R::new(b.x + half + 20, y, half, 40), "cava", "градиент полос, сразу", on("cava"), Act::SBool("app_cava"));
-    y += 46;
-    ui.toggle(R::new(b.x, y, half, 40), "starship", "палитра приглашения", on("starship"), Act::SBool("app_starship"));
-    y += 46;
-    ui.wrap(PX, R::new(b.x, y, b.w, 40), "всегда: kitty, btop, GTK, Qt и KDE, Firefox и LibreWolf, fastfetch, MangoHud, рамки niri, экран входа", t.text_faint, 2);
+    for (i, (id, name, hint)) in crate::config::THEME_APPS.iter().enumerate() {
+        let on = s.theme_apps.iter().any(|a| a == id);
+        let x = if i % 2 == 0 { b.x } else { b.x + half + 20 };
+        ui.toggle(R::new(x, y, half, 40), name, hint, on, Act::SThemeApp(id));
+        if i % 2 == 1 {
+            y += 46;
+        }
+    }
+    if crate::config::THEME_APPS.len() % 2 == 1 {
+        y += 46;
+    }
+    ui.wrap(PX, R::new(b.x, y, b.w, 40), "выключенную программу yami не трогает; всегда в палитре: шелл, экран входа, рамки niri, свои шаблоны. Курсор — окна → курсор", t.text_faint, 2);
     y += 48;
     y = title(ui, b.x, y, b.w, "свои шаблоны");
     let help = "файл в ~/.config/yami/templates — конфиг программы, где цвета записаны как {{accent}}, {{bg}}, {{text}}, {{color1}}… (.strip — без #, .rgb — r, g, b). Строка «yami-output: ~/путь» — куда писать, «yami-reload: USR1 программа» — кому сказать перечитать. Чужой файл не перезаписывается.";

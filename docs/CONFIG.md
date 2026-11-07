@@ -96,12 +96,13 @@ yami-shell binds list | print | write     # keybindings
 | `iconPixel` | `true` | app icons redrawn as 16×16 pixel art in the palette tones |
 | `fetchFull` | `false` | fastfetch with the hardware (kernel, packages, CPU, GPU, memory, disk, display); off: who, OS, wm, shell, terminal, uptime |
 | `lang` | `""` | `ru`, `en`, `pt-BR`, or empty to follow `LC_ALL`, `LC_MESSAGES`, then `$LANG`; `pt_BR.UTF-8` and `pt` are also accepted |
-| `appThemes` | `["foot", "cava", "starship"]` | apps theme.py recolours besides the ones it always does (settings → color → apps): `foot` (`foot/yami-colors.ini` and an `include=` line at the top of `foot.ini`, new windows), `cava` (a gradient in the `[color]` section of its config, open cava reloads at once), `starship` (`palette = "yami"` and a `[palettes.yami]` table that also retints `red`, `green` and the other names). Each one only if its config is there |
+| `themeApps` | all of them | the other programs theme.py recolours (settings → color → apps, the installer's `--restyle`): `gtk` (gtk.css, settings.ini, gsettings), `qt` (qt6ct, the KDE colour scheme, kdeglobals), `kitty` (its colours and font; off takes the `include yami.conf` line out of `kitty.conf`), `fastfetch`, `btop`, `firefox` (menus), `mangohud` (only a config yami wrote), `foot` (`foot/yami-colors.ini` and an `include=` line at the top of `foot.ini`, new windows), `cava` (a gradient in the `[color]` section of its config, open cava reloads at once), `starship` (`palette = "yami"` and a `[palettes.yami]` table that also retints `red`, `green` and the other names). A program left out is not touched. Up to 2.6 it was `appThemes` (foot, cava and starship only), read once and carried over |
 
 ### Apps in the palette colours
 
-kitty, btop, GTK, Qt and KDE, Firefox-family menus, fastfetch, MangoHud, niri's borders and the
-login screen always follow the palette; `appThemes` adds foot, cava and starship. For any other
+niri's borders, the login screen and your templates always follow the palette; GTK, Qt and KDE,
+kitty, fastfetch, btop, Firefox-family menus, MangoHud, foot, cava and starship do when they are
+in `themeApps` (all of them unless you untick some). For any other
 app write a template: a file in `~/.config/yami/templates` that is the app's colour config with
 `{{accent}}`, `{{bg}}`, `{{text}}`, `{{color0}}`…`{{color15}}` and the other palette names
 (`.strip` drops the `#`, `.rgb` gives `r, g, b`), plus a line saying where it goes and, if the app

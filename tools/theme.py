@@ -4,12 +4,13 @@
     theme.py [palette.json]       палитра от шелла (~/.local/state/yami/palette.json)
     theme.py --accent '#c4161c' [--light]   без шелла: вывести оттенки из акцента
 
-Пишет: qt6ct (цвета + qss), схему KDE и kdeglobals, gtk.css для GTK3/4, цвета kitty, тему btop, MangoHud,
-цвета foot, cava и starship (настройки → цвет → программы, appThemes), свои шаблоны
-(~/.config/yami/templates), меню Firefox/LibreWolf (userChrome.css)
-(открытые kitty перечитывают конфиг по SIGUSR1), fastfetch, цвета рамок niri
-(~/.config/niri/yami-colors.kdl, niri подхватывает сам), обои шелла
-(~/.local/state/yami/wallpaper.png). Экрану входа (yami-greet) вид отдаёт сам шелл (login.rs).
+Всегда: цвета рамок niri (~/.config/niri/yami-colors.kdl, niri подхватывает сам), обои шелла
+(~/.local/state/yami/wallpaper.png), свои шаблоны (~/.config/yami/templates). Чужие программы —
+только те, что в themeApps настроек шелла (настройки → цвет → программы, установщик): gtk (gtk.css,
+settings.ini, gsettings), qt (qt6ct с qss, схема KDE и kdeglobals), kitty (цвета и шрифт; открытые
+перечитывают по SIGUSR1; выключенный — без нашей строки include в kitty.conf), fastfetch, btop,
+firefox (меню Firefox/LibreWolf, userChrome.css), mangohud, foot, cava, starship. Курсор — по ключу
+cursor (yami или system). Экрану входа (yami-greet) вид отдаёт сам шелл (login.rs).
 
     theme.py --cursor-to DIR [--accent …]                 курсор экрана входа в DIR
     theme.py --cursor             только курсор (после смены его в настройках шелла)
@@ -128,6 +129,8 @@ def write(path, text):
 
 # ── Qt: qt6ct ────────────────────────────────────────────────────────────────
 def qt6ct(p):
+    if "qt" not in _apps():
+        return
     a = lambda h: "#ff" + h.lstrip("#")
     # порядок ролей QPalette: WindowText, Button, Light, Midlight, Dark, Mid, Text, BrightText,
     # ButtonText, Base, Window, Shadow, Highlight, HighlightedText, Link, LinkVisited,
@@ -273,6 +276,8 @@ def qt_pixels(p, d):
 
 # ── KDE: схема цветов и kdeglobals ───────────────────────────────────────────
 def kde(p):
+    if "qt" not in _apps():
+        return
     c = lambda h: ",".join(map(str, rgb(h)))
     groups = {
         "Window": (p["panel"], p["surface"]), "View": (p["bg"], mix(p["bg"], p["panel"], 0.6)),
@@ -325,6 +330,8 @@ def kde(p):
 
 # ── GTK 3/4 ──────────────────────────────────────────────────────────────────
 def gtk(p):
+    if "gtk" not in _apps():
+        return
     d = {
         "accent_color": p["bright"], "accent_bg_color": p["accent"], "accent_fg_color": p["onAccent"],
         "destructive_color": "#ff4a3d", "destructive_bg_color": "#8a1a14", "destructive_fg_color": "#ffffff",
@@ -382,6 +389,8 @@ def gtk(p):
 def gtk_mode(is_light):
     """Светлая или тёмная основа GTK: тема adw-gtk3(-dark) и prefer-dark в settings.ini,
     color-scheme в gsettings (его читают GTK4/libadwaita и портал). Остальные ключи не трогаем."""
+    if "gtk" not in _apps():
+        return
     theme = "adw-gtk3" if is_light else "adw-gtk3-dark"
     for v in ("3.0", "4.0"):
         ini = CFG / f"gtk-{v}/settings.ini"
@@ -525,20 +534,23 @@ def fonts(p=None):
     px = font_px()
     mono = (_settings().get("fontMono") or "").strip() or mono_font()
     mono_pt = px * 3 // 4 if mono in ("Monocraft", "Terminess Nerd Font Mono") else max(pt, 11)
-    for v in ("3.0", "4.0"):
-        _ini_set(CFG / f"gtk-{v}/settings.ini", "gtk-font-name", f"{fam} {pt}")
+    on = _apps()
+    if "gtk" in on:
+        for v in ("3.0", "4.0"):
+            _ini_set(CFG / f"gtk-{v}/settings.ini", "gtk-font-name", f"{fam} {pt}")
     qt = CFG / "qt6ct/qt6ct.conf"
-    if qt.exists():
+    if "qt" in on and qt.exists():
         t = qt.read_text()
         q = lambda f, size: f'"{f},{size},-1,5,400,0,0,0,0,0,0,0,0,0,0,1"'
         t = re.sub(r"^general=.*$", lambda _: f"general={q(fam, pt)}", t, flags=re.M)
         t = re.sub(r"^fixed=.*$", lambda _: f"fixed={q(mono, mono_pt)}", t, flags=re.M)
         write(qt, t)
-    if shutil.which("gsettings"):
+    if "gtk" in on and shutil.which("gsettings"):
         for k, v in (("font-name", f"{fam} {pt}"), ("document-font-name", f"{fam} {pt}"),
                      ("monospace-font-name", f"{mono} {mono_pt}")):
             subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", k, v], check=False, capture_output=True)
-    write(CFG / "kitty/yami-font.conf", f"# YAMI: written by tools/theme.py (settings → fonts)\nfont_family {mono}\nfont_size {mono_pt}.0\n")
+    if "kitty" in on:
+        write(CFG / "kitty/yami-font.conf", f"# YAMI: written by tools/theme.py (settings → fonts)\nfont_family {mono}\nfont_size {mono_pt}.0\n")
 
 
 # ── kitty ────────────────────────────────────────────────────────────────────
@@ -562,7 +574,27 @@ def ansi(p):
     }
 
 
+def kitty_detach():
+    """kitty больше не красим: из kitty.conf уходят наши строки (include yami.conf и метка над ней),
+    остальное в нём — человека. Наши файлы рядом остаются: без include kitty их не читает."""
+    conf = CFG / "kitty/kitty.conf"
+    try:
+        t = conf.read_text()
+    except OSError:
+        return
+    lines = t.splitlines()
+    keep = [ln for ln in lines if ln.strip() != "include yami.conf" and not ln.startswith("# YAMI")]
+    if keep != lines:
+        text = "\n".join(keep).rstrip("\n") + "\n"
+        # ссылка (stow, Home Manager) остаётся ссылкой: пишем сквозь неё
+        conf.write_text(text) if conf.is_symlink() else write(conf, text)
+        subprocess.run(["pkill", "-USR1", "-x", "kitty"], check=False)
+
+
 def kitty(p):
+    if "kitty" not in _apps():
+        kitty_detach()
+        return
     acc = p["accent"]
     a = ansi(p)
     cols = {
@@ -585,6 +617,8 @@ def kitty(p):
 # ── btop ─────────────────────────────────────────────────────────────────────
 def btop(p):
     """Тема btop в палитре: графики от тусклого к яркому акценту, рамки — как у панелей."""
+    if "btop" not in _apps():
+        return
     acc, deep, bright = p["accent"], p["deep"], p["bright"]
     th = {
         "main_bg": p["bg"], "main_fg": p["text"], "title": p["text"], "hi_fg": bright,
@@ -617,13 +651,22 @@ def btop(p):
 
 
 # ── foot, cava, starship, свои шаблоны (#17) ─────────────────────────────────
-APPS = ("foot", "cava", "starship")
+# чужие программы, которые можно перекрашивать (themeApps); до 2.7 ключ звался appThemes и выбирал
+# только foot, cava и starship сверх остальных, которые красились всегда
+APPS = ("gtk", "qt", "kitty", "fastfetch", "btop", "firefox", "mangohud", "foot", "cava", "starship")
+OPT_IN_OLD = ("foot", "cava", "starship")
 
 
 def _apps():
-    """Какие программы красить: appThemes из настроек шелла (нет ключа — все)."""
-    v = _settings().get("appThemes")
-    return set(x for x in v if isinstance(x, str)) if isinstance(v, list) else set(APPS)
+    """Какие программы красить: themeApps из настроек шелла; старый appThemes — его три сверх
+    постоянных; нет ни того, ни другого — все."""
+    st = _settings()
+    v, old = st.get("themeApps"), st.get("appThemes")
+    if isinstance(v, list):
+        return {x for x in v if isinstance(x, str)}
+    if isinstance(old, list):
+        return {a for a in APPS if a not in OPT_IN_OLD} | {x for x in old if isinstance(x, str)}
+    return set(APPS)
 
 
 def _signal(sig, name):
@@ -838,6 +881,8 @@ def firefox(p):
     """Только меню браузера (ПКМ, выпадающие списки, подсказки): квадратные, в палитре. Тему,
     панели и вкладки не трогаем — они остаются, какими их сделал пользователь. Пиксельный шрифт
     в интерфейсе — по желанию (browserFont). Чистый CSS: ничего не грузит и не замедляет."""
+    if "firefox" not in _apps():
+        return
     st = _settings()
     menus = st.get("browserMenus", True)
     font = st.get("browserFont", False)
@@ -966,6 +1011,8 @@ def kanji_logo(p):
 
 
 def fastfetch(p):
+    if "fastfetch" not in _apps():
+        return
     e = lambda h: "38;2;%d;%d;%d" % rgb(h)
     esc = lambda h: "\u001b[%sm" % e(h)
     a, d, f, t = p["accent"], p["border"], p["textFaint"], p["text"]
@@ -1061,6 +1108,8 @@ MANGO_MARK = "# yami: written by tools/theme.py"
 def mangohud(p):
     """~/.config/MangoHud/MangoHud.conf в цветах палитры, шрифт Tiny5 по сетке. Свой конфиг
     (без нашей метки) не трогаем."""
+    if "mangohud" not in _apps():
+        return
     path = CFG / "MangoHud/MangoHud.conf"
     if path.exists() and not path.read_text(errors="replace").startswith(MANGO_MARK):
         return

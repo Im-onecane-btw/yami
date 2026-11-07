@@ -168,6 +168,9 @@ fn services(y: &Sty, problems: &mut u32) {
         let run = !pids("yami-files", "--portal").is_empty();
         if run || activatable(&c, yp) {
             line(y, &y.ok("✓"), &crate::tf!("портал yami-files", "yami-files portal", "portal yami-files"), &if run { crate::tf!("работает", "running", "em execução") } else { crate::tf!("запустится по запросу", "starts on demand", "inicia sob demanda") });
+        } else if !crate::proc::have("yami-files") {
+            // yami-files не выбран при установке: диалоги выбора файлов — от GTK или KDE
+            line(y, &y.dim("·"), &crate::tf!("портал yami-files", "yami-files portal", "portal yami-files"), &crate::tf!("yami-files не установлен: диалоги — от GTK/KDE", "yami-files not installed: dialogs come from GTK/KDE", "yami-files não instalado: diálogos do GTK/KDE"));
         } else {
             *problems += 1;
             line(y, &y.bad("✕"), &crate::tf!("портал yami-files", "yami-files portal", "portal yami-files"), &crate::tf!("не установлен: install.sh (шаг «файлы»)", "not installed: install.sh (the «files» step)", "não instalado: install.sh (etapa «arquivos»)"));

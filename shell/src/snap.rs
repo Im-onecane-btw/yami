@@ -781,13 +781,14 @@ impl App {
         std::thread::spawn(move || {
             let mut path: Option<PathBuf> = None;
             let mut err = None;
-            if ask {
+            // «сохранить как» спрашивает окно yami-files; без него — в папку скриншотов, как «сохранить»
+            if ask && crate::proc::have("yami-files") {
                 let _ = std::fs::create_dir_all(&dir);
                 match crate::proc::files_pick("save", &dir, &["--name", &name, "--filter", "PNG|*.png"]) {
                     Some(p) => path = Some(PathBuf::from(p)),
                     None => return,
                 }
-            } else if save {
+            } else if save || ask {
                 path = Some(dir.join(&name));
             }
             if let Some(p) = &path {
@@ -840,7 +841,7 @@ impl App {
     pub fn shot_note_action(&mut self, id: u32, key: &str) -> bool {
         let Some(p) = self.st.shot_files.get(&id).cloned() else { return false };
         match key {
-            "folder" => App::spawn(&["yami-files".into(), p.display().to_string()]),
+            "folder" => App::open_dir(p.display().to_string()),
             _ => App::spawn(&["xdg-open".into(), p.display().to_string()]),
         }
         true

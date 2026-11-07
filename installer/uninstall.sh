@@ -1,5 +1,6 @@
 # ./install.sh --uninstall. The shell, its apps and files go, backups come
-# back, the login screen goes (login.sh), the settings file stays.
+# back, the login screen goes (login.sh), so do the NVIDIA system files (nvidia.sh), the settings
+# file stays.
 # shellcheck shell=bash
 
 uninstall() {
@@ -23,6 +24,13 @@ uninstall() {
   head -1 "$CFG/MangoHud/MangoHud.conf" 2>/dev/null | grep -q '^# yami: written by tools/theme.py' && rm -f "$CFG/MangoHud/MangoHud.conf"
   rm -rf "$HOME/.local/share/fonts/yami" "$HOME/.local/share/yami" "$CFG/qt6ct/qss/yami"
   uninstall_login
+  # system files of the NVIDIA components: the profile, and the driver in the initramfs (the boot
+  # images are rebuilt without it)
+  if { [[ -n $SU ]] || ((EUID == 0)); } && { nvboot_installed || [[ -e /etc/nvidia/nvidia-application-profiles-rc.d/50-niri-vram.json ]]; }; then
+    say "$(t "NVIDIA: убираю наши системные файлы (пароль администратора)" "NVIDIA: removing our system files (the administrator password)" "NVIDIA: removendo nossos arquivos de sistema (a senha de administrador)")"
+    $SU rm -f /etc/nvidia/nvidia-application-profiles-rc.d/50-niri-vram.json
+    nvboot_installed && do_nvidia_early_drop
+  fi
   rm -f "$STATE/packages-needed" "$STATE/components-known" "$STATE/settings-newer.json"
   # the build cache (gigabytes); yami-niri sources only without patch work in them
   rm -rf -- "$CACHE/target" "$CACHE/sddm-yami" "$CACHE/yami-cursor" "$CACHE/update.log" "$CACHE/update.lock"
