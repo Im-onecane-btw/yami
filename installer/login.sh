@@ -47,21 +47,21 @@ login_offer() {
   wants login && ((!DRY && !BUILD_FAILED)) && greet_stale || return 0
   mkdir -p "$STATE" && printf 'login %s\n' "$ROOT/tools/greet-install.sh" >>"$f"
   if [[ -d /usr/share/sddm/themes/yami ]]; then
-    msg="$(t "новый экран входа: свой, вместо SDDM (SDDM выключится, но останется — ./install.sh --uninstall вернёт его)" "the new login screen: our own instead of SDDM (SDDM is turned off, not removed; ./install.sh --uninstall brings it back)")"
+    msg="$(t "новый экран входа: свой, вместо SDDM (SDDM выключится, но останется — ./install.sh --uninstall вернёт его)" "the new login screen: our own instead of SDDM (SDDM is turned off, not removed; ./install.sh --uninstall brings it back)" "a nova tela de login: a nossa no lugar do SDDM (o SDDM é desativado, não removido; ./install.sh --uninstall o traz de volta)")"
   else
-    msg="$(t "экран входа обновился" "the login screen changed")"
+    msg="$(t "экран входа обновился" "the login screen changed" "a tela de login mudou")"
   fi
   if [[ -t 0 && -t 1 && -n $SU ]]; then
-    printf '\n  %s%s%s\n  %s %s[%s]%s ' "$T" "$msg" "$R" "$(t "поставить сейчас?" "install it now?")" "$F" "$(t "enter — да, n — потом" "enter yes, n later")" "$R"
+    printf '\n  %s%s%s\n  %s %s[%s]%s ' "$T" "$msg" "$R" "$(t "поставить сейчас?" "install it now?" "instalar agora?")" "$F" "$(t "enter — да, n — потом" "enter yes, n later" "enter sim, n depois")" "$R"
     read -r a || a=n
     if [[ ! $a =~ ^[nNнН] ]] && "$ROOT/tools/greet-install.sh"; then
       sed -i '/^login /d' "$f"
       grep -q '^pkgs ' "$f" || rm -f "$f"
     else
-      note "$(t "потом: настройки → обновления, или $ROOT/tools/greet-install.sh" "later: settings → updates, or $ROOT/tools/greet-install.sh")"
+      note "$(t "потом: настройки → обновления, или $ROOT/tools/greet-install.sh" "later: settings → updates, or $ROOT/tools/greet-install.sh" "depois: configurações → atualizações, ou $ROOT/tools/greet-install.sh")"
     fi
   else
-    note "$msg: $(t "настройки → обновления, одна кнопка (или $ROOT/tools/greet-install.sh, нужен sudo)" "settings → updates, one button (or $ROOT/tools/greet-install.sh, needs sudo)")"
+    note "$msg: $(t "настройки → обновления, одна кнопка (или $ROOT/tools/greet-install.sh, нужен sudo)" "settings → updates, one button (or $ROOT/tools/greet-install.sh, needs sudo)" "configurações → atualizações, um botão (ou $ROOT/tools/greet-install.sh, requer sudo)")"
   fi
 }
 
@@ -91,11 +91,11 @@ uninstall_login() {
   ((ours)) && cmd+="; mv -f /etc/greetd/config.toml.yami-orig /etc/greetd/config.toml"
   [[ -n $dm ]] && cmd+="; systemctl enable -f $dm.service"
   if ((EUID != 0)) && { ((!SUDO)) || [[ -z $SU ]] || ! root_start; }; then
-    warn "$(t "экран входа не убран, нужен root:" "the login screen is not removed, root is needed:") sudo sh -c '$cmd'"
+    warn "$(t "экран входа не убран, нужен root:" "the login screen is not removed, root is needed:" "a tela de login não foi removida; root é necessário:") sudo sh -c '$cmd'"
     return 0
   fi
   if ((!SYSTEMD)) && [[ -e /var/lib/yami-greet ]]; then
-    $SU "$ROOT/tools/greet-install.sh" --uninit || warn "$(t "greetd не выключен: включи прежний менеджер входа сам" "greetd is not turned off: enable your old login manager yourself")"
+    $SU "$ROOT/tools/greet-install.sh" --uninit || warn "$(t "greetd не выключен: включи прежний менеджер входа сам" "greetd is not turned off: enable your old login manager yourself" "o greetd não foi desativado: ative você mesmo o gerenciador de login anterior")"
   fi
   ((${#files[@]})) && $SU rm -rf -- "${files[@]}"
   if ((ours)); then
@@ -107,13 +107,13 @@ uninstall_login() {
         $SU mv -f /etc/greetd/config.toml.new /etc/greetd/config.toml
     fi
   fi
-  say "$(t "экран входа yami убран" "the yami login screen is removed")"
+  say "$(t "экран входа yami убран" "the yami login screen is removed" "a tela de login do yami foi removida")"
   if [[ -n $dm ]] && ((SYSTEMD)); then
     if $SU systemctl enable -f "$dm.service"; then
-      say "$(t "менеджер входа: снова $dm со следующей загрузки" "login manager: $dm again from the next boot")"
+      say "$(t "менеджер входа: снова $dm со следующей загрузки" "login manager: $dm again from the next boot" "gerenciador de login: $dm novamente a partir da próxima inicialização")"
       rm -f "$STATE/login-dm"
     else
-      warn "$(t "не включился $dm: sudo systemctl enable -f $dm.service" "$dm did not enable: sudo systemctl enable -f $dm.service")"
+      warn "$(t "не включился $dm: sudo systemctl enable -f $dm.service" "$dm did not enable: sudo systemctl enable -f $dm.service" "$dm não foi ativado: sudo systemctl enable -f $dm.service")"
     fi
   elif ((SYSTEMD)) && [[ $now == greetd ]]; then
     # installed before the replaced manager was written down: name the ones on this system
@@ -121,7 +121,7 @@ uninstall_login() {
     for u in sddm gdm lightdm lxdm ly cosmic-greeter plasmalogin; do
       [[ -f /usr/lib/systemd/system/$u.service || -f /etc/systemd/system/$u.service ]] && others+=("$u")
     done
-    ((${#others[@]})) && note "$(t "greetd остаётся менеджером входа (текстовый вход); вернуть прежний:" "greetd stays the login manager (text login); to switch back:") sudo systemctl enable -f ${others[0]}.service$( ((${#others[@]} > 1)) && printf ' (%s)' "${others[*]}")"
+    ((${#others[@]})) && note "$(t "greetd остаётся менеджером входа (текстовый вход); вернуть прежний:" "greetd stays the login manager (text login); to switch back:" "o greetd continua sendo o gerenciador de login (login em texto); para voltar:") sudo systemctl enable -f ${others[0]}.service$( ((${#others[@]} > 1)) && printf ' (%s)' "${others[*]}")"
   fi
   root_stop
 }

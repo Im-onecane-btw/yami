@@ -253,12 +253,7 @@ impl App {
                     self.settings_changed();
                 }
                 "lang" => {
-                    s.lang = match s.lang.as_str() {
-                        "" => "en",
-                        "en" => "ru",
-                        _ => "",
-                    }
-                    .into();
+                    s.lang = yami_px::i18n::next(&s.lang).into();
                     self.settings_changed();
                 }
                 "wall_apply" => {

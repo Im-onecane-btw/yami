@@ -239,7 +239,7 @@ fn run(job: Job, send: &dyn Fn(Ev)) {
                     break;
                 }
                 if job.dst.starts_with(s) && s.is_dir() {
-                    c.errors.push(crate::tf!("{}: нельзя положить папку в саму себя", "{}: cannot put a folder inside itself", s.display()));
+                    c.errors.push(crate::tf!("{}: нельзя положить папку в саму себя", "{}: cannot put a folder inside itself", "{}: não é possível colocar uma pasta dentro dela mesma", s.display()));
                     continue;
                 }
                 if job.kind == Kind::Move && s.parent() == Some(job.dst.as_path()) {
@@ -350,7 +350,7 @@ fn run(job: Job, send: &dyn Fn(Ev)) {
                     pairs.push((s.clone(), d));
                 } else {
                     let _ = std::fs::remove_dir(&d);
-                    c.errors.push(crate::tf!("{}: не удалось распаковать", "{}: could not extract", name));
+                    c.errors.push(crate::tf!("{}: не удалось распаковать", "{}: could not extract", "{}: não foi possível extrair", name));
                 }
             }
         }
@@ -367,7 +367,7 @@ fn run(job: Job, send: &dyn Fn(Ev)) {
                 pairs.push((job.dst.clone(), out));
             } else {
                 let _ = std::fs::remove_file(&out);
-                c.errors.push(crate::tf!("{}: не удалось сжать", "{}: could not compress", job.name));
+                c.errors.push(crate::tf!("{}: не удалось сжать", "{}: could not compress", "{}: não foi possível compactar", job.name));
             }
         }
     }

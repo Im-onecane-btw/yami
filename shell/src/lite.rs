@@ -26,7 +26,7 @@ fn vm() -> Option<String> {
         .find(|(k, _)| who.contains(k))
         .map(|(_, n)| *n)
         .unwrap_or("?");
-    Some(crate::tf!("виртуальная машина ({})", "a virtual machine ({})", name))
+    Some(crate::tf!("виртуальная машина ({})", "a virtual machine ({})", "uma máquina virtual ({})", name))
 }
 
 /// драйверы без 3D: картинку считает процессор
@@ -41,19 +41,19 @@ const OLD_INTEL: &[u32] = &[
 fn gpu() -> Option<String> {
     let dri: Vec<String> = std::fs::read_dir("/dev/dri").map(|d| d.flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect()).unwrap_or_default();
     if !dri.iter().any(|n| n.starts_with("renderD")) {
-        return Some(crate::tf!("нет ускорения графики (отрисовка процессором)", "no graphics acceleration (the CPU draws)"));
+        return Some(crate::tf!("нет ускорения графики (отрисовка процессором)", "no graphics acceleration (the CPU draws)", "sem aceleração gráfica (a CPU renderiza)"));
     }
     let mut drivers = vec![];
     for dev in crate::sys::drm_cards() {
         let drv = std::fs::read_link(dev.join("driver")).ok().and_then(|p| p.file_name().map(|f| f.to_string_lossy().to_string())).unwrap_or_default();
         let id = u32::from_str_radix(read(&dev.join("device").to_string_lossy()).trim_start_matches("0x"), 16).unwrap_or(0);
         if drv == "i915" && OLD_INTEL.contains(&id) {
-            return Some(crate::tf!("старая встроенная графика Intel", "old integrated Intel graphics"));
+            return Some(crate::tf!("старая встроенная графика Intel", "old integrated Intel graphics", "gráficos Intel integrados antigos"));
         }
         drivers.push(drv);
     }
     // все карты без 3D (у ноутбука может быть и simpledrm до загрузки драйвера, и настоящая)
-    (!drivers.is_empty() && drivers.iter().all(|d| SOFT.contains(&d.as_str()))).then(|| crate::tf!("видеокарта без 3D ({})", "a display adapter without 3D ({})", drivers.join(", ")))
+    (!drivers.is_empty() && drivers.iter().all(|d| SOFT.contains(&d.as_str()))).then(|| crate::tf!("видеокарта без 3D ({})", "a display adapter without 3D ({})", "um adaptador de vídeo sem 3D ({})", drivers.join(", ")))
 }
 
 /// мало памяти и ядер: 4 ГБ и два-четыре потока — старый ноутбук
@@ -61,7 +61,7 @@ fn small() -> Option<String> {
     let mem = crate::sys::kv_num(&read("/proc/meminfo"), "MemTotal:").map(|v| v as u64).unwrap_or(u64::MAX);
     let gb = (mem as f64 / 1048576.0).round() as u64;
     let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(8);
-    (gb <= 4 && threads <= 4).then(|| crate::tf!("{} ГБ памяти, {} потока", "{} GB of memory, {} threads", gb, threads))
+    (gb <= 4 && threads <= 4).then(|| crate::tf!("{} ГБ памяти, {} потока", "{} GB of memory, {} threads", "{} GB de memória, {} threads", gb, threads))
 }
 
 /// строки для yami-fx.kdl: что лёгкий режим выключает у niri (размытие пишет fx_kdl сам)

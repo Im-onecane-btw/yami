@@ -87,7 +87,7 @@ impl Widget {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Settings {
-    /// язык интерфейса: "" — по $LANG, "ru", "en"
+    /// язык интерфейса: "" — по языку системы, "ru", "en", "pt-BR"
     pub lang: String,
     // цвет: пресет или свой акцент (#rrggbb, пусто — пресет)
     pub palette: String,
@@ -661,7 +661,7 @@ impl Settings {
         for f in [&mut self.font_shell, &mut self.font_files, &mut self.font_view, &mut self.font_ui, &mut self.font_mono, &mut self.icon_theme, &mut self.cursor] {
             name(f);
         }
-        self.lang.retain(|c| c.is_ascii_alphabetic());
+        self.lang = yami_px::i18n::normalize(&self.lang).into();
         if !self.accent.is_empty() && crate::theme::parse_hex(&self.accent).is_none() {
             self.accent.clear();
         }
@@ -1083,5 +1083,18 @@ mod tests {
         assert_eq!(s.widgets.len(), 1);
         assert_eq!(s.widgets[0].x, 10);
         assert!(!s.bar_right.iter().any(|m| m == "kb" || m == "cpu"));
+    }
+
+    #[test]
+    fn brazilian_portuguese_survives_sanitizing_and_saving() {
+        for tag in ["pt-BR", "pt_BR", "pt_BR.UTF-8", "pt"] {
+            let mut s = Settings { lang: tag.into(), ..Settings::default() };
+            s.sanitize();
+            assert_eq!(s.lang, "pt-BR");
+            let saved = serde_json::to_string(&s).unwrap();
+            let mut restored = Settings::lenient(&saved);
+            restored.sanitize();
+            assert_eq!(restored.lang, "pt-BR");
+        }
     }
 }

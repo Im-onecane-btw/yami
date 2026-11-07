@@ -150,7 +150,7 @@ pub(crate) fn dialog(ui: &mut Ui, fm: &Fm, d: &Dlg, born: Instant, w: i32, h: i3
                 raw(ui, PX, R::new(r.x + 16, r.y + 48 + i as i32 * 20, r.w - 32, 20), e, t.text_dim);
             }
             if errs.len() > 8 {
-                ui.text_in(PX, R::new(r.x + 16, r.y + 48 + 8 * 20, r.w - 32, 20), &crate::tf!("и ещё {}", "and {} more", errs.len() - 8), t.text_faint);
+                ui.text_in(PX, R::new(r.x + 16, r.y + 48 + 8 * 20, r.w - 32, 20), &crate::tf!("и ещё {}", "and {} more", "e mais {}", errs.len() - 8), t.text_faint);
             }
             buttons(ui, r, &[("понятно", "cancel", Tone::Primary)]);
             dissolve_dlg(ui, fm, born, r);
@@ -158,7 +158,7 @@ pub(crate) fn dialog(ui: &mut Ui, fm: &Fm, d: &Dlg, born: Instant, w: i32, h: i3
         Dlg::Props { paths, du, free, .. } => props(ui, fm, born, w, h, paths, du, *free),
         Dlg::OpenWith { mime: m, f, sel, remember, scroll, files } => {
             let r = dlg_frame(ui, fm, born, w, h, 480, (h - 80).min(520), "dots", "открыть с помощью");
-            let what = if files.len() == 1 { files[0].file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default() } else { crate::tf!("файлов: {}", "{} files", files.len()) };
+            let what = if files.len() == 1 { files[0].file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default() } else { crate::tf!("файлов: {}", "{} files", "{} arquivos", files.len()) };
             raw(ui, PX, R::new(r.x + 16, r.y + 44, r.w - 32, 20), &format!("{what} · {}", mime::label(m, "")), t.text_dim);
             ui.field(R::new(r.x + 16, r.y + 70, r.w - 32, 32), f, "найти программу", true, false, Act::DlgField);
             let lr = R::new(r.x + 12, r.y + 110, r.w - 24, r.h - 110 - 92);
@@ -220,7 +220,7 @@ pub(crate) fn props(ui: &mut Ui, fm: &Fm, born: Instant, w: i32, h: i32, paths: 
         ui.cv.text_in(ui.f, PX, R::new(x + 62, y + 26, r.w - 100, 18), &mime::label(e.mime, &e.name), t.text_dim);
         y += 64;
     } else {
-        ui.text_in(PX, R::new(x, y, r.w - 36, 20), &crate::tf!("выбрано объектов: {}", "{} items selected", paths.len()), t.text);
+        ui.text_in(PX, R::new(x, y, r.w - 36, 20), &crate::tf!("выбрано объектов: {}", "{} items selected", "{} itens selecionados", paths.len()), t.text);
         y += 30;
     }
     ui.cv.fill(R::new(x, y, r.w - 36, 1), t.border);
@@ -232,7 +232,7 @@ pub(crate) fn props(ui: &mut Ui, fm: &Fm, born: Instant, w: i32, h: i32, paths: 
     };
     let size = match du {
         Some(((b, f, d), done)) => {
-            let s = if *d > 0 { crate::tf!("{} · файлов {} · папок {}", "{} · {} files · {} folders", fsx::human(*b), f, d) } else { fsx::human(*b) };
+            let s = if *d > 0 { crate::tf!("{} · файлов {} · папок {}", "{} · {} files · {} folders", "{} · {} arquivos · {} pastas", fsx::human(*b), f, d) } else { fsx::human(*b) };
             if *done {
                 s
             } else {
@@ -255,7 +255,7 @@ pub(crate) fn props(ui: &mut Ui, fm: &Fm, born: Instant, w: i32, h: i32, paths: 
             }
         }
         if let Some((free, total)) = free {
-            kv(ui, "на диске", &crate::tf!("свободно {} из {}", "{} free of {}", fsx::human(free), fsx::human(total)));
+            kv(ui, "на диске", &crate::tf!("свободно {} из {}", "{} free of {}", "{} livres de {}", fsx::human(free), fsx::human(total)));
         }
         // права: три строки по три флажка
         y += 6;

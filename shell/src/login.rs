@@ -185,10 +185,10 @@ fn describe(last: &str) -> (String, String, bool) {
     let (d, t, what, rest) = (w.next().unwrap_or(""), w.next().unwrap_or(""), w.next().unwrap_or(""), w.next().unwrap_or("").trim());
     let when = format!("{d} {}", t.get(..5).unwrap_or(t));
     match what {
-        "ok" => (when, crate::tf!("вход, первый кадр через {} мс", "logged in, first frame after {} ms", rest), true),
-        "text" => (when, crate::tf!("текстовый вход: {}", "text login: {}", rest), false),
-        "fail" => (when, crate::tf!("не поднялся: {}", "did not come up: {}", rest), false),
-        "closed" => (when, crate::tf!("закрылся без входа: {}", "closed without a login: {}", rest), true),
+        "ok" => (when, crate::tf!("вход, первый кадр через {} мс", "logged in, first frame after {} ms", "login feito, primeiro quadro após {} ms", rest), true),
+        "text" => (when, crate::tf!("текстовый вход: {}", "text login: {}", "login em texto: {}", rest), false),
+        "fail" => (when, crate::tf!("не поднялся: {}", "did not come up: {}", "não subiu: {}", rest), false),
+        "closed" => (when, crate::tf!("закрылся без входа: {}", "closed without a login: {}", "fechada sem login: {}", rest), true),
         _ => (when, last.to_string(), true),
     }
 }
@@ -256,7 +256,7 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     opt_btn(ui, R::new(lx, y + 7, half, 26), "пользователи", users, Act::SCycle("greet_users"));
     ui.toggle(R::new(rx, y, half, 40), "кнопки питания", "сон, перезагрузка, выключение", s.greet_power, Act::SBool("greet_power"));
     y += 48;
-    let off = if s.greet_off == 0 { "никогда".to_string() } else { crate::tf!("{} мин", "{} min", s.greet_off) };
+    let off = if s.greet_off == 0 { "никогда".to_string() } else { crate::tf!("{} мин", "{} min", "{} min", s.greet_off) };
     ui.slider(R::new(lx, y, half, 40), "погасить мониторы через", s.greet_off as f32 / 30.0, &off, 15, Act::SSlider("greet_off", 0.0, 30.0, 15));
     ui.toggle(R::new(rx, y, half, 40), "numlock", "цифры на цифровом блоке сразу", s.greet_numlock, Act::SBool("greet_numlock"));
     y += 52;
@@ -316,14 +316,14 @@ pub fn cli(a: &[&str]) -> i32 {
                     0
                 }
                 None => {
-                    eprintln!("{}", crate::tf!("журнала нет: {}", "no log: {}", p.display()));
+                    eprintln!("{}", crate::tf!("журнала нет: {}", "no log: {}", "sem log: {}", p.display()));
                     1
                 }
             }
         }
         Some("preview") => {
             if !installed() {
-                eprintln!("{}", crate::tf!("экран входа yami не установлен", "the yami login screen is not installed"));
+                eprintln!("{}", crate::tf!("экран входа yami не установлен", "the yami login screen is not installed", "a tela de login do yami não está instalada"));
                 return 1;
             }
             publish(&Settings::load());
@@ -341,19 +341,19 @@ fn status() -> i32 {
     let yes = |b: bool| if b { "✓" } else { "·" };
     println!("{} yami-greet   {}", yes(p.installed), greet_bin().map(|p| p.display().to_string()).unwrap_or_else(|| "—".into()));
     let dm = match p.dm {
-        Some(true) => crate::tf!("greetd — менеджер входа", "greetd is the login manager"),
-        Some(false) => crate::tf!("greetd не включён", "greetd is not enabled"),
-        None => crate::tf!("служба greetd — в твоей системе инициализации", "greetd: see your init system"),
+        Some(true) => crate::tf!("greetd — менеджер входа", "greetd is the login manager", "o greetd é o gerenciador de login"),
+        Some(false) => crate::tf!("greetd не включён", "greetd is not enabled", "o greetd não está ativado"),
+        None => crate::tf!("служба greetd — в твоей системе инициализации", "greetd: see your init system", "greetd: veja o seu sistema de init"),
     };
     println!("{} greetd       {dm}", yes(p.dm != Some(false)));
     println!("{} {}", yes(p.look), dir().display());
     if p.last.is_empty() {
-        println!("· {}", crate::tf!("запусков ещё не было", "no start yet"));
+        println!("· {}", crate::tf!("запусков ещё не было", "no start yet", "nenhuma inicialização ainda"));
     } else {
         let (when, what, good) = describe(&p.last);
         println!("{} {when}  {what}", yes(good));
     }
-    println!("  {}", crate::tf!("журнал: yami login log ({}/greet.log)", "log: yami login log ({}/greet.log)", LOG_DIR));
+    println!("  {}", crate::tf!("журнал: yami login log ({}/greet.log)", "log: yami login log ({}/greet.log)", "log: yami login log ({}/greet.log)", LOG_DIR));
     i32::from(!p.installed)
 }
 
@@ -361,7 +361,7 @@ fn status() -> i32 {
 /// Обои — под размер первого монитора niri
 fn sync() -> i32 {
     if !writable() {
-        eprintln!("{}", crate::tf!("экран входа yami не установлен: {} не открыта на запись", "the yami login screen is not installed: {} is not writable", dir().display()));
+        eprintln!("{}", crate::tf!("экран входа yami не установлен: {} не открыта на запись", "the yami login screen is not installed: {} is not writable", "a tela de login do yami não está instalada: {} não é gravável", dir().display()));
         return 1;
     }
     let set = Settings::load();

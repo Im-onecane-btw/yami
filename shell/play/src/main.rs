@@ -78,7 +78,7 @@ fn shot(args: &[String]) -> i32 {
         look.lang = lang.clone();
     }
     i18n::set(&look.lang);
-    i18n::audit(lang == "en");
+    i18n::audit(lang == "en" || yami_px::i18n::normalize(&lang) == "pt-BR");
     let _ = std::fs::create_dir_all(&out);
     let mut fonts = font::Fonts::with(look.font("view"));
     let mut ic = icons::Icons::new("");
@@ -138,7 +138,7 @@ fn shot(args: &[String]) -> i32 {
         let path = out.join(format!("{target}.png"));
         let _ = image::save_buffer(&path, &rgba, w as u32, h as u32, image::ColorType::Rgba8);
         println!("{}", path.display());
-        if lang == "en" {
+        if lang == "en" || yami_px::i18n::normalize(&lang) == "pt-BR" {
             for m in i18n::take_missed() {
                 println!("  untranslated [{target}]: {m}");
                 bad = 1;

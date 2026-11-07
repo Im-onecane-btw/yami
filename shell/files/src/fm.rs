@@ -137,7 +137,7 @@ impl View {
             return crate::i18n::tr("корзина").to_string();
         }
         if let Some(q) = &self.search {
-            return crate::tf!("поиск «{}»", "search “{}”", q);
+            return crate::tf!("поиск «{}»", "search “{}”", "pesquisar “{}”", q);
         }
         if self.dir == crate::paths::home() {
             return crate::i18n::tr("дом").to_string();
@@ -800,7 +800,7 @@ pub(crate) fn count_text(t: &[PathBuf]) -> String {
     if t.len() == 1 {
         format!("«{}»", t[0].file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default())
     } else {
-        crate::tf!("объектов: {}", "{} items", t.len())
+        crate::tf!("объектов: {}", "{} items", "{} itens", t.len())
     }
 }
 

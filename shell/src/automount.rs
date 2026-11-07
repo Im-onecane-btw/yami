@@ -332,7 +332,7 @@ impl App {
         for v in vols.into_iter().filter(|v| !seen.contains(&v.key())) {
             if locked(&v) && v.mount.is_empty() {
                 let dev = v.dev.clone();
-                self.automount_note(crate::tf!("зашифрованный диск: {}", "encrypted drive: {}", v.name), crate::i18n::tr("нажми, чтобы ввести пароль").to_string(), "drive-removable-media", format!("unlock:{dev}"));
+                self.automount_note(crate::tf!("зашифрованный диск: {}", "encrypted drive: {}", "disco criptografado: {}", v.name), crate::i18n::tr("нажми, чтобы ввести пароль").to_string(), "drive-removable-media", format!("unlock:{dev}"));
                 continue;
             }
             if !v.wanted() {
@@ -364,9 +364,9 @@ impl App {
                 }
                 let body = if path.is_empty() { String::new() } else { yami_px::paths::pretty(std::path::Path::new(&path)) };
                 let summary = match v.kind() {
-                    Kind::Phone => crate::tf!("телефон подключён: {}", "phone connected: {}", v.name),
-                    Kind::Camera => crate::tf!("камера подключена: {}", "camera connected: {}", v.name),
-                    _ => crate::tf!("подключено: {}", "mounted: {}", v.name),
+                    Kind::Phone => crate::tf!("телефон подключён: {}", "phone connected: {}", "telefone conectado: {}", v.name),
+                    Kind::Camera => crate::tf!("камера подключена: {}", "camera connected: {}", "câmera conectada: {}", v.name),
+                    _ => crate::tf!("подключено: {}", "mounted: {}", "montado: {}", v.name),
                 };
                 self.automount_note(summary, body, icon, path);
             }
@@ -387,7 +387,7 @@ impl App {
                 }
                 // телефон в режиме «только зарядка» или так и не разблокирован: подсказка вместо ошибки gvfs
                 let body = if v.kind() == Kind::Phone { format!("{e} · {}", crate::i18n::tr("разблокируй телефон и выбери «передача файлов»")) } else { e };
-                self.automount_note(crate::tf!("не подключается: {}", "could not mount: {}", v.name), body, icon, String::new());
+                self.automount_note(crate::tf!("не подключается: {}", "could not mount: {}", "não foi possível montar: {}", v.name), body, icon, String::new());
             }
         }
     }

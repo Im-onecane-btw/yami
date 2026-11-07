@@ -4,8 +4,22 @@
 # Sourced by install.sh; defines only (install.sh calls paint and ui_traps).
 # shellcheck shell=bash
 
-# t "русский" "english": the text in the chosen language
-t() { if [[ $L == ru ]]; then printf '%s' "$1"; else printf '%s' "$2"; fi; }
+# t "русский" "english" "português": the text in the chosen language (no Portuguese: the English)
+t() {
+  case $L in
+    ru) printf '%s' "$1" ;;
+    pt-BR) printf '%s' "${3:-$2}" ;;
+    *) printf '%s' "$2" ;;
+  esac
+}
+# ru, en, pt-BR from a flag or a locale (ru_RU.UTF-8, pt_BR, pt); nothing for the rest
+lang_code() {
+  case "${1,,}" in
+    ru | ru[-_.@]*) printf '%s' ru ;;
+    en | en[-_.@]*) printf '%s' en ;;
+    pt | pt[-_.@]*) printf '%s' pt-BR ;;
+  esac
+}
 
 # ── paint ───────────────────────────────────────────────────────────────────
 rgb() { printf '%d;%d;%d' "0x${1:0:2}" "0x${1:2:2}" "0x${1:4:2}"; }
@@ -68,7 +82,7 @@ logo_row() { # row text frame sweep
 }
 SUBTITLE=""
 banner() { # 1 — animate
-  SUBTITLE="$(t "пиксельный райс для niri" "pixel rice for niri")"
+  SUBTITLE="$(t "пиксельный райс для niri" "pixel rice for niri" "personalização em pixel para niri")"
   local f sw
   printf '\n'
   if (($1)) && ((ANIM)); then
@@ -94,10 +108,10 @@ banner() { # 1 — animate
     for ((i = 0; i < ${#line}; i += 4)); do printf '%s' "${line:i:4}"; sleep 0.008; done
     printf '%s\n  %s' "$R" "$D"
     for ((i = 0; i < ${#SUBTITLE}; i++)); do printf '%s' "${SUBTITLE:i:1}"; sleep 0.012; done
-    printf '%s  %s// %s%s\n\n' "$R" "$F" "$(t "установка" "installer")" "$R"
+    printf '%s  %s// %s%s\n\n' "$R" "$F" "$(t "установка" "installer" "instalador")" "$R"
   else
     printf '  %s────────────────────────────────────────%s\n' "$F" "$R"
-    printf '  %s%s%s  %s// %s%s\n\n' "$D" "$SUBTITLE" "$R" "$F" "$(t "установка" "installer")" "$R"
+    printf '  %s%s%s  %s// %s%s\n\n' "$D" "$SUBTITLE" "$R" "$F" "$(t "установка" "installer" "instalador")" "$R"
   fi
 }
 
@@ -116,7 +130,7 @@ key() {
   elif [[ $k == " " ]]; then echo space
   else echo "$k"; fi
 }
-bye() { printf '\e[H\e[J  %s\n' "$(t "ну и ладно. ничего не тронуто." "ok, nothing was touched.")"; exit 0; }
+bye() { printf '\e[H\e[J  %s\n' "$(t "ну и ладно. ничего не тронуто." "ok, nothing was touched." "certo, nada foi alterado.")"; exit 0; }
 screen() { printf '\e[H\e[J'; banner 0; }
 
 # ── steps: spinner, elapsed time and a shimmering progress bar ──────────────
@@ -171,10 +185,10 @@ step() { # index
   if ((rc == 0)); then
     printf '\r\e[K  %s✓%s %s%s%s %s%s%s\n\e[K' "$OK" "$R" "$T" "$title" "$R" "$F" "$dt" "$R"
   elif ((rc == 99)); then
-    printf '\r\e[K  %s–%s %s%s%s %s%s%s\n\e[K' "$F" "$R" "$D" "$title" "$R" "$F" "$(t "не нужно" "not needed")" "$R"
+    printf '\r\e[K  %s–%s %s%s%s %s%s%s\n\e[K' "$F" "$R" "$D" "$title" "$R" "$F" "$(t "не нужно" "not needed" "desnecessário")" "$R"
     SKIPPED+=("$title")
   else
-    printf '\r\e[K  %s✗%s %s%s%s %s— %s%s\n\e[K' "$BAD" "$R" "$T" "$title" "$R" "$F" "$(t "хвост лога:" "log tail:")" "$R"
+    printf '\r\e[K  %s✗%s %s%s%s %s— %s%s\n\e[K' "$BAD" "$R" "$T" "$title" "$R" "$F" "$(t "хвост лога:" "log tail:" "final do registro:")" "$R"
     tail -n 6 "$LOG" | sed "s/^/      $F/; s/\$/$R/"
     FAILED+=("$title")
   fi
@@ -196,9 +210,9 @@ run_steps() {
     if [[ ${STEPS_F[$i]%% *} == do_build_shell ]] && ((${#FAILED[@]} > nf)); then
       BUILD_FAILED=1
       if ((UPDATE)); then
-        warn "$(t "сборка не удалась — обновление остановлено, стоит прежняя версия" "the build failed: update stopped, the previous version stays")"
+        warn "$(t "сборка не удалась — обновление остановлено, стоит прежняя версия" "the build failed: update stopped, the previous version stays" "a compilação falhou: atualização interrompida, a versão anterior é mantida")"
       else
-        warn "$(t "шелл не собрался — конфиги не тронуты; поправь причину (лог ниже) и запусти установку снова" "the shell did not build: your configs are untouched; fix the cause (log below) and run the installer again")"
+        warn "$(t "шелл не собрался — конфиги не тронуты; поправь причину (лог ниже) и запусти установку снова" "the shell did not build: your configs are untouched; fix the cause (log below) and run the installer again" "o shell não compilou: suas configurações foram preservadas; corrija a causa (registro abaixo) e execute o instalador novamente")"
       fi
       break
     fi

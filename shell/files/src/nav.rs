@@ -12,7 +12,7 @@ impl Fm {
     pub fn go(&mut self, dir: PathBuf) {
         let dir = if dir.as_os_str().is_empty() { crate::paths::home() } else { dir };
         if !dir.is_dir() {
-            self.toast(crate::tf!("нет такой папки: {}", "no such folder: {}", dir.display()));
+            self.toast(crate::tf!("нет такой папки: {}", "no such folder: {}", "pasta inexistente: {}", dir.display()));
             return;
         }
         let v = self.vm();
@@ -285,7 +285,7 @@ impl Fm {
         }
         let to = r.path.with_file_name(&name);
         if std::fs::symlink_metadata(&to).is_ok() {
-            self.toast(crate::tf!("«{}» уже есть", "“{}” already exists", name));
+            self.toast(crate::tf!("«{}» уже есть", "“{}” already exists", "“{}” já existe", name));
             return;
         }
         match std::fs::rename(&r.path, &to) {

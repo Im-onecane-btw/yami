@@ -67,48 +67,48 @@ impl Sty {
 
 fn banner(y: &Sty) {
     println!();
-    println!(" {} {}  {}", y.acc("▚▞"), y.head(&format!("YAMI {}", env!("CARGO_PKG_VERSION"))), y.dim(&crate::tf!("пиксельный рабочий стол для niri", "pixel desktop for niri")));
+    println!(" {} {}  {}", y.acc("▚▞"), y.head(&format!("YAMI {}", env!("CARGO_PKG_VERSION"))), y.dim(&crate::tf!("пиксельный рабочий стол для niri", "pixel desktop for niri", "desktop em pixel para niri")));
 }
 
 fn help(y: &Sty, me: &str) {
     banner(y);
-    println!("\n {}  {me} {} {}", y.dim(&crate::tf!("как", "usage")), y.acc(&crate::tf!("<команда>", "<command>")), y.dim(&crate::tf!("[аргументы]", "[args]")));
-    y.section(&crate::tf!("сеанс", "session"));
-    y.row("open <panel>", &crate::tf!("launcher clipboard settings[:вкладка] power lock screenshot …", "launcher clipboard settings[:tab] power lock screenshot …"));
-    y.row("msg <cmd>", &crate::tf!("прямая команда шеллу (yami help msg)", "a raw command to the running shell (yami help msg)"));
-    y.row("restart", &crate::tf!("перезапустить шелл (подождёт, если играешь)", "restart the shell (waits while you play)"));
-    y.row("status", &crate::tf!("что работает: шелл, портал, niri, службы D-Bus", "what is running: shell, portal, niri, D-Bus services"));
-    y.row("run", &crate::tf!("запустить шелл (так делает niri)", "run the shell (niri does this)"));
-    y.section(&crate::tf!("вид", "look"));
-    y.row("palette [name|#hex]", &crate::tf!("палитры или сменить: blood ash sakura …", "list palettes or switch: blood ash sakura …"));
-    y.row("wallpaper [path]", &crate::tf!("свои обои; без пути — пиксельные из палитры", "own picture; no path: the palette's pixel art"));
-    y.section(&crate::tf!("настройки", "config"));
-    y.row("theme export | import FILE|URL", &crate::tf!("тема одним файлом: поделиться и поставить чужую (только вид)", "a theme as one file: share yours, apply others' (the look only)"));
-    y.row("theme save | list | apply NAME", &crate::tf!("свои темы: сохранить вид, список, применить (remove — удалить)", "your themes: keep the look, list, apply (remove deletes)"));
-    y.row("export | import FILE", &crate::tf!("все настройки одним файлом: переезд на новую систему", "every setting as one file: move to a new system"));
-    y.row("config …", &crate::tf!("все настройки: list get set reset check path kdl", "every setting: list get set reset check path kdl"));
-    y.row("binds …", &crate::tf!("клавиши: list print write", "keybindings: list print write"));
-    y.section(&crate::tf!("обслуживание", "maintenance"));
-    y.row("update [check]", &crate::tf!("что нового в репозитории", "what is new upstream"));
-    y.row("update apply", &crate::tf!("собрать и поставить новое (прежнее — в откат)", "build and install it (the old one is kept)"));
-    y.row("update rollback", &crate::tf!("вернуть то, что было до обновления", "go back to what was there before"));
-    y.row("update status | log", &crate::tf!("что стоит, откуда, последний лог", "what is installed, from where, the last log"));
-    y.row("doctor", &crate::tf!("проверить зависимости и службы, сказать, чего нет", "check dependencies and services, say what is missing"));
-    y.row("doctor games", &crate::tf!("ntsync, gamemode, MangoHud: что есть и как добавить", "ntsync, gamemode, MangoHud: what is there, how to add it"));
-    y.row("ocr FILE", &crate::tf!("текст с картинки (как «текст» на скриншоте)", "text from an image (like «text» in screenshots)"));
-    y.row("report [-o FILE]", &crate::tf!("архив для issue: версии, doctor, журнал, конфиги без секретов", "an archive for an issue: versions, doctor, journal, configs without secrets"));
-    y.row("login sync", &crate::tf!("отдать экрану входа вид шелла сейчас (шелл делает это сам)", "give the login screen the shell's look now (the shell does it by itself)"));
-    y.row("login status | log", &crate::tf!("экран входа: стоит ли, как прошёл последний запуск, его журнал", "the login screen: installed or not, how its last start went, its log"));
-    y.row("login preview", &crate::tf!("экран входа поверх стола (пароль yami или Esc)", "the login screen over the desktop (password yami or Esc)"));
-    y.row("clean [--dry-run]", &crate::tf!("убрать кеш сборки: исходники yami-niri и target шелла (гигабайты)", "remove the build cache: yami-niri sources and the shell's target (gigabytes)"));
-    y.row("version", &crate::tf!("версии всех частей", "versions of every part"));
-    y.row("shot …", &crate::tf!("панели в PNG без Wayland (разработка)", "panels to PNG without Wayland (development)"));
-    println!("\n {} {}", y.dim(&crate::tf!("подробнее:", "more:")), y.dim(&crate::tf!("yami help <команда> · docs/CONFIG.md · NO_COLOR=1 — без цвета", "yami help <command> · docs/CONFIG.md · NO_COLOR=1 for plain output")));
+    println!("\n {}  {me} {} {}", y.dim(&crate::tf!("как", "usage", "uso")), y.acc(&crate::tf!("<команда>", "<command>", "<comando>")), y.dim(&crate::tf!("[аргументы]", "[args]", "[argumentos]")));
+    y.section(&crate::tf!("сеанс", "session", "sessão"));
+    y.row("open <panel>", &crate::tf!("launcher clipboard settings[:вкладка] power lock screenshot …", "launcher clipboard settings[:tab] power lock screenshot …", "launcher clipboard settings[:tab] power lock screenshot …"));
+    y.row("msg <cmd>", &crate::tf!("прямая команда шеллу (yami help msg)", "a raw command to the running shell (yami help msg)", "um comando direto para o shell em execução (yami help msg)"));
+    y.row("restart", &crate::tf!("перезапустить шелл (подождёт, если играешь)", "restart the shell (waits while you play)", "reiniciar o shell (aguarda enquanto você joga)"));
+    y.row("status", &crate::tf!("что работает: шелл, портал, niri, службы D-Bus", "what is running: shell, portal, niri, D-Bus services", "o que está em execução: shell, portal, niri e serviços D-Bus"));
+    y.row("run", &crate::tf!("запустить шелл (так делает niri)", "run the shell (niri does this)", "iniciar o shell (o niri faz isso)"));
+    y.section(&crate::tf!("вид", "look", "visual"));
+    y.row("palette [name|#hex]", &crate::tf!("палитры или сменить: blood ash sakura …", "list palettes or switch: blood ash sakura …", "listar paletas ou trocar: blood ash sakura …"));
+    y.row("wallpaper [path]", &crate::tf!("свои обои; без пути — пиксельные из палитры", "own picture; no path: the palette's pixel art", "imagem personalizada; sem caminho: pixel art da paleta"));
+    y.section(&crate::tf!("настройки", "config", "configuração"));
+    y.row("theme export | import FILE|URL", &crate::tf!("тема одним файлом: поделиться и поставить чужую (только вид)", "a theme as one file: share yours, apply others' (the look only)", "um tema em um arquivo: compartilhe o seu e aplique outros (apenas a aparência)"));
+    y.row("theme save | list | apply NAME", &crate::tf!("свои темы: сохранить вид, список, применить (remove — удалить)", "your themes: keep the look, list, apply (remove deletes)", "seus temas: salvar o visual, listar e aplicar (remove exclui)"));
+    y.row("export | import FILE", &crate::tf!("все настройки одним файлом: переезд на новую систему", "every setting as one file: move to a new system", "todas as configurações num arquivo: migrar para outro sistema"));
+    y.row("config …", &crate::tf!("все настройки: list get set reset check path kdl", "every setting: list get set reset check path kdl", "todas as configurações: list get set reset check path kdl"));
+    y.row("binds …", &crate::tf!("клавиши: list print write", "keybindings: list print write", "atalhos: list print write"));
+    y.section(&crate::tf!("обслуживание", "maintenance", "manutenção"));
+    y.row("update [check]", &crate::tf!("что нового в репозитории", "what is new upstream", "novidades no projeto original"));
+    y.row("update apply", &crate::tf!("собрать и поставить новое (прежнее — в откат)", "build and install it (the old one is kept)", "compilar e instalar (a versão anterior é preservada)"));
+    y.row("update rollback", &crate::tf!("вернуть то, что было до обновления", "go back to what was there before", "voltar ao que havia antes"));
+    y.row("update status | log", &crate::tf!("что стоит, откуда, последний лог", "what is installed, from where, the last log", "o que está instalado, de onde veio e o último registro"));
+    y.row("doctor", &crate::tf!("проверить зависимости и службы, сказать, чего нет", "check dependencies and services, say what is missing", "verificar dependências e serviços e informar o que falta"));
+    y.row("doctor games", &crate::tf!("ntsync, gamemode, MangoHud: что есть и как добавить", "ntsync, gamemode, MangoHud: what is there, how to add it", "ntsync, gamemode e MangoHud: o que há e como adicionar"));
+    y.row("ocr FILE", &crate::tf!("текст с картинки (как «текст» на скриншоте)", "text from an image (like «text» in screenshots)", "texto de uma imagem (como «texto» nas capturas de tela)"));
+    y.row("report [-o FILE]", &crate::tf!("архив для issue: версии, doctor, журнал, конфиги без секретов", "an archive for an issue: versions, doctor, journal, configs without secrets", "um arquivo para relatar problemas: versões, diagnóstico, registros e configurações sem segredos"));
+    y.row("login sync", &crate::tf!("отдать экрану входа вид шелла сейчас (шелл делает это сам)", "give the login screen the shell's look now (the shell does it by itself)", "dar agora à tela de login a aparência do shell (o shell faz isso sozinho)"));
+    y.row("login status | log", &crate::tf!("экран входа: стоит ли, как прошёл последний запуск, его журнал", "the login screen: installed or not, how its last start went, its log", "a tela de login: instalada ou não, como foi a última inicialização, o log"));
+    y.row("login preview", &crate::tf!("экран входа поверх стола (пароль yami или Esc)", "the login screen over the desktop (password yami or Esc)", "a tela de login sobre a área de trabalho (senha yami ou Esc)"));
+    y.row("clean [--dry-run]", &crate::tf!("убрать кеш сборки: исходники yami-niri и target шелла (гигабайты)", "remove the build cache: yami-niri sources and the shell's target (gigabytes)", "remover o cache de compilação: código-fonte do yami-niri e target do shell (gigabytes)"));
+    y.row("version", &crate::tf!("версии всех частей", "versions of every part", "versões de cada componente"));
+    y.row("shot …", &crate::tf!("панели в PNG без Wayland (разработка)", "panels to PNG without Wayland (development)", "painéis em PNG sem Wayland (desenvolvimento)"));
+    println!("\n {} {}", y.dim(&crate::tf!("подробнее:", "more:", "mais:")), y.dim(&crate::tf!("yami help <команда> · docs/CONFIG.md · NO_COLOR=1 — без цвета", "yami help <command> · docs/CONFIG.md · NO_COLOR=1 for plain output", "yami help <comando> · docs/CONFIG.md · NO_COLOR=1 para saída sem cores")));
     println!();
 }
 
 fn help_msg(y: &Sty) {
-    y.section(&crate::tf!("команды шеллу", "shell commands"));
+    y.section(&crate::tf!("команды шеллу", "shell commands", "comandos do shell"));
     for (c, ru, en) in [
         ("launcher | clipboard", "программы / буфер обмена", "apps / clipboard history"),
         ("settings [tab]", "настройки (на вкладке)", "settings (on a tab)"),
@@ -123,31 +123,31 @@ fn help_msg(y: &Sty) {
         ("night", "ночной свет вкл-выкл", "night light on-off"),
         ("reload | restart | quit", "перечитать настройки / перезапуск / выход", "reload settings / restart / quit"),
     ] {
-        y.row(c, if crate::i18n::en() { en } else { ru });
+        y.row(c, crate::i18n::select(ru, en));
     }
     println!();
 }
 
 fn help_open(y: &Sty) {
-    y.section(&crate::tf!("что открыть", "what to open"));
+    y.section(&crate::tf!("что открыть", "what to open", "o que abrir"));
     y.row("launcher clipboard power walls", "");
     y.row("settings[:tab]", &crate::settings::tabs().map(|t| t.id).collect::<Vec<_>>().join(" "));
     y.row("screenshot[:area|window|screen]", "");
-    y.row(&crate::popups::KINDS.join(" "), &crate::tf!("всплывашки бара", "bar popups"));
+    y.row(&crate::popups::KINDS.join(" "), &crate::tf!("всплывашки бара", "bar popups", "painéis da barra"));
     println!();
 }
 
 fn help_update(y: &Sty) {
-    y.section(&crate::tf!("обновления", "updates"));
-    y.row("update [check]", &crate::tf!("git fetch своего клона (~/.local/share/yami/src), что нового", "git fetch of its own clone (~/.local/share/yami/src), what is new"));
-    y.row("update apply [-y]", &crate::tf!("проверить подпись, собрать из исходников, поставить", "check the signature, build from source, install"));
-    y.row("update rollback", &crate::tf!("бинари, что стояли до последнего обновления (сразу)", "the binaries from before the last update (instant)"));
-    y.row("update list", &crate::tf!("выпуски, на которые можно перейти, и их подписи", "releases you can switch to and their signatures"));
-    y.row("update to X.Y.Z", &crate::tf!("собрать и поставить выбранный подписанный выпуск", "build and install the chosen signed release"));
-    y.row("update status", &crate::tf!("версия, коммит, канал, источник", "version, commit, channel, source"));
-    y.row("update log", &crate::tf!("лог последнего обновления", "the log of the last update"));
-    y.row("update need [--run]", &crate::tf!("пакеты, которых не хватает новым функциям: одна команда (--run — поставить)", "packages new features miss: one command (--run installs them)"));
-    println!("\n   {}", y.dim(&crate::tf!("канал, подписи, расписание: настройки → обновления или yami config set updateChannel main", "channel, signatures, schedule: settings → updates or yami config set updateChannel main")));
+    y.section(&crate::tf!("обновления", "updates", "atualizações"));
+    y.row("update [check]", &crate::tf!("git fetch своего клона (~/.local/share/yami/src), что нового", "git fetch of its own clone (~/.local/share/yami/src), what is new", "git fetch da própria cópia (~/.local/share/yami/src), novidades"));
+    y.row("update apply [-y]", &crate::tf!("проверить подпись, собрать из исходников, поставить", "check the signature, build from source, install", "verificar a assinatura, compilar e instalar"));
+    y.row("update rollback", &crate::tf!("бинари, что стояли до последнего обновления (сразу)", "the binaries from before the last update (instant)", "os binários anteriores à última atualização (instantâneo)"));
+    y.row("update list", &crate::tf!("выпуски, на которые можно перейти, и их подписи", "releases you can switch to and their signatures", "versões disponíveis para troca e suas assinaturas"));
+    y.row("update to X.Y.Z", &crate::tf!("собрать и поставить выбранный подписанный выпуск", "build and install the chosen signed release", "compilar e instalar a versão assinada escolhida"));
+    y.row("update status", &crate::tf!("версия, коммит, канал, источник", "version, commit, channel, source", "versão, commit, canal e código-fonte"));
+    y.row("update log", &crate::tf!("лог последнего обновления", "the log of the last update", "registro da última atualização"));
+    y.row("update need [--run]", &crate::tf!("пакеты, которых не хватает новым функциям: одна команда (--run — поставить)", "packages new features miss: one command (--run installs them)", "pacotes que faltam para as novidades: um comando (--run instala)"));
+    println!("\n   {}", y.dim(&crate::tf!("канал, подписи, расписание: настройки → обновления или yami config set updateChannel main", "channel, signatures, schedule: settings → updates or yami config set updateChannel main", "canal, assinaturas e agendamento: configurações → atualizações ou yami config set updateChannel main")));
     println!();
 }
 
@@ -173,7 +173,7 @@ fn send(y: &Sty, cmd: &str) -> i32 {
     if crate::ipc::send(cmd) {
         0
     } else {
-        eprintln!(" {} {}", y.bad("✕"), crate::tf!("шелл не запущен (yami run или войди в сеанс niri)", "the shell is not running (yami run, or log into a niri session)"));
+        eprintln!(" {} {}", y.bad("✕"), crate::tf!("шелл не запущен (yami run или войди в сеанс niri)", "the shell is not running (yami run, or log into a niri session)", "o shell não está em execução (yami run ou entre numa sessão niri)"));
         1
     }
 }
@@ -198,17 +198,17 @@ fn palette(y: &Sty, args: &[&str]) -> i32 {
     let mut s = Settings::load();
     match args.first() {
         None => {
-            y.section(&crate::tf!("палитры", "palettes"));
+            y.section(&crate::tf!("палитры", "palettes", "paletas"));
             let cur = s.accent_rgb();
             for p in crate::theme::PRESETS {
                 let mark = if p.accent == cur { y.acc("●") } else { " ".into() };
-                let name = if crate::i18n::en() { p.id.to_string() } else { format!("{} · {}", p.id, p.name) }; // i18n-ok: preset names are Russian data
+                let name = if crate::i18n::translated() { p.id.to_string() } else { format!("{} · {}", p.id, p.name) }; // i18n-ok: preset names are Russian data
                 println!("   {mark} {} {}  {}", y.swatch(p.accent), y.bold(&format!("{:<8}", p.id)), y.dim(&format!("#{:06x}  {name}", p.accent)));
             }
             if crate::theme::PRESETS.iter().all(|p| p.accent != cur) {
                 println!("   {} {} {}", y.acc("●"), y.swatch(cur), y.bold(&format!("#{cur:06x}")));
             }
-            println!("\n   {}\n", y.dim(&crate::tf!("сменить: yami palette ash  ·  свой цвет: yami palette '#3a9fd0'", "switch: yami palette ash  ·  own colour: yami palette '#3a9fd0'")));
+            println!("\n   {}\n", y.dim(&crate::tf!("сменить: yami palette ash  ·  свой цвет: yami palette '#3a9fd0'", "switch: yami palette ash  ·  own colour: yami palette '#3a9fd0'", "trocar: yami palette ash  ·  cor personalizada: yami palette '#3a9fd0'")));
             0
         }
         Some(v) => {
@@ -218,7 +218,7 @@ fn palette(y: &Sty, args: &[&str]) -> i32 {
                 s.palette = p.id.into();
                 s.accent.clear();
             } else {
-                eprintln!(" {} {}", y.bad("✕"), crate::tf!("нет такой палитры: {} (yami palette — список)", "no such palette: {} (yami palette lists them)", v));
+                eprintln!(" {} {}", y.bad("✕"), crate::tf!("нет такой палитры: {} (yami palette — список)", "no such palette: {} (yami palette lists them)", "paleta inexistente: {} (yami palette lista as opções)", v));
                 return 2;
             }
             // выбрана руками: обои больше не перекрашивают
@@ -226,7 +226,7 @@ fn palette(y: &Sty, args: &[&str]) -> i32 {
             if crate::config::write_atomic(&crate::config::settings_path(), &s.to_json()).is_err() {
                 return 1;
             }
-            println!(" {} {} {}", y.swatch(s.accent_rgb()), y.bold(v), y.dim(&crate::tf!("— шелл перекрасит всё сам", "— the shell recolours everything itself")));
+            println!(" {} {} {}", y.swatch(s.accent_rgb()), y.bold(v), y.dim(&crate::tf!("— шелл перекрасит всё сам", "— the shell recolours everything itself", "— o shell recolore tudo automaticamente")));
             0
         }
     }
@@ -242,11 +242,11 @@ fn version(y: &Sty) -> i32 {
     row("yami", format!("{}{}", if st.version.is_empty() { env!("CARGO_PKG_VERSION") } else { &st.version }, if commit.is_empty() { String::new() } else { format!("  {}", y.dim(&commit)) }));
     row("yami-shell", env!("CARGO_PKG_VERSION").into());
     for b in ["yami-files", "yami-view", "yami-play", "yami-greet"] {
-        row(b, out(b).map(|v| v.split_whitespace().last().unwrap_or("").to_string()).unwrap_or_else(|| y.warn(&crate::tf!("не найден", "not found"))));
+        row(b, out(b).map(|v| v.split_whitespace().last().unwrap_or("").to_string()).unwrap_or_else(|| y.warn(&crate::tf!("не найден", "not found", "não encontrado"))));
     }
-    row("niri", out("niri").unwrap_or_else(|| y.warn(&crate::tf!("не найден", "not found"))));
-    row(&crate::tf!("канал", "channel"), Settings::load().update_channel);
-    row(&crate::tf!("источник", "source"), crate::update::short_repo(&st.repo));
+    row("niri", out("niri").unwrap_or_else(|| y.warn(&crate::tf!("не найден", "not found", "não encontrado"))));
+    row(&crate::tf!("канал", "channel", "canal"), Settings::load().update_channel);
+    row(&crate::tf!("источник", "source", "origem"), crate::update::short_repo(&st.repo));
     println!();
     0
 }
@@ -260,7 +260,7 @@ fn status(y: &Sty) -> i32 {
 
 fn restart(y: &Sty, force: bool) -> i32 {
     if !force && crate::niri::game_focused() {
-        eprintln!(" {} {}", y.warn("!"), crate::tf!("в фокусе игра — не перезапускаю (yami restart --force)", "a game has focus: not restarting (yami restart --force)"));
+        eprintln!(" {} {}", y.warn("!"), crate::tf!("в фокусе игра — не перезапускаю (yami restart --force)", "a game has focus: not restarting (yami restart --force)", "um jogo está em foco: sem reiniciar (yami restart --force)"));
         return 3;
     }
     send(y, "restart")
@@ -277,7 +277,7 @@ fn update(y: &Sty, args: &[&str]) -> i32 {
     let args: Vec<&str> = args.iter().copied().filter(|a| !a.starts_with('-')).collect();
     match args.first().copied().unwrap_or("check") {
         "check" => {
-            println!(" {} {}", y.acc("▪"), crate::tf!("проверяю {}…", "checking {}…", crate::update::short_repo(&crate::update::installed().repo)));
+            println!(" {} {}", y.acc("▪"), crate::tf!("проверяю {}…", "checking {}…", "verificando {}…", crate::update::short_repo(&crate::update::installed().repo)));
             let i = crate::update::check(&set);
             let _ = crate::ipc::send("update-reload");
             if !i.err.is_empty() {
@@ -285,21 +285,21 @@ fn update(y: &Sty, args: &[&str]) -> i32 {
                 return 1;
             }
             if i.reference.is_empty() {
-                println!(" {} {}", y.ok("✓"), crate::tf!("выпусков ещё нет; всё новое в main: yami config set updateChannel main", "no releases yet; everything new on main: yami config set updateChannel main"));
+                println!(" {} {}", y.ok("✓"), crate::tf!("выпусков ещё нет; всё новое в main: yami config set updateChannel main", "no releases yet; everything new on main: yami config set updateChannel main", "ainda sem versões publicadas; novidades na main: yami config set updateChannel main"));
                 return 0;
             }
             if !i.available {
-                println!(" {} {}", y.ok("✓"), crate::tf!("всё свежее ({})", "up to date ({})", i.latest));
+                println!(" {} {}", y.ok("✓"), crate::tf!("всё свежее ({})", "up to date ({})", "atualizado ({})", i.latest));
                 return 0;
             }
-            println!(" {} {}  {}", y.head(&crate::tf!("доступно {}", "{} is available", i.latest)), y.dim(&i.reference), crate::update::sig_text(&i.sig));
+            println!(" {} {}  {}", y.head(&crate::tf!("доступно {}", "{} is available", "{} está disponível", i.latest)), y.dim(&i.reference), crate::update::sig_text(&i.sig));
             for n in i.notes() {
                 println!("   {} {}", y.acc("·"), n);
             }
             if !i.sig_ok(&set.update_verify) {
-                println!(" {} {}", y.warn("!"), crate::tf!("подпись не проходит правило «{}» — ставить не буду", "the signature fails the «{}» rule: it will not be installed", set.update_verify));
+                println!(" {} {}", y.warn("!"), crate::tf!("подпись не проходит правило «{}» — ставить не буду", "the signature fails the «{}» rule: it will not be installed", "a assinatura não atende à regra «{}»: não será instalado", set.update_verify));
             } else {
-                println!("\n   {}", y.dim(&crate::tf!("поставить: yami update apply", "install: yami update apply")));
+                println!("\n   {}", y.dim(&crate::tf!("поставить: yami update apply", "install: yami update apply", "instalar: yami update apply")));
             }
             0
         }
@@ -344,23 +344,23 @@ fn update(y: &Sty, args: &[&str]) -> i32 {
                 return 1;
             }
             let cur = crate::update::installed().version;
-            y.section(&crate::tf!("выпуски", "releases"));
+            y.section(&crate::tf!("выпуски", "releases", "versões"));
             if let Some(p) = crate::update::prev_version() {
-                println!("   {} {}", y.acc(&format!("{:<10}", "previous")), y.dim(&crate::tf!("сборка до последнего обновления ({}) · yami update rollback", "the build before the last update ({}) · yami update rollback", p)));
+                println!("   {} {}", y.acc(&format!("{:<10}", "previous")), y.dim(&crate::tf!("сборка до последнего обновления ({}) · yami update rollback", "the build before the last update ({}) · yami update rollback", "a compilação anterior à última atualização ({}) · yami update rollback", p)));
             }
             for r in &i.releases {
-                let mark = if r.version == cur { y.ok(&crate::tf!("стоит", "installed")) } else if r.sig.starts_with("good:") || r.sig == "nokeys" || r.sig == "off" { y.dim(&format!("yami update to {}", r.version)) } else { y.bad(&crate::tf!("не ставится", "will not install")) };
+                let mark = if r.version == cur { y.ok(&crate::tf!("стоит", "installed", "instalado")) } else if r.sig.starts_with("good:") || r.sig == "nokeys" || r.sig == "off" { y.dim(&format!("yami update to {}", r.version)) } else { y.bad(&crate::tf!("не ставится", "will not install", "não será instalado")) };
                 println!("   {:<10} {}  {}", r.tag, crate::update::sig_text(&r.sig), mark);
             }
             if i.releases.is_empty() {
-                println!("   {}", y.dim(&crate::tf!("выпусков ещё нет", "no releases yet")));
+                println!("   {}", y.dim(&crate::tf!("выпусков ещё нет", "no releases yet", "ainda sem versões publicadas")));
             }
             println!();
             0
         }
         "to" => {
             let Some(want) = args.get(1) else {
-                eprintln!(" {} {}", y.bad("✕"), crate::tf!("какую версию? yami update list", "which version? yami update list"));
+                eprintln!(" {} {}", y.bad("✕"), crate::tf!("какую версию? yami update list", "which version? yami update list", "qual versão? yami update list"));
                 return 2;
             };
             let r = crate::update::install_tag(&set, want);
@@ -381,15 +381,15 @@ fn update(y: &Sty, args: &[&str]) -> i32 {
         }
         "status" => {
             let st = crate::update::installed();
-            y.section(&crate::tf!("установлено", "installed"));
+            y.section(&crate::tf!("установлено", "installed", "instalado"));
             let row = |k: &str, v: &str| println!("   {}{}", y.dim(&format!("{k:<14}")), v);
-            row(&crate::tf!("версия", "version"), if st.version.is_empty() { "?" } else { &st.version });
-            row(&crate::tf!("коммит", "commit"), &format!("{}{}", st.commit, if st.dirty { crate::tf!(" (с правками)", " (with local edits)") } else { String::new() }));
-            row(&crate::tf!("источник", "source"), if st.repo.is_empty() { crate::update::REPO } else { &st.repo });
-            row(&crate::tf!("канал", "channel"), &set.update_channel);
-            row(&crate::tf!("подписи", "signatures"), &set.update_verify);
-            row(&crate::tf!("клон", "clone"), &crate::update::clone_dir().display().to_string());
-            row(&crate::tf!("части", "components"), &st.components);
+            row(&crate::tf!("версия", "version", "versão"), if st.version.is_empty() { "?" } else { &st.version });
+            row(&crate::tf!("коммит", "commit", "commit"), &format!("{}{}", st.commit, if st.dirty { crate::tf!(" (с правками)", " (with local edits)", " (com alterações locais)") } else { String::new() }));
+            row(&crate::tf!("источник", "source", "origem"), if st.repo.is_empty() { crate::update::REPO } else { &st.repo });
+            row(&crate::tf!("канал", "channel", "canal"), &set.update_channel);
+            row(&crate::tf!("подписи", "signatures", "assinaturas"), &set.update_verify);
+            row(&crate::tf!("клон", "clone", "clonar"), &crate::update::clone_dir().display().to_string());
+            row(&crate::tf!("части", "components", "componentes"), &st.components);
             println!();
             0
         }
@@ -399,7 +399,7 @@ fn update(y: &Sty, args: &[&str]) -> i32 {
                 0
             }
             Err(_) => {
-                println!("{}", crate::tf!("обновлений ещё не было", "no update yet"));
+                println!("{}", crate::tf!("обновлений ещё не было", "no update yet", "ainda sem atualização"));
                 0
             }
         },
@@ -462,7 +462,7 @@ pub fn run(args: &[String], me: &str) -> i32 {
                 return 2;
             }
             if !msg_ok(&cmd) {
-                eprintln!(" {} {}", y.bad("✕"), crate::tf!("шелл не знает такой команды: {} (yami help msg)", "the shell has no such command: {} (yami help msg)", cmd));
+                eprintln!(" {} {}", y.bad("✕"), crate::tf!("шелл не знает такой команды: {} (yami help msg)", "the shell has no such command: {} (yami help msg)", "o shell não tem esse comando: {} (yami help msg)", cmd));
                 return 2;
             }
             send(&y, &cmd)
@@ -500,7 +500,7 @@ pub fn run(args: &[String], me: &str) -> i32 {
         Some("config") => crate::cli::config(&args[1..]),
         Some("binds") => crate::cli::binds(&args[1..]),
         Some(c) => {
-            eprintln!(" {} {}", y.bad("✕"), crate::tf!("нет такой команды: {} (yami help)", "no such command: {} (yami help)", c));
+            eprintln!(" {} {}", y.bad("✕"), crate::tf!("нет такой команды: {} (yami help)", "no such command: {} (yami help)", "comando inexistente: {} (yami help)", c));
             2
         }
     }

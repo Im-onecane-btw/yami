@@ -246,7 +246,7 @@ pub fn spawn(tx: Sender<Msg>, on: bool) {
             let r = c.call_method(Some("org.freedesktop.PolicyKit1"), "/org/freedesktop/PolicyKit1/Authority", Some("org.freedesktop.PolicyKit1.Authority"), "RegisterAuthenticationAgent", &(("unix-session", d), locale.as_str(), PATH));
             match r {
                 Ok(_) => {}
-                Err(e) => eprintln!("{}", crate::tf!("polkit: агент не зарегистрирован: {e}", "polkit: agent not registered: {e}")),
+                Err(e) => eprintln!("{}", crate::tf!("polkit: агент не зарегистрирован: {e}", "polkit: agent not registered: {e}", "polkit: agente não registrado: {e}")),
             }
         })
         .ok();
@@ -264,7 +264,7 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
         }
     }
     ui.frame(fr, true);
-    let more = if st.auth.len() > 1 { crate::tf!("ещё {}", "{} more", st.auth.len() - 1) } else { String::new() };
+    let more = if st.auth.len() > 1 { crate::tf!("ещё {}", "{} more", "mais {}", st.auth.len() - 1) } else { String::new() };
     ui.header(R::new(fr.x + 1, 1, fr.w - 2, 30), "lock", "нужен пароль", &more);
     let x = fr.x + 16;
     let iw = fr.w - 32;
@@ -282,7 +282,7 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
     } else if !r.info.is_empty() {
         (r.info.clone(), t.ember)
     } else if r.fails > 0 {
-        (crate::tf!("неверно ×{}", "wrong ×{}", r.fails), t.ember)
+        (crate::tf!("неверно ×{}", "wrong ×{}", "incorreta ×{}", r.fails), t.ember)
     } else {
         ("enter — подтвердить".to_string(), t.text_faint)
     };

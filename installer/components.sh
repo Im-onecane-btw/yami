@@ -32,29 +32,29 @@ components_init() {
 }
 c_name() {
   case $1 in
-    core) t "niri и сеанс" "niri and session" ;;
-    apps) t "программы" "apps" ;;
-    tools) t "инструменты" "tools" ;;
-    games) t "игры" "games" ;;
-    look) t "тема программ" "app theme" ;;
-    login) t "экран входа" "login screen" ;;
-    nvidia) t "фикс NVIDIA" "NVIDIA fixes" ;;
-    fork) t "yami-niri (форк)" "yami-niri (fork)" ;;
+    core) t "niri и сеанс" "niri and session" "niri e sessão" ;;
+    apps) t "программы" "apps" "aplicativos" ;;
+    tools) t "инструменты" "tools" "ferramentas" ;;
+    games) t "игры" "games" "jogos" ;;
+    look) t "тема программ" "app theme" "tema dos aplicativos" ;;
+    login) t "экран входа" "login screen" "tela de login" ;;
+    nvidia) t "фикс NVIDIA" "NVIDIA fixes" "Correções NVIDIA" ;;
+    fork) t "yami-niri (форк)" "yami-niri (fork)" "yami-niri (fork)" ;;
   esac
 }
 c_desc() {
   case $1 in
-    core) t "niri, порталы, polkit, pipewire, сеть, bluetooth, буфер, скриншоты" "niri, portals, polkit, pipewire, network, bluetooth, clipboard, screenshots" ;;
-    apps) t "kitty, fastfetch, pavucontrol, btop, udisks2, миниатюры видео, bsdtar, libmpv для плеера, gvfs: телефоны и сеть" "kitty, fastfetch, pavucontrol, btop, udisks2, video thumbnails, bsdtar, libmpv for the player, gvfs: phones and network" ;;
-    tools) t "ночной свет (wlsunset), текст и QR со скриншота (tesseract, zbar)" "night light (wlsunset), text and QR from screenshots (tesseract, zbar)" ;;
-    games) t "GameMode и MangoHud в палитре" "GameMode and MangoHud in the palette" ;;
-    login) if [[ -n $OTHER_DM ]]; then t "свой, как экран блокировки: greetd + yami-greet, без Qt; заменит $OTHER_DM" "our own, like the lock screen: greetd + yami-greet, no Qt; replaces $OTHER_DM"
-      else t "свой, как экран блокировки: greetd + yami-greet, без Qt, вход в niri" "our own, like the lock screen: greetd + yami-greet, no Qt, logs into niri"; fi ;;
-    look) t "qt6ct + adw-gtk3 + Papirus: Qt, KDE и GTK в палитре райса" "qt6ct + adw-gtk3 + Papirus: Qt, KDE and GTK in the rice palette" ;;
-    nvidia) t "переменные драйвера, профиль против утечки VRAM, драйвер с начала загрузки (пароль диска виден и на DisplayPort), NVENC в OBS на старом драйвере" "driver env, a VRAM leak profile, the driver from the start of boot (disk password visible on DisplayPort too), NVENC in OBS on an old driver" ;;
+    core) t "niri, порталы, polkit, pipewire, сеть, bluetooth, буфер, скриншоты" "niri, portals, polkit, pipewire, network, bluetooth, clipboard, screenshots" "niri, portais, polkit, pipewire, rede, bluetooth, área de transferência e capturas de tela" ;;
+    apps) t "kitty, fastfetch, pavucontrol, btop, udisks2, миниатюры видео, bsdtar, libmpv для плеера, gvfs: телефоны и сеть" "kitty, fastfetch, pavucontrol, btop, udisks2, video thumbnails, bsdtar, libmpv for the player, gvfs: phones and network" "kitty, fastfetch, pavucontrol, btop, udisks2, miniaturas de vídeo, bsdtar, libmpv para o player, gvfs: telefones e rede" ;;
+    tools) t "ночной свет (wlsunset), текст и QR со скриншота (tesseract, zbar)" "night light (wlsunset), text and QR from screenshots (tesseract, zbar)" "luz noturna (wlsunset), texto e QR de capturas de tela (tesseract, zbar)" ;;
+    games) t "GameMode и MangoHud в палитре" "GameMode and MangoHud in the palette" "GameMode e MangoHud na paleta" ;;
+    login) if [[ -n $OTHER_DM ]]; then t "свой, как экран блокировки: greetd + yami-greet, без Qt; заменит $OTHER_DM" "our own, like the lock screen: greetd + yami-greet, no Qt; replaces $OTHER_DM" "a nossa, como a tela de bloqueio: greetd + yami-greet, sem Qt; substitui $OTHER_DM"
+      else t "свой, как экран блокировки: greetd + yami-greet, без Qt, вход в niri" "our own, like the lock screen: greetd + yami-greet, no Qt, logs into niri" "a nossa, como a tela de bloqueio: greetd + yami-greet, sem Qt, entra no niri"; fi ;;
+    look) t "qt6ct + adw-gtk3 + Papirus: Qt, KDE и GTK в палитре райса" "qt6ct + adw-gtk3 + Papirus: Qt, KDE and GTK in the rice palette" "qt6ct + adw-gtk3 + Papirus: Qt, KDE e GTK na paleta do ambiente" ;;
+    nvidia) t "переменные драйвера, профиль против утечки VRAM, драйвер с начала загрузки (пароль диска виден и на DisplayPort), NVENC в OBS на старом драйвере" "driver env, a VRAM leak profile, the driver from the start of boot (disk password visible on DisplayPort too), NVENC in OBS on an old driver" "variáveis do driver, perfil contra vazamento de VRAM, driver desde o início da inicialização (senha do disco também no DisplayPort), NVENC no OBS com driver antigo" ;;
     fork)
-      if ((LIGHT)); then t "наш niri из исходников: здесь ($MEM_GB ГБ, $THREADS потоков) сборка идёт около часа, поэтому выключен; пакетный niri — тот же стол" "our niri from source: here ($MEM_GB GB, $THREADS threads) the build takes about an hour, so it is off; the packaged niri is the same desktop"
-      else t "наш niri из исходников, 5–25 мин: под этот процессор, tearing и realtime для игр; пакетный niri — запасной" "our niri from source, 5–25 min: built for this CPU, tearing and realtime for games; packaged niri stays as a fallback"; fi ;;
+      if ((LIGHT)); then t "наш niri из исходников: здесь ($MEM_GB ГБ, $THREADS потоков) сборка идёт около часа, поэтому выключен; пакетный niri — тот же стол" "our niri from source: here ($MEM_GB GB, $THREADS threads) the build takes about an hour, so it is off; the packaged niri is the same desktop" "nosso niri compilado: aqui ($MEM_GB GB, $THREADS threads) a compilação leva cerca de uma hora, por isso está desativada; o niri do pacote oferece o mesmo desktop"
+      else t "наш niri из исходников, 5–25 мин: под этот процессор, tearing и realtime для игр; пакетный niri — запасной" "our niri from source, 5–25 min: built for this CPU, tearing and realtime for games; packaged niri stays as a fallback" "nosso niri compilado, 5–25 min: otimizado para esta CPU, tearing e tempo real nos jogos; o niri do pacote fica como alternativa"; fi ;;
   esac
 }
 needs_root() { [[ $1 != fork ]]; }

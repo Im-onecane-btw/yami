@@ -5,7 +5,7 @@
 uninstall() {
   printf '\e[H\e[J'
   banner 1
-  say "$(t "удаляю YAMI" "removing YAMI")"
+  say "$(t "удаляю YAMI" "removing YAMI" "removendo YAMI")"
   ((DRY)) && { note "--dry-run"; return; }
   pgrep -x yami-shell >/dev/null && "$BIN/yami-shell" msg quit 2>/dev/null
   [[ -x $HOME/.local/lib/yami-niri/yami-niri.sh ]] && "$HOME/.local/lib/yami-niri/yami-niri.sh" off
@@ -30,7 +30,7 @@ uninstall() {
   if niri_src_plain "$src"; then
     rm -rf -- "$src"
   elif [[ -d $src ]]; then
-    note "$(t "в $src твоя работа над патчами — оставил" "your patch work is in $src: kept")"
+    note "$(t "в $src твоя работа над патчами — оставил" "your patch work is in $src: kept" "seus patches estão em $src: preservados")"
   fi
   rm -f "$CFG/qt6ct/qss/yami.qss" "$CFG/qt6ct/colors/yami.conf"
   fc-cache -f >/dev/null 2>&1
@@ -42,11 +42,11 @@ uninstall() {
   b="$(ls -d "$CFG"/niri.bak-* 2>/dev/null | sort | tail -n1)"
   if [[ -n $b ]]; then
     mv "$CFG/niri" "$CFG/niri.yami-$STAMP" && mv "$b" "$CFG/niri"
-    say "$(t "niri: вернул" "niri: restored") $b"
+    say "$(t "niri: вернул" "niri: restored" "niri: restaurado") $b"
   else
-    note "$(t "niri: прежнего конфига нет, оставил текущий" "niri: no previous config, kept the current one")"
+    note "$(t "niri: прежнего конфига нет, оставил текущий" "niri: no previous config, kept the current one" "niri: sem configuração anterior; mantendo a atual")"
   fi
   while IFS= read -r b; do mv -f "$b" "${b%.bak-yami}"; done < <(find "$CFG" -maxdepth 3 -name '*.bak-yami' 2>/dev/null)
-  say "$(t "готово. настройки шелла остались в" "done. shell settings are kept in") $CFG/yami-shell.json"
+  say "$(t "готово. настройки шелла остались в" "done. shell settings are kept in" "concluído. as configurações do shell ficam em") $CFG/yami-shell.json"
   exit 0
 }

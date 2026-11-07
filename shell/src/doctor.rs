@@ -95,61 +95,61 @@ fn login(y: &Sty) {
     if !greet && !std::path::Path::new("/usr/share/sddm/themes/yami").exists() {
         return;
     }
-    y.section(&crate::tf!("экран входа", "login screen"));
+    y.section(&crate::tf!("экран входа", "login screen", "tela de login"));
     if !greet {
-        line(y, &y.warn("·"), "SDDM", &crate::tf!("тема yami до 2.6; свой экран входа: tools/greet-install.sh", "the yami theme of before 2.6; our own login screen: tools/greet-install.sh"));
+        line(y, &y.warn("·"), "SDDM", &crate::tf!("тема yami до 2.6; свой экран входа: tools/greet-install.sh", "the yami theme of before 2.6; our own login screen: tools/greet-install.sh", "o tema yami de antes da 2.6; nossa própria tela de login: tools/greet-install.sh"));
         return;
     }
     line(y, &y.ok("✓"), "yami-greet", &crate::login::greet_bin().map(|p| p.display().to_string()).unwrap_or_default());
     match crate::login::dm() {
-        Some(false) => line(y, &y.warn("·"), "greetd", &crate::tf!("не менеджер входа: tools/greet-install.sh", "not the login manager: tools/greet-install.sh")),
-        _ => line(y, &y.ok("✓"), "greetd", &crate::tf!("менеджер входа", "the login manager")),
+        Some(false) => line(y, &y.warn("·"), "greetd", &crate::tf!("не менеджер входа: tools/greet-install.sh", "not the login manager: tools/greet-install.sh", "não é o gerenciador de login: tools/greet-install.sh")),
+        _ => line(y, &y.ok("✓"), "greetd", &crate::tf!("менеджер входа", "the login manager", "o gerenciador de login")),
     }
     if crate::login::writable() {
-        line(y, &y.ok("✓"), &crate::tf!("вид", "look"), &crate::login::dir().display().to_string());
+        line(y, &y.ok("✓"), &crate::tf!("вид", "look", "visual"), &crate::login::dir().display().to_string());
     } else {
-        line(y, &y.warn("·"), &crate::tf!("вид", "look"), &crate::tf!("папка не твоя: экран входа не идёт за шеллом", "the folder is not yours: the login screen does not follow the shell"));
+        line(y, &y.warn("·"), &crate::tf!("вид", "look", "visual"), &crate::tf!("папка не твоя: экран входа не идёт за шеллом", "the folder is not yours: the login screen does not follow the shell", "a pasta não é sua: a tela de login não acompanha o shell"));
     }
     let last = crate::login::last_result();
     if !last.is_empty() {
         let bad = last.split(' ').nth(2).is_some_and(|w| w == "fail" || w == "text");
         let mark = if bad { y.warn("·") } else { y.ok("✓") };
-        line(y, &mark, &crate::tf!("последний запуск", "last start"), &format!("{last} · yami login log"));
+        line(y, &mark, &crate::tf!("последний запуск", "last start", "última inicialização"), &format!("{last} · yami login log"));
     }
 }
 
 /// службы D-Bus: (имя, для чего RU, EN); ours — должен держать шелл (если служба включена)
 fn services(y: &Sty, problems: &mut u32) {
     let set = crate::config::Settings::load();
-    y.section(&crate::tf!("службы", "services"));
+    y.section(&crate::tf!("службы", "services", "serviços"));
     if let Ok(c) = zbus::blocking::Connection::session() {
         for (name, ru, en, want) in [
             ("org.freedesktop.Notifications", "уведомления", "notifications", set.agent_notif.then_some("yami-shell")),
             ("org.kde.StatusNotifierWatcher", "трей", "tray", set.agent_tray.then_some("yami-shell")),
             ("org.freedesktop.portal.Desktop", "порталы", "portals", None),
         ] {
-            let label = if crate::i18n::en() { en } else { ru };
+            let label = crate::i18n::select(ru, en);
             match owner(&c, name) {
                 Some(who) if want.map(|w| w == who).unwrap_or(true) => line(y, &y.ok("✓"), label, &who),
-                Some(who) => line(y, &y.warn("!"), label, &crate::tf!("держит {}, а не шелл", "owned by {}, not the shell", who)),
-                None if want.is_none() && activatable(&c, name) => line(y, &y.ok("✓"), label, &crate::tf!("запустится по запросу", "starts on demand")),
+                Some(who) => line(y, &y.warn("!"), label, &crate::tf!("держит {}, а не шелл", "owned by {}, not the shell", "controlado por {}, não pelo shell", who)),
+                None if want.is_none() && activatable(&c, name) => line(y, &y.ok("✓"), label, &crate::tf!("запустится по запросу", "starts on demand", "inicia sob demanda")),
                 None => {
                     *problems += 1;
-                    line(y, &y.bad("✕"), label, &crate::tf!("никто не держит {}", "nobody owns {}", name));
+                    line(y, &y.bad("✕"), label, &crate::tf!("никто не держит {}", "nobody owns {}", "ninguém controla {}", name));
                 }
             }
         }
         let yp = "org.freedesktop.impl.portal.desktop.yami";
         let run = !pids("yami-files", "--portal").is_empty();
         if run || activatable(&c, yp) {
-            line(y, &y.ok("✓"), &crate::tf!("портал yami-files", "yami-files portal"), &if run { crate::tf!("работает", "running") } else { crate::tf!("запустится по запросу", "starts on demand") });
+            line(y, &y.ok("✓"), &crate::tf!("портал yami-files", "yami-files portal", "portal yami-files"), &if run { crate::tf!("работает", "running", "em execução") } else { crate::tf!("запустится по запросу", "starts on demand", "inicia sob demanda") });
         } else {
             *problems += 1;
-            line(y, &y.bad("✕"), &crate::tf!("портал yami-files", "yami-files portal"), &crate::tf!("не установлен: install.sh (шаг «файлы»)", "not installed: install.sh (the «files» step)"));
+            line(y, &y.bad("✕"), &crate::tf!("портал yami-files", "yami-files portal", "portal yami-files"), &crate::tf!("не установлен: install.sh (шаг «файлы»)", "not installed: install.sh (the «files» step)", "não instalado: install.sh (etapa «arquivos»)"));
         }
     } else {
         *problems += 1;
-        line(y, &y.bad("✕"), &crate::tf!("сессионная шина", "session bus"), &crate::tf!("нет", "missing"));
+        line(y, &y.bad("✕"), &crate::tf!("сессионная шина", "session bus", "barramento de sessão"), &crate::tf!("нет", "missing", "ausente"));
     }
     if let Some(c) = crate::net::system() {
         for (name, ru, en) in [
@@ -158,126 +158,126 @@ fn services(y: &Sty, problems: &mut u32) {
             ("net.hadess.PowerProfiles", "профили питания", "power profiles"),
             ("org.bluez", "bluetooth", "bluetooth"),
         ] {
-            let label = if crate::i18n::en() { en } else { ru };
+            let label = crate::i18n::select(ru, en);
             match owner(&c, name) {
                 Some(who) => line(y, &y.ok("✓"), label, &who),
-                None if activatable(&c, name) => line(y, &y.ok("✓"), label, &crate::tf!("запустится по запросу", "starts on demand")),
-                None => line(y, &y.dim("·"), label, &crate::tf!("нет (то, что от неё, в баре скрыто)", "absent (what needs it is hidden)")),
+                None if activatable(&c, name) => line(y, &y.ok("✓"), label, &crate::tf!("запустится по запросу", "starts on demand", "inicia sob demanda")),
+                None => line(y, &y.dim("·"), label, &crate::tf!("нет (то, что от неё, в баре скрыто)", "absent (what needs it is hidden)", "ausente (as funções que dependem dele ficam ocultas)")),
             }
         }
     }
     let helper = Path::new(crate::auth::SOCKET).exists() || crate::auth::helper().is_some();
     if set.agent_polkit && !helper {
         *problems += 1;
-        line(y, &y.bad("✕"), &crate::tf!("помощник polkit", "polkit helper"), &crate::tf!("нет polkit-agent-helper-1: окна пароля не будет", "no polkit-agent-helper-1: no password window"));
+        line(y, &y.bad("✕"), &crate::tf!("помощник polkit", "polkit helper", "auxiliar do polkit"), &crate::tf!("нет polkit-agent-helper-1: окна пароля не будет", "no polkit-agent-helper-1: no password window", "polkit-agent-helper-1 ausente: a janela de senha não será exibida"));
     }
 }
 
 pub fn run(y: &Sty) -> i32 {
     let mut problems = 0u32;
-    y.section(&crate::tf!("программы", "programs"));
+    y.section(&crate::tf!("программы", "programs", "programas"));
     for (c, ru, en, req) in DEPS {
-        let what = if crate::i18n::en() { en } else { ru };
+        let what = crate::i18n::select(ru, en);
         if which(c) {
             line(y, &y.ok("✓"), c, what);
         } else if *req {
             problems += 1;
-            line(y, &y.bad("✕"), c, &crate::tf!("нужен: {}", "required: {}", what));
+            line(y, &y.bad("✕"), c, &crate::tf!("нужен: {}", "required: {}", "necessário: {}", what));
         } else {
-            line(y, &y.warn("·"), c, &crate::tf!("нет — не будет: {}", "missing, no {}", what));
+            line(y, &y.warn("·"), c, &crate::tf!("нет — не будет: {}", "missing, no {}", "ausente, sem {}", what));
         }
     }
     if which("python3") {
         let pil = std::process::Command::new("python3").args(["-I", "-c", "import PIL"]).stderr(std::process::Stdio::null()).status().map(|s| s.success()).unwrap_or(false);
         if !pil {
-            line(y, &y.warn("·"), "python3-pillow", &crate::tf!("нет — обои из своей картинки не перекрасятся", "missing, own wallpapers are not recoloured"));
+            line(y, &y.warn("·"), "python3-pillow", &crate::tf!("нет — обои из своей картинки не перекрасятся", "missing, own wallpapers are not recoloured", "ausente, papéis de parede personalizados não são recoloridos"));
         }
     }
     services(y, &mut problems);
     // новым функциям не хватает пакетов (установщик записал, обновление без sudo не поставило)
     if let Some(n) = crate::need::load() {
-        y.section(&crate::tf!("не поставлено из выбранного при установке", "not installed of what the install chose"));
+        y.section(&crate::tf!("не поставлено из выбранного при установке", "not installed of what the install chose", "não instalado do que a instalação escolheu"));
         line(y, &y.warn("·"), &n.what(), "");
         println!("   {}  {}", y.bold(&n.line()), y.dim("yami update need --run"));
     }
-    y.section(&crate::tf!("настройки", "config"));
+    y.section(&crate::tf!("настройки", "config", "configuração"));
     let (bad, unknown) = crate::config::Settings::problems(&crate::cli::file_json());
     if bad.is_empty() && unknown.is_empty() {
         line(y, &y.ok("✓"), "yami-shell.json", &crate::config::settings_path().display().to_string());
     }
     for k in &bad {
         problems += 1;
-        line(y, &y.bad("✕"), k, &crate::tf!("негодное значение, взято по умолчанию", "bad value, default used"));
+        line(y, &y.bad("✕"), k, &crate::tf!("негодное значение, взято по умолчанию", "bad value, default used", "valor inválido; usando o padrão"));
     }
     for k in &unknown {
-        line(y, &y.warn("·"), k, &crate::tf!("неизвестный ключ, пропущен", "unknown key, ignored"));
+        line(y, &y.warn("·"), k, &crate::tf!("неизвестный ключ, пропущен", "unknown key, ignored", "chave desconhecida, ignorada"));
     }
     if which("niri") {
         let cfg = crate::config::config_dir().join("niri/config.kdl");
         let ok = std::process::Command::new("niri").arg("validate").arg("-c").arg(&cfg).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().map(|s| s.success()).unwrap_or(false);
         if ok {
-            line(y, &y.ok("✓"), "niri/config.kdl", &crate::tf!("проходит проверку", "validates"));
+            line(y, &y.ok("✓"), "niri/config.kdl", &crate::tf!("проходит проверку", "validates", "válido"));
         } else {
             problems += 1;
-            line(y, &y.bad("✕"), "niri/config.kdl", &crate::tf!("не проходит: niri validate", "fails: niri validate"));
+            line(y, &y.bad("✕"), "niri/config.kdl", &crate::tf!("не проходит: niri validate", "fails: niri validate", "falhou: niri validate"));
         }
     }
     login(y);
     // слабая или виртуальная машина: эффекты съедают её, лёгкий режим их снимает
     if let Some(why) = crate::lite::reason() {
         let set = crate::config::Settings::load();
-        y.section(&crate::tf!("машина", "machine"));
-        let note = if set.lite { crate::tf!("лёгкий режим включён", "lite mode is on") } else { crate::tf!("включи лёгкий режим: yami config set lite true (настройки → вид)", "turn on lite mode: yami config set lite true (settings → look)") };
+        y.section(&crate::tf!("машина", "machine", "máquina"));
+        let note = if set.lite { crate::tf!("лёгкий режим включён", "lite mode is on", "o modo leve está ativado") } else { crate::tf!("включи лёгкий режим: yami config set lite true (настройки → вид)", "turn on lite mode: yami config set lite true (settings → look)", "ative o modo leve: yami config set lite true (configurações → visual)") };
         line(y, &if set.lite { y.ok("✓") } else { y.warn("·") }, &why, &note);
     }
     // кеш сборки лежит на диске, пока его не уберут: не проблема, но гигабайты стоит показать
     let cache = crate::clean::total();
     if cache >= 100 << 20 {
-        y.section(&crate::tf!("диск", "disk"));
-        line(y, &y.dim("·"), &crate::tf!("кеш сборки", "build cache"), &crate::tf!("{} — yami clean убирает (нужен только следующей сборке)", "{}: yami clean removes it (only the next build needs it)", crate::clean::human(cache)));
+        y.section(&crate::tf!("диск", "disk", "disco"));
+        line(y, &y.dim("·"), &crate::tf!("кеш сборки", "build cache", "cache de compilação"), &crate::tf!("{} — yami clean убирает (нужен только следующей сборке)", "{}: yami clean removes it (only the next build needs it)", "{}: yami clean remove (necessário apenas na próxima compilação)", crate::clean::human(cache)));
     }
     snapshots(y);
-    println!("   {}", y.dim(&crate::tf!("игры: yami doctor games", "games: yami doctor games")));
+    println!("   {}", y.dim(&crate::tf!("игры: yami doctor games", "games: yami doctor games", "jogos: yami doctor games")));
     println!();
     if problems == 0 {
-        println!(" {} {}\n", y.ok("✓"), crate::tf!("всё в порядке", "all good"));
+        println!(" {} {}\n", y.ok("✓"), crate::tf!("всё в порядке", "all good", "tudo certo"));
         0
     } else {
-        println!(" {} {}\n", y.warn("!"), crate::tf!("проблем: {}", "problems: {}", problems));
+        println!(" {} {}\n", y.warn("!"), crate::tf!("проблем: {}", "problems: {}", "problemas: {}", problems));
         1
     }
 }
 
 pub fn status(y: &Sty) {
-    y.section(&crate::tf!("работает", "running"));
+    y.section(&crate::tf!("работает", "running", "em execução"));
     match shell_pids().into_iter().find(|p| *p != std::process::id()) {
-        Some(pid) => line(y, &y.ok("✓"), "yami-shell", &crate::tf!("pid {}, {:.1} МБ", "pid {}, {:.1} MB", pid, pss_mb(pid))),
-        None => line(y, &y.bad("✕"), "yami-shell", &crate::tf!("не запущен", "not running")),
+        Some(pid) => line(y, &y.ok("✓"), "yami-shell", &crate::tf!("pid {}, {:.1} МБ", "pid {}, {:.1} MB", "pid {}, {:.1} MB", pid, pss_mb(pid))),
+        None => line(y, &y.bad("✕"), "yami-shell", &crate::tf!("не запущен", "not running", "fora de execução")),
     }
     match pids("yami-files", "--portal").first() {
-        Some(pid) => line(y, &y.ok("✓"), &crate::tf!("портал файлов", "file portal"), &crate::tf!("pid {}, {:.1} МБ", "pid {}, {:.1} MB", pid, pss_mb(*pid))),
-        None => line(y, &y.dim("·"), &crate::tf!("портал файлов", "file portal"), &crate::tf!("запустится по запросу", "starts on demand")),
+        Some(pid) => line(y, &y.ok("✓"), &crate::tf!("портал файлов", "file portal", "portal de arquivos"), &crate::tf!("pid {}, {:.1} МБ", "pid {}, {:.1} MB", "pid {}, {:.1} MB", pid, pss_mb(*pid))),
+        None => line(y, &y.dim("·"), &crate::tf!("портал файлов", "file portal", "portal de arquivos"), &crate::tf!("запустится по запросу", "starts on demand", "inicia sob demanda")),
     }
     let lvl = crate::niri::fork_level();
     let nv = std::process::Command::new("niri").arg("--version").output().ok().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default();
     if std::env::var_os("NIRI_SOCKET").is_some() {
-        line(y, &y.ok("✓"), "niri", &if lvl > 0 { crate::tf!("{} (yami-niri, уровень {})", "{} (yami-niri, level {})", nv, lvl) } else { nv });
+        line(y, &y.ok("✓"), "niri", &if lvl > 0 { crate::tf!("{} (yami-niri, уровень {})", "{} (yami-niri, level {})", "{} (yami-niri, nível {})", nv, lvl) } else { nv });
     } else {
-        line(y, &y.dim("·"), "niri", &crate::tf!("не в сеансе niri", "not in a niri session"));
+        line(y, &y.dim("·"), "niri", &crate::tf!("не в сеансе niri", "not in a niri session", "fora de uma sessão niri"));
     }
     if crate::niri::game_focused() {
-        line(y, &y.acc("▪"), &crate::tf!("игра", "game"), &crate::tf!("в фокусе — шелл не перезапускается", "has focus: the shell will not restart"));
+        line(y, &y.acc("▪"), &crate::tf!("игра", "game", "jogo"), &crate::tf!("в фокусе — шелл не перезапускается", "has focus: the shell will not restart", "está em foco: o shell não será reiniciado"));
     }
     let u = crate::update::installed();
     let last = crate::update::last();
     let upd = match last {
         Some(i) if !i.err.is_empty() => y.warn(&i.err),
-        Some(i) if i.available => y.acc(&crate::tf!("доступно {} (yami update)", "{} available (yami update)", i.latest)),
-        Some(i) if i.reference.is_empty() => crate::tf!("выпусков ещё нет", "no releases yet"),
-        Some(_) => crate::tf!("свежее", "up to date"),
-        None => crate::tf!("не проверялось", "never checked"),
+        Some(i) if i.available => y.acc(&crate::tf!("доступно {} (yami update)", "{} available (yami update)", "{} disponível (yami update)", i.latest)),
+        Some(i) if i.reference.is_empty() => crate::tf!("выпусков ещё нет", "no releases yet", "ainda sem versões publicadas"),
+        Some(_) => crate::tf!("свежее", "up to date", "atualizado"),
+        None => crate::tf!("не проверялось", "never checked", "nunca verificado"),
     };
-    line(y, &y.ok("✓"), &crate::tf!("версия", "version"), &format!("{}  ·  {upd}", if u.version.is_empty() { env!("CARGO_PKG_VERSION") } else { &u.version }));
+    line(y, &y.ok("✓"), &crate::tf!("версия", "version", "versão"), &format!("{}  ·  {upd}", if u.version.is_empty() { env!("CARGO_PKG_VERSION") } else { &u.version }));
 }
 
 /// снимки системы: yami сам откатывает только свои бинари (yami update rollback); всю систему
@@ -287,13 +287,13 @@ fn snapshots(y: &Sty) {
     if fs != "btrfs" && fs != "zfs" {
         return;
     }
-    y.section(&crate::tf!("снимки системы", "system snapshots"));
+    y.section(&crate::tf!("снимки системы", "system snapshots", "instantâneos do sistema"));
     let tool = ["snapper", "timeshift", "zfs"].into_iter().find(|t| which(t));
     let (mark, note) = match tool {
-        Some("snapper") => (y.ok("✓"), crate::tf!("перед большим обновлением: sudo snapper create -d 'before yami update'", "before a big update: sudo snapper create -d 'before yami update'")),
-        Some("timeshift") => (y.ok("✓"), crate::tf!("перед большим обновлением: sudo timeshift --create --comments 'before yami update'", "before a big update: sudo timeshift --create --comments 'before yami update'")),
-        Some(_) => (y.ok("✓"), crate::tf!("перед большим обновлением: sudo zfs snapshot <пул>/ROOT@yami", "before a big update: sudo zfs snapshot <pool>/ROOT@yami")),
-        None => (y.dim("·"), crate::tf!("корень на {}, но нет snapper или timeshift: систему откатить нечем", "the root is {} but there is no snapper or timeshift: nothing rolls the system back", fs)),
+        Some("snapper") => (y.ok("✓"), crate::tf!("перед большим обновлением: sudo snapper create -d 'before yami update'", "before a big update: sudo snapper create -d 'before yami update'", "antes de uma atualização grande: sudo snapper create -d 'before yami update'")),
+        Some("timeshift") => (y.ok("✓"), crate::tf!("перед большим обновлением: sudo timeshift --create --comments 'before yami update'", "before a big update: sudo timeshift --create --comments 'before yami update'", "antes de uma atualização grande: sudo timeshift --create --comments 'before yami update'")),
+        Some(_) => (y.ok("✓"), crate::tf!("перед большим обновлением: sudo zfs snapshot <пул>/ROOT@yami", "before a big update: sudo zfs snapshot <pool>/ROOT@yami", "antes de uma atualização grande: sudo zfs snapshot <pool>/ROOT@yami")),
+        None => (y.dim("·"), crate::tf!("корень на {}, но нет snapper или timeshift: систему откатить нечем", "the root is {} but there is no snapper or timeshift: nothing rolls the system back", "a raiz é {}, mas não há snapper nem timeshift: não é possível reverter o sistema", fs)),
     };
     line(y, &mark, &fs, &note);
 }

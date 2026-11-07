@@ -431,11 +431,11 @@ pub fn cli(y: &crate::cmd::Sty, args: &[&str]) -> i32 {
         return 2;
     };
     if !crate::doctor::which("tesseract") {
-        eprintln!(" {} {}", y.bad("✕"), crate::tf!("нужен tesseract (компонент «инструменты» установщика)", "tesseract is needed (the installer's «tools» component)"));
+        eprintln!(" {} {}", y.bad("✕"), crate::tf!("нужен tesseract (компонент «инструменты» установщика)", "tesseract is needed (the installer's «tools» component)", "tesseract é necessário (componente «ferramentas» do instalador)"));
         return 1;
     }
     let Ok(img) = image::open(f) else {
-        eprintln!(" {} {}", y.bad("✕"), crate::tf!("не читается: {}", "cannot read: {}", f));
+        eprintln!(" {} {}", y.bad("✕"), crate::tf!("не читается: {}", "cannot read: {}", "não foi possível ler: {}", f));
         return 2;
     };
     match recognize(&img) {
@@ -444,7 +444,7 @@ pub fn cli(y: &crate::cmd::Sty, args: &[&str]) -> i32 {
             0
         }
         None => {
-            eprintln!(" {} {}", y.warn("·"), crate::tf!("текст не распознан", "no text recognised"));
+            eprintln!(" {} {}", y.warn("·"), crate::tf!("текст не распознан", "no text recognised", "nenhum texto reconhecido"));
             1
         }
     }

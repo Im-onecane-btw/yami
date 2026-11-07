@@ -249,7 +249,7 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
     let hint = if skwd {
         crate::i18n::tr("обои ведёт skwd-wall: выбор здесь выключит его").to_string()
     } else if wl.more > 0 {
-        crate::tf!("показаны первые {}, ещё {}", "the first {} shown, {} more", MAX, wl.more)
+        crate::tf!("показаны первые {}, ещё {}", "the first {} shown, {} more", "primeiros {} exibidos, mais {}", MAX, wl.more)
     } else {
         crate::i18n::tr("стрелки, Enter — поставить, Esc — назад").to_string()
     };

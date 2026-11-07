@@ -265,7 +265,7 @@ pub(crate) fn tab_system(ui: &mut Ui, st: &State, b: R) {
     let half = (b.w - 20) / 2;
     let (lx, rx) = (b.x, b.x + half + 20);
     let mut y = title(ui, b.x, b.y, b.w, "простой");
-    let mins = |m: u32| if m == 0 { "никогда".to_string() } else { crate::tf!("{m} мин", "{m} min") };
+    let mins = |m: u32| if m == 0 { "никогда".to_string() } else { crate::tf!("{m} мин", "{m} min", "{m} min") };
     ui.slider(R::new(lx, y, half, 40), "заблокировать через", s.lock_after as f32 / 60.0, &mins(s.lock_after), 12, Act::SSlider("lock_after", 0.0, 60.0, 20));
     ui.slider(R::new(rx, y, half, 40), "погасить экран через", s.screen_off_after as f32 / 60.0, &mins(s.screen_off_after), 12, Act::SSlider("screen_off_after", 0.0, 60.0, 20));
     y += 52;
@@ -291,6 +291,7 @@ pub(crate) fn tab_system(ui: &mut Ui, st: &State, b: R) {
     let lang = match s.lang.as_str() {
         "ru" => "Русский", // i18n-ok: name of the language
         "en" => "English",
+        "pt-BR" => "Português (Brasil)",
         _ => "авто",
     };
     opt_btn(ui, R::new(lx, y, half, 26), "язык", lang, Act::SCycle("lang"));
@@ -314,7 +315,7 @@ pub(crate) fn tab_notif(ui: &mut Ui, st: &State, b: R) {
     let (lx, rx) = (b.x, b.x + half + 20);
     let mut y = title(ui, b.x, b.y, b.w, "карточки");
     ui.toggle(R::new(lx, y, half, 40), "не беспокоить", "только срочные", s.dnd, Act::SBool("dnd"));
-    ui.slider(R::new(rx, y, half, 40), "сколько висит", (s.notif_timeout as f32 - 2.0) / 28.0, &crate::tf!("{} с", "{} s", s.notif_timeout), 12, Act::SSlider("notif_timeout", 2.0, 30.0, 14));
+    ui.slider(R::new(rx, y, half, 40), "сколько висит", (s.notif_timeout as f32 - 2.0) / 28.0, &crate::tf!("{} с", "{} s", "{} s", s.notif_timeout), 12, Act::SSlider("notif_timeout", 2.0, 30.0, 14));
     y += 48;
     ui.toggle(R::new(lx, y, half, 40), "картинки в карточках", "значки и превью от программ", s.notif_images, Act::SBool("notif_images"));
     ui.toggle(R::new(rx, y, half, 40), "в записи и трансляциях", "выкл — зрители их не видят", s.notif_cast, Act::SBool("notif_cast"));
@@ -477,7 +478,7 @@ pub(crate) fn tab_shots(ui: &mut Ui, st: &State, b: R) {
     ui.toggle(R::new(b.x, y, half, 40), "лупа", "пиксели под курсором, ctrl+c — цвет", s.shot_loupe, Act::SBool("shot_loupe"));
     ui.toggle(R::new(b.x + half + 20, y, half, 40), "уведомление", "с миниатюрой и кнопками", s.shot_notify, Act::SBool("shot_notify"));
     y += 50;
-    let d = crate::tf!("{} с", "{} s", s.shot_delay);
+    let d = crate::tf!("{} с", "{} s", "{} s", s.shot_delay);
     opt_btn(ui, R::new(b.x, y, b.w, 26), "таймер (кнопка ◷ в оверлее)", &d, Act::SCycle("shot_delay"));
     y += 32;
     let conf = if s.shot_confirm == "instant" { "сразу, как отпустил мышь" } else { "пробелом или enter" };
@@ -508,12 +509,12 @@ pub(crate) fn tab_about(ui: &mut Ui, st: &State, b: R) {
     let face = font::px(32);
     ui.text(face, b.x, y, "YAMI", t.red);
     y += ui.f.line(face) + 4;
-    ui.text_in(PX, R::new(b.x, y, b.w, 20), &crate::tf!("yami-shell {} — лёгкий Wayland-шелл для niri на Rust", "yami-shell {} — a lightweight Wayland shell for niri, written in Rust", env!("CARGO_PKG_VERSION")), t.text_dim);
+    ui.text_in(PX, R::new(b.x, y, b.w, 20), &crate::tf!("yami-shell {} — лёгкий Wayland-шелл для niri на Rust", "yami-shell {} — a lightweight Wayland shell for niri, written in Rust", "yami-shell {} — um shell Wayland leve para niri, escrito em Rust", env!("CARGO_PKG_VERSION")), t.text_dim);
     y += 34;
     let up = st.started.elapsed().as_secs();
     let rows = [
-        ("память шелла", crate::tf!("{:.1} МБ", "{:.1} MB", st.rss)),
-        ("работает", crate::tf!("{} ч {} мин", "{} h {} min", up / 3600, up / 60 % 60)),
+        ("память шелла", crate::tf!("{:.1} МБ", "{:.1} MB", "{:.1} MB", st.rss)),
+        ("работает", crate::tf!("{} ч {} мин", "{} h {} min", "{} h {} min", up / 3600, up / 60 % 60)),
         ("niri", if st.niri.yami { "yami-niri (форк)".to_string() } else { "стоковый".to_string() }),
         ("окон", st.niri.wins.len().to_string()),
         ("уведомлений в истории", st.notifs.history.len().to_string()),

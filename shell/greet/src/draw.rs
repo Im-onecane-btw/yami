@@ -246,7 +246,7 @@ fn draw_login(ui: &mut Ui, g: &G, w: i32, dy: i32) {
     } else if g.caps {
         ("caps lock".to_string(), t.warn)
     } else if g.fails > 0 {
-        (crate::tf!("неверно ×{}", "wrong ×{}", g.fails), t.ember)
+        (crate::tf!("неверно ×{}", "wrong ×{}", "incorreta ×{}", g.fails), t.ember)
     } else if g.demo {
         ("демо: пароль yami, esc — выйти".to_string(), t.text_faint)
     } else {

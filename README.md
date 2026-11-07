@@ -136,7 +136,7 @@ Everything it does and its flags: [Installation](#installation).
   the programs of your last session reopened at login (opt-in), your themes one click away
   (settings → color → themes), shared as one file or a link (`yami theme export | import`) and the
   whole setup moved to a new system (`yami export | import`).
-- **Bilingual.** English and Russian interface, switchable live in settings.
+- **Three interface languages.** English, Russian and Brazilian Portuguese, switchable live in settings.
 - **Portable installer.** One script for Arch, Fedora (including atomic), Debian/Ubuntu,
   openSUSE, Void, Alpine, Gentoo and NixOS.
 
@@ -204,7 +204,7 @@ is needed for a normal install; these are for the rest:
 | Flag | Effect |
 |---|---|
 | `--yes` | no questions, defaults for this machine |
-| `--lang en\|ru` | language of the installer, the shell and the key hints |
+| `--lang en\|ru\|pt-BR` | language of the installer, the shell and the key hints |
 | `--palette ID` | `blood` `ash` `sakura` `amber` `venom` `ice` `dusk` |
 | `--look ID` | panels: `matte` `glass` `light` `solid` |
 | `--font sans\|pixel` | app font: readable sans (default) or the pixel Tiny5 everywhere |

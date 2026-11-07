@@ -142,7 +142,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
   прошлого сеанса снова открываются при входе (по желанию), свои темы в один щелчок
   (настройки → цвет → темы), темы одним файлом или ссылкой (`yami theme export | import`) и
   переезд всех настроек на новую систему (`yami export | import`).
-- **Два языка.** Русский и английский интерфейс, переключается на лету в настройках.
+- **Три языка интерфейса.** Русский, английский и бразильский португальский, переключаются на лету в настройках.
 - **Переносимый установщик.** Один скрипт для Arch, Fedora (включая атомарные), Debian/Ubuntu,
   openSUSE, Void, Alpine, Gentoo и NixOS.
 
@@ -210,7 +210,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
 | Флаг | Что делает |
 |---|---|
 | `--yes` | без вопросов, всё по умолчанию для этой машины |
-| `--lang en\|ru` | язык установщика, шелла и подсказок клавиш |
+| `--lang en\|ru\|pt-BR` | язык установщика, шелла и подсказок клавиш |
 | `--palette ID` | `blood` `ash` `sakura` `amber` `venom` `ice` `dusk` |
 | `--look ID` | панели: `matte` `glass` `light` `solid` |
 | `--font sans\|pixel` | шрифт программ: обычный читаемый (по умолчанию) или пиксельный Tiny5 везде |

@@ -96,12 +96,12 @@ pub fn run(y: &Sty, args: &[&str]) -> i32 {
     };
     // свой каталог 0700: предсказуемое имя в /tmp дало бы чужим подложить ссылки
     let Ok(dir) = yami_px::paths::private_tmp("yami-report") else {
-        eprintln!(" {} {}", y.bad("✕"), crate::tf!("не могу создать временный каталог", "cannot create a temporary folder"));
+        eprintln!(" {} {}", y.bad("✕"), crate::tf!("не могу создать временный каталог", "cannot create a temporary folder", "não foi possível criar uma pasta temporária"));
         return 1;
     };
     let base = dir.join("yami-report");
     if std::fs::create_dir_all(base.join("config")).is_err() {
-        eprintln!(" {} {}", y.bad("✕"), crate::tf!("не могу создать {}", "cannot create {}", dir.display()));
+        eprintln!(" {} {}", y.bad("✕"), crate::tf!("не могу создать {}", "cannot create {}", "não foi possível criar {}", dir.display()));
         let _ = std::fs::remove_dir_all(&dir);
         return 1;
     }
@@ -146,12 +146,12 @@ pub fn run(y: &Sty, args: &[&str]) -> i32 {
     let ok = Command::new("tar").arg("-czf").arg(&target).arg("-C").arg(&dir).arg("yami-report").status().map(|s| s.success()).unwrap_or(false);
     let _ = std::fs::remove_dir_all(&dir);
     if !ok {
-        eprintln!(" {} {}", y.bad("✕"), crate::tf!("tar не смог записать {}", "tar could not write {}", target.display()));
+        eprintln!(" {} {}", y.bad("✕"), crate::tf!("tar не смог записать {}", "tar could not write {}", "tar não conseguiu gravar {}", target.display()));
         return 1;
     }
     println!(" {} {}", y.ok("✓"), y.bold(&target.display().to_string()));
-    println!("   {}", y.dim(&crate::tf!("версии, doctor, журнал шелла и niri за эту загрузку, конфиги; пароли, токены, домашний путь, имя и хост скрыты", "versions, doctor, this boot's shell and niri journal, configs; passwords, tokens, home path, user and host are hidden")));
-    println!("   {}", y.dim(&crate::tf!("загляни внутрь перед отправкой: tar -tzf {}", "look inside before you send it: tar -tzf {}", display(&target))));
+    println!("   {}", y.dim(&crate::tf!("версии, doctor, журнал шелла и niri за эту загрузку, конфиги; пароли, токены, домашний путь, имя и хост скрыты", "versions, doctor, this boot's shell and niri journal, configs; passwords, tokens, home path, user and host are hidden", "versões, diagnóstico, registros do shell e niri desta inicialização, configurações; senhas, tokens, pasta pessoal, usuário e host são ocultados")));
+    println!("   {}", y.dim(&crate::tf!("загляни внутрь перед отправкой: tar -tzf {}", "look inside before you send it: tar -tzf {}", "confira o conteúdo antes de enviar: tar -tzf {}", display(&target))));
     0
 }
 

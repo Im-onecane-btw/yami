@@ -77,7 +77,7 @@ impl Fm {
                 let cut = c == Cmd::Cut;
                 self.clip = Some((t.clone(), cut));
                 self.fx.push(Fx::Clip(t.clone(), cut));
-                self.toast(if cut { crate::tf!("вырезано: {}", "cut: {}", t.len()) } else { crate::tf!("скопировано: {}", "copied: {}", t.len()) });
+                self.toast(if cut { crate::tf!("вырезано: {}", "cut: {}", "recortado: {}", t.len()) } else { crate::tf!("скопировано: {}", "copied: {}", "copiado: {}", t.len()) });
             }
             Cmd::Paste => {
                 if !self.v().trash && self.v().search.is_none() {
@@ -121,7 +121,7 @@ impl Fm {
                 self.job(ops::Kind::Restore, t, PathBuf::new(), String::new());
             }
             Cmd::EmptyTrash => {
-                self.dlg = Some((Dlg::Confirm { title: "очистить корзину".into(), text: crate::tf!("файлов в корзине: {}. Вернуть их будет нельзя.", "{} items in the trash. They cannot be restored.", self.trash_n), ok: "очистить".into(), cmd: Cmd::EmptyTrashNow }, Instant::now()));
+                self.dlg = Some((Dlg::Confirm { title: "очистить корзину".into(), text: crate::tf!("файлов в корзине: {}. Вернуть их будет нельзя.", "{} items in the trash. They cannot be restored.", "{} itens na lixeira. Eles não poderão ser restaurados.", self.trash_n), ok: "очистить".into(), cmd: Cmd::EmptyTrashNow }, Instant::now()));
             }
             Cmd::EmptyTrashNow => {
                 let all = crate::trash::all_files();
@@ -360,11 +360,11 @@ impl Fm {
                     ops::Kind::Move if !pairs.is_empty() => self.undo.push(Undo::Moved(pairs.clone())),
                     ops::Kind::Trash if !pairs.is_empty() => {
                         self.undo.push(Undo::Trashed(pairs.clone()));
-                        self.toast(crate::tf!("в корзине: {} · ctrl+z — вернуть", "moved to trash: {} · ctrl+z to undo", pairs.len()));
+                        self.toast(crate::tf!("в корзине: {} · ctrl+z — вернуть", "moved to trash: {} · ctrl+z to undo", "movido para a lixeira: {} · ctrl+z para desfazer", pairs.len()));
                     }
                     ops::Kind::Copy | ops::Kind::Link | ops::Kind::Extract | ops::Kind::Compress if !made.is_empty() => self.undo.push(Undo::Created(made.clone())),
-                    ops::Kind::Delete if !pairs.is_empty() => self.toast(crate::tf!("удалено: {}", "deleted: {}", pairs.len())),
-                    ops::Kind::Restore if !pairs.is_empty() => self.toast(crate::tf!("возвращено: {}", "restored: {}", pairs.len())),
+                    ops::Kind::Delete if !pairs.is_empty() => self.toast(crate::tf!("удалено: {}", "deleted: {}", "excluído: {}", pairs.len())),
+                    ops::Kind::Restore if !pairs.is_empty() => self.toast(crate::tf!("возвращено: {}", "restored: {}", "restaurado: {}", pairs.len())),
                     _ => {}
                 }
                 if matches!(kind, ops::Kind::Copy | ops::Kind::Move | ops::Kind::Link | ops::Kind::Extract | ops::Kind::Compress) {
@@ -439,7 +439,7 @@ impl Fm {
                         n += 1;
                     }
                 }
-                self.toast(crate::tf!("возвращено из корзины: {}", "restored from trash: {}", n));
+                self.toast(crate::tf!("возвращено из корзины: {}", "restored from trash: {}", "restaurado da lixeira: {}", n));
             }
             Undo::Created(paths) => {
                 self.job(ops::Kind::Trash, paths, PathBuf::new(), String::new());

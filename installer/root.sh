@@ -45,7 +45,7 @@ asroot() {
   # `<&fd`) would swap them for that moment, so the request is written from a subshell and the
   # answer read with -u. A root shell that is gone must not take the installer with it (SIGPIPE).
   if ! (trap '' PIPE; printf '%s\n%s\n' "$me" "$q" >&"$ROOT_W") 2>/dev/null || ! IFS= read -r -u "$ROOT_R" rc; then
-    printf '%s\n' "$(t "root-сеанс закрыт" "the root shell is gone")" >&2
+    printf '%s\n' "$(t "root-сеанс закрыт" "the root shell is gone" "a sessão root foi encerrada")" >&2
     return 1
   fi
   return "$rc"

@@ -11,7 +11,7 @@ use std::process::Command;
 fn targets() -> Vec<(String, PathBuf, bool)> {
     let base = yami_px::paths::cache_dir().join("yami");
     let src = std::env::var_os("YAMI_NIRI_SRC").map(PathBuf::from).unwrap_or_else(|| base.join("niri-src"));
-    vec![(crate::tf!("исходники yami-niri", "yami-niri sources"), src, true), (crate::tf!("сборка шелла", "shell build"), base.join("target"), false)]
+    vec![(crate::tf!("исходники yami-niri", "yami-niri sources", "código-fonte do yami-niri"), src, true), (crate::tf!("сборка шелла", "shell build", "compilação do shell"), base.join("target"), false)]
 }
 
 /// занято на диске (блоки, как у du); ссылки не разворачиваются
@@ -31,9 +31,9 @@ pub fn size(p: &Path) -> u64 {
 
 pub fn human(b: u64) -> String {
     if b >= 1 << 30 {
-        crate::tf!("{:.1} ГБ", "{:.1} GB", b as f64 / (1u64 << 30) as f64)
+        crate::tf!("{:.1} ГБ", "{:.1} GB", "{:.1} GB", b as f64 / (1u64 << 30) as f64)
     } else {
-        crate::tf!("{:.0} МБ", "{:.0} MB", b as f64 / (1u64 << 20) as f64)
+        crate::tf!("{:.0} МБ", "{:.0} MB", "{:.0} MB", b as f64 / (1u64 << 20) as f64)
     }
 }
 
@@ -61,15 +61,15 @@ fn dev_tree(src: &Path) -> bool {
 pub fn run(y: &Sty, a: &[&str]) -> i32 {
     let (dry, force) = (a.contains(&"--dry-run") || a.contains(&"-n"), a.contains(&"--force"));
     if let Some(bad) = a.iter().find(|x| !["--dry-run", "-n", "--force"].contains(x)) {
-        eprintln!(" {} {}", y.bad("✕"), crate::tf!("не понял: {} (yami clean [--dry-run] [--force])", "unknown option: {} (yami clean [--dry-run] [--force])", bad));
+        eprintln!(" {} {}", y.bad("✕"), crate::tf!("не понял: {} (yami clean [--dry-run] [--force])", "unknown option: {} (yami clean [--dry-run] [--force])", "opção desconhecida: {} (yami clean [--dry-run] [--force])", bad));
         return 2;
     }
     // обновление собирает прямо в этих папках
     let Some(_lock) = crate::update::lock() else {
-        eprintln!(" {} {}", y.bad("✕"), crate::tf!("обновление уже идёт", "an update is already running"));
+        eprintln!(" {} {}", y.bad("✕"), crate::tf!("обновление уже идёт", "an update is already running", "uma atualização já está em andamento"));
         return 1;
     };
-    y.section(&crate::tf!("кеш сборки", "build cache"));
+    y.section(&crate::tf!("кеш сборки", "build cache", "cache de compilação"));
     let (mut freed, mut found) = (0u64, false);
     for (what, p, niri) in targets() {
         if !p.exists() {
@@ -79,25 +79,25 @@ pub fn run(y: &Sty, a: &[&str]) -> i32 {
         let sz = size(&p);
         let line = |mark: String, note: &str| println!("   {mark} {:<22}{:>9}  {}", what, human(sz), y.dim(note));
         if niri && !niri_src(&p) {
-            line(y.bad("✕"), &crate::tf!("это не папка исходников yami-niri (YAMI_NIRI_SRC?): не трогаю", "not a yami-niri source folder (YAMI_NIRI_SRC?): left alone"));
+            line(y.bad("✕"), &crate::tf!("это не папка исходников yami-niri (YAMI_NIRI_SRC?): не трогаю", "not a yami-niri source folder (YAMI_NIRI_SRC?): left alone", "não é uma pasta de código-fonte do yami-niri (YAMI_NIRI_SRC?): preservada"));
         } else if niri && !force && dev_tree(&p) {
-            line(y.warn("·"), &crate::tf!("в дереве твоя работа над патчами: оставлено (--force — всё равно)", "your patch work is in the tree: kept (--force to remove anyway)"));
+            line(y.warn("·"), &crate::tf!("в дереве твоя работа над патчами: оставлено (--force — всё равно)", "your patch work is in the tree: kept (--force to remove anyway)", "seus patches estão na árvore: preservados (--force para remover mesmo assim)"));
         } else if dry {
-            line(y.dim("·"), &crate::tf!("будет удалено", "would be removed"));
+            line(y.dim("·"), &crate::tf!("будет удалено", "would be removed", "seria removido"));
         } else {
             match std::fs::remove_dir_all(&p) {
                 Ok(()) => {
                     freed += sz;
-                    line(y.ok("✓"), &crate::tf!("удалено", "removed"));
+                    line(y.ok("✓"), &crate::tf!("удалено", "removed", "removido"));
                 }
                 Err(e) => line(y.bad("✕"), &e.to_string()),
             }
         }
     }
     if !found {
-        println!("   {} {}", y.ok("✓"), crate::tf!("кеша нет, чистить нечего", "no cache, nothing to clean"));
+        println!("   {} {}", y.ok("✓"), crate::tf!("кеша нет, чистить нечего", "no cache, nothing to clean", "sem cache, nada para limpar"));
     } else if !dry && freed > 0 {
-        println!("\n {} {}", y.ok("✓"), crate::tf!("освобождено {}; следующее обновление соберёт заново (yami-niri уже стоит и этим не затронут)", "freed {}; the next update rebuilds (the installed yami-niri is untouched)", human(freed)));
+        println!("\n {} {}", y.ok("✓"), crate::tf!("освобождено {}; следующее обновление соберёт заново (yami-niri уже стоит и этим не затронут)", "freed {}; the next update rebuilds (the installed yami-niri is untouched)", "{} liberados; a próxima atualização recompila (o yami-niri instalado é preservado)", human(freed)));
     }
     println!();
     0

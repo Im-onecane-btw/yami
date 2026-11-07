@@ -209,7 +209,7 @@ impl P {
         if self.mute && v > 0.0 {
             self.fx.push(Fx::Set("mute", "no".into()));
         }
-        self.toast(crate::tf!("громкость {}%", "volume {}%", v));
+        self.toast(crate::tf!("громкость {}%", "volume {}%", "volume {}%", v));
     }
 
     pub fn go(&mut self, d: i32) {
@@ -223,7 +223,7 @@ impl P {
         let n = if d == 0 { 3 } else { (i + d).clamp(0, SPEEDS.len() as i32 - 1) };
         let s = SPEEDS[n as usize];
         self.fx.push(Fx::Set("speed", format!("{s}")));
-        self.toast(crate::tf!("скорость ×{}", "speed ×{}", s));
+        self.toast(crate::tf!("скорость ×{}", "speed ×{}", "velocidade ×{}", s));
     }
 
     pub fn btn(&mut self, a: &str) {
@@ -343,7 +343,7 @@ fn human(b: i64) -> String {
         v /= 1024.0;
         i += 1;
     }
-    let unit = if crate::i18n::en() { ue[i] } else { u[i] };
+    let unit = if crate::i18n::translated() { ue[i] } else { u[i] };
     if i == 0 {
         format!("{v:.0} {unit}")
     } else {
@@ -368,7 +368,7 @@ pub fn draw(ui: &mut Ui, p: &P, w: i32, h: i32, bg: bool) -> bool {
     if bg {
         ui.cv.clear(t.bg.alpha(t.glass.max(0.92)));
         let (icon, msg) = match &p.err {
-            Some(e) => ("screen", crate::tf!("не открывается: {}", "cannot open: {}", e)),
+            Some(e) => ("screen", crate::tf!("не открывается: {}", "cannot open: {}", "não foi possível abrir: {}", e)),
             None if !p.loaded => {
                 let dots = ".".repeat(1 + (p.born.elapsed().as_millis() / 250 % 3) as usize);
                 ui.anim = true;

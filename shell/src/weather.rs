@@ -148,11 +148,11 @@ pub fn status(st: &crate::app::State, no_city: &str) -> String {
 /// запрос к Open-Meteo: https и после переадресаций, 10 с, ответ ≤ 1 МБ
 fn get(url: &str, q: &[(&str, String)]) -> Result<serde_json::Value, String> {
     let mut c = crate::proc::curl_get(10, 1 << 20, url, q);
-    let o = crate::proc::owned(c.arg("-f")).output().map_err(|_| crate::tf!("нет curl", "no curl"))?;
+    let o = crate::proc::owned(c.arg("-f")).output().map_err(|_| crate::tf!("нет curl", "no curl", "curl não encontrado"))?;
     if !o.status.success() {
-        return Err(crate::tf!("open-meteo.com не ответил", "open-meteo.com did not answer"));
+        return Err(crate::tf!("open-meteo.com не ответил", "open-meteo.com did not answer", "open-meteo.com não respondeu"));
     }
-    serde_json::from_slice(&o.stdout).map_err(|_| crate::tf!("непонятный ответ open-meteo.com", "odd answer from open-meteo.com"))
+    serde_json::from_slice(&o.stdout).map_err(|_| crate::tf!("непонятный ответ open-meteo.com", "odd answer from open-meteo.com", "resposta inesperada do open-meteo.com"))
 }
 
 /// город → координаты и имя места; «широта, долгота» — как есть
@@ -160,11 +160,11 @@ fn locate(city: &str) -> Result<(f64, f64, String), String> {
     if let Some((la, lo)) = crate::night::geo(city) {
         return Ok((la, lo, format!("{la:.2}, {lo:.2}")));
     }
-    let lang = if crate::i18n::en() { "en" } else { "ru" };
+    let lang = if crate::i18n::pt_br() { "pt" } else if crate::i18n::en() { "en" } else { "ru" };
     let v = get("https://geocoding-api.open-meteo.com/v1/search", &[("name", city.to_string()), ("count", "1".into()), ("language", lang.into()), ("format", "json".into())])?;
     let r = &v["results"][0];
     let (Some(la), Some(lo)) = (r["latitude"].as_f64(), r["longitude"].as_f64()) else {
-        return Err(crate::tf!("город не найден: {}", "city not found: {}", city));
+        return Err(crate::tf!("город не найден: {}", "city not found: {}", "cidade não encontrada: {}", city));
     };
     Ok((la, lo, r["name"].as_str().unwrap_or(city).chars().take(40).collect()))
 }
@@ -188,7 +188,7 @@ fn forecast(old: &Weather, key: &str, city: &str, fahrenheit: bool) -> Result<We
     let v = get("https://api.open-meteo.com/v1/forecast", &q)?;
     let c = &v["current"];
     let f = |x: &serde_json::Value| x.as_f64().unwrap_or(0.0) as f32;
-    let Some(temp) = c["temperature_2m"].as_f64() else { return Err(crate::tf!("непонятный ответ open-meteo.com", "odd answer from open-meteo.com")) };
+    let Some(temp) = c["temperature_2m"].as_f64() else { return Err(crate::tf!("непонятный ответ open-meteo.com", "odd answer from open-meteo.com", "resposta inesperada do open-meteo.com")) };
     let d = &v["daily"];
     let days = (0..5)
         .filter_map(|i| Some(Day { date: d["time"][i].as_str()?.to_string(), code: d["weather_code"][i].as_i64()? as i32, hi: f(&d["temperature_2m_max"][i]), lo: f(&d["temperature_2m_min"][i]) }))

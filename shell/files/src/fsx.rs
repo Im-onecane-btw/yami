@@ -172,7 +172,7 @@ pub fn stem_len(name: &str, dir: bool) -> usize {
 }
 
 pub fn human(n: u64) -> String {
-    let en = crate::i18n::en();
+    let en = crate::i18n::translated();
     let units: [&str; 5] = if en { ["B", "KB", "MB", "GB", "TB"] } else { ["Б", "КБ", "МБ", "ГБ", "ТБ"] }; // i18n-ok
     let mut v = n as f64;
     let mut i = 0;
@@ -219,10 +219,10 @@ pub fn when(t: i64) -> String {
     let n = local_tm(now());
     let hm = format!("{:02}:{:02}", a.hour, a.min);
     if a.year == n.year && a.yday == n.yday {
-        return crate::tf!("сегодня {}", "today {}", hm);
+        return crate::tf!("сегодня {}", "today {}", "hoje {}", hm);
     }
     if (a.year == n.year && a.yday + 1 == n.yday) || (a.year + 1 == n.year && n.yday == 0 && a.mon == 12 && a.day == 31) {
-        return crate::tf!("вчера {}", "yesterday {}", hm);
+        return crate::tf!("вчера {}", "yesterday {}", "ontem {}", hm);
     }
     let m = crate::i18n::month_short(a.mon);
     if a.year == n.year {

@@ -8,7 +8,7 @@ use std::time::SystemTime;
 #[derive(Clone)]
 pub struct Look {
     pub theme: Theme,
-    /// "" (по $LANG), "ru", "en"
+    /// "" (по языку системы), "ru", "en", "pt-BR"
     pub lang: String,
     pub animations: bool,
     pub anim_speed: f32,

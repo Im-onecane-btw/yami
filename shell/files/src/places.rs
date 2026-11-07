@@ -194,7 +194,7 @@ impl Dev {
         if !self.label.is_empty() {
             return self.label.clone();
         }
-        crate::tf!("диск {}", "{} drive", crate::fsx::human(self.size))
+        crate::tf!("диск {}", "{} drive", "disco de {}", crate::fsx::human(self.size))
     }
     /// ключ для «скрыть»: UUID раздела, адрес без пароля или имя устройства
     pub fn key(&self) -> String {

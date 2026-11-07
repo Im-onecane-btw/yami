@@ -171,9 +171,9 @@ pub fn kdl(outs: &[Out]) -> String {
 fn hz(mhz: i32) -> String {
     let v = mhz as f64 / 1000.0;
     if (v - v.round()).abs() < 0.05 {
-        crate::tf!("{} Гц", "{} Hz", v.round())
+        crate::tf!("{} Гц", "{} Hz", "{} Hz", v.round())
     } else {
-        crate::tf!("{:.2} Гц", "{:.2} Hz", v)
+        crate::tf!("{:.2} Гц", "{:.2} Hz", "{:.2} Hz", v)
     }
 }
 
@@ -270,7 +270,7 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     let by = b.bottom() - 28;
     if let Some((_, at)) = &d.revert {
         let left = at.saturating_duration_since(Instant::now()).as_secs();
-        ui.text_in(PX, R::new(b.x, by, b.w - 260, 28), &crate::tf!("оставить? откат через {} с", "keep it? reverting in {} s", left), t.ember);
+        ui.text_in(PX, R::new(b.x, by, b.w - 260, 28), &crate::tf!("оставить? откат через {} с", "keep it? reverting in {} s", "manter? revertendo em {} s", left), t.ember);
         ui.button(R::new(b.right() - 250, by, 120, 28), "вернуть", "reboot", Tone::Plain, false, true, Act::Disp("revert"));
         ui.button(R::new(b.right() - 120, by, 120, 28), "оставить", "check", Tone::Primary, false, true, Act::Disp("keep"));
     } else {

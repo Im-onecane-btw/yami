@@ -14,7 +14,7 @@
 #                                 `yami update` runs after checking the release)
 #
 # Choices (the interactive installer asks them; settings change them later):
-#   --lang en|ru     --palette blood|ash|sakura|amber|venom|ice|dusk     --theme dark|light
+#   --lang en|ru|pt-BR     --palette blood|ash|sakura|amber|venom|ice|dusk     --theme dark|light
 #   --look matte|glass|light|solid     --font sans|pixel     --fetch mini|full
 #
 # Components (on by default when they fit this machine):
@@ -142,18 +142,20 @@ mkdir -p "$CACHE"
 : >"$MISSING_F"
 
 # ── language: the flag, then what the shell is set to (update), then the system ──
-L="${LANG_OPT:-}"
-if [[ -z $L ]] && ((UPDATE)) && [[ -f $SET_JSON ]]; then
-  L="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("lang",""))' "$SET_JSON" 2>/dev/null)"
-  [[ $L == ru || $L == en ]] || L=""
+L=""
+if [[ -n $LANG_OPT ]]; then
+  L="$(lang_code "$LANG_OPT")"
+  [[ -n $L ]] || { echo "--lang: en, ru or pt-BR" >&2; exit 2; }
+elif ((UPDATE)) && [[ -f $SET_JSON ]]; then
+  L="$(lang_code "$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("lang",""))' "$SET_JSON" 2>/dev/null)")"
 fi
 if [[ -z $L ]]; then
-  case "${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}" in ru*) L=ru ;; *) L=en ;; esac
+  L="$(lang_code "${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}")"
+  L="${L:-en}"
   LANG_ASK=1
 else
   LANG_ASK=0
 fi
-[[ $L == ru || $L == en ]] || { echo "--lang: ru or en" >&2; exit 2; }
 # ${#s} must count characters, not bytes
 case "$(locale charmap 2>/dev/null)" in UTF-8) ;; *) export LC_ALL=C.UTF-8 ;; esac
 
@@ -171,31 +173,31 @@ components_limit
 
 if ((UPDATE)); then
   # rebuild from this tree with the choices of the first install; no packages, no sudo
-  say "$(t "обновление из" "update from") $ROOT"
-  add "$(t "шелл: сборка из исходников" "shell: build from source")" do_build_shell
-  add "$(t "файлы: yami-files и диалог выбора файлов" "files: yami-files and the file dialog")" do_files
-  add "$(t "шрифты" "fonts")" do_fonts
-  add "$(t "niri: конфиг" "niri: config")" do_niri_config
-  add "$(t "палитра: всё, что из неё выводится" "palette: everything derived from it")" do_refresh
-  add "$(t "следы прошлых версий" "leftovers of earlier versions")" do_legacy
-  add "$(t "запись об установке" "install record")" do_stamp
+  say "$(t "обновление из" "update from" "atualizar de") $ROOT"
+  add "$(t "шелл: сборка из исходников" "shell: build from source" "shell: compilar do código-fonte")" do_build_shell
+  add "$(t "файлы: yami-files и диалог выбора файлов" "files: yami-files and the file dialog" "arquivos: yami-files e diálogo de arquivos")" do_files
+  add "$(t "шрифты" "fonts" "fontes")" do_fonts
+  add "$(t "niri: конфиг" "niri: config" "niri: configuração")" do_niri_config
+  add "$(t "палитра: всё, что из неё выводится" "palette: everything derived from it" "paleta: tudo deriva dela")" do_refresh
+  add "$(t "следы прошлых версий" "leftovers of earlier versions" "restos de versões anteriores")" do_legacy
+  add "$(t "запись об установке" "install record" "registro de instalação")" do_stamp
   # an update has no sudo: what the chosen components still miss goes to packages-needed, and the
   # shell offers one command for it (settings → updates, yami doctor, yami update need)
-  add "$(t "каких пакетов ещё не хватает" "packages still missing")" do_need_pkgs
-  add "$(t "счётчик установок (один раз, без данных)" "install counter (once, no data)")" do_count
-  ((RUNNING_NIRI)) && add "$(t "перезапуск шелла" "restart the shell")" do_restart_shell
+  add "$(t "каких пакетов ещё не хватает" "packages still missing" "pacotes ainda ausentes")" do_need_pkgs
+  add "$(t "счётчик установок (один раз, без данных)" "install counter (once, no data)" "contador de instalações (uma vez, sem dados)")" do_count
+  ((RUNNING_NIRI)) && add "$(t "перезапуск шелла" "restart the shell" "reiniciar o shell")" do_restart_shell
   run_steps
   if on fork && ((!DRY && ${#FAILED[@]} == 0)) && fork_stale; then
-    say "$(t "yami-niri: новая серия патчей — сборка (5–25 минут)" "yami-niri: a new patch series, building (5–25 minutes)")"
+    say "$(t "yami-niri: новая серия патчей — сборка (5–25 минут)" "yami-niri: a new patch series, building (5–25 minutes)" "yami-niri: nova série de patches, compilando (5–25 minutos)")"
     fork_build || FAILED+=("yami-niri")
   fi
   login_offer
   if ((${#FAILED[@]})); then
-    warn "$(t "не вышло:" "failed:") ${FAILED[*]}"
-    note "$(t "подробности:" "details:") $LOG"
+    warn "$(t "не вышло:" "failed:" "falhas:") ${FAILED[*]}"
+    note "$(t "подробности:" "details:" "detalhes:") $LOG"
     exit 1
   fi
-  say "$(t "обновлено" "updated")"
+  say "$(t "обновлено" "updated" "atualizado")"
   exit 0
 fi
 
@@ -209,14 +211,14 @@ paint
 banner $((YES))
 
 if ((SUDO && !DRY)) && [[ -n $SU ]]; then
-  say "$(t "нужен пароль администратора — один раз на всю установку" "the administrator password, once for the whole install")"
+  say "$(t "нужен пароль администратора — один раз на всю установку" "the administrator password, once for the whole install" "a senha de administrador, uma vez para toda a instalação")"
   if ! root_start; then
     if $SU true; then
       # the password is right but the root shell did not come up (an unusual sudo setup): every
       # root command asks on its own, the steps run in the foreground so the prompts are seen
-      warn "$(t "общий root-сеанс не поднялся — пароль может спрашиваться не раз" "the shared root session did not start: the password may be asked more than once")"
+      warn "$(t "общий root-сеанс не поднялся — пароль может спрашиваться не раз" "the shared root session did not start: the password may be asked more than once" "a sessão root compartilhada não iniciou: a senha pode ser solicitada mais de uma vez")"
     else
-      warn "$(t "без root — ставлю только домашнюю папку" "no root: home directory only")"
+      warn "$(t "без root — ставлю только домашнюю папку" "no root: home directory only" "sem root: apenas a pasta pessoal")"
       SUDO=0
       for i in "${!C_ID[@]}"; do can "${C_ID[$i]}" || C_ON[i]=0; done
     fi
@@ -226,46 +228,46 @@ fi
 
 # root steps first: the root shell closes before the build (run_steps), see installer/root.sh
 if ((SUDO)) && { on core || on apps || on look; }; then
-  add "$(t "пакеты: обновить списки" "packages: refresh index")" pm_refresh
+  add "$(t "пакеты: обновить списки" "packages: refresh index" "pacotes: atualizar índice")" pm_refresh
 fi
-on core && add "$(t "пакеты: niri" "packages: niri")" pkgs "${P_niri[@]}"
-on core && add "$(t "пакеты: сеанс и шелл" "packages: session and shell")" pkgs "${P_base[@]}"
+on core && add "$(t "пакеты: niri" "packages: niri" "pacotes: niri")" pkgs "${P_niri[@]}"
+on core && add "$(t "пакеты: сеанс и шелл" "packages: session and shell" "pacotes: sessão e shell")" pkgs "${P_base[@]}"
 # a working toolchain (rustup included) is kept: only the libraries and pkg-config are added
 P_build_need=()
 for p in "${P_build[@]}"; do
   case "$p" in rust | rustc | cargo | virtual/rust) rust_ok && continue ;; esac
   P_build_need+=("$p")
 done
-((SUDO)) && add "$(t "пакеты: сборка шелла" "packages: shell build deps")" pkgs "${P_build_need[@]}"
-on apps && add "$(t "пакеты: программы" "packages: apps")" pkgs "${P_apps[@]}"
-on look && add "$(t "пакеты: тема Qt и GTK" "packages: Qt and GTK theme")" pkgs "${P_look[@]}"
-on tools && add "$(t "пакеты: ночной свет, текст и QR со скриншота" "packages: night light, text and QR from screenshots")" pkgs "${P_tools[@]}"
-on games && add "$(t "пакеты: GameMode, MangoHud" "packages: GameMode, MangoHud")" pkgs "${P_games[@]}"
-on login && add "$(t "пакеты: greetd" "packages: greetd")" pkgs "${P_login[@]}"
+((SUDO)) && add "$(t "пакеты: сборка шелла" "packages: shell build deps" "pacotes: dependências de compilação do shell")" pkgs "${P_build_need[@]}"
+on apps && add "$(t "пакеты: программы" "packages: apps" "pacotes: aplicativos")" pkgs "${P_apps[@]}"
+on look && add "$(t "пакеты: тема Qt и GTK" "packages: Qt and GTK theme" "pacotes: tema Qt e GTK")" pkgs "${P_look[@]}"
+on tools && add "$(t "пакеты: ночной свет, текст и QR со скриншота" "packages: night light, text and QR from screenshots" "pacotes: luz noturna, texto e QR de capturas de tela")" pkgs "${P_tools[@]}"
+on games && add "$(t "пакеты: GameMode, MangoHud" "packages: GameMode, MangoHud" "pacotes: GameMode e MangoHud")" pkgs "${P_games[@]}"
+on login && add "$(t "пакеты: greetd" "packages: greetd" "pacotes: greetd")" pkgs "${P_login[@]}"
 # niri's build libraries: for yami-niri, or for upstream niri when the packaged one is too old
 if ((SUDO)) && { on fork || { on core && ! niri_ok && ((!DRY)); }; }; then
-  add "$(t "пакеты: сборка niri" "packages: niri build deps")" pkgs "${P_nirisrc[@]}"
+  add "$(t "пакеты: сборка niri" "packages: niri build deps" "pacotes: dependências de compilação do niri")" pkgs "${P_nirisrc[@]}"
 fi
-on core && add "$(t "niri $NIRI_MIN+ из исходников, если пакет старее" "niri $NIRI_MIN+ from source if the package is older")" do_niri_source
-on nvidia && add "$(t "NVIDIA: профиль против утечки VRAM" "NVIDIA: VRAM leak profile")" do_nvidia_profile
-on nvidia && add "$(t "NVIDIA: картинка с начала загрузки (пароль диска на любом выходе)" "NVIDIA: picture from the start of boot (disk password on any output)")" do_nvidia_early
-on nvidia && add "$(t "NVIDIA: кодек видеокарты в OBS на старом драйвере (GStreamer)" "NVIDIA: the GPU encoder in OBS on an old driver (GStreamer)")" do_nvidia_obs
-on core && ((SUDO)) && add "$(t "службы: bluetooth, профили питания, сеть" "services: bluetooth, power profiles, network")" do_services
-old_install && add "$(t "переезд со старого имени DARK-4RMY" "move from the old name DARK-4RMY")" do_migrate
+on core && add "$(t "niri $NIRI_MIN+ из исходников, если пакет старее" "niri $NIRI_MIN+ from source if the package is older" "niri $NIRI_MIN+ compilado se o pacote for mais antigo")" do_niri_source
+on nvidia && add "$(t "NVIDIA: профиль против утечки VRAM" "NVIDIA: VRAM leak profile" "NVIDIA: perfil contra vazamento de VRAM")" do_nvidia_profile
+on nvidia && add "$(t "NVIDIA: картинка с начала загрузки (пароль диска на любом выходе)" "NVIDIA: picture from the start of boot (disk password on any output)" "NVIDIA: imagem desde o início da inicialização (senha do disco em qualquer saída)")" do_nvidia_early
+on nvidia && add "$(t "NVIDIA: кодек видеокарты в OBS на старом драйвере (GStreamer)" "NVIDIA: the GPU encoder in OBS on an old driver (GStreamer)" "NVIDIA: codificador da GPU no OBS com driver antigo (GStreamer)")" do_nvidia_obs
+on core && ((SUDO)) && add "$(t "службы: bluetooth, профили питания, сеть" "services: bluetooth, power profiles, network" "serviços: bluetooth, perfis de energia e rede")" do_services
+old_install && add "$(t "переезд со старого имени DARK-4RMY" "move from the old name DARK-4RMY" "migrar do nome antigo DARK-4RMY")" do_migrate
 # the login screen is the last root step: it goes before the build (run_steps closes the root shell there)
-on login && add "$(t "экран входа: greetd, вид и страховка" "login screen: greetd, look and safety net")" do_greet
-add "$(t "шелл: сборка из исходников" "shell: build from source")" do_build_shell
-add "$(t "файлы: yami-files и диалог выбора файлов" "files: yami-files and the file dialog")" do_files
-add "$(t "шрифты: Tiny5, DotGothic16, Terminess, Monocraft" "fonts: Tiny5, DotGothic16, Terminess, Monocraft")" do_fonts
-add "$(t "niri: конфиг и настройки под железо" "niri: config and hardware settings")" do_niri_config
-add "$(t "палитра «$(pal_name "$pal")»: шелл, kitty, fastfetch, обои" "palette «$(pal_name "$pal")»: shell, kitty, fastfetch, wallpaper")" do_dotfiles
-on look && add "$(t "тема программ: Qt, KDE, GTK" "app theme: Qt, KDE, GTK")" do_look
-add "$(t "следы прошлых версий" "leftovers of earlier versions")" do_legacy
-old_install && add "$(t "убрать файлы под старым именем" "remove files under the old name")" do_drop_old
-add "$(t "запись об установке (для yami update)" "install record (for yami update)")" do_stamp
-add "$(t "каких пакетов ещё не хватает" "packages still missing")" do_need_pkgs
-add "$(t "счётчик установок (один раз, без данных)" "install counter (once, no data)")" do_count
-((RUNNING_NIRI)) && add "$(t "перезапуск шелла" "restart the shell")" do_restart_shell
+on login && add "$(t "экран входа: greetd, вид и страховка" "login screen: greetd, look and safety net" "tela de login: greetd, aparência e rede de segurança")" do_greet
+add "$(t "шелл: сборка из исходников" "shell: build from source" "shell: compilar do código-fonte")" do_build_shell
+add "$(t "файлы: yami-files и диалог выбора файлов" "files: yami-files and the file dialog" "arquivos: yami-files e diálogo de arquivos")" do_files
+add "$(t "шрифты: Tiny5, DotGothic16, Terminess, Monocraft" "fonts: Tiny5, DotGothic16, Terminess, Monocraft" "fontes: Tiny5, DotGothic16, Terminess e Monocraft")" do_fonts
+add "$(t "niri: конфиг и настройки под железо" "niri: config and hardware settings" "niri: configuração e ajustes de hardware")" do_niri_config
+add "$(t "палитра «$(pal_name "$pal")»: шелл, kitty, fastfetch, обои" "palette «$(pal_name "$pal")»: shell, kitty, fastfetch, wallpaper" "paleta «$(pal_name "$pal")»: shell, kitty, fastfetch e papel de parede")" do_dotfiles
+on look && add "$(t "тема программ: Qt, KDE, GTK" "app theme: Qt, KDE, GTK" "tema dos aplicativos: Qt, KDE e GTK")" do_look
+add "$(t "следы прошлых версий" "leftovers of earlier versions" "restos de versões anteriores")" do_legacy
+old_install && add "$(t "убрать файлы под старым именем" "remove files under the old name" "remover arquivos com o nome antigo")" do_drop_old
+add "$(t "запись об установке (для yami update)" "install record (for yami update)" "registro de instalação (para yami update)")" do_stamp
+add "$(t "каких пакетов ещё не хватает" "packages still missing" "pacotes ainda ausentes")" do_need_pkgs
+add "$(t "счётчик установок (один раз, без данных)" "install counter (once, no data)" "contador de instalações (uma vez, sem dados)")" do_count
+((RUNNING_NIRI)) && add "$(t "перезапуск шелла" "restart the shell" "reiniciar o shell")" do_restart_shell
 
 run_steps
 # the root shell is already closed (run_steps, before the build); what follows asks for the
@@ -276,55 +278,55 @@ if [[ $SU == asroot ]]; then
 fi
 
 if on login && ((SUDO && !DRY && !BUILD_FAILED)); then
-  say "$(t "экран входа: ставлю yami-greet (пароль администратора ещё раз)" "login screen: installing yami-greet (the administrator password once more)")"
-  greet_bin || { FAILED+=("yami-greet"); warn "$(t "yami-greet не встал: до него вход будет текстовым; поставить потом:" "yami-greet is not installed: the login is text until then; install it later:") $ROOT/tools/greet-install.sh"; }
+  say "$(t "экран входа: ставлю yami-greet (пароль администратора ещё раз)" "login screen: installing yami-greet (the administrator password once more)" "tela de login: instalando o yami-greet (a senha de administrador mais uma vez)")"
+  greet_bin || { FAILED+=("yami-greet"); warn "$(t "yami-greet не встал: до него вход будет текстовым; поставить потом:" "yami-greet is not installed: the login is text until then; install it later:" "o yami-greet não foi instalado: até lá o login será em texto; instale depois:") $ROOT/tools/greet-install.sh"; }
 fi
 
 if on fork && ((!DRY && !BUILD_FAILED)); then
-  printf '\n  %s%s%s\n\n' "$T" "$(t "сборка yami-niri — 5–25 минут, вывод прямо здесь:" "building yami-niri takes 5–25 minutes, output below:")" "$R"
+  printf '\n  %s%s%s\n\n' "$T" "$(t "сборка yami-niri — 5–25 минут, вывод прямо здесь:" "building yami-niri takes 5–25 minutes, output below:" "compilar o yami-niri leva de 5 a 25 minutos; saída abaixo:")" "$R"
   fork_build || FAILED+=("yami-niri")
 elif ((DRY)) && on fork; then
-  printf '  %s·%s %s%s%s\n' "$A" "$R" "$T" "$(t "yami-niri: сборка и включение со следующего входа" "yami-niri: build and enable from the next login")" "$R"
+  printf '  %s·%s %s%s%s\n' "$A" "$R" "$T" "$(t "yami-niri: сборка и включение со следующего входа" "yami-niri: build and enable from the next login" "yami-niri: compilar e ativar a partir do próximo login")" "$R"
 fi
 
 # ── summary ─────────────────────────────────────────────────────────────────
 printf '\n  %s────────────────────────────────────────%s\n' "$F" "$R"
 if ((${#FAILED[@]})); then
-  warn "$(t "не вышло:" "failed:") ${FAILED[*]}"
-  note "$(t "подробности:" "details:") $LOG"
+  warn "$(t "не вышло:" "failed:" "falhas:") ${FAILED[*]}"
+  note "$(t "подробности:" "details:" "detalhes:") $LOG"
 else
-  printf '  %s%s%s %s%s %s%s\n' "$OK" "$(t "готово." "done.")" "$R" "$D" "$(t "лог:" "log:")" "$LOG" "$R"
+  printf '  %s%s%s %s%s %s%s\n' "$OK" "$(t "готово." "done." "concluído.")" "$R" "$D" "$(t "лог:" "log:" "registro:")" "$LOG" "$R"
 fi
 if [[ -s $MISSING_F ]]; then
-  warn "$(t "этих пакетов нет в репозиториях" "not in the repositories") ($OS_NAME): $(sort -u "$MISSING_F" | tr '\n' ' ')"
-  note "$(t "шелл работает и без них; поставь аналоги вручную, если нужно" "the shell works without them; install equivalents by hand if needed")"
+  warn "$(t "этих пакетов нет в репозиториях" "not in the repositories" "fora dos repositórios") ($OS_NAME): $(sort -u "$MISSING_F" | tr '\n' ' ')"
+  note "$(t "шелл работает и без них; поставь аналоги вручную, если нужно" "the shell works without them; install equivalents by hand if needed" "o shell funciona sem eles; instale equivalentes manualmente, se necessário")"
 fi
 if [[ -s $STATE/packages-needed ]] && ((!DRY)); then
-  warn "$(t "для выбранного не хватает пакетов — одна команда (или настройки → обновления):" "the chosen components miss packages; one command (or settings → updates):")"
+  warn "$(t "для выбранного не хватает пакетов — одна команда (или настройки → обновления):" "the chosen components miss packages; one command (or settings → updates):" "faltam pacotes para os componentes escolhidos; um comando (ou configurações → atualizações):")"
   note "$("$BIN/yami-shell" update need --print 2>/dev/null)"
 fi
 if [[ $FAM == nixos ]]; then
-  printf '\n  %s%s%s\n' "$T" "$(t "NixOS: система — через flake (docs/PACKAGING.md):" "NixOS: the system goes through the flake (docs/PACKAGING.md):")" "$R"
+  printf '\n  %s%s%s\n' "$T" "$(t "NixOS: система — через flake (docs/PACKAGING.md):" "NixOS: the system goes through the flake (docs/PACKAGING.md):" "NixOS: o sistema vai pelo flake (docs/PACKAGING.md):")" "$R"
   note "inputs.yami.url = \"github:Trendorin/yami\";"
   note "imports = [ yami.nixosModules.default ];  programs.yami.enable = true;"
 fi
-niri_ok || ((DRY)) || on fork || warn "$(t "нужен niri $NIRI_MIN или новее — поставь его или запусти без --no-fork" "niri $NIRI_MIN or newer is required: install it or rerun without --no-fork")"
+niri_ok || ((DRY)) || on fork || warn "$(t "нужен niri $NIRI_MIN или новее — поставь его или запусти без --no-fork" "niri $NIRI_MIN or newer is required: install it or rerun without --no-fork" "niri $NIRI_MIN ou superior é necessário: instale ou execute novamente sem --no-fork")"
 
-if ((RUNNING_NIRI)); then next="$(t "всё уже применилось; Qt и GTK-программы — после перезапуска" "everything is live; Qt and GTK apps pick it up after a restart")"
-else next="$(t "в экране входа выбери сессию «Niri» (или niri-session из TTY)" "pick the «Niri» session at login (or run niri-session from a TTY)")"; fi
+if ((RUNNING_NIRI)); then next="$(t "всё уже применилось; Qt и GTK-программы — после перезапуска" "everything is live; Qt and GTK apps pick it up after a restart" "tudo muda na hora; aplicativos Qt e GTK adotam as mudanças ao reiniciar")"
+else next="$(t "в экране входа выбери сессию «Niri» (или niri-session из TTY)" "pick the «Niri» session at login (or run niri-session from a TTY)" "escolha a sessão «Niri» no login (ou execute niri-session num TTY)")"; fi
 k() { printf '  %s%s%s %s%s%s %s%s%s %s%s%s\n' "$A" "$(pad "$1" 16)" "$R" "$D" "$(pad "$2" 22)" "$R" "$A" "$(pad "$3" 16)" "$R" "$D" "$4" "$R"; }
-printf '\n  %s%s%s%s  %s%s%s\n\n' "$T" "$B" "$(t "дальше" "next")" "$R" "$T" "$next" "$R"
-k "Mod+Space" "$(t "программы" "launcher")" "Mod+V" "$(t "буфер обмена" "clipboard")"
-k "Mod+S" "$(t "настройки, палитра" "settings, palette")" "Mod+Shift+Space" "$(t "стол / лента" "desk / tiling")"
-k "Mod+Escape" "$(t "блокировка" "lock")" "Mod+N" "$(t "свернуть окно" "minimize")"
-k "Mod+Shift+E" "$(t "питание" "power")" "Mod+Shift+/" "$(t "все клавиши" "all keys")"
-k "Mod+Shift+S" "$(t "скриншот" "screenshot")" "Mod+E" "$(t "файлы" "files")"
-printf '\n  %s%s%s\n' "$F" "$(t "клавиши меняются в настройках → клавиши; всё остальное: yami help, yami config list" "rebind keys in settings → keys; everything else: yami help, yami config list")" "$R"
-printf '  %s%s%s\n' "$F" "$(t "обновления: настройки → обновления или yami update" "updates: settings → updates or yami update")" "$R"
+printf '\n  %s%s%s%s  %s%s%s\n\n' "$T" "$B" "$(t "дальше" "next" "próximo")" "$R" "$T" "$next" "$R"
+k "Mod+Space" "$(t "программы" "launcher" "menu de aplicativos")" "Mod+V" "$(t "буфер обмена" "clipboard" "área de transferência")"
+k "Mod+S" "$(t "настройки, палитра" "settings, palette" "configurações, paleta")" "Mod+Shift+Space" "$(t "стол / лента" "desk / tiling" "livre / mosaico")"
+k "Mod+Escape" "$(t "блокировка" "lock" "bloquear")" "Mod+N" "$(t "свернуть окно" "minimize" "minimizar")"
+k "Mod+Shift+E" "$(t "питание" "power" "energia")" "Mod+Shift+/" "$(t "все клавиши" "all keys" "todas as teclas")"
+k "Mod+Shift+S" "$(t "скриншот" "screenshot" "captura de tela")" "Mod+E" "$(t "файлы" "files" "arquivos")"
+printf '\n  %s%s%s\n' "$F" "$(t "клавиши меняются в настройках → клавиши; всё остальное: yami help, yami config list" "rebind keys in settings → keys; everything else: yami help, yami config list" "redefina os atalhos em configurações → atalhos; demais opções: yami help, yami config list")" "$R"
+printf '  %s%s%s\n' "$F" "$(t "обновления: настройки → обновления или yami update" "updates: settings → updates or yami update" "atualizações: configurações → atualizações ou yami update")" "$R"
 if on fork; then
-  printf '  %s%s ~/.local/lib/yami-niri/yami-niri.sh status | off%s\n\n' "$F" "$(t "yami-niri:" "yami-niri:")" "$R"
+  printf '  %s%s ~/.local/lib/yami-niri/yami-niri.sh status | off%s\n\n' "$F" "$(t "yami-niri:" "yami-niri:" "yami-niri:")" "$R"
 else
-  printf '  %s%s %s/fork/yami-niri.sh build%s\n\n' "$F" "$(t "наш niri для игр и плавности:" "our niri for games and smoothness:")" "$ROOT" "$R"
+  printf '  %s%s %s/fork/yami-niri.sh build%s\n\n' "$F" "$(t "наш niri для игр и плавности:" "our niri for games and smoothness:" "nosso niri para jogos e fluidez:")" "$ROOT" "$R"
 fi
 
 exit 0

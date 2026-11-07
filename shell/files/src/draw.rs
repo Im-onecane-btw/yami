@@ -616,7 +616,7 @@ pub(crate) fn info(ui: &mut Ui, fm: &Fm, r: R) {
         let total: u64 = sel.iter().map(|e| e.size).sum();
         picons::draw(&mut ui.cv, &t, Kind::Other, Special::None, x + (w - 96) / 2, y, 6, picons::Look { dim: false, link: false, selected: false });
         y += 110;
-        ui.text_center(PX, R::new(x, y, w, 20), &crate::tf!("выбрано: {}", "selected: {}", sel.len()), t.text);
+        ui.text_center(PX, R::new(x, y, w, 20), &crate::tf!("выбрано: {}", "selected: {}", "selecionados: {}", sel.len()), t.text);
         y += 22;
         ui.cv.text_center(ui.f, PX, R::new(x, y, w, 20), &fsx::human(total), t.text_dim);
         return;
@@ -710,13 +710,13 @@ pub(crate) fn status(ui: &mut Ui, fm: &Fm, r: R) {
     let dirs = v.items.iter().filter(|&&k| v.all[k].dir).count();
     let files = v.items.len() - dirs;
     let sel = v.selected();
-    let mut s = crate::tf!("папок {} · файлов {}", "{} folders · {} files", dirs, files);
+    let mut s = crate::tf!("папок {} · файлов {}", "{} folders · {} files", "{} pastas · {} arquivos", dirs, files);
     if !sel.is_empty() {
         let size: u64 = sel.iter().filter(|e| !e.dir).map(|e| e.size).sum();
         if sel.iter().any(|e| !e.dir) {
-            s += &crate::tf!("  ·  выбрано {} ({})", "  ·  {} selected ({})", sel.len(), fsx::human(size));
+            s += &crate::tf!("  ·  выбрано {} ({})", "  ·  {} selected ({})", "  ·  {} selecionados ({})", sel.len(), fsx::human(size));
         } else {
-            s += &crate::tf!("  ·  выбрано {}", "  ·  {} selected", sel.len());
+            s += &crate::tf!("  ·  выбрано {}", "  ·  {} selected", "  ·  {} selecionados", sel.len());
         }
     }
     ui.cv.fill(R::new(r.x + 10, r.cy() - 2, 4, 4), t.red);
@@ -728,7 +728,7 @@ pub(crate) fn status(ui: &mut Ui, fm: &Fm, r: R) {
         let used = 1.0 - free as f32 / total.max(1) as f32;
         ui.cv.gauge(R::new(rx - gw, r.cy() - 4, gw, 8), 10, used, if used > 0.9 { t.warn } else { t.red }, t.surface.lerp(t.border, 0.4), 1);
         rx -= gw + 8;
-        let fs = crate::tf!("свободно {}", "{} free", fsx::human(free));
+        let fs = crate::tf!("свободно {}", "{} free", "{} livres", fsx::human(free));
         let fw = ui.f.width(PX, &fs);
         ui.cv.text_in(ui.f, PX, R::new(rx - fw, r.y, fw, r.h), &fs, t.text_faint);
         rx -= fw + 16;
@@ -815,7 +815,7 @@ pub(crate) fn pick_bar(ui: &mut Ui, fm: &Fm, r: R) {
         field_text(ui, R::new(nr.x + 10, nr.y, nr.w - 20, nr.h), &p.name, "имя файла", p.name_focus);
         ui.zone(nr, Act::PickName, Cur::Text);
         if let Some(o) = &p.overwrite {
-            let s = crate::tf!("«{}» уже есть — нажми ещё раз, чтобы заменить", "“{}” exists — press again to replace", o.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default());
+            let s = crate::tf!("«{}» уже есть — нажми ещё раз, чтобы заменить", "“{}” exists — press again to replace", "“{}” já existe — pressione novamente para substituir", o.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default());
             let sw = ui.f.width(PX, &s) + 24;
             let wr = R::new(nr.x, r.y - 34, sw, 28);
             ui.cv.pxbox(wr, &BoxStyle::new(t.panel, t.warn).shadow(3));

@@ -83,7 +83,7 @@ pub fn run(args: &[String]) -> i32 {
     }
     look.animations = false;
     crate::i18n::set(&look.lang);
-    crate::i18n::audit(lang == "en");
+    crate::i18n::audit(lang == "en" || yami_px::i18n::normalize(&lang) == "pt-BR");
     let root = std::env::temp_dir().join(format!("yami-files-shot-{}", std::process::id()));
     fixture(&root);
     let _ = std::fs::create_dir_all(&out);
@@ -247,7 +247,7 @@ pub fn run(args: &[String]) -> i32 {
         let path = out.join(format!("{t}.png"));
         save_png(&buf, w, h, &path);
         println!("{}", path.display());
-        if lang == "en" {
+        if lang == "en" || yami_px::i18n::normalize(&lang) == "pt-BR" {
             let missed = crate::i18n::take_missed();
             for m in &missed {
                 println!("  untranslated [{t}]: {m}");

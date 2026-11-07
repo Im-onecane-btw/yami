@@ -196,7 +196,7 @@ do_count() {
   local mark="$STATE/counted"
   ((COUNT)) && [[ -z ${YAMI_NO_COUNT:-} && -z ${CI:-} && ! -e $mark ]] || return 99
   command -v curl >/dev/null || return 99
-  curl -fsSL --max-time 15 -o /dev/null "$COUNT_URL" || { note "$(t "счётчик недоступен — не страшно" "counter unreachable, never mind")"; return 0; }
+  curl -fsSL --max-time 15 -o /dev/null "$COUNT_URL" || { note "$(t "счётчик недоступен — не страшно" "counter unreachable, never mind" "contador indisponível, sem problema")"; return 0; }
   mkdir -p "${mark%/*}" && : >"$mark"
 }
 # what is installed and from where: `yami update` compares against it

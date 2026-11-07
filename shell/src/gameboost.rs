@@ -119,24 +119,24 @@ fn pkg(what: &str) -> &'static str {
 pub fn doctor(y: &Sty) -> i32 {
     let p = probe();
     let set = crate::config::Settings::load();
-    y.section(&crate::tf!("игры: что есть в системе", "games: what this system has"));
+    y.section(&crate::tf!("игры: что есть в системе", "games: what this system has", "jogos: o que este sistema tem"));
     let mark = |ok: bool| if ok { y.ok("✓") } else { y.warn("·") };
     let mut missing: Vec<&str> = vec![];
     let row = |ok: bool, name: &str, note: String| println!("   {} {:<24}{}", mark(ok), name, y.dim(&note));
     row(p.ntsync, "ntsync", if p.ntsync {
-        if set.game_ntsync { crate::tf!("Proton получает PROTON_USE_NTSYNC=1", "Proton gets PROTON_USE_NTSYNC=1") } else { crate::tf!("выключено в настройках → игры", "off in settings → games") }
+        if set.game_ntsync { crate::tf!("Proton получает PROTON_USE_NTSYNC=1", "Proton gets PROTON_USE_NTSYNC=1", "Proton recebe PROTON_USE_NTSYNC=1") } else { crate::tf!("выключено в настройках → игры", "off in settings → games", "desativado em configurações → jogos") }
     } else if p.ntsync_mod {
-        crate::tf!("модуль есть, не загружен: sudo modprobe ntsync; навсегда: echo ntsync | sudo tee /etc/modules-load.d/ntsync.conf", "the module is there but not loaded: sudo modprobe ntsync; for good: echo ntsync | sudo tee /etc/modules-load.d/ntsync.conf")
+        crate::tf!("модуль есть, не загружен: sudo modprobe ntsync; навсегда: echo ntsync | sudo tee /etc/modules-load.d/ntsync.conf", "the module is there but not loaded: sudo modprobe ntsync; for good: echo ntsync | sudo tee /etc/modules-load.d/ntsync.conf", "o módulo existe, mas não está carregado: sudo modprobe ntsync; para persistir: echo ntsync | sudo tee /etc/modules-load.d/ntsync.conf")
     } else {
-        crate::tf!("нужно ядро 6.14+ с ntsync", "needs a 6.14+ kernel with ntsync")
+        crate::tf!("нужно ядро 6.14+ с ntsync", "needs a 6.14+ kernel with ntsync", "requer kernel 6.14+ com ntsync")
     });
-    row(p.gamemode, "gamemode", if p.gamemode { crate::tf!("игра в фокусе регистрируется сама", "the focused game is registered by itself") } else { missing.push("gamemode"); crate::tf!("не установлен", "not installed") });
-    row(p.ppd, "power profiles", if p.ppd { crate::tf!("«производительность» на время игры", "«performance» while you play") } else { crate::tf!("нет power-profiles-daemon или tuned-ppd", "no power-profiles-daemon or tuned-ppd") });
-    row(p.mangohud, "MangoHud", if p.mangohud { crate::tf!("конфиг в цветах палитры (если он не твой)", "a config in the palette colours (unless it is your own)") } else { missing.push("mangohud"); crate::tf!("не установлен", "not installed") });
+    row(p.gamemode, "gamemode", if p.gamemode { crate::tf!("игра в фокусе регистрируется сама", "the focused game is registered by itself", "o jogo em foco é registrado automaticamente") } else { missing.push("gamemode"); crate::tf!("не установлен", "not installed", "não instalado") });
+    row(p.ppd, "power profiles", if p.ppd { crate::tf!("«производительность» на время игры", "«performance» while you play", "«desempenho» enquanto você joga") } else { crate::tf!("нет power-profiles-daemon или tuned-ppd", "no power-profiles-daemon or tuned-ppd", "power-profiles-daemon ou tuned-ppd ausente") });
+    row(p.mangohud, "MangoHud", if p.mangohud { crate::tf!("конфиг в цветах палитры (если он не твой)", "a config in the palette colours (unless it is your own)", "uma configuração com as cores da paleta (exceto se for personalizada)") } else { missing.push("mangohud"); crate::tf!("не установлен", "not installed", "não instalado") });
     if !missing.is_empty() {
         if let Some((_, cmd)) = pm() {
             let pk: Vec<&str> = missing.iter().map(|m| pkg(m)).filter(|p| !p.is_empty()).collect();
-            println!("\n   {} {}", y.dim(&crate::tf!("добавить:", "add:")), y.bold(&format!("{cmd} {}", pk.join(" "))));
+            println!("\n   {} {}", y.dim(&crate::tf!("добавить:", "add:", "adicionar:")), y.bold(&format!("{cmd} {}", pk.join(" "))));
         }
     }
     println!();

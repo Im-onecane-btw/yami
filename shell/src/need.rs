@@ -97,13 +97,13 @@ impl Need {
     pub fn items(&self) -> Vec<String> {
         let mut v = vec![];
         if !self.pkgs.is_empty() {
-            v.push(crate::tf!("не хватает пакетов: {}", "missing packages: {}", self.pkgs.join(" ")));
+            v.push(crate::tf!("не хватает пакетов: {}", "missing packages: {}", "pacotes ausentes: {}", self.pkgs.join(" ")));
         }
         if self.login.is_some() {
             v.push(if std::path::Path::new("/usr/share/sddm/themes/yami").exists() {
-                crate::tf!("новый экран входа вместо SDDM (SDDM выключится, не удалится)", "the new login screen instead of SDDM (SDDM is turned off, not removed)")
+                crate::tf!("новый экран входа вместо SDDM (SDDM выключится, не удалится)", "the new login screen instead of SDDM (SDDM is turned off, not removed)", "a nova tela de login no lugar do SDDM (o SDDM é desativado, não removido)")
             } else {
-                crate::tf!("экран входа обновился", "the login screen changed")
+                crate::tf!("экран входа обновился", "the login screen changed", "a tela de login mudou")
             });
         }
         v
@@ -139,7 +139,7 @@ impl crate::app::App {
 pub fn cli(y: &crate::cmd::Sty, args: &[&str]) -> i32 {
     let Some(n) = load() else {
         if !args.contains(&"--print") {
-            println!(" {} {}", y.ok("✓"), crate::tf!("всех пакетов хватает", "no packages missing"));
+            println!(" {} {}", y.ok("✓"), crate::tf!("всех пакетов хватает", "no packages missing", "nenhum pacote ausente"));
         }
         return 0;
     };
@@ -155,15 +155,15 @@ pub fn cli(y: &crate::cmd::Sty, args: &[&str]) -> i32 {
         }
         if ok {
             let _ = std::fs::remove_file(path());
-            println!(" {} {}", y.ok("✓"), crate::tf!("поставлено", "installed"));
+            println!(" {} {}", y.ok("✓"), crate::tf!("поставлено", "installed", "instalado"));
             return 0;
         }
-        eprintln!(" {} {}", y.bad("✕"), crate::tf!("не вышло — команда выше", "failed, see the command above"));
+        eprintln!(" {} {}", y.bad("✕"), crate::tf!("не вышло — команда выше", "failed, see the command above", "falhou; veja o comando acima"));
         return 1;
     }
-    y.section(&crate::tf!("не поставлено", "not installed"));
+    y.section(&crate::tf!("не поставлено", "not installed", "não instalado"));
     println!("   {}", n.what());
-    println!("\n   {}  {}", y.bold(&n.line()), y.dim(&crate::tf!("(или: yami update need --run)", "(or: yami update need --run)")));
+    println!("\n   {}  {}", y.bold(&n.line()), y.dim(&crate::tf!("(или: yami update need --run)", "(or: yami update need --run)", "(ou: yami update need --run)")));
     println!();
     0
 }

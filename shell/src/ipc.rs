@@ -37,12 +37,12 @@ pub fn send(cmd: &str) -> bool {
 pub fn serve(tx: Sender<Msg>) {
     let p = path();
     if UnixStream::connect(&p).is_ok() {
-        eprintln!("{}", crate::tf!("yami-shell уже запущен", "yami-shell is already running"));
+        eprintln!("{}", crate::tf!("yami-shell уже запущен", "yami-shell is already running", "yami-shell já está em execução"));
         std::process::exit(0);
     }
     let _ = std::fs::remove_file(&p);
     let Ok(l) = UnixListener::bind(&p) else {
-        eprintln!("{}", crate::tf!("ipc: не создать {}", "ipc: cannot create {}", p.display()));
+        eprintln!("{}", crate::tf!("ipc: не создать {}", "ipc: cannot create {}", "ipc: não foi possível criar {}", p.display()));
         return;
     };
     let _ = std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o600));

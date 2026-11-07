@@ -424,7 +424,7 @@ impl App {
                         let py = ((y * img.h as f64 / h.max(1) as f64) as i32).clamp(0, img.h - 1);
                         let c = img.px[(py * img.w + px) as usize] & 0xffffff;
                         copy_text(&format!("#{c:06x}"));
-                        self.snap_hint(&crate::tf!("цвет #{:06x} скопирован", "colour #{:06x} copied", c));
+                        self.snap_hint(&crate::tf!("цвет #{:06x} скопирован", "colour #{:06x} copied", "cor #{:06x} copiada", c));
                     }
                     return true;
                 }
@@ -642,7 +642,7 @@ impl App {
                             let (cx, cy) = ((x as f32 * k) as i32, (y as f32 * k) as i32);
                             let c = img.px[(cy.clamp(0, img.h - 1) * img.w + cx.clamp(0, img.w - 1)) as usize] & 0xffffff;
                             copy_text(&format!("#{c:06x}"));
-                            self.snap_hint(&crate::tf!("цвет #{:06x} скопирован", "colour #{:06x} copied", c));
+                            self.snap_hint(&crate::tf!("цвет #{:06x} скопирован", "colour #{:06x} copied", "cor #{:06x} copiada", c));
                         }
                     }
                 }
@@ -744,7 +744,7 @@ impl App {
         match text {
             Some(t) => {
                 let short: String = t.chars().take(160).collect();
-                self.toast_note(&crate::tf!("{} — в буфере", "{}: copied", crate::i18n::tr(title)), &short);
+                self.toast_note(&crate::tf!("{} — в буфере", "{}: copied", "{}: copiado", crate::i18n::tr(title)), &short);
             }
             None => self.toast_note(title, if qr { "QR-код не найден" } else { "текст не распознан" }),
         }

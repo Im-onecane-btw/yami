@@ -65,6 +65,15 @@ if [[ -x $PLAY ]]; then
   "$PLAY" shot --lang en -o "$TMP/pen" | grep untranslated
   [[ ${PIPESTATUS[0]} -eq 0 ]] && ok "yami-play shot --lang en: no Russian left" || bad "yami-play shot --lang en"
 fi
+# every app in Brazilian Portuguese: nothing left in Russian or English from the catalogs
+for name in shell files view play greet; do
+  exe="$ROOT/shell/target/release/yami-$name"
+  [[ -x $exe ]] || continue
+  args=(shot --lang pt-BR -o "$TMP/pt-$name")
+  [[ $name == shell ]] && args+=(--defaults)
+  "$exe" "${args[@]}" | grep untranslated
+  [[ ${PIPESTATUS[0]} -eq 0 ]] && ok "yami-$name shot --lang pt-BR" || bad "yami-$name shot --lang pt-BR"
+done
 step "unit tests"
 cargo test --release --locked --workspace --quiet --manifest-path "$ROOT/shell/Cargo.toml" >"$TMP/test.log" 2>&1 && ok "cargo test" || { tail -20 "$TMP/test.log"; bad "cargo test"; }
 # a package manager's build (Nix, distro packages): the updater is off (docs/PACKAGING.md)
@@ -111,7 +120,7 @@ if ((!FAST)); then
   step "installer dry run (throwaway HOME)"
   mkdir -p "$TMP/home"
   # a first install, the same with root (the plan only: --dry-run never asks for it), an update
-  for args in "--no-sudo" "" "--update"; do
+  for args in "--no-sudo" "" "--update" "--lang pt-BR --no-sudo"; do
     if HOME="$TMP/home" NIRI_SOCKET='' XDG_CONFIG_HOME='' XDG_CACHE_HOME='' XDG_STATE_HOME='' XDG_DATA_HOME='' \
       timeout 60 "$ROOT/install.sh" --yes --dry-run --no-anim --lang en $args >"$TMP/dry.log" 2>&1; then
       ok "install.sh --dry-run $args"

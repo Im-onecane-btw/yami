@@ -165,7 +165,7 @@ pub fn trash(p: &Path) -> Result<(), String> {
 }
 
 pub fn human(n: u64) -> String {
-    let u = if crate::i18n::en() { ["B", "KB", "MB", "GB"] } else { ["Б", "КБ", "МБ", "ГБ"] }; // i18n-ok
+    let u = if crate::i18n::translated() { ["B", "KB", "MB", "GB"] } else { ["Б", "КБ", "МБ", "ГБ"] }; // i18n-ok
     let mut v = n as f64;
     let mut i = 0;
     while v >= 1024.0 && i < 3 {

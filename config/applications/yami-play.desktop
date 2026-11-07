@@ -1,10 +1,13 @@
 [Desktop Entry]
 Type=Application
 Name=Player
+Name[pt_BR]=Player
 Name[ru]=Плеер
 GenericName=Video and Music Player
+GenericName[pt_BR]=Reprodutor de vídeo e música
 GenericName[ru]=Видео и музыка
 Comment=Pixel-art video and music player of the yami shell
+Comment[pt_BR]=Reprodutor de vídeo e música em pixel art do yami
 Comment[ru]=Пиксельный плеер видео и музыки шелла yami
 Exec=yami-play %U
 Icon=multimedia-video-player

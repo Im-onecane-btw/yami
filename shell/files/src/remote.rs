@@ -99,7 +99,7 @@ pub fn title_of(uri: &str) -> String {
     };
     let host = host.rsplit('@').next().unwrap_or(host);
     match path.rsplit('/').next().filter(|s| !s.is_empty()) {
-        Some(last) => crate::tf!("{} на {}", "{} on {}", last, host),
+        Some(last) => crate::tf!("{} на {}", "{} on {}", "{} em {}", last, host),
         None => host.to_string(),
     }
 }

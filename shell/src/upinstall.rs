@@ -71,49 +71,49 @@ pub(crate) fn copy_bins(from: &Path, to: &Path) -> std::io::Result<()> {
 /// поставить найденное обновление; Err — почему нет
 pub fn apply(set: &Settings) -> Result<String, String> {
     require_enabled()?;
-    let Some(_l) = lock() else { return Err(crate::tf!("обновление уже идёт", "an update is already running")) };
-    progress(&crate::tf!("проверяю, что нового", "checking what is new"));
+    let Some(_l) = lock() else { return Err(crate::tf!("обновление уже идёт", "an update is already running", "uma atualização já está em andamento")) };
+    progress(&crate::tf!("проверяю, что нового", "checking what is new", "verificando novidades"));
     let i = check(set);
     if !i.err.is_empty() {
         return Err(i.err);
     }
     if !i.available {
-        return Ok(crate::tf!("уже свежее: {}", "already up to date: {}", installed().version));
+        return Ok(crate::tf!("уже свежее: {}", "already up to date: {}", "já está atualizado: {}", installed().version));
     }
     if !i.sig_ok(&set.update_verify) {
-        return Err(crate::tf!("{} — не ставлю (настройки → обновления → подписи)", "{}: not installing (settings → updates → signatures)", sig_text(&i.sig)));
+        return Err(crate::tf!("{} — не ставлю (настройки → обновления → подписи)", "{}: not installing (settings → updates → signatures)", "{}: não será instalado (configurações → atualizações → assinaturas)", sig_text(&i.sig)));
     }
     build_install(&i)?;
-    Ok(crate::tf!("установлено: {}", "installed: {}", i.latest))
+    Ok(crate::tf!("установлено: {}", "installed: {}", "instalado: {}", i.latest))
 }
 
 /// перейти на выбранный выпуск (тег vX.Y.Z или X.Y.Z), старее или новее установленного.
 /// Ставится только то, что проходит правило подписей, как и обычное обновление
 pub fn install_tag(set: &Settings, want: &str) -> Result<String, String> {
     require_enabled()?;
-    let Some(_l) = lock() else { return Err(crate::tf!("обновление уже идёт", "an update is already running")) };
+    let Some(_l) = lock() else { return Err(crate::tf!("обновление уже идёт", "an update is already running", "uma atualização já está em andamento")) };
     let tag = format!("v{}", want.trim().trim_start_matches('v'));
     if ver(&tag).is_empty() || !tag[1..].chars().all(|c| c.is_ascii_digit() || c == '.') {
-        return Err(crate::tf!("нет такой версии: {}", "no such version: {}", want));
+        return Err(crate::tf!("нет такой версии: {}", "no such version: {}", "versão inexistente: {}", want));
     }
-    progress(&crate::tf!("ищу {}", "looking for {}", tag));
+    progress(&crate::tf!("ищу {}", "looking for {}", "procurando {}", tag));
     let st = installed();
     let dir = ensure_clone(set, &st)?;
     git(&dir, &["fetch", "-q", "--tags", "origin"]).map_err(explain)?;
     let Ok(target) = git(&dir, &["rev-parse", "-q", "--verify", &format!("refs/tags/{tag}^{{commit}}")]) else {
-        return Err(crate::tf!("нет такой версии: {}", "no such version: {}", tag));
+        return Err(crate::tf!("нет такой версии: {}", "no such version: {}", "versão inexistente: {}", tag));
     };
     let known = has_commit(&dir, &st.commit);
     let mut i = Info { latest: tag[1..].to_string(), reference: tag.clone(), target, available: true, at: now(), ..Default::default() };
     i.sig = verify(&dir, &st, known, &set.update_verify, "verify-tag", &tag);
     if !i.sig_ok(&set.update_verify) {
-        return Err(crate::tf!("{} — не ставлю (настройки → обновления → подписи)", "{}: not installing (settings → updates → signatures)", sig_text(&i.sig)));
+        return Err(crate::tf!("{} — не ставлю (настройки → обновления → подписи)", "{}: not installing (settings → updates → signatures)", "{}: não será instalado (configurações → atualizações → assinaturas)", sig_text(&i.sig)));
     }
     if st.commit == i.target {
-        return Ok(crate::tf!("{} уже стоит", "{} is already installed", tag));
+        return Ok(crate::tf!("{} уже стоит", "{} is already installed", "{} já está instalado", tag));
     }
     build_install(&i)?;
-    Ok(crate::tf!("установлено: {}", "installed: {}", i.latest))
+    Ok(crate::tf!("установлено: {}", "installed: {}", "instalado: {}", i.latest))
 }
 
 /// сборка и установка коммита i.target из своего клона; прежние бинари — в откат
@@ -121,10 +121,10 @@ pub(crate) fn build_install(i: &Info) -> Result<(), String> {
     require_enabled()?;
     let dir = clone_dir();
     if !git(&dir, &["status", "--porcelain", "--untracked-files=no"]).unwrap_or_default().is_empty() {
-        return Err(crate::tf!("в {} есть правки — убери их, и обновлю", "{} has local edits: remove them and update again", dir.display()));
+        return Err(crate::tf!("в {} есть правки — убери их, и обновлю", "{} has local edits: remove them and update again", "{} tem alterações locais: remova-as e atualize novamente", dir.display()));
     }
     let from = installed().version;
-    progress(&crate::tf!("перехожу на {}", "switching to {}", i.reference));
+    progress(&crate::tf!("перехожу на {}", "switching to {}", "trocando para {}", i.reference));
     git(&dir, &["-c", "advice.detachedHead=false", "checkout", "-q", "--detach", &i.target]).map_err(explain)?;
     // прежние бинари и запись об установке — в сторону; точкой отката станут, только если установщик
     // бинари заменил: упавшая сборка не стирает прежнюю точку отката
@@ -136,7 +136,7 @@ pub(crate) fn build_install(i: &Info) -> Result<(), String> {
     if older(&i.latest, &from) {
         snapshot_settings(&from);
     }
-    progress(&crate::tf!("сборка и установка (несколько минут)", "build and install (a few minutes)"));
+    progress(&crate::tf!("сборка и установка (несколько минут)", "build and install (a few minutes)", "compilar e instalar (alguns minutos)"));
     let mut ch = Command::new("bash")
         .arg(dir.join("install.sh"))
         .arg("--update")
@@ -164,7 +164,7 @@ pub(crate) fn build_install(i: &Info) -> Result<(), String> {
     // установщик выбранной версии мог не поднять шелл (у старых был такой баг): поднимаем сами
     ensure_shell();
     if !ok {
-        return Err(crate::tf!("установка не удалась — подробности в {}", "install failed: details in {}", log_path().display()));
+        return Err(crate::tf!("установка не удалась — подробности в {}", "install failed: details in {}", "falha na instalação: detalhes em {}", log_path().display()));
     }
     if !older(&i.latest, &from) {
         restore_settings(&i.latest);
@@ -206,10 +206,10 @@ pub(crate) fn ensure_shell() {
         return;
     }
     let bin = bin_dir().join("yami-shell").to_string_lossy().replace('\'', "'\\''");
-    println!("  {}", crate::tf!("шелл не ответил — запускаю его снова", "the shell did not answer: starting it again"));
+    println!("  {}", crate::tf!("шелл не ответил — запускаю его снова", "the shell did not answer: starting it again", "o shell não respondeu: iniciando novamente"));
     let _ = Command::new("niri").args(["msg", "action", "spawn-sh", "--", &format!("until '{bin}'; do sleep 1; done")]).stdin(Stdio::null()).stdout(Stdio::null()).status();
     if !up() {
-        println!("  {}", crate::tf!("шелл так и не запустился: yami run в терминале покажет почему", "the shell did not start: yami run in a terminal shows why"));
+        println!("  {}", crate::tf!("шелл так и не запустился: yami run в терминале покажет почему", "the shell did not start: yami run in a terminal shows why", "o shell não iniciou: yami run no terminal mostra o motivo"));
     }
 }
 
@@ -282,10 +282,10 @@ pub(crate) fn strip_ansi(s: &str) -> String {
 /// вернуть бинари, что стояли до последнего обновления
 pub fn rollback() -> Result<String, String> {
     require_enabled()?;
-    let Some(_l) = lock() else { return Err(crate::tf!("обновление уже идёт", "an update is already running")) };
+    let Some(_l) = lock() else { return Err(crate::tf!("обновление уже идёт", "an update is already running", "uma atualização já está em andamento")) };
     let p = prev_dir();
     if !p.join("yami-shell").exists() {
-        return Err(crate::tf!("откатывать не на что: прежней сборки нет", "nothing to roll back to: no previous build"));
+        return Err(crate::tf!("откатывать не на что: прежней сборки нет", "nothing to roll back to: no previous build", "não há como reverter: sem compilação anterior"));
     }
     let from = installed().version;
     let to = prev_version().unwrap_or_default();
@@ -301,7 +301,7 @@ pub fn rollback() -> Result<String, String> {
         restore_settings(&to);
     }
     restart_shell();
-    Ok(crate::tf!("вернул {}", "rolled back to {}", installed().version))
+    Ok(crate::tf!("вернул {}", "rolled back to {}", "revertido para {}", installed().version))
 }
 
 /// перезапуск шелла, если он работает и игра не в фокусе
@@ -309,7 +309,7 @@ pub fn rollback() -> Result<String, String> {
 /// inode) и отвечает. Не дождались за ~8 с — ensure_shell. При игре не трогаем
 pub fn restart_shell() {
     if crate::niri::game_focused() {
-        println!("{}", crate::tf!("  игра в фокусе — шелл перезапустится сам при следующем входе (или: yami restart)", "  a game has focus: the shell restarts at the next login (or: yami restart)"));
+        println!("{}", crate::tf!("  игра в фокусе — шелл перезапустится сам при следующем входе (или: yami restart)", "  a game has focus: the shell restarts at the next login (or: yami restart)", "  um jogo está em foco: o shell reinicia no próximo login (ou: yami restart)"));
         return;
     }
     use std::os::unix::fs::MetadataExt;

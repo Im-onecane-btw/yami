@@ -565,7 +565,7 @@ pub fn spawn(tx: Sender<Msg>, notif: bool, tray: bool) {
         .name("dbus".into())
         .spawn(move || {
             let Ok(c) = Connection::session() else {
-                eprintln!("{}", crate::tf!("dbus: нет сессионной шины", "dbus: no session bus"));
+                eprintln!("{}", crate::tf!("dbus: нет сессионной шины", "dbus: no session bus", "dbus: sem barramento de sessão"));
                 return;
             };
             let _ = CONN.set(c.clone());
@@ -575,7 +575,7 @@ pub fn spawn(tx: Sender<Msg>, notif: bool, tray: bool) {
                 let _ = c.object_server().at("/org/freedesktop/Notifications", Notif { tx: tx.clone(), next });
                 let flags = RequestNameFlags::ReplaceExisting | RequestNameFlags::AllowReplacement;
                 if let Err(e) = c.request_name_with_flags("org.freedesktop.Notifications", flags) {
-                    eprintln!("{}", crate::tf!("dbus: уведомления заняты другим сервером: {e}", "dbus: notifications are owned by another server: {e}"));
+                    eprintln!("{}", crate::tf!("dbus: уведомления заняты другим сервером: {e}", "dbus: notifications are owned by another server: {e}", "dbus: outro servidor controla as notificações: {e}"));
                 }
             }
             if !tray {

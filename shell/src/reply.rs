@@ -26,7 +26,7 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
     let r = &st.reply;
     let fr = R::new(0, 0, w - 8, h - 8);
     ui.frame(fr, true);
-    ui.header(R::new(1, 1, fr.w - 2, 30), "send", &crate::tf!("ответ · {}", "reply · {}", r.app), "");
+    ui.header(R::new(1, 1, fr.w - 2, 30), "send", &crate::tf!("ответ · {}", "reply · {}", "responder · {}", r.app), "");
     ui.ghost(R::new(fr.right() - 28, 5, 24, 22), "close", Act::CloseModal);
     // о чём ответ: заголовок уведомления, как прислали (не переводится)
     ui.cv.text_in(ui.f, PX, R::new(14, 40, fr.w - 28, 20), &r.summary, t.text_dim);

@@ -24,7 +24,7 @@ const NOTE_ID: u32 = 9_400_001;
 pub const ENABLED: bool = !cfg!(feature = "package-managed");
 
 pub fn managed_message() -> String {
-    crate::tf!("Обновлениями управляет пакетный менеджер.", "Updates are managed by your package manager.")
+    crate::tf!("Обновлениями управляет пакетный менеджер.", "Updates are managed by your package manager.", "As atualizações são gerenciadas pelo seu gerenciador de pacotes.")
 }
 
 pub(crate) fn require_enabled() -> Result<(), String> {
@@ -69,7 +69,7 @@ pub struct Info {
 impl Info {
     /// что нового на языке интерфейса (старый update.json без русских строк — по-английски)
     pub fn notes(&self) -> &[String] {
-        if crate::i18n::en() || self.notes_ru.is_empty() {
+        if crate::i18n::translated() || self.notes_ru.is_empty() {
             &self.notes
         } else {
             &self.notes_ru
@@ -217,7 +217,7 @@ pub(crate) fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
         .env("LC_ALL", "C")
         .stdin(Stdio::null())
         .output()
-        .map_err(|e| crate::tf!("нет git: {e}", "git not found: {e}"))?;
+        .map_err(|e| crate::tf!("нет git: {e}", "git not found: {e}", "git não encontrado: {e}"))?;
     if o.status.success() {
         Ok(String::from_utf8_lossy(&o.stdout).trim().to_string())
     } else {
@@ -229,9 +229,9 @@ pub(crate) fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
 pub(crate) fn explain(e: String) -> String {
     let l = e.to_lowercase();
     if l.contains("could not read username") || l.contains("authentication") || l.contains("repository not found") || l.contains("403") {
-        crate::tf!("нет доступа к репозиторию (приватный? gh auth login)", "no access to the repository (private? gh auth login)")
+        crate::tf!("нет доступа к репозиторию (приватный? gh auth login)", "no access to the repository (private? gh auth login)", "sem acesso ao repositório (privado? gh auth login)")
     } else if l.contains("could not resolve host") || l.contains("timed out") || l.contains("unable to access") || l.contains("operation too slow") {
-        crate::tf!("нет сети или сервер недоступен", "no network or the server is unreachable")
+        crate::tf!("нет сети или сервер недоступен", "no network or the server is unreachable", "sem rede ou servidor inacessível")
     } else {
         e
     }
@@ -433,17 +433,17 @@ pub(crate) fn verify(dir: &Path, st: &Stamp, known: bool, policy: &str, what: &s
 /// подпись для людей
 pub fn sig_text(sig: &str) -> String {
     match sig {
-        "off" => crate::tf!("не проверяется", "not checked"),
-        "nokeys" => crate::tf!("ключей автора ещё нет (keys/allowed_signers)", "no author keys yet (keys/allowed_signers)"),
-        "unsigned" => crate::tf!("не подписано", "not signed"),
-        "bad" => crate::tf!("подпись НЕ сходится", "signature does NOT match"),
+        "off" => crate::tf!("не проверяется", "not checked", "não verificado"),
+        "nokeys" => crate::tf!("ключей автора ещё нет (keys/allowed_signers)", "no author keys yet (keys/allowed_signers)", "ainda sem chaves do autor (keys/allowed_signers)"),
+        "unsigned" => crate::tf!("не подписано", "not signed", "sem assinatura"),
+        "bad" => crate::tf!("подпись НЕ сходится", "signature does NOT match", "a assinatura NÃO corresponde"),
         "" => "—".into(),
         s => {
             // 193045225+Trendorin@users.noreply.github.com → Trendorin
             let who = s.trim_start_matches("good:");
             let who = who.split('@').next().unwrap_or(who);
             let who = who.split_once('+').map(|(_, n)| n).unwrap_or(who);
-            crate::tf!("подписано: {}", "signed: {}", who)
+            crate::tf!("подписано: {}", "signed: {}", "assinado: {}", who)
         }
     }
 }
@@ -493,7 +493,7 @@ impl App {
                 id: NOTE_ID,
                 app: "yami-update".into(),
                 icon: String::new(),
-                summary: crate::tf!("доступно обновление yami {}", "yami {} is available", i.latest),
+                summary: crate::tf!("доступно обновление yami {}", "yami {} is available", "yami {} está disponível", i.latest),
                 body,
                 actions: vec![("default".into(), crate::i18n::tr("подробнее").to_string())],
                 urgency: 1,
@@ -609,7 +609,7 @@ impl App {
                 }
                 self.st.upd.pick = false;
                 self.save_now();
-                self.st.upd.busy = Some(crate::tf!("запускаю", "starting"));
+                self.st.upd.busy = Some(crate::tf!("запускаю", "starting", "iniciando"));
                 self.st.upd.done = None;
                 if k == "update_apply" {
                     spawn_detached(&["apply"]);

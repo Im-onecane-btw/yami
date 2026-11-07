@@ -46,7 +46,7 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32, main: bool) {
     let status = if !st.lock_status.is_empty() {
         st.lock_status.clone()
     } else if st.lock_fails > 0 {
-        crate::tf!("неверно ×{}", "wrong ×{}", st.lock_fails)
+        crate::tf!("неверно ×{}", "wrong ×{}", "incorreta ×{}", st.lock_fails)
     } else {
         "enter — войти".to_string()
     };

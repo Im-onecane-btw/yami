@@ -446,7 +446,8 @@ def _settings():
         v = st.get(k)
         st[k] = _NAME_BAD.sub("", v)[:64] if isinstance(v, str) else ""
     lang = st.get("lang")
-    st["lang"] = lang if isinstance(lang, str) and lang.isascii() and lang.isalpha() else ""
+    tag = lang.strip().replace("_", "-").lower().split(".")[0].split("@")[0].split("-")[0] if isinstance(lang, str) else ""
+    st["lang"] = {"ru": "ru", "en": "en", "pt": "pt-BR"}.get(tag, "")
     for k, lo, hi_, dflt in (("cursorSize", 16, 96, 24), ("fontSize", 0, 64, 0), ("fontPt", 0, 48, 0), ("wallPixel", 1, 64, 1)):
         try:
             st[k] = max(lo, min(hi_, int(st.get(k, dflt))))

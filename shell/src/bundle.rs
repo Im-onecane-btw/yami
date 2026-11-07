@@ -130,10 +130,10 @@ pub fn export(y: &Sty, file: &str, theme: bool) -> i32 {
     let b = bundle(theme, true);
     let text = serde_json::to_string_pretty(&b).unwrap_or_default() + "\n";
     if write_atomic(Path::new(file), &text).is_err() {
-        eprintln!(" {} {}", y.bad("✕"), crate::tf!("не могу записать {}", "cannot write {}", file));
+        eprintln!(" {} {}", y.bad("✕"), crate::tf!("не могу записать {}", "cannot write {}", "não foi possível gravar {}", file));
         return 1;
     }
-    let what = if theme { crate::tf!("тема", "theme") } else { crate::tf!("все настройки", "every setting") };
+    let what = if theme { crate::tf!("тема", "theme", "tema") } else { crate::tf!("все настройки", "every setting", "todas as configurações") };
     println!(" {} {} → {}", y.ok("✓"), what, y.bold(file));
     0
 }
@@ -154,10 +154,10 @@ fn file_kind(rel: &str) -> Option<bool> {
 fn risky(b: &Value) -> Vec<String> {
     let mut v = vec![];
     if b["settings"]["customBinds"].as_array().is_some_and(|a| !a.is_empty()) {
-        v.push(crate::tf!("свои сочетания с командами (customBinds)", "custom keybindings with commands (customBinds)"));
+        v.push(crate::tf!("свои сочетания с командами (customBinds)", "custom keybindings with commands (customBinds)", "atalhos personalizados com comandos (customBinds)"));
     }
     if b["settings"]["binds"].as_object().is_some_and(|a| !a.is_empty()) {
-        v.push(crate::tf!("переназначенные клавиши (binds)", "reassigned keys (binds)"));
+        v.push(crate::tf!("переназначенные клавиши (binds)", "reassigned keys (binds)", "atalhos redefinidos (binds)"));
     }
     if let Some(f) = b["files"].as_object() {
         for k in f.keys() {
@@ -166,7 +166,7 @@ fn risky(b: &Value) -> Vec<String> {
             }
         }
         if f.get("yami-files.json").and_then(|t| t.as_str()).is_some_and(|t| t.contains("\"terminal\"")) {
-            v.push(crate::tf!("терминал файлового менеджера", "the file manager's terminal"));
+            v.push(crate::tf!("терминал файлового менеджера", "the file manager's terminal", "terminal do gerenciador de arquivos"));
         }
     }
     v
@@ -191,11 +191,11 @@ const MAX_FILE: u64 = 64 << 20;
 /// файл yami: не больше 64 МБ, JSON нашего формата
 fn load(file: &Path) -> Result<Value, String> {
     if std::fs::metadata(file).map(|m| m.len() > MAX_FILE).unwrap_or(false) {
-        return Err(crate::tf!("слишком большой файл: {}", "file too large: {}", file.display()));
+        return Err(crate::tf!("слишком большой файл: {}", "file too large: {}", "arquivo grande demais: {}", file.display()));
     }
-    let b: Value = std::fs::read_to_string(file).ok().and_then(|t| serde_json::from_str(&t).ok()).ok_or_else(|| crate::tf!("не читается: {}", "cannot read: {}", file.display()))?;
+    let b: Value = std::fs::read_to_string(file).ok().and_then(|t| serde_json::from_str(&t).ok()).ok_or_else(|| crate::tf!("не читается: {}", "cannot read: {}", "não foi possível ler: {}", file.display()))?;
     if b["format"] != FORMAT {
-        return Err(crate::tf!("это не файл yami (export)", "not a yami file (export)"));
+        return Err(crate::tf!("это не файл yami (export)", "not a yami file (export)", "não é um arquivo yami (export)"));
     }
     Ok(b)
 }
@@ -232,7 +232,7 @@ fn plan(b: &Value, theme_only: bool, yes: bool) -> Plan {
 fn commit(b: &Value, p: Plan, yes: bool, y: Option<&Sty>) -> Result<PathBuf, String> {
     let Plan { theme, mut set, .. } = p;
     // копия того, что было, тем же форматом: `yami import КОПИЯ --yes` возвращает всё назад
-    let backup = backup().ok_or_else(|| crate::tf!("не могу сохранить копию текущих настроек — ничего не меняю", "cannot save a copy of the current settings: nothing changed"))?;
+    let backup = backup().ok_or_else(|| crate::tf!("не могу сохранить копию текущих настроек — ничего не меняю", "cannot save a copy of the current settings: nothing changed", "não foi possível copiar as configurações atuais: nada foi alterado"))?;
     if let Some(w) = b.get("wallpaper").filter(|w| w.is_object()) {
         if let (Some(name), Some(data)) = (w["name"].as_str(), w["data"].as_str().and_then(unb64)) {
             if let Some(p) = wall_file(name, &data) {
@@ -255,7 +255,7 @@ fn commit(b: &Value, p: Plan, yes: bool, y: Option<&Sty>) -> Result<PathBuf, Str
                 // запустил бы что угодно при следующем входе
                 let Some(runs) = file_kind(rel) else {
                     if let Some(y) = y {
-                        println!("   {} {}", y.warn(&crate::tf!("пропущен чужой файл:", "skipped an unknown file:")), rel);
+                        println!("   {} {}", y.warn(&crate::tf!("пропущен чужой файл:", "skipped an unknown file:", "arquivo desconhecido ignorado:")), rel);
                     }
                     continue;
                 };
@@ -293,7 +293,7 @@ fn commit(b: &Value, p: Plan, yes: bool, y: Option<&Sty>) -> Result<PathBuf, Str
     let raw = serde_json::to_string(&Value::Object(set)).unwrap_or_default();
     let mut merged = crate::config::Settings::lenient(&raw);
     merged.sanitize();
-    write_atomic(&settings_path(), &merged.to_json()).map_err(|_| crate::tf!("не могу записать настройки", "cannot write the settings"))?;
+    write_atomic(&settings_path(), &merged.to_json()).map_err(|_| crate::tf!("не могу записать настройки", "cannot write the settings", "não foi possível salvar as configurações"))?;
     Ok(backup)
 }
 
@@ -310,23 +310,23 @@ pub fn import(y: &Sty, file: &str, theme_only: bool, yes: bool, dry: bool) -> i3
 
 fn import_value(y: &Sty, b: &Value, theme_only: bool, yes: bool, dry: bool) -> i32 {
     let p = plan(b, theme_only, yes);
-    y.section(&if p.theme { crate::tf!("тема", "theme") } else { crate::tf!("все настройки", "every setting") });
-    println!("   {} {}", y.dim(&crate::tf!("меняется:", "changes:")), if p.changed.is_empty() { "—".to_string() } else { p.changed.join(" ") });
+    y.section(&if p.theme { crate::tf!("тема", "theme", "tema") } else { crate::tf!("все настройки", "every setting", "todas as configurações") });
+    println!("   {} {}", y.dim(&crate::tf!("меняется:", "changes:", "alterações:")), if p.changed.is_empty() { "—".to_string() } else { p.changed.join(" ") });
     if let Some(w) = b.get("wallpaper").filter(|w| w.is_object()) {
-        println!("   {} {}", y.dim(&crate::tf!("обои:", "wallpaper:")), w["name"].as_str().unwrap_or(""));
+        println!("   {} {}", y.dim(&crate::tf!("обои:", "wallpaper:", "papel de parede:")), w["name"].as_str().unwrap_or(""));
     }
     if !p.warn.is_empty() {
-        let note = if yes { crate::tf!("ставится (--yes):", "installed (--yes):") } else { crate::tf!("пропущено, запускает команды (добавь --yes, если файл твой):", "skipped, it runs commands (add --yes if the file is yours):") };
+        let note = if yes { crate::tf!("ставится (--yes):", "installed (--yes):", "instalado (--yes):") } else { crate::tf!("пропущено, запускает команды (добавь --yes, если файл твой):", "skipped, it runs commands (add --yes if the file is yours):", "ignorado, executa comandos (adicione --yes se o arquivo for seu):") };
         println!("   {} {}", y.warn(&note), p.warn.join(", "));
     }
     if dry {
-        println!("\n   {}\n", y.dim(&crate::tf!("--dry-run: ничего не изменено", "--dry-run: nothing changed")));
+        println!("\n   {}\n", y.dim(&crate::tf!("--dry-run: ничего не изменено", "--dry-run: nothing changed", "--dry-run: nada foi alterado")));
         return 0;
     }
     match commit(b, p, yes, Some(y)) {
         Ok(backup) => {
-            println!("\n {} {}", y.ok("✓"), crate::tf!("готово — шелл перечитает сам", "done; the shell reloads by itself"));
-            println!("   {}\n", y.dim(&crate::tf!("вернуть как было: yami import {} --yes", "to undo: yami import {} --yes", backup.display())));
+            println!("\n {} {}", y.ok("✓"), crate::tf!("готово — шелл перечитает сам", "done; the shell reloads by itself", "concluído; o shell recarrega automaticamente"));
+            println!("   {}\n", y.dim(&crate::tf!("вернуть как было: yami import {} --yes", "to undo: yami import {} --yes", "para desfazer: yami import {} --yes", backup.display())));
             0
         }
         Err(e) => {
@@ -433,9 +433,9 @@ fn put(name: &str, b: &mut Value, overwrite: bool) -> Result<String, String> {
     };
     b["name"] = Value::String(n.clone());
     let text = serde_json::to_string_pretty(&*b).unwrap_or_default() + "\n";
-    let p = theme_path(&n).ok_or_else(|| crate::tf!("нужно имя темы", "a theme needs a name"))?;
+    let p = theme_path(&n).ok_or_else(|| crate::tf!("нужно имя темы", "a theme needs a name", "o tema precisa de um nome"))?;
     std::fs::create_dir_all(themes_dir()).map_err(|e| e.to_string())?;
-    write_atomic(&p, &text).map_err(|_| crate::tf!("не могу записать {}", "cannot write {}", p.display()))?;
+    write_atomic(&p, &text).map_err(|_| crate::tf!("не могу записать {}", "cannot write {}", "não foi possível gravar {}", p.display()))?;
     Ok(n)
 }
 
@@ -450,13 +450,13 @@ pub fn save(name: &str) -> Result<String, String> {
 }
 
 pub fn remove(name: &str) -> Result<(), String> {
-    let p = theme_file(name).ok_or_else(|| crate::tf!("нет такой темы: {}", "no such theme: {}", name))?;
+    let p = theme_file(name).ok_or_else(|| crate::tf!("нет такой темы: {}", "no such theme: {}", "tema inexistente: {}", name))?;
     std::fs::remove_file(p).map_err(|e| e.to_string())
 }
 
 /// применить тему из библиотеки (шелл: молча, ответ — ошибкой)
 pub fn apply(name: &str) -> Result<(), String> {
-    let p = theme_file(name).ok_or_else(|| crate::tf!("нет такой темы: {}", "no such theme: {}", name))?;
+    let p = theme_file(name).ok_or_else(|| crate::tf!("нет такой темы: {}", "no such theme: {}", "tema inexistente: {}", name))?;
     let b = load(&p)?;
     commit(&b, plan(&b, true, false), false, None).map(|_| ())
 }
@@ -465,7 +465,7 @@ pub fn apply(name: &str) -> Result<(), String> {
 /// папку 0700 — и сразу разбор: ссылка даёт только тему, полный файл с командами — никогда
 fn fetch(url: &str) -> Result<Value, String> {
     if !url.starts_with("https://") {
-        return Err(crate::tf!("только https://", "https:// only"));
+        return Err(crate::tf!("только https://", "https:// only", "somente https://"));
     }
     let dir = yami_px::paths::private_tmp("theme").map_err(|e| e.to_string())?;
     let out = dir.join("theme.json");
@@ -477,11 +477,11 @@ fn fetch(url: &str) -> Result<Value, String> {
         .status()
         .map(|s| s.success())
         .unwrap_or(false);
-    let b = if ok { load(&out) } else { Err(crate::tf!("не скачалось: {}", "download failed: {}", url)) };
+    let b = if ok { load(&out) } else { Err(crate::tf!("не скачалось: {}", "download failed: {}", "falha no download: {}", url)) };
     let _ = std::fs::remove_dir_all(&dir);
     let b = b?;
     if b["kind"] != "theme" {
-        return Err(crate::tf!("по ссылке — только темы (theme export), не полный файл", "a link may only bring a theme (theme export), not a full file"));
+        return Err(crate::tf!("по ссылке — только темы (theme export), не полный файл", "a link may only bring a theme (theme export), not a full file", "um link só pode conter um tema (theme export), não um arquivo completo"));
     }
     Ok(b)
 }
@@ -510,7 +510,7 @@ fn theme_import(y: &Sty, src: &str, dry: bool) -> i32 {
             o.retain(|k, _| matches!(k.as_str(), "format" | "version" | "kind" | "yami" | "settings" | "wallpaper" | "name"));
         }
         match put(&name, &mut b, false) {
-            Ok(n) => println!("   {} {}\n", y.dim(&crate::tf!("в темах:", "saved as:")), n),
+            Ok(n) => println!("   {} {}\n", y.dim(&crate::tf!("в темах:", "saved as:", "salvo como:")), n),
             Err(e) => eprintln!(" {} {e}", y.warn("!")),
         }
     }
@@ -600,20 +600,20 @@ pub fn run(y: &Sty, cmd: &str, args: &[&str]) -> i32 {
     match cmd {
         "theme-list" => {
             let list = cards();
-            y.section(&crate::tf!("темы", "themes"));
+            y.section(&crate::tf!("темы", "themes", "temas"));
             println!("   {}", y.dim(&themes_dir().display().to_string()));
             if list.is_empty() {
-                println!("   {}", y.dim(&crate::tf!("пусто: yami theme save ИМЯ сохранит текущий вид", "empty: yami theme save NAME keeps the current look")));
+                println!("   {}", y.dim(&crate::tf!("пусто: yami theme save ИМЯ сохранит текущий вид", "empty: yami theme save NAME keeps the current look", "vazio: yami theme save NOME salva a aparência atual")));
             }
             for c in &list {
-                println!("   {} {}{}", y.bold(&c.name), y.dim(&format!("#{:06x} {}", c.accent, if c.light { "light" } else { "dark" })), if c.wall { y.dim(&crate::tf!(" + обои", " + wallpaper")) } else { String::new() });
+                println!("   {} {}{}", y.bold(&c.name), y.dim(&format!("#{:06x} {}", c.accent, if c.light { "light" } else { "dark" })), if c.wall { y.dim(&crate::tf!(" + обои", " + wallpaper", " + papel de parede")) } else { String::new() });
             }
             println!();
             return 0;
         }
         "theme-save" => return report(y, save(&name).map(|n| format!("{n} → {}", y.dim(&themes_dir().display().to_string())))),
-        "theme-apply" if !name.is_empty() => return report(y, apply(&name).map(|_| crate::tf!("{} — шелл перечитает сам", "{}: the shell reloads by itself", name))),
-        "theme-remove" if !name.is_empty() => return report(y, remove(&name).map(|_| crate::tf!("{} удалена", "{} removed", name))),
+        "theme-apply" if !name.is_empty() => return report(y, apply(&name).map(|_| crate::tf!("{} — шелл перечитает сам", "{}: the shell reloads by itself", "{}: o shell recarrega automaticamente", name))),
+        "theme-remove" if !name.is_empty() => return report(y, remove(&name).map(|_| crate::tf!("{} удалена", "{} removed", "{} removidos", name))),
         _ => {}
     }
     // опечатка во флаге («--dryrun») не должна молча превратиться в настоящий импорт
@@ -623,11 +623,11 @@ pub fn run(y: &Sty, cmd: &str, args: &[&str]) -> i32 {
         _ => &[],
     };
     if let Some(bad) = args.iter().find(|a| a.starts_with("--") && !known.contains(a)) {
-        eprintln!(" {} {}", y.bad("✕"), crate::tf!("неизвестный флаг: {}", "unknown flag: {}", bad));
+        eprintln!(" {} {}", y.bad("✕"), crate::tf!("неизвестный флаг: {}", "unknown flag: {}", "opção desconhecida: {}", bad));
         return 2;
     }
     if args.iter().filter(|a| !a.starts_with("--")).count() > 1 {
-        eprintln!(" {} {}", y.bad("✕"), crate::tf!("нужен один файл", "one file, please"));
+        eprintln!(" {} {}", y.bad("✕"), crate::tf!("нужен один файл", "one file, please", "apenas um arquivo, por favor"));
         return 2;
     }
     match (cmd, file) {
@@ -637,12 +637,12 @@ pub fn run(y: &Sty, cmd: &str, args: &[&str]) -> i32 {
         ("import", Some(f)) => import(y, f, false, flags("--yes"), flags("--dry-run")),
         _ => {
             y.section("yami theme / export / import");
-            y.row("theme export FILE", &crate::tf!("вид в один файл: палитра, эффекты, шрифты, бар, виджеты, обои", "the look in one file: palette, effects, fonts, bar, widgets, wallpaper"));
-            y.row("theme import FILE|URL [--dry-run]", &crate::tf!("применить чужую тему (файл или https-ссылка): только вид, без команд; остаётся в темах", "apply someone's theme (a file or an https link): the look only, no commands; kept in your themes"));
-            y.row("theme save [NAME]", &crate::tf!("текущий вид — в свои темы (~/.config/yami/themes)", "keep the current look in your themes (~/.config/yami/themes)"));
-            y.row("theme list | apply NAME | remove NAME", &crate::tf!("свои темы: список, применить, удалить", "your themes: list, apply, remove"));
-            y.row("export FILE", &crate::tf!("все настройки, user.kdl, скрипты бара, обои", "every setting, user.kdl, bar scripts, wallpaper"));
-            y.row("import FILE [--yes] [--dry-run]", &crate::tf!("вернуть всё; команды и скрипты — только с --yes", "restore it all; commands and scripts only with --yes"));
+            y.row("theme export FILE", &crate::tf!("вид в один файл: палитра, эффекты, шрифты, бар, виджеты, обои", "the look in one file: palette, effects, fonts, bar, widgets, wallpaper", "o visual num arquivo: paleta, efeitos, fontes, barra, widgets e papel de parede"));
+            y.row("theme import FILE|URL [--dry-run]", &crate::tf!("применить чужую тему (файл или https-ссылка): только вид, без команд; остаётся в темах", "apply someone's theme (a file or an https link): the look only, no commands; kept in your themes", "aplicar um tema de outra pessoa (arquivo ou link https): só a aparência, sem comandos; salvo nos seus temas"));
+            y.row("theme save [NAME]", &crate::tf!("текущий вид — в свои темы (~/.config/yami/themes)", "keep the current look in your themes (~/.config/yami/themes)", "salvar a aparência atual nos seus temas (~/.config/yami/themes)"));
+            y.row("theme list | apply NAME | remove NAME", &crate::tf!("свои темы: список, применить, удалить", "your themes: list, apply, remove", "seus temas: list, apply, remove"));
+            y.row("export FILE", &crate::tf!("все настройки, user.kdl, скрипты бара, обои", "every setting, user.kdl, bar scripts, wallpaper", "todas as configurações, user.kdl, scripts da barra e papel de parede"));
+            y.row("import FILE [--yes] [--dry-run]", &crate::tf!("вернуть всё; команды и скрипты — только с --yes", "restore it all; commands and scripts only with --yes", "restaurar tudo; comandos e scripts somente com --yes"));
             println!();
             2
         }

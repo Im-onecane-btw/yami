@@ -10,13 +10,13 @@ use crate::ui::{Act, Tone, Ui};
 pub(crate) fn ago(at: u64) -> String {
     let d = now().saturating_sub(at);
     if d < 90 {
-        crate::tf!("только что", "just now")
+        crate::tf!("только что", "just now", "agora mesmo")
     } else if d < 5400 {
-        crate::tf!("{} мин назад", "{} min ago", d / 60)
+        crate::tf!("{} мин назад", "{} min ago", "há {} min", d / 60)
     } else if d < 172_800 {
-        crate::tf!("{} ч назад", "{} h ago", d / 3600)
+        crate::tf!("{} ч назад", "{} h ago", "há {} h", d / 3600)
     } else {
-        crate::tf!("{} дн назад", "{} days ago", d / 86400)
+        crate::tf!("{} дн назад", "{} days ago", "há {} dias", d / 86400)
     }
 }
 
@@ -71,16 +71,16 @@ pub(crate) fn picker(ui: &mut Ui, st: &State, r: R) {
     let foot = r.bottom() - 28;
     let mut rows: Vec<(String, String, String, bool)> = vec![];
     if let Some(p) = prev_version() {
-        rows.push(("prev".into(), crate::tf!("прошлая сборка  {}", "previous build  {}", p), crate::tf!("сразу, без сборки", "instant, no build"), true));
+        rows.push(("prev".into(), crate::tf!("прошлая сборка  {}", "previous build  {}", "compilação anterior  {}", p), crate::tf!("сразу, без сборки", "instant, no build", "instantâneo, sem compilar"), true));
     }
     if let Some(i) = &u.info {
         for rel in &i.releases {
             let ok = Info { sig: rel.sig.clone(), ..Default::default() }.sig_ok(&st.set.update_verify);
             let here = rel.version == cur;
             let note = if here {
-                crate::tf!("стоит сейчас", "installed now")
+                crate::tf!("стоит сейчас", "installed now", "instalado agora")
             } else if !ok {
-                crate::tf!("{} — не ставится", "{}: will not install", sig_text(&rel.sig))
+                crate::tf!("{} — не ставится", "{}: will not install", "{}: não será instalado", sig_text(&rel.sig))
             } else {
                 format!("{}  ·  {}", sig_text(&rel.sig), date_of(rel.date))
             };
@@ -88,7 +88,7 @@ pub(crate) fn picker(ui: &mut Ui, st: &State, r: R) {
         }
     }
     if rows.is_empty() {
-        let msg = if u.checking { crate::tf!("загружаю список выпусков…", "loading the releases…") } else { crate::tf!("переходить некуда: выпусков и прошлой сборки нет", "nothing to switch to: no releases and no previous build") };
+        let msg = if u.checking { crate::tf!("загружаю список выпусков…", "loading the releases…", "carregando as versões…") } else { crate::tf!("переходить некуда: выпусков и прошлой сборки нет", "nothing to switch to: no releases and no previous build", "não há outra versão: sem versões publicadas ou compilação anterior") };
         ui.text_in(px, R::new(r.x, y, r.w, 20), &msg, t.text_dim);
     }
     for (id, name, note, can) in &rows {
@@ -106,11 +106,11 @@ pub(crate) fn picker(ui: &mut Ui, st: &State, r: R) {
     }
     let half = (r.w - 6) / 2;
     let go = if u.sel.is_empty() {
-        crate::tf!("выбери версию", "pick a version")
+        crate::tf!("выбери версию", "pick a version", "escolher versão")
     } else if u.sel == "prev" {
-        crate::tf!("вернуть прошлую сборку", "restore the previous build")
+        crate::tf!("вернуть прошлую сборку", "restore the previous build", "restaurar a compilação anterior")
     } else {
-        crate::tf!("поставить {}", "install {}", u.sel)
+        crate::tf!("поставить {}", "install {}", "instalar {}", u.sel)
     };
     ui.button(R::new(r.x, foot, half, 28), &go, "check", Tone::Primary, false, !u.sel.is_empty(), Act::SCycle("update_pick_go"));
     ui.button(R::new(r.x + half + 6, foot, half, 28), "отмена", "close", Tone::Plain, false, true, Act::SCycle("update_pick_cancel"));
@@ -125,7 +125,8 @@ pub(crate) fn date_of(at: u64) -> String {
     let (y, m, d) = civil(days);
     const RU: [&str; 12] = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]; // i18n-ok
     const EN: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    let mon = if crate::i18n::en() { EN[(m - 1) as usize] } else { RU[(m - 1) as usize] };
+    const PT: [&str; 12] = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+    let mon = if crate::i18n::pt_br() { PT[(m - 1) as usize] } else if crate::i18n::en() { EN[(m - 1) as usize] } else { RU[(m - 1) as usize] };
     format!("{d} {mon} {y}")
 }
 
@@ -156,7 +157,7 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
         cur += &format!("  ·  {commit}");
     }
     if u.stamp.dirty {
-        cur += &crate::tf!("  ·  с правками", "  ·  with local edits");
+        cur += &crate::tf!("  ·  с правками", "  ·  with local edits", "  ·  com alterações locais");
     }
     for (k, v) in [("версия", cur), ("источник", short_repo(if s.update_repo.is_empty() { &u.stamp.repo } else { &s.update_repo }))] {
         ui.text_in(px, R::new(b.x, y, 160, 22), k, t.text_faint);
@@ -178,29 +179,29 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     };
     opt_btn(ui, R::new(b.x + half + 20, y, half, 26), "проверка подписей", ver_l, Act::SCycle("update_verify"));
     y += 34;
-    let every = crate::tf!("раз в {} ч", "every {} h", s.update_every);
+    let every = crate::tf!("раз в {} ч", "every {} h", "a cada {} h", s.update_every);
     ui.toggle(R::new(b.x, y, half, 40), "проверять сама", "только проверка: ставишь ты", s.update_check, Act::SBool("update_check"));
     opt_btn(ui, R::new(b.x + half + 20, y + 7, half, 26), "как часто", &every, Act::SCycle("update_every"));
     y += 50;
     // состояние: идёт установка / проверка / итог
     let (line, col) = if let Some(p) = &u.busy {
-        (crate::tf!("ставлю: {}", "installing: {}", step_of(p).1), t.red)
+        (crate::tf!("ставлю: {}", "installing: {}", "instalando: {}", step_of(p).1), t.red)
     } else if let Some((ok, txt)) = &u.done {
         (txt.clone(), if *ok { t.ok } else { t.warn })
     } else if u.checking {
-        (crate::tf!("проверяю…", "checking…"), t.text_dim)
+        (crate::tf!("проверяю…", "checking…", "verificando…"), t.text_dim)
     } else if let Some(i) = &u.info {
         if !i.err.is_empty() {
-            (crate::tf!("не вышло проверить: {}", "check failed: {}", i.err), t.warn)
+            (crate::tf!("не вышло проверить: {}", "check failed: {}", "falha na verificação: {}", i.err), t.warn)
         } else if i.available {
-            (crate::tf!("доступно {}  ·  {}", "{} is available  ·  {}", i.latest, sig_text(&i.sig)), if i.sig_ok(&s.update_verify) { t.ok } else { t.warn })
+            (crate::tf!("доступно {}  ·  {}", "{} is available  ·  {}", "{} está disponível  ·  {}", i.latest, sig_text(&i.sig)), if i.sig_ok(&s.update_verify) { t.ok } else { t.warn })
         } else if i.reference.is_empty() {
-            (crate::tf!("выпусков ещё нет  ·  проверено {}", "no releases yet  ·  checked {}", ago(i.at)), t.text_dim)
+            (crate::tf!("выпусков ещё нет  ·  проверено {}", "no releases yet  ·  checked {}", "ainda sem versões publicadas  ·  verificado {}", ago(i.at)), t.text_dim)
         } else {
-            (crate::tf!("всё свежее  ·  проверено {}", "up to date  ·  checked {}", ago(i.at)), t.text_dim)
+            (crate::tf!("всё свежее  ·  проверено {}", "up to date  ·  checked {}", "atualizado  ·  verificado {}", ago(i.at)), t.text_dim)
         }
     } else {
-        (crate::tf!("ещё не проверялось", "not checked yet"), t.text_dim)
+        (crate::tf!("ещё не проверялось", "not checked yet", "ainda não verificado"), t.text_dim)
     };
     ui.cv.fill(R::new(b.x, y + 7, 6, 6), col);
     ui.text_in(px, R::new(b.x + 14, y, b.w - 14, 20), &line, col);
@@ -232,7 +233,7 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
         picker(ui, st, R::new(b.x, y, b.w, by - y - 8));
     } else if let Some(i) = notes {
         // что нового: строки CHANGELOG выпуска на языке интерфейса (CHANGELOG.ru.md), мимо tr()
-        y = title(ui, b.x, y, b.w, &crate::tf!("что нового в {}", "what is new in {}", i.latest));
+        y = title(ui, b.x, y, b.w, &crate::tf!("что нового в {}", "what is new in {}", "novidades em {}", i.latest));
         for n in i.notes() {
             if y + 18 > by - 8 {
                 break;

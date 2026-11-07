@@ -95,7 +95,7 @@ yami-shell binds list | print | write     # keybindings
 | `iconTheme` | `""` | icon theme for app icons; empty: auto |
 | `iconPixel` | `true` | app icons redrawn as 16×16 pixel art in the palette tones |
 | `fetchFull` | `false` | fastfetch with the hardware (kernel, packages, CPU, GPU, memory, disk, display); off: who, OS, wm, shell, terminal, uptime |
-| `lang` | `""` | `ru`, `en`, or empty for `$LANG` |
+| `lang` | `""` | `ru`, `en`, `pt-BR`, or empty to follow `LC_ALL`, `LC_MESSAGES`, then `$LANG`; `pt_BR.UTF-8` and `pt` are also accepted |
 | `appThemes` | `["foot", "cava", "starship"]` | apps theme.py recolours besides the ones it always does (settings → color → apps): `foot` (`foot/yami-colors.ini` and an `include=` line at the top of `foot.ini`, new windows), `cava` (a gradient in the `[color]` section of its config, open cava reloads at once), `starship` (`palette = "yami"` and a `[palettes.yami]` table that also retints `red`, `green` and the other names). Each one only if its config is there |
 
 ### Apps in the palette colours

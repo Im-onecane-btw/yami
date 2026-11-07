@@ -32,8 +32,8 @@ impl App {
         let lvl = if b.pct <= 5 { 2 } else if b.pct <= 10 { 1 } else { 0 };
         if lvl > self.st.bat_warn {
             self.st.bat_warn = lvl;
-            let left = b.mins.map(|m| crate::tf!("осталось {} мин", "{} min left", m)).unwrap_or_default();
-            self.toast_note(&crate::tf!("батарея {}%", "battery {}%", b.pct), if left.is_empty() { "подключи зарядку" } else { &left });
+            let left = b.mins.map(|m| crate::tf!("осталось {} мин", "{} min left", "faltam {} min", m)).unwrap_or_default();
+            self.toast_note(&crate::tf!("батарея {}%", "battery {}%", "bateria {}%", b.pct), if left.is_empty() { "подключи зарядку" } else { &left });
         }
     }
 

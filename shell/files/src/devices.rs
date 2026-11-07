@@ -161,7 +161,7 @@ impl Fm {
                     format!("{e} · {}", crate::i18n::tr("разблокируй телефон и выбери «передача файлов»"))
                 } else if e.contains("not mountable") || e.contains("not supported") {
                     // у gvfs нет бэкенда для этой схемы: smb, nfs, afp — отдельные пакеты
-                    crate::tf!("{} · нужен пакет gvfs-{}", "{} · needs the gvfs-{} package", e, if scheme == "smb" || scheme == "nfs" || scheme == "afp" { scheme } else { "backends" })
+                    crate::tf!("{} · нужен пакет gvfs-{}", "{} · needs the gvfs-{} package", "{} · requer o pacote gvfs-{}", e, if scheme == "smb" || scheme == "nfs" || scheme == "afp" { scheme } else { "backends" })
                 } else {
                     e
                 };
@@ -209,7 +209,7 @@ impl Fm {
         if on && d.locked {
             return self.unlock_dlg(&d.dev, d.title());
         }
-        self.toast(if on { crate::tf!("подключаю {}…", "mounting {}…", d.title()) } else { crate::tf!("отключаю {}…", "unmounting {}…", d.title()) });
+        self.toast(if on { crate::tf!("подключаю {}…", "mounting {}…", "montando {}…", d.title()) } else { crate::tf!("отключаю {}…", "unmounting {}…", "desmontando {}…", d.title()) });
         // уходим из папки на отключаемом диске
         if !on {
             if let Some(m) = &d.mount {
@@ -256,7 +256,7 @@ impl Fm {
                 self.toast(crate::i18n::tr("для телефонов нужен пакет gvfs-mtp (и gvfs-gphoto2 для камер)"));
                 return;
             }
-            self.toast(crate::tf!("подключаю {}…", "mounting {}…", d.title()));
+            self.toast(crate::tf!("подключаю {}…", "mounting {}…", "montando {}…", d.title()));
             self.remote_mount(d.uri.clone(), crate::remote::Auth::default());
             return;
         }
@@ -265,7 +265,7 @@ impl Fm {
                 self.go(crate::paths::home());
             }
         }
-        self.toast(crate::tf!("отключаю {}…", "unmounting {}…", d.title()));
+        self.toast(crate::tf!("отключаю {}…", "unmounting {}…", "desmontando {}…", d.title()));
         let (disks, net, servers) = (self.cfg.devices, self.cfg.network, self.cfg.servers.clone());
         std::thread::spawn(move || {
             let err = crate::remote::unmount(&d).err();

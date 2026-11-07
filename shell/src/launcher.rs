@@ -305,7 +305,7 @@ impl LState {
             if !q.is_empty() {
                 // открытые окна — по заголовку и программе; после программ: запуск чаще
                 for w in wins.iter().filter(|w| score(&w.title, &q) >= 60 || score(&w.app_id, &q) >= 60).take(8) {
-                    out.push(Item { kind: Kind::Win(w.id), name: w.title.clone(), sub: crate::tf!("окно · {}", "window · {}", w.app_id), icon: w.app_id.clone() });
+                    out.push(Item { kind: Kind::Win(w.id), name: w.title.clone(), sub: crate::tf!("окно · {}", "window · {}", "janela · {}", w.app_id), icon: w.app_id.clone() });
                 }
                 out.extend(settings_items(&q, 60).into_iter().take(3));
             }
@@ -362,7 +362,7 @@ fn settings_items(q: &str, min: i32) -> Vec<Item> {
             score(name, q).max(score(crate::i18n::tr(name), q)).max(words.split(' ').map(|w| score(w, q)).max().unwrap_or(0))
         };
         if s >= min {
-            hits.push((s, Item { kind: Kind::Setting(id), name: crate::tf!("настройки → {}", "settings → {}", crate::i18n::tr(name)), sub: String::new(), icon: icon.to_string() }));
+            hits.push((s, Item { kind: Kind::Setting(id), name: crate::tf!("настройки → {}", "settings → {}", "configurações → {}", crate::i18n::tr(name)), sub: String::new(), icon: icon.to_string() }));
         }
     }
     hits.sort_by_key(|h| std::cmp::Reverse(h.0));

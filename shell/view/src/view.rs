@@ -578,7 +578,7 @@ pub fn draw(ui: &mut Ui, v: &V, w: i32, h: i32) {
         let msg = match v.path() {
             None => crate::i18n::tr("нет картинок").to_string(),
             Some(p) => match v.errs.get(p) {
-                Some(e) => crate::tf!("не открывается: {}", "cannot open: {}", e),
+                Some(e) => crate::tf!("не открывается: {}", "cannot open: {}", "não foi possível abrir: {}", e),
                 None => {
                     ui.anim = true;
                     let dots = ".".repeat(1 + (v.born.elapsed().as_millis() / 250 % 3) as usize);
@@ -813,7 +813,7 @@ fn info(ui: &mut Ui, v: &V, w: i32) {
     let rows: Vec<(&str, String)> = vec![
         ("размер", format!("{} × {}", p.w(), p.h())),
         ("файл", pic::human(p.bytes)),
-        ("формат", if p.frames.len() > 1 { format!("{} · {}", p.format, crate::tf!("кадров {}", "{} frames", p.frames.len())) } else { p.format.clone() }),
+        ("формат", if p.frames.len() > 1 { format!("{} · {}", p.format, crate::tf!("кадров {}", "{} frames", "{} quadros", p.frames.len())) } else { p.format.clone() }),
         ("изменён", mtime),
         ("папка", dir),
         ("прозрачность", if p.has_alpha() { crate::i18n::tr("есть").to_string() } else { crate::i18n::tr("нет").to_string() }),

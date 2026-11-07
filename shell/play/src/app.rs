@@ -147,7 +147,7 @@ pub fn run(mut p: P) -> i32 {
         Err(e) => {
             eprintln!("yami-play: {e}");
             // без libmpv играть нечем: скажем, какой пакет поставить
-            let msg = crate::tf!("нет {} — поставь пакет mpv (libmpv)", "no {}: install the mpv package (libmpv)", e);
+            let msg = crate::tf!("нет {} — поставь пакет mpv (libmpv)", "no {}: install the mpv package (libmpv)", "{} ausente: instale o pacote mpv (libmpv)", e);
             let _ = std::process::Command::new("notify-send").args(["-a", "yami-play", "yami-play", &msg]).status();
             return 2;
         }

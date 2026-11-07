@@ -1,10 +1,13 @@
 [Desktop Entry]
 Type=Application
 Name=Files
+Name[pt_BR]=Arquivos
 Name[ru]=Файлы
 GenericName=File Manager
+GenericName[pt_BR]=Gerenciador de arquivos
 GenericName[ru]=Файловый менеджер
 Comment=Pixel-art file manager of the yami shell
+Comment[pt_BR]=Gerenciador de arquivos em pixel art do yami
 Comment[ru]=Пиксельный файловый менеджер шелла yami
 Exec=yami-files %U
 Icon=system-file-manager
@@ -17,10 +20,12 @@ Actions=new-window;trash;
 
 [Desktop Action new-window]
 Name=New window
+Name[pt_BR]=Nova janela
 Name[ru]=Новое окно
 Exec=yami-files
 
 [Desktop Action trash]
 Name=Trash
+Name[pt_BR]=Lixeira
 Name[ru]=Корзина
 Exec=yami-files trash:///

@@ -79,22 +79,22 @@ pub fn widget_menu(w: &Widget) -> Vec<MItem> {
     let mut items = vec![];
     match w.kind.as_str() {
         "graph" => {
-            items.push(MItem::sub(&crate::tf!("источник: {}", "source: {}", crate::i18n::tr(name_of(SOURCES, &w.source))), "chart", pick("source", SOURCES, &w.source)));
-            items.push(MItem::sub(&crate::tf!("вид: {}", "style: {}", crate::i18n::tr(name_of(STYLES, &w.style))), "grid", pick("style", STYLES, &w.style)));
-            items.push(MItem::sub(&crate::tf!("анимация: {}", "animation: {}", crate::i18n::tr(name_of(ANIMS, &w.anim))), "eye", pick("anim", ANIMS, &w.anim)));
+            items.push(MItem::sub(&crate::tf!("источник: {}", "source: {}", "origem: {}", crate::i18n::tr(name_of(SOURCES, &w.source))), "chart", pick("source", SOURCES, &w.source)));
+            items.push(MItem::sub(&crate::tf!("вид: {}", "style: {}", "estilo: {}", crate::i18n::tr(name_of(STYLES, &w.style))), "grid", pick("style", STYLES, &w.style)));
+            items.push(MItem::sub(&crate::tf!("анимация: {}", "animation: {}", "animação: {}", crate::i18n::tr(name_of(ANIMS, &w.anim))), "eye", pick("anim", ANIMS, &w.anim)));
         }
         "net" => {
-            items.push(MItem::sub(&crate::tf!("вид: {}", "style: {}", crate::i18n::tr(name_of(STYLES, &w.style))), "grid", pick("style", STYLES, &w.style)));
-            items.push(MItem::sub(&crate::tf!("анимация: {}", "animation: {}", crate::i18n::tr(name_of(ANIMS, &w.anim))), "eye", pick("anim", ANIMS, &w.anim)));
+            items.push(MItem::sub(&crate::tf!("вид: {}", "style: {}", "estilo: {}", crate::i18n::tr(name_of(STYLES, &w.style))), "grid", pick("style", STYLES, &w.style)));
+            items.push(MItem::sub(&crate::tf!("анимация: {}", "animation: {}", "animação: {}", crate::i18n::tr(name_of(ANIMS, &w.anim))), "eye", pick("anim", ANIMS, &w.anim)));
         }
         "media" => {
-            items.push(MItem::sub(&crate::tf!("эквалайзер: {}", "equalizer: {}", crate::i18n::tr(name_of(STYLES, &w.style))), "music", pick("style", STYLES, &w.style)));
+            items.push(MItem::sub(&crate::tf!("эквалайзер: {}", "equalizer: {}", "equalizador: {}", crate::i18n::tr(name_of(STYLES, &w.style))), "music", pick("style", STYLES, &w.style)));
         }
         "script" => {
             // скрипты — те же, что модули бара: ~/.config/yami/modules
             let names: Vec<MItem> = crate::plugins::scripts().into_iter().map(|n| MItem::new(&n, "", MAct::Widget(id, "source", n.clone())).check(n == w.source)).collect();
             if !names.is_empty() {
-                items.push(MItem::sub(&crate::tf!("скрипт: {}", "script: {}", if w.source.is_empty() { "—" } else { &w.source }), "term", names));
+                items.push(MItem::sub(&crate::tf!("скрипт: {}", "script: {}", "script: {}", if w.source.is_empty() { "—" } else { &w.source }), "term", names));
             }
         }
         "clock" => {
@@ -103,8 +103,8 @@ pub fn widget_menu(w: &Widget) -> Vec<MItem> {
         }
         _ => {}
     }
-    items.push(MItem::sub(&crate::tf!("размер: {}", "size: {}", crate::i18n::tr(name_of(SIZES, &w.size))), "max", pick("size", SIZES, &w.size)));
-    items.push(MItem::sub(&crate::tf!("цвет: {}", "color: {}", crate::i18n::tr(name_of(COLORS, &w.color))), "image", pick("color", COLORS, &w.color)));
+    items.push(MItem::sub(&crate::tf!("размер: {}", "size: {}", "tamanho: {}", crate::i18n::tr(name_of(SIZES, &w.size))), "max", pick("size", SIZES, &w.size)));
+    items.push(MItem::sub(&crate::tf!("цвет: {}", "color: {}", "cor: {}", crate::i18n::tr(name_of(COLORS, &w.color))), "image", pick("color", COLORS, &w.color)));
     items.push(MItem::new("подложка", "", MAct::Widget(id, "frame", String::new())).check(w.frame));
     if matches!(w.kind.as_str(), "graph" | "net" | "media") {
         items.push(MItem::new("подпись", "", MAct::Widget(id, "label", String::new())).check(w.label));
@@ -161,7 +161,7 @@ fn script(ui: &mut Ui, st: &State, w: &Widget, r: R, c: C) {
     let t = ui.t;
     let p = st.plugins.shown.get(&format!("x:{}", w.source));
     let Some(p) = p.filter(|p| !p.text.is_empty() || !p.icon.is_empty()) else {
-        let msg = if w.source.is_empty() { crate::i18n::tr("скрипт не выбран: настройки виджета → скрипт").to_string() } else { crate::tf!("{}: ждёт вывода", "{}: waiting for output", w.source) };
+        let msg = if w.source.is_empty() { crate::i18n::tr("скрипт не выбран: настройки виджета → скрипт").to_string() } else { crate::tf!("{}: ждёт вывода", "{}: waiting for output", "{}: aguardando saída", w.source) };
         ui.cv.icon("term", r.x, r.y + 2, 2, t.text_faint);
         ui.wrap(PX, R::new(r.x + 22, r.y, r.w - 22, r.h), &msg, t.text_faint, 3);
         return;
@@ -415,7 +415,7 @@ fn draw_widget(ui: &mut Ui, st: &State, w: &Widget, sw: i32, sh: i32) {
             ui.text(face, x, y, &format!("{:02}", tm.min), t.text);
             let mut yy = y + ui.f.line(face) + 6;
             if w.date {
-                let s = format!("{}, {} {}", crate::i18n::tr(RU_DAY_FULL[tm.wday as usize]), tm.day, crate::i18n::tr(RU_MON[(tm.mon - 1) as usize]));
+                let s = crate::tf!("{}, {} {}", "{}, {} {}", "{}, {} de {}", crate::i18n::tr(RU_DAY_FULL[tm.wday as usize]), tm.day, crate::i18n::tr(RU_MON[(tm.mon - 1) as usize]));
                 ui.text(PX, pad, yy, &s, t.text_dim);
                 yy += 24;
             }
@@ -433,7 +433,7 @@ fn draw_widget(ui: &mut Ui, st: &State, w: &Widget, sw: i32, sh: i32) {
             let (ser, full) = st.sys.series(&w.source);
             let data: Vec<f32> = ser.tail(160).iter().map(|v| v / full).collect();
             let (label, val) = match w.source.as_str() {
-                "ram" => ("память", crate::tf!("{:.0}%  {:.1}/{:.0} ГБ", "{:.0}%  {:.1}/{:.0} GB", st.sys.mem * 100.0, st.sys.mem_used, st.sys.mem_total)),
+                "ram" => ("память", crate::tf!("{:.0}%  {:.1}/{:.0} ГБ", "{:.0}%  {:.1}/{:.0} GB", "{:.0}%  {:.1}/{:.0} GB", st.sys.mem * 100.0, st.sys.mem_used, st.sys.mem_total)),
                 "temp" => ("температура", format!("{:.0}°C", st.sys.temp)),
                 "gpu" if st.sys.gpu_sleep => ("видеокарта", "сон".into()),
                 "gpu" => ("видеокарта", format!("{:.0}°C  {:.0}%", st.sys.gpu_temp, st.sys.gpu_load * 100.0)),
@@ -465,8 +465,8 @@ fn draw_widget(ui: &mut Ui, st: &State, w: &Widget, sw: i32, sh: i32) {
             let mut gy = pad;
             if w.label {
                 ui.cv.icon("net", pad, pad + 1, 2, c);
-                let s = crate::tf!("↓{}/с", "↓{}/s", crate::sys::rate(st.sys.rx));
-                let s2 = crate::tf!("↑{}/с", "↑{}/s", crate::sys::rate(st.sys.tx));
+                let s = crate::tf!("↓{}/с", "↓{}/s", "↓{}/s", crate::sys::rate(st.sys.rx));
+                let s2 = crate::tf!("↑{}/с", "↑{}/s", "↑{}/s", crate::sys::rate(st.sys.tx));
                 let w1 = ui.text_in(PX, R::new(pad + 20, pad, 120, 18), &s, c);
                 ui.text_in(PX, R::new(pad + 32 + w1, pad, 120, 18), &s2, t.text_dim);
                 ui.text_right(PX, R::new(pad, pad, r.w - 2 * pad, 18), &st.sys.iface, t.text_faint);
@@ -765,7 +765,7 @@ impl App {
         let (x, y) = self.surfs.values().find(|s| s.kind == SKind::Widget(id)).map(|s| s.margin).unwrap_or((100, 100));
         let (ww, _) = size_of(&w);
         let out = self.focus_out();
-        let title = crate::tf!("виджет: {}", "widget: {}", crate::i18n::tr(name_of(KINDS, &w.kind)));
+        let title = crate::tf!("виджет: {}", "widget: {}", "widget: {}", crate::i18n::tr(name_of(KINDS, &w.kind)));
         self.open_menu(MenuState::new(&out, x + ww - 30, y + 30, &title, widget_menu(&w)));
     }
 

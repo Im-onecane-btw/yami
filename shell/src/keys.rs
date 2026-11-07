@@ -263,11 +263,7 @@ pub struct KeysUi {
 }
 
 pub fn title_of(b: &Bind) -> &'static str {
-    if crate::i18n::en() {
-        b.en
-    } else {
-        b.ru
-    }
+    crate::i18n::select(b.ru, b.en)
 }
 
 /// текущее сочетание бинда: переопределение или по умолчанию
@@ -323,7 +319,7 @@ pub fn kdl(set: &crate::config::Settings) -> String {
         // само окно до краёв (niri ≥ 25.11; ниже 26.04 yami не ставится)
         let desk_max = set.stacking && b.id == "maximize";
         if b.overlay {
-            let title = if desk_max { crate::tf!("развернуть окно", "Maximize window") } else { title_of(b).to_string() };
+            let title = if desk_max { crate::tf!("развернуть окно", "Maximize window", "Maximizar janela") } else { title_of(b).to_string() };
             line += &format!(" hotkey-overlay-title={}", kdl_str(&title));
         }
         line += &format!(" {{ {} }}", if desk_max { "maximize-window-to-edges;" } else { b.act });
@@ -453,9 +449,9 @@ fn layout_rows(ui: &mut Ui, st: &State, list: R, mut ry: i32) -> i32 {
     let s = &st.set;
     let focused = st.field_focus == Some("kb_layout");
     let ph = if s.kb_layout.trim().is_empty() {
-        crate::tf!("авто по языкам системы: {}", "automatic from the system languages: {}", auto_layout())
+        crate::tf!("авто по языкам системы: {}", "automatic from the system languages: {}", "automático pelos idiomas do sistema: {}", auto_layout())
     } else {
-        crate::tf!("свои: {}", "your own: {}", layouts(s))
+        crate::tf!("свои: {}", "your own: {}", "personalizado: {}", layouts(s))
     };
     ui.text_in(PX, R::new(list.x, ry, list.w, 20), "раскладки — коды xkb через запятую, первая по умолчанию", t.text_dim);
     ry += 24;
@@ -474,14 +470,15 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     let k = &st.keys;
     let cat = if k.cat.is_empty() { "shell" } else { k.cat };
     // категории: две строки кнопок
-    let per = 5;
+    // португальские названия длиннее: три кнопки в ряд вместо пяти
+    let per = if crate::i18n::pt_br() { 3 } else { 5 };
     let cw = (b.w - (per - 1) * 6) / per;
     for (i, (id, ru, en)) in CATS.iter().enumerate() {
         let r = R::new(b.x + (i as i32 % per) * (cw + 6), b.y + (i as i32 / per) * 32, cw, 26);
-        let name = if crate::i18n::en() { *en } else { *ru };
+        let name = crate::i18n::select(ru, en);
         ui.button(r, name, "", Tone::Plain, cat == *id, true, Act::KeyCat(id));
     }
-    let mut y = b.y + 72;
+    let mut y = b.y + ((CATS.len() as i32 + per - 1) / per) * 32 + 8;
     let hint = if k.capture.is_some() {
         "нажми сочетание… Esc — отмена, Backspace — снять"
     } else if !k.note.is_empty() {
@@ -705,7 +702,7 @@ impl App {
                 freed.push(c.cmd.clone());
             }
         }
-        self.st.keys.note = if freed.is_empty() { String::new() } else { crate::tf!("{key} снято с: {}", "{key} taken from: {}", freed.join(", ")) };
+        self.st.keys.note = if freed.is_empty() { String::new() } else { crate::tf!("{key} снято с: {}", "{key} taken from: {}", "{key} removido de: {}", freed.join(", ")) };
     }
 
     /// settings_changed перепишет yami-binds.kdl

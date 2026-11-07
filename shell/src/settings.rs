@@ -40,39 +40,39 @@ pub const GROUPS: &[(&str, &[Tab])] = &[
     (
         "внешний вид",
         &[
-            tab("color", "цвет", "drop", "палитра акцент цвет тема темы шаблон светлая тёмная стекло прозрачность плотность palette accent colour color theme themes template light dark glass opacity", tab_color), // i18n-ok
-            tab("wall", "обои", "image", "обои картинка фон папка миниатюры skwd skwd-wall видео wallpaper background image folder thumbnails picker video", crate::wall::tab), // i18n-ok
-            tab("look", "вид", "eye", "пиксельность пиксели лёгкий режим слабый тормозит виртуалка анимации эффекты появление развёртка размытие значки иконки курсор pixel pixelation lite slow lag vm animation effects reveal scanlines blur icons cursor", tab_look), // i18n-ok
-            tab("fonts", "шрифты", "text", "шрифт размер терминал fastfetch браузер fonts size terminal browser", crate::fonttab::tab), // i18n-ok
+            tab("color", "цвет", "drop", "палитра акцент цвет тема темы шаблон светлая тёмная стекло прозрачность плотность palette accent colour color theme themes template light dark glass opacity paleta destaque cor cores tema temas modelo claro escuro vidro transparência", tab_color), // i18n-ok
+            tab("wall", "обои", "image", "обои картинка фон папка миниатюры skwd skwd-wall видео wallpaper background image folder thumbnails picker video papel parede imagem fundo pasta miniaturas seletor vídeo", crate::wall::tab), // i18n-ok
+            tab("look", "вид", "eye", "пиксельность пиксели лёгкий режим слабый тормозит виртуалка анимации эффекты появление развёртка размытие значки иконки курсор pixel pixelation lite slow lag vm animation effects reveal scanlines blur icons cursor visual aparência pixels pixelização leve lento animação efeitos desfoque ícones cursor", tab_look), // i18n-ok
+            tab("fonts", "шрифты", "text", "шрифт размер терминал fastfetch браузер fonts size terminal browser fonte fontes tamanho terminal navegador", crate::fonttab::tab), // i18n-ok
         ],
     ),
     (
         "рабочий стол",
         &[
-            tab("bar", "бар", "menu", "бар модули часы разделитель плавающий плашка ширина центр трей стрелка температура bar modules clock separator floating pill width center tray arrow temperature", crate::bartab::tab_bar), // i18n-ok
-            tab("widgets", "виджеты", "grid", "виджеты график часы заметка widgets graph clock note", tab_widgets), // i18n-ok
-            tab("dock", "док", "tile", "док закреплённые dock pinned", tab_dock), // i18n-ok
-            tab("windows", "окна", "float", "окна отступы плавающие стол заголовки углы скругление рамка gaps floating stacking windows titlebars corners rounded radius border", tab_windows), // i18n-ok
-            tab("screens", "экраны", "screen", "экраны монитор разрешение частота масштаб vrr hz герц поворот display monitor resolution refresh scale rotation", crate::displays::tab), // i18n-ok
+            tab("bar", "бар", "menu", "бар модули часы разделитель плавающий плашка ширина центр трей стрелка температура bar modules clock separator floating pill width center tray arrow temperature barra módulos relógio separador flutuante largura centro bandeja temperatura", crate::bartab::tab_bar), // i18n-ok
+            tab("widgets", "виджеты", "grid", "виджеты график часы заметка widgets graph clock note widgets gráfico relógio nota", tab_widgets), // i18n-ok
+            tab("dock", "док", "tile", "док закреплённые dock pinned dock fixados", tab_dock), // i18n-ok
+            tab("windows", "окна", "float", "окна отступы плавающие стол заголовки углы скругление рамка gaps floating stacking windows titlebars corners rounded radius border janelas espaço flutuantes títulos cantos arredondados borda mosaico", tab_windows), // i18n-ok
+            tab("screens", "экраны", "screen", "экраны монитор разрешение частота масштаб vrr hz герц поворот display monitor resolution refresh scale rotation telas tela monitor resolução frequência escala rotação", crate::displays::tab), // i18n-ok
         ],
     ),
     (
         "действия",
         &[
-            Tab { own_scroll: true, ..tab("keys", "клавиши", "keys", "клавиши сочетания хоткеи раскладка keys shortcuts hotkeys layout keyboard", crate::keys::tab) }, // i18n-ok
-            tab("shots", "скриншоты", "camera", "скриншоты снимок лупа screenshot loupe", tab_shots), // i18n-ok
-            tab("games", "игры", "play", "игры steam proton разрывы gamemode ntsync tearing games shader", crate::games::tab), // i18n-ok
+            Tab { own_scroll: true, ..tab("keys", "клавиши", "keys", "клавиши сочетания хоткеи раскладка keys shortcuts hotkeys layout keyboard teclas atalhos teclado layout disposição", crate::keys::tab) }, // i18n-ok
+            tab("shots", "скриншоты", "camera", "скриншоты снимок лупа screenshot loupe captura capturas tela imagem lupa", tab_shots), // i18n-ok
+            tab("games", "игры", "play", "игры steam proton разрывы gamemode ntsync tearing games shader jogos jogo cortes shader", crate::games::tab), // i18n-ok
         ],
     ),
     (
         "система",
         &[
-            tab("system", "система", "gear", "система язык сон блокировка ожидание ночной свет system language idle sleep lock night light", tab_system), // i18n-ok
-            tab("login", "экран входа", "lock", "экран входа вход логин greetd пользователи пароль numlock вуаль менеджер входа login screen greeter display manager users password numlock veil", crate::login::tab), // i18n-ok
-            tab("notif", "уведомления", "bell", "уведомления не беспокоить место история osd громкость яркость notifications do not disturb position history osd volume brightness", tab_notif), // i18n-ok
-            tab("agents", "службы", "bolt", "службы трей polkit порталы флешки телефоны автоподключение обложки тексты погода services tray portals automount drives phones covers lyrics weather", crate::agents::tab), // i18n-ok
-            tab("updates", "обновления", "down", "обновления версия откат updates version rollback", crate::update::tab), // i18n-ok
-            tab("about", "о шелле", "about", "о шелле версия память about version memory", tab_about), // i18n-ok
+            tab("system", "система", "gear", "система язык сон блокировка ожидание ночной свет system language idle sleep lock night light sistema idioma língua português brasileiro brasil suspender bloqueio inatividade luz noturna", tab_system), // i18n-ok
+            tab("login", "экран входа", "lock", "экран входа вход логин greetd пользователи пароль numlock вуаль менеджер входа login screen greeter display manager users password numlock veil tela de login entrada greetd usuários senha numlock véu gerenciador de login", crate::login::tab), // i18n-ok
+            tab("notif", "уведомления", "bell", "уведомления не беспокоить место история osd громкость яркость notifications do not disturb position history osd volume brightness notificações notificação perturbe posição histórico volume brilho", tab_notif), // i18n-ok
+            tab("agents", "службы", "bolt", "службы трей polkit порталы флешки телефоны автоподключение обложки тексты погода services tray portals automount drives phones covers lyrics weather serviços serviço bandeja portais discos telefones montagem capas letras clima", crate::agents::tab), // i18n-ok
+            tab("updates", "обновления", "down", "обновления версия откат updates version rollback atualizações atualizar versão reverter", crate::update::tab), // i18n-ok
+            tab("about", "о шелле", "about", "о шелле версия память about version memory sobre versão memória", tab_about), // i18n-ok
         ],
     ),
 ];
@@ -122,7 +122,7 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
     let t = ui.t;
     let fr = R::new(0, 0, w - 6, h - 6);
     ui.frame(fr, false);
-    let sub = crate::tf!("yami {} · {:.0} МБ", "yami {} · {:.0} MB", env!("CARGO_PKG_VERSION"), st.rss);
+    let sub = crate::tf!("yami {} · {:.0} МБ", "yami {} · {:.0} MB", "yami {} · {:.0} MB", env!("CARGO_PKG_VERSION"), st.rss);
     ui.header(R::new(1, 1, fr.w - 2, 30), "gear", "настройки", &sub);
     // за заголовок окно двигается (крестик зарегистрирован позже — он сверху)
     ui.zone(R::new(1, 1, fr.w - 2, 30), Act::MDrag, Cur::Default);

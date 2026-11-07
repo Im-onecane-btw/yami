@@ -142,9 +142,9 @@ fn weather(ui: &mut Ui, st: &State, b: R) {
     ui.text_in(PX, R::new(tx, y, b.right() - tx, 16), crate::weather::text(w.code), t.text);
     let unit = if st.set.weather_units == "f" { "mph" } else { crate::i18n::tr("км/ч") };
     let lines = [
-        crate::tf!("ощущается {}", "feels like {}", crate::weather::deg(w.feels)),
-        crate::tf!("влажность {}%", "humidity {}%", w.hum.round() as i32),
-        crate::tf!("ветер {} {}", "wind {} {}", w.wind.round() as i32, unit),
+        crate::tf!("ощущается {}", "feels like {}", "sensação térmica {}", crate::weather::deg(w.feels)),
+        crate::tf!("влажность {}%", "humidity {}%", "umidade {}%", w.hum.round() as i32),
+        crate::tf!("ветер {} {}", "wind {} {}", "vento {} {}", w.wind.round() as i32, unit),
     ];
     for (i, l) in lines.iter().enumerate() {
         ui.cv.text_in(ui.f, PX, R::new(tx, y + 17 + i as i32 * 17, b.right() - tx, 16), l, if i == 0 { t.text_dim } else { t.text_faint });
@@ -164,7 +164,7 @@ fn weather(ui: &mut Ui, st: &State, b: R) {
         y += 68;
     }
     let age = (crate::clock::unix_now().saturating_sub(w.at) / 60) as i32;
-    let foot = if !st.weather.err.is_empty() { st.weather.err.clone() } else { crate::tf!("open-meteo.com · {} мин назад", "open-meteo.com · {} min ago", age) };
+    let foot = if !st.weather.err.is_empty() { st.weather.err.clone() } else { crate::tf!("open-meteo.com · {} мин назад", "open-meteo.com · {} min ago", "open-meteo.com · há {} min", age) };
     ui.cv.text_in(ui.f, PX, R::new(b.x, y, b.w, 18), &foot, if st.weather.err.is_empty() { t.text_faint } else { t.ember });
 }
 
@@ -174,7 +174,7 @@ fn cal(ui: &mut Ui, st: &State, b: R) {
     let now = crate::clock::local_now();
     let face = font::px(32);
     ui.text(face, b.x, b.y - 2, &format!("{:02}:{:02}", now.hour, now.min), t.text);
-    let date = format!("{}, {} {}", crate::i18n::tr(crate::clock::RU_DAY_FULL[now.wday as usize]), now.day, crate::i18n::tr(crate::clock::RU_MON[(now.mon - 1) as usize]));
+    let date = crate::tf!("{}, {} {}", "{}, {} {}", "{}, {} de {}", crate::i18n::tr(crate::clock::RU_DAY_FULL[now.wday as usize]), now.day, crate::i18n::tr(crate::clock::RU_MON[(now.mon - 1) as usize]));
     ui.text_in(PX, R::new(b.x, b.y + 34, 300, 20), &date, t.text_dim);
     let cr = R::new(b.x, b.y + 66, 290, b.h - 66);
     widgets::calendar(ui, st, cr, st.cal_month, t.red, true);
@@ -185,7 +185,7 @@ fn cal(ui: &mut Ui, st: &State, b: R) {
     let n = st.notifs.history.len();
     let sub = if n == 0 { String::new() } else { format!("{n}") };
     ui.cv.icon(if st.set.dnd { "bellx" } else { "bell" }, nr.x, nr.y + 3, 2, t.red);
-    ui.text_in(PX, R::new(nr.x + 22, nr.y, 160, 20), &crate::tf!("уведомления {sub}", "notifications {sub}"), t.text);
+    ui.text_in(PX, R::new(nr.x + 22, nr.y, 160, 20), &crate::tf!("уведомления {sub}", "notifications {sub}", "notificações {sub}"), t.text);
     ui.button(R::new(nr.right() - 172, nr.y - 2, 104, 24), "не беспокоить", "", Tone::Ghost, st.set.dnd, true, Act::Dnd);
     ui.button(R::new(nr.right() - 64, nr.y - 2, 64, 24), "очистить", "", Tone::Ghost, false, n > 0, Act::NotifClear);
     ui.cv.fill(R::new(nr.x, nr.y + 26, nr.w, 1), t.border);
@@ -430,9 +430,9 @@ fn net(ui: &mut Ui, st: &State, b: R) {
     let full = s.h_rx.max().max(s.h_tx.max()).max(64.0 * 1024.0);
     let rx: Vec<f32> = s.h_rx.tail(120).iter().map(|v| v / full).collect();
     let tx: Vec<f32> = s.h_tx.tail(120).iter().map(|v| v / full).collect();
-    let w1 = ui.text_in(PX, R::new(b.x, y, 160, 20), &crate::tf!("↓ {}/с", "↓ {}/s", crate::sys::rate(s.rx)), t.red);
-    ui.text_in(PX, R::new(b.x + w1 + 16, y, 160, 20), &crate::tf!("↑ {}/с", "↑ {}/s", crate::sys::rate(s.tx)), t.text_dim);
-    ui.text_right(PX, R::new(b.x, y, b.w, 20), &crate::tf!("пик {}/с", "peak {}/s", crate::sys::rate(full as f64)), t.text_faint);
+    let w1 = ui.text_in(PX, R::new(b.x, y, 160, 20), &crate::tf!("↓ {}/с", "↓ {}/s", "↓ {}/s", crate::sys::rate(s.rx)), t.red);
+    ui.text_in(PX, R::new(b.x + w1 + 16, y, 160, 20), &crate::tf!("↑ {}/с", "↑ {}/s", "↑ {}/s", crate::sys::rate(s.tx)), t.text_dim);
+    ui.text_right(PX, R::new(b.x, y, b.w, 20), &crate::tf!("пик {}/с", "peak {}/s", "pico {}/s", crate::sys::rate(full as f64)), t.text_faint);
     y += 24;
     let gr = R::new(b.x, y, b.w, 90);
     ui.cv.pxbox(gr, &BoxStyle::new(t.code_bg, t.border));
@@ -482,7 +482,7 @@ fn bt(ui: &mut Ui, st: &State, b: R) {
     let t = ui.t;
     let s = &st.bt;
     let conn = s.devices.iter().filter(|d| d.connected).count();
-    let sub = if !s.present { "нет адаптера".to_string() } else if conn > 0 { crate::tf!("подключено {conn}", "{conn} connected") } else { String::new() };
+    let sub = if !s.present { "нет адаптера".to_string() } else if conn > 0 { crate::tf!("подключено {conn}", "{conn} connected", "{conn} conectados") } else { String::new() };
     let mut y = head(ui, b, "bt", "bluetooth", &sub);
     if !s.present {
         ui.text_in(PX, R::new(b.x, y, b.w, 20), "адаптер не найден (bluez не запущен?)", t.text_faint);
@@ -539,7 +539,7 @@ fn profile(ui: &mut Ui, st: &State, b: R) {
         let w = ui.text_in(PX, R::new(b.x + 30, y, 60, 20), &format!("{}%", bat.pct), t.text);
         ui.text_in(PX, R::new(b.x + 30 + w + 10, y, b.w - 140, 20), state, t.text_dim);
         if let Some(m) = bat.mins {
-            let left = if m >= 60 { crate::tf!("{} ч {} мин", "{} h {} min", m / 60, m % 60) } else { crate::tf!("{} мин", "{} min", m) };
+            let left = if m >= 60 { crate::tf!("{} ч {} мин", "{} h {} min", "{} h {} min", m / 60, m % 60) } else { crate::tf!("{} мин", "{} min", "{} min", m) };
             ui.text_right(PX, R::new(b.x, y, b.w, 20), &left, t.text_faint);
         }
         y += 40;
@@ -559,7 +559,7 @@ fn profile(ui: &mut Ui, st: &State, b: R) {
         y += 36;
     }
     if !p.degraded.is_empty() {
-        ui.text_in(PX, R::new(b.x, y, b.w, 20), &crate::tf!("урезано: {}", "limited: {}", p.degraded), t.ember);
+        ui.text_in(PX, R::new(b.x, y, b.w, 20), &crate::tf!("урезано: {}", "limited: {}", "limitado: {}", p.degraded), t.ember);
     }
 }
 
@@ -568,10 +568,10 @@ fn sys(ui: &mut Ui, st: &State, b: R) {
     let t = ui.t;
     let s = &st.sys;
     let up = std::fs::read_to_string("/proc/uptime").ok().and_then(|x| x.split_whitespace().next().and_then(|v| v.parse::<f64>().ok())).unwrap_or(0.0) as u64;
-    let mut y = head(ui, b, "cpu", "система", &crate::tf!("работает {} ч {} мин", "up {} h {} min", up / 3600, up / 60 % 60));
+    let mut y = head(ui, b, "cpu", "система", &crate::tf!("работает {} ч {} мин", "up {} h {} min", "em execução há {} h {} min", up / 3600, up / 60 % 60));
     let rows: [(&str, &str, String, &str); 4] = [
         ("cpu", "процессор", format!("{:.0}%", s.cpu * 100.0), "cpu"),
-        ("ram", "память", crate::tf!("{:.1} / {:.0} ГБ", "{:.1} / {:.0} GB", s.mem_used, s.mem_total), "ram"),
+        ("ram", "память", crate::tf!("{:.1} / {:.0} ГБ", "{:.1} / {:.0} GB", "{:.1} / {:.0} GB", s.mem_used, s.mem_total), "ram"),
         ("temp", "температура", format!("{:.0}°C", s.temp), "temp"),
         ("temp", "видеокарта", if s.gpu_sleep { "сон".into() } else if s.gpu_temp > 0.0 { format!("{:.0}°C  {:.0}%", s.gpu_temp, s.gpu_load * 100.0) } else { "—".into() }, "gpu"),
     ];

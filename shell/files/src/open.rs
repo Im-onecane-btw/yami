@@ -114,7 +114,7 @@ impl Fm {
         let Some(a) = self.apps().all.get(idx).cloned() else { return };
         if remember {
             self.apps().set_default(mime, &a.id);
-            self.toast(crate::tf!("теперь «{}» открывается в {}", "“{}” now opens with {}", mime::label(mime, ""), a.name));
+            self.toast(crate::tf!("теперь «{}» открывается в {}", "“{}” now opens with {}", "“{}” agora abre com {}", mime::label(mime, ""), a.name));
         }
         self.open_files(&files, Some(a.id));
     }

@@ -1,10 +1,13 @@
 [Desktop Entry]
 Type=Application
 Name=Images
+Name[pt_BR]=Imagens
 Name[ru]=Картинки
 GenericName=Image Viewer
+GenericName[pt_BR]=Visualizador de imagens
 GenericName[ru]=Просмотр изображений
 Comment=Fast pixel-art image viewer and quick editor of the yami shell
+Comment[pt_BR]=Visualizador e editor rápido de imagens em pixel art do yami
 Comment[ru]=Быстрый пиксельный просмотрщик и правка картинок шелла yami
 Exec=yami-view %F
 Icon=image-viewer

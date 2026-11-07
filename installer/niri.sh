@@ -58,7 +58,7 @@ fork_tidy() {
   local src="${YAMI_NIRI_SRC:-$CACHE/niri-src}" sz
   [[ $ROOT == "${XDG_DATA_HOME:-$HOME/.local/share}/yami/src" ]] && niri_src_plain "$src" || return 0
   sz="$(du -sh "$src" 2>/dev/null | cut -f1)"
-  rm -rf -- "$src" && note "$(t "исходники yami-niri удалены (${sz:-?}): бинарник стоит, следующая сборка скачает их заново (--keep-build — оставить)" "yami-niri sources removed (${sz:-?}): the binary stays, the next build fetches them again (--keep-build keeps them)")"
+  rm -rf -- "$src" && note "$(t "исходники yami-niri удалены (${sz:-?}): бинарник стоит, следующая сборка скачает их заново (--keep-build — оставить)" "yami-niri sources removed (${sz:-?}): the binary stays, the next build fetches them again (--keep-build keeps them)" "código-fonte do yami-niri removido (${sz:-?}): o binário permanece; a próxima compilação baixa novamente (--keep-build preserva)")"
 }
 
 # yami-niri: build (5–25 min, the output stays on the terminal), realtime priority without the

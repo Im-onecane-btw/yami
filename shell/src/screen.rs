@@ -72,7 +72,7 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
     }
     let wins: Vec<(usize, &Item)> = p.items.iter().enumerate().filter(|(_, i)| !i.monitor).collect();
     if !wins.is_empty() {
-        let more = if wins.len() > ROWS { crate::tf!("{} — колесо листает", "{} — scroll for more", wins.len()) } else { String::new() };
+        let more = if wins.len() > ROWS { crate::tf!("{} — колесо листает", "{} — scroll for more", "{} — role para ver mais", wins.len()) } else { String::new() };
         y = crate::settings::title(ui, x, y, iw, "окна");
         if !more.is_empty() {
             ui.text_right(PX, R::new(x, y - 34, iw, 20), &more, t.text_faint);

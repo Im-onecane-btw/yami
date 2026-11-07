@@ -7,12 +7,14 @@
 PAL_ID=(blood ash sakura amber venom ice dusk)
 PAL_RU=(кровь пепел сакура янтарь яд лёд сумрак)
 PAL_EN=(blood ash sakura amber venom ice dusk)
+PAL_PT=(sangue cinza sakura âmbar veneno gelo crepúsculo)
 PAL_HEX=(c4161c a8a29c d9577c d98e1f 5fae34 3a9fd0 8a5cf0)
 # panel look: glass (panel opacity), lift (lighter graphite), inner (cards and graphs), dim
 # (behind menus); percent, written to the shell settings
 LOOK_ID=(matte glass light solid)
 LOOK_RU=(матовое стекло светлое плотное)
 LOOK_EN=(matte glass light solid)
+LOOK_PT=(fosco vidro claro sólido)
 LOOK_GLASS=(78 55 85 100) LOOK_LIFT=(0 20 60 0) LOOK_INNER=(100 55 80 100) LOOK_DIM=(50 35 30 60)
 # theme: dark graphite (default) or light paper; the same palette, the whole rice follows
 THEME_ID=(dark light)
@@ -74,58 +76,60 @@ print(d.get("palette") or "-", num("glass", 0.78), num("lift", 0), num("inner", 
   return 0
 }
 
-theme_name() { case ${THEME_ID[$1]} in dark) t "тёмная" "dark" ;; light) t "светлая" "light" ;; esac; }
+theme_name() { case ${THEME_ID[$1]} in dark) t "тёмная" "dark" "escuro" ;; light) t "светлая" "light" "claro" ;; esac; }
 theme_desc() {
   case ${THEME_ID[$1]} in
-    dark) t "графит и акцент — как задумано" "graphite and the accent: the original look" ;;
-    light) t "светлая бумага, акцент темнее; GTK, Qt, kitty и курсор — тоже" "light paper, a deeper accent; GTK, Qt, kitty and the cursor follow" ;;
+    dark) t "графит и акцент — как задумано" "graphite and the accent: the original look" "grafite e destaque: a aparência original" ;;
+    light) t "светлая бумага, акцент темнее; GTK, Qt, kitty и курсор — тоже" "light paper, a deeper accent; GTK, Qt, kitty and the cursor follow" "papel claro, destaque mais escuro; GTK, Qt, kitty e o cursor acompanham" ;;
   esac
 }
-fetch_name() { case ${FETCH_ID[$1]} in mini) t "короткий" "mini" ;; full) t "расширенный" "extended" ;; esac; }
+fetch_name() { case ${FETCH_ID[$1]} in mini) t "короткий" "mini" "resumido" ;; full) t "расширенный" "extended" "completo" ;; esac; }
 fetch_desc() {
   case ${FETCH_ID[$1]} in
-    mini) t "кто, система, окружение — без железа" "who, system, desktop: no hardware" ;;
-    full) t "ещё ядро, пакеты, процессор, видеокарта, память, диск, экран" "also kernel, packages, CPU, GPU, memory, disk, display" ;;
+    mini) t "кто, система, окружение — без железа" "who, system, desktop: no hardware" "usuário, sistema e desktop: sem hardware" ;;
+    full) t "ещё ядро, пакеты, процессор, видеокарта, память, диск, экран" "also kernel, packages, CPU, GPU, memory, disk, display" "também kernel, pacotes, CPU, GPU, memória, disco e tela" ;;
   esac
 }
-font_name() { case ${FONT_ID[$1]} in sans) t "обычный (Noto Sans)" "regular (Noto Sans)" ;; pixel) t "пиксельный (Tiny5)" "pixel (Tiny5)" ;; esac; }
+font_name() { case ${FONT_ID[$1]} in sans) t "обычный (Noto Sans)" "regular (Noto Sans)" "normal (Noto Sans)" ;; pixel) t "пиксельный (Tiny5)" "pixel (Tiny5)" "pixel (Tiny5)" ;; esac; }
 font_desc() {
   case ${FONT_ID[$1]} in
-    sans) t "программы читаются как обычно; шелл, файлы и экран входа — пиксельные" "apps read as usual; the shell, files and login screen stay pixel" ;;
-    pixel) t "пиксельный шрифт во всех программах, ровно по сетке экрана" "the pixel font in every app, exactly on the screen's grid" ;;
+    sans) t "программы читаются как обычно; шелл, файлы и экран входа — пиксельные" "apps read as usual; the shell, files and login screen stay pixel" "aplicativos com leitura normal; shell, arquivos e tela de login continuam em pixel" ;;
+    pixel) t "пиксельный шрифт во всех программах, ровно по сетке экрана" "the pixel font in every app, exactly on the screen's grid" "fonte em pixel em todos os aplicativos, alinhada à grade da tela" ;;
   esac
 }
 
-look_name() { if [[ $L == ru ]]; then printf '%s' "${LOOK_RU[$1]}"; else printf '%s' "${LOOK_EN[$1]}"; fi; }
+look_name() { case $L in ru) printf '%s' "${LOOK_RU[$1]}" ;; pt-BR) printf '%s' "${LOOK_PT[$1]}" ;; *) printf '%s' "${LOOK_EN[$1]}" ;; esac; }
 look_desc() {
   case ${LOOK_ID[$1]} in
-    matte) t "тёмный графит, панели почти сплошные — как задумано" "dark graphite, nearly solid panels: the original look" ;;
-    glass) t "панели и карточки прозрачные, стол просвечивает" "translucent panels and cards, the desktop shows through" ;;
-    light) t "графит светлее, без глухого чёрного" "lighter graphite, no deep black" ;;
-    solid) t "всё сплошное, сильное затемнение под меню" "fully solid, strong dim behind menus" ;;
+    matte) t "тёмный графит, панели почти сплошные — как задумано" "dark graphite, nearly solid panels: the original look" "grafite escuro, painéis quase sólidos: a aparência original" ;;
+    glass) t "панели и карточки прозрачные, стол просвечивает" "translucent panels and cards, the desktop shows through" "painéis e cartões translúcidos; a área de trabalho aparece ao fundo" ;;
+    light) t "графит светлее, без глухого чёрного" "lighter graphite, no deep black" "grafite mais claro, sem preto intenso" ;;
+    solid) t "всё сплошное, сильное затемнение под меню" "fully solid, strong dim behind menus" "totalmente sólido, escurecimento forte atrás dos menus" ;;
   esac
 }
 
-pal_name() { if [[ $L == ru ]]; then printf '%s' "${PAL_RU[$1]}"; else printf '%s' "${PAL_EN[$1]}"; fi; }
+pal_name() { case $L in ru) printf '%s' "${PAL_RU[$1]}" ;; pt-BR) printf '%s' "${PAL_PT[$1]}" ;; *) printf '%s' "${PAL_EN[$1]}" ;; esac; }
 
 pick_lang() {
-  local cur=$([[ $L == ru ]] && echo 0 || echo 1) opts=("Русский" "English") i mark style
+  local cur=1 opts=("Русский" "English" "Português (Brasil)") codes=(ru en pt-BR) i mark style
+  case $L in ru) cur=0 ;; pt-BR) cur=2 ;; esac
   printf '\e[?25l'
   while :; do
     printf '\e[H\e[J'
     banner 0
-    printf '  %s%slanguage · язык%s   %s↑↓ · enter%s\n\n' "$T" "$B" "$R" "$F" "$R"
-    for i in 0 1; do
+    printf '  %s%slanguage · язык · idioma%s   %s↑↓ · enter%s\n\n' "$T" "$B" "$R" "$F" "$R"
+    for i in "${!opts[@]}"; do
       if ((i == cur)); then mark="$A▸$R" style="$T$B"; else mark=" " style="$D"; fi
       printf '  %s %s%s%s\n' "$mark" "$style" "${opts[$i]}" "$R"
     done
     case "$(key)" in
-      up | down | k | j | left | right) cur=$((1 - cur)) ;;
+      up | k | left) cur=$(((cur + ${#opts[@]} - 1) % ${#opts[@]})) ;;
+      down | j | right) cur=$(((cur + 1) % ${#opts[@]})) ;;
       enter) break ;;
       q | esc | eof) bye ;;
     esac
   done
-  L=$([[ $cur == 0 ]] && echo ru || echo en)
+  L="${codes[$cur]}"
 }
 
 pick_components() {
@@ -133,19 +137,19 @@ pick_components() {
   printf '\e[?25l'
   while :; do
     screen
-    printf '  %s%s%s%s   %s%s%s\n\n' "$T" "$B" "$(t "что ставим" "components")" "$R" "$F" \
-      "$(t "↑↓ выбор · пробел — галочка · a — всё · enter — дальше · q — выход" "↑↓ move · space toggle · a all · enter next · q quit")" "$R"
+    printf '  %s%s%s%s   %s%s%s\n\n' "$T" "$B" "$(t "что ставим" "components" "componentes")" "$R" "$F" \
+      "$(t "↑↓ выбор · пробел — галочка · a — всё · enter — дальше · q — выход" "↑↓ move · space toggle · a all · enter next · q quit" "↑↓ escolher · espaço marcar · a tudo · enter avançar · q sair")" "$R"
     for ((i = 0; i < n; i++)); do
       if ((C_ON[i])); then box="${A}[■]${R}"; else box="${F}[ ]${R}"; fi
       if ((i == cur)); then mark="$A▸$R" style="$T$B"; else mark=" " style="$D"; fi
       lock=""
-      can "${C_ID[$i]}" || lock=" $F($(t "нужен root и пакетный менеджер" "needs root and a package manager"))$R"
+      can "${C_ID[$i]}" || lock=" $F($(t "нужен root и пакетный менеджер" "needs root and a package manager" "requer root e um gerenciador de pacotes"))$R"
       printf '  %s %s %s%s%s%s\n' "$mark" "$box" "$style" "$(pad "$(c_name "${C_ID[$i]}")" 20)" "$R" "$lock"
       printf '        %s%s%s\n' "$F" "$(c_desc "${C_ID[$i]}")" "$R"
     done
     printf '\n  %s%s%s\n' "$F" "$(t "всегда: шелл, файлы, просмотр картинок (сборка из исходников), шрифты, пиксельный курсор, конфиги niri, kitty, fastfetch" \
       "always: the shell, files, image viewer (built from source), fonts, pixel cursor, niri, kitty and fastfetch configs")" "$R"
-    printf '  %s%s: %s%s%s\n' "$F" "$(t "система" "system")" "$D" "$OS_NAME${PM:+ · $PM}" "$R"
+    printf '  %s%s: %s%s%s\n' "$F" "$(t "система" "system" "sistema")" "$D" "$OS_NAME${PM:+ · $PM}" "$R"
     case "$(key)" in
       up | k) cur=$(((cur + n - 1) % n)) ;;
       down | j) cur=$(((cur + 1) % n)) ;;
@@ -160,7 +164,7 @@ pick_components() {
 preview_bar() { # how the bar looks in this palette
   local bg=$'\e[48;2;14;12;12m' h=${PAL_HEX[$pal]} on=$'\e[38;2;255;255;255m'
   printf '  %s%s %s%s 1 %s%s %s2 3 %s│ %s■%s %s  %s%s %s■■■■%s■■■■%s 34%%  %s│  %s♪ ▂▅▇▃▆▂  %s17:42 %s\n' \
-    "$bg" "$T" "$AB" "$on" "$R" "$bg" "$D" "$F" "$A" "$T" "$(t "стол" "desk")" "$D" "$(t "цп" "cpu")" "$A" "$F" "$D" "$F" "$A" "$T" "$R"
+    "$bg" "$T" "$AB" "$on" "$R" "$bg" "$D" "$F" "$A" "$T" "$(t "стол" "desk" "livre")" "$D" "$(t "цп" "cpu" "cpu")" "$A" "$F" "$D" "$F" "$A" "$T" "$R"
   printf '  '
   local k
   for k in -80 -65 -45 -25 0 25 45 65; do printf '\e[48;2;%sm    ' "$(shade "$h" "$k")"; done
@@ -172,8 +176,8 @@ pick_palette() {
   while :; do
     paint
     screen
-    printf '  %s%s%s%s   %s%s%s\n\n' "$T" "$B" "$(t "палитра" "palette")" "$R" "$F" \
-      "$(t "↑↓ выбор · enter — дальше · потом меняется в настройках (Mod+S)" "↑↓ move · enter next · change it later in settings (Mod+S)")" "$R"
+    printf '  %s%s%s%s   %s%s%s\n\n' "$T" "$B" "$(t "палитра" "palette" "paleta")" "$R" "$F" \
+      "$(t "↑↓ выбор · enter — дальше · потом меняется в настройках (Mod+S)" "↑↓ move · enter next · change it later in settings (Mod+S)" "↑↓ escolher · enter avançar · mude depois nas configurações (Mod+S)")" "$R"
     for ((i = 0; i < n; i++)); do
       if ((i == pal)); then mark="$A▸$R" style="$T$B"; else mark=" " style="$D"; fi
       printf '  %s \e[48;2;%sm      %s  %s%s%s %s#%s%s\n' "$mark" "$(rgb "${PAL_HEX[$i]}")" "$R" "$style" "$(pad "$(pal_name "$i")" 8)" "$R" "$F" "${PAL_HEX[$i]}" "$R"
@@ -228,8 +232,8 @@ pick_look() {
   local n=${#LOOK_ID[@]} i mark style
   while :; do
     screen
-    printf '  %s%s%s%s   %s%s%s\n\n' "$T" "$B" "$(t "панели" "panels")" "$R" "$F" \
-      "$(t "↑↓ выбор · enter — дальше · тонко — в настройках → цвет" "↑↓ move · enter next · fine-tune in settings → color")" "$R"
+    printf '  %s%s%s%s   %s%s%s\n\n' "$T" "$B" "$(t "панели" "panels" "painéis")" "$R" "$F" \
+      "$(t "↑↓ выбор · enter — дальше · тонко — в настройках → цвет" "↑↓ move · enter next · fine-tune in settings → color" "↑↓ escolher · enter avançar · ajuste fino em configurações → cores")" "$R"
     for ((i = 0; i < n; i++)); do
       if ((i == look)); then mark="$A▸$R" style="$T$B"; else mark=" " style="$D"; fi
       printf '  %s %s%s%s %s%s%s\n' "$mark" "$style" "$(pad "$(look_name "$i")" 10)" "$R" "$F" "$(look_desc "$i")" "$R"
@@ -249,8 +253,8 @@ pick_font() {
   local n=${#FONT_ID[@]} i mark style
   while :; do
     screen
-    printf '  %s%s%s%s   %s%s%s\n\n' "$T" "$B" "$(t "шрифт программ" "app font")" "$R" "$F" \
-      "$(t "↑↓ выбор · enter — дальше · потом: настройки → шрифты" "↑↓ move · enter next · later: settings → fonts")" "$R"
+    printf '  %s%s%s%s   %s%s%s\n\n' "$T" "$B" "$(t "шрифт программ" "app font" "fonte dos aplicativos")" "$R" "$F" \
+      "$(t "↑↓ выбор · enter — дальше · потом: настройки → шрифты" "↑↓ move · enter next · later: settings → fonts" "↑↓ escolher · enter avançar · depois: configurações → fontes")" "$R"
     for ((i = 0; i < n; i++)); do
       if ((i == font)); then mark="$A▸$R" style="$T$B"; else mark=" " style="$D"; fi
       printf '  %s %s%s%s %s%s%s\n' "$mark" "$style" "$(pad "$(font_name "$i")" 22)" "$R" "$F" "$(font_desc "$i")" "$R"
@@ -267,8 +271,8 @@ pick_theme() {
   local n=${#THEME_ID[@]} i mark style
   while :; do
     screen
-    printf '  %s%s%s%s   %s%s%s\n\n' "$T" "$B" "$(t "тема" "theme")" "$R" "$F" \
-      "$(t "↑↓ выбор · enter — дальше · потом: настройки → цвет" "↑↓ move · enter next · later: settings → color")" "$R"
+    printf '  %s%s%s%s   %s%s%s\n\n' "$T" "$B" "$(t "тема" "theme" "tema")" "$R" "$F" \
+      "$(t "↑↓ выбор · enter — дальше · потом: настройки → цвет" "↑↓ move · enter next · later: settings → color" "↑↓ escolher · enter avançar · depois: configurações → cores")" "$R"
     for ((i = 0; i < n; i++)); do
       if ((i == theme)); then mark="$A▸$R" style="$T$B"; else mark=" " style="$D"; fi
       printf '  %s %s%s%s %s%s%s\n' "$mark" "$style" "$(pad "$(theme_name "$i")" 22)" "$R" "$F" "$(theme_desc "$i")" "$R"
@@ -286,7 +290,7 @@ pick_fetch() {
   while :; do
     screen
     printf '  %s%s%s%s   %s%s%s\n\n' "$T" "$B" "fastfetch" "$R" "$F" \
-      "$(t "↑↓ выбор · enter — дальше · потом: настройки → вид" "↑↓ move · enter next · later: settings → look")" "$R"
+      "$(t "↑↓ выбор · enter — дальше · потом: настройки → вид" "↑↓ move · enter next · later: settings → look" "↑↓ escolher · enter avançar · depois: configurações → visual")" "$R"
     for ((i = 0; i < n; i++)); do
       if ((i == fetch)); then mark="$A▸$R" style="$T$B"; else mark=" " style="$D"; fi
       printf '  %s %s%s%s %s%s%s\n' "$mark" "$style" "$(pad "$(fetch_name "$i")" 22)" "$R" "$F" "$(fetch_desc "$i")" "$R"
@@ -301,24 +305,24 @@ pick_fetch() {
 
 confirm() {
   screen
-  printf '  %s%s%s%s\n\n' "$T" "$B" "$(t "сводка" "summary")" "$R"
+  printf '  %s%s%s%s\n\n' "$T" "$B" "$(t "сводка" "summary" "resumo")" "$R"
   local i
-  printf '  %s■%s %s%s%s %s(%s)%s\n' "$A" "$R" "$T" "$OS_NAME" "$R" "$F" "${PM:-$(t "без пакетов" "no packages")}" "$R"
+  printf '  %s■%s %s%s%s %s(%s)%s\n' "$A" "$R" "$T" "$OS_NAME" "$R" "$F" "${PM:-$(t "без пакетов" "no packages" "sem pacotes")}" "$R"
   for i in "${!C_ID[@]}"; do
     ((C_ON[i])) && printf '  %s■%s %s%s%s\n' "$A" "$R" "$T" "$(c_name "${C_ID[$i]}")" "$R"
   done
-  printf '  %s■%s %s%s%s\n' "$A" "$R" "$T" "$(t "шелл, шрифты, niri, kitty, fastfetch" "shell, fonts, niri, kitty, fastfetch")" "$R"
-  printf '  %s■%s %s%s: %s%s \e[48;2;%sm    %s\n' "$A" "$R" "$T" "$(t "палитра" "palette")" "$(pal_name "$pal")" "$R" "$(rgb "${PAL_HEX[$pal]}")" "$R"
-  ((LOOK_SET)) && printf '  %s■%s %s%s: %s%s\n' "$A" "$R" "$T" "$(t "панели" "panels")" "$(look_name "$look")" "$R"
-  printf '  %s■%s %s%s: %s%s\n' "$A" "$R" "$T" "$(t "тема" "theme")" "$(theme_name "$theme")" "$R"
-  printf '  %s■%s %s%s: %s%s\n' "$A" "$R" "$T" "$(t "шрифт программ" "app font")" "$(font_name "$font")" "$R"
+  printf '  %s■%s %s%s%s\n' "$A" "$R" "$T" "$(t "шелл, шрифты, niri, kitty, fastfetch" "shell, fonts, niri, kitty, fastfetch" "shell, fontes, niri, kitty e fastfetch")" "$R"
+  printf '  %s■%s %s%s: %s%s \e[48;2;%sm    %s\n' "$A" "$R" "$T" "$(t "палитра" "palette" "paleta")" "$(pal_name "$pal")" "$R" "$(rgb "${PAL_HEX[$pal]}")" "$R"
+  ((LOOK_SET)) && printf '  %s■%s %s%s: %s%s\n' "$A" "$R" "$T" "$(t "панели" "panels" "painéis")" "$(look_name "$look")" "$R"
+  printf '  %s■%s %s%s: %s%s\n' "$A" "$R" "$T" "$(t "тема" "theme" "tema")" "$(theme_name "$theme")" "$R"
+  printf '  %s■%s %s%s: %s%s\n' "$A" "$R" "$T" "$(t "шрифт программ" "app font" "fonte dos aplicativos")" "$(font_name "$font")" "$R"
   printf '  %s■%s %sfastfetch: %s%s\n' "$A" "$R" "$T" "$(fetch_name "$fetch")" "$R"
-  printf '  %s■%s %s%s%s\n\n' "$A" "$R" "$T" "$(t "язык: русский" "language: English")" "$R"
-  [[ $FAM == nixos ]] && note "$(t "NixOS: так ставится только домашняя папка; вся система — flake.nix (docs/PACKAGING.md)" "NixOS: this installs the home folder only; the whole system: flake.nix (docs/PACKAGING.md)")"
-  ((ATOMIC)) && note "$(t "атомарная Fedora: пакеты ставятся слоем rpm-ostree, нужна перезагрузка" "atomic Fedora: packages are layered with rpm-ostree, a reboot is needed")"
-  ((RUNNING_NIRI)) && note "$(t "niri уже запущен — шелл перезапустится сам, остальное подхватится на лету" "niri is running: the shell restarts by itself, the rest reloads live")"
-  ((DRY)) && note "$(t "--dry-run: только план, ничего не меняется" "--dry-run: plan only, nothing changes")"
-  printf '\n  %s%s%s %s[%s]%s ' "$T" "$(t "поехали?" "go?")" "$R" "$F" "$(t "enter — ставить, c — выбрать иначе, q — выход" "enter install, c customize, q quit")" "$R"
+  printf '  %s■%s %s%s%s\n\n' "$A" "$R" "$T" "$(t "язык: русский" "language: English" "idioma: português do Brasil")" "$R"
+  [[ $FAM == nixos ]] && note "$(t "NixOS: так ставится только домашняя папка; вся система — flake.nix (docs/PACKAGING.md)" "NixOS: this installs the home folder only; the whole system: flake.nix (docs/PACKAGING.md)" "NixOS: isto instala só a pasta pessoal; o sistema inteiro: flake.nix (docs/PACKAGING.md)")"
+  ((ATOMIC)) && note "$(t "атомарная Fedora: пакеты ставятся слоем rpm-ostree, нужна перезагрузка" "atomic Fedora: packages are layered with rpm-ostree, a reboot is needed" "Fedora atômico: os pacotes são adicionados com rpm-ostree; é necessário reiniciar")"
+  ((RUNNING_NIRI)) && note "$(t "niri уже запущен — шелл перезапустится сам, остальное подхватится на лету" "niri is running: the shell restarts by itself, the rest reloads live" "niri está em execução: o shell reinicia sozinho; o restante recarrega na hora")"
+  ((DRY)) && note "$(t "--dry-run: только план, ничего не меняется" "--dry-run: plan only, nothing changes" "--dry-run: apenas o plano, nada será alterado")"
+  printf '\n  %s%s%s %s[%s]%s ' "$T" "$(t "поехали?" "go?" "vamos?")" "$R" "$F" "$(t "enter — ставить, c — выбрать иначе, q — выход" "enter install, c customize, q quit" "enter instalar, c personalizar, q sair")" "$R"
   printf '\e[?25h'
   while :; do
     case "$(key)" in
