@@ -12,6 +12,7 @@ mod app;
 mod auth;
 mod automount;
 mod profile;
+mod iconsets;
 mod restyle;
 mod displays;
 mod screen;

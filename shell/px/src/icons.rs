@@ -9,19 +9,26 @@ struct ThemeDir {
     path: PathBuf,
     size: i32,
     scalable: bool,
+    /// какая это тема в цепочке Inherits (0 — выбранная): значок берётся из первой, где он есть
+    theme: u16,
 }
 
 pub struct Icons {
     dirs: Vec<ThemeDir>,
-    found: HashMap<String, Option<PathBuf>>,
+    found: HashMap<(String, i32), Option<PathBuf>>,
     imgs: HashMap<(String, i32), Option<std::rc::Rc<Img>>>,
-    /// значки программ пиксельными в палитре: обводка и 4 тона от тёмного к светлому
-    pixel: Option<[u32; 5]>,
-    /// пиксельные копии чужих картинок (значки трея) по отпечатку картинки и палитры
+    /// тона палитры: обводка и 4 тона от тёмного к светлому (обводка пиксельных значков и тона
+    /// при tint, запасной значок)
+    ramp: [u32; 5],
+    /// значки программ пиксельными (iconPixel)
+    pixel: bool,
+    /// пиксельные — в тонах палитры, а не в своих цветах (iconTint)
+    tint: bool,
+    /// пиксельные копии чужих картинок (значки трея) по отпечатку картинки и вида
     pixeled: HashMap<u64, std::rc::Rc<Img>>,
 }
 
-fn icon_roots() -> Vec<PathBuf> {
+pub fn icon_roots() -> Vec<PathBuf> {
     let h = crate::paths::home();
     let mut v = vec![crate::paths::data_dir().join("icons"), h.join(".icons")];
     v.extend(crate::paths::data_dirs().into_iter().map(|d| d.join("icons")));
@@ -29,7 +36,7 @@ fn icon_roots() -> Vec<PathBuf> {
     v
 }
 
-fn parse_ini(text: &str) -> Vec<(String, HashMap<String, String>)> {
+pub fn parse_ini(text: &str) -> Vec<(String, HashMap<String, String>)> {
     let mut out: Vec<(String, HashMap<String, String>)> = vec![];
     for line in text.lines() {
         let l = line.trim();
@@ -44,92 +51,119 @@ fn parse_ini(text: &str) -> Vec<(String, HashMap<String, String>)> {
     out
 }
 
+/// набор значков системы, когда в настройках «авто»: тот, что выбран для GTK (settings.ini), иначе
+/// у KDE (kdeglobals), иначе Adwaita. gsettings не спрашиваем: это процесс на каждом старте
+pub fn system_theme() -> String {
+    let cfg = crate::paths::config_dir();
+    let mut got = None;
+    for v in ["gtk-4.0", "gtk-3.0"] {
+        let Ok(t) = std::fs::read_to_string(cfg.join(v).join("settings.ini")) else { continue };
+        got = t.lines().find_map(|l| l.trim().strip_prefix("gtk-icon-theme-name").map(|r| r.trim_start().trim_start_matches('=').trim().trim_matches('"').to_string())).filter(|s| !s.is_empty());
+        if got.is_some() {
+            break;
+        }
+    }
+    if got.is_none() {
+        if let Ok(t) = std::fs::read_to_string(cfg.join("kdeglobals")) {
+            got = parse_ini(&t).into_iter().find(|(n, _)| n == "Icons").and_then(|(_, m)| m.get("Theme").cloned()).filter(|s| !s.is_empty());
+        }
+    }
+    let roots = icon_roots();
+    let have = |t: &str| roots.iter().any(|r| r.join(t).join("index.theme").exists());
+    got.filter(|t| have(t)).unwrap_or_else(|| if have("Adwaita") { "Adwaita".into() } else { "hicolor".into() })
+}
+
 impl Icons {
     pub fn new(theme: &str) -> Icons {
-        let mut ic = Icons { dirs: vec![], found: HashMap::new(), imgs: HashMap::new(), pixel: None, pixeled: HashMap::new() };
+        let mut ic = Icons { dirs: vec![], found: HashMap::new(), imgs: HashMap::new(), ramp: [0xff000000, 0xff404040, 0xff808080, 0xffb0b0b0, 0xffe0e0e0], pixel: false, tint: false, pixeled: HashMap::new() };
         let roots = icon_roots();
         let mut order: Vec<String> = vec![];
-        let mut queue: Vec<String> = vec![];
-        let first = if theme.is_empty() {
-            ["Gruvbox-Plus-Ink", "Gruvbox-Plus-Dark", "Papirus-Dark", "Papirus", "breeze-dark", "Adwaita"]
-                .iter()
-                .find(|t| roots.iter().any(|r| r.join(t).join("index.theme").exists()))
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| "hicolor".into())
-        } else {
-            theme.to_string()
-        };
-        queue.push(first);
+        let mut queue: Vec<String> = vec![if theme.is_empty() { system_theme() } else { theme.to_string() }];
         while let Some(t) = queue.pop() {
-            if order.contains(&t) {
+            if order.contains(&t) || t.is_empty() || t.contains('/') {
                 continue;
             }
             order.push(t.clone());
-            for r in &roots {
-                let base = r.join(&t);
-                let Ok(txt) = std::fs::read_to_string(base.join("index.theme")) else { continue };
-                let ini = parse_ini(&txt);
-                let head = ini.iter().find(|(n, _)| n == "Icon Theme");
-                let mut inherits: Vec<String> = head.and_then(|(_, m)| m.get("Inherits")).map(|s| s.split(',').map(|x| x.trim().to_string()).collect()).unwrap_or_default();
-                inherits.reverse();
-                queue.extend(inherits);
-                let dirs: Vec<String> = head.and_then(|(_, m)| m.get("Directories")).map(|s| s.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()).unwrap_or_default();
-                let mut td: Vec<ThemeDir> = vec![];
-                for d in dirs {
-                    let Some((_, m)) = ini.iter().find(|(n, _)| *n == d) else { continue };
-                    let size = m.get("Size").and_then(|s| s.parse().ok()).unwrap_or(48);
-                    let scale: i32 = m.get("Scale").and_then(|s| s.parse().ok()).unwrap_or(1);
-                    if scale != 1 {
-                        continue;
-                    }
-                    let ctx = m.get("Context").map(|s| s.as_str()).unwrap_or("");
-                    if !matches!(ctx, "Applications" | "Apps" | "Status" | "Devices" | "Places" | "Actions" | "Panel" | "Categories" | "") {
-                        continue;
-                    }
-                    let scalable = m.get("Type").map(|t| t == "Scalable").unwrap_or(false);
-                    let path = base.join(&d);
+            let n = order.len() as u16 - 1;
+            // index.theme — из первого корня, где он есть; папки по нему ищутся во всех корнях
+            // (свои значки в ~/.local/share/icons/hicolor живут без своего index.theme)
+            let Some(txt) = roots.iter().find_map(|r| std::fs::read_to_string(r.join(&t).join("index.theme")).ok()) else {
+                if queue.is_empty() && !order.iter().any(|x| x == "hicolor") {
+                    queue.push("hicolor".into());
+                }
+                continue;
+            };
+            let ini = parse_ini(&txt);
+            let head = ini.iter().find(|(n, _)| n == "Icon Theme");
+            let mut inherits: Vec<String> = head.and_then(|(_, m)| m.get("Inherits")).map(|s| s.split(',').map(|x| x.trim().to_string()).collect()).unwrap_or_default();
+            inherits.reverse();
+            queue.extend(inherits);
+            let dirs: Vec<String> = head.and_then(|(_, m)| m.get("Directories")).map(|s| s.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()).unwrap_or_default();
+            for d in dirs {
+                let Some((_, m)) = ini.iter().find(|(n, _)| *n == d) else { continue };
+                let size = m.get("Size").and_then(|s| s.parse().ok()).unwrap_or(48);
+                let scale: i32 = m.get("Scale").and_then(|s| s.parse().ok()).unwrap_or(1);
+                if scale != 1 {
+                    continue;
+                }
+                let ctx = m.get("Context").map(|s| s.as_str()).unwrap_or("");
+                if !matches!(ctx, "Applications" | "Apps" | "Status" | "Devices" | "Places" | "Actions" | "Panel" | "Categories" | "") {
+                    continue;
+                }
+                let scalable = m.get("Type").map(|t| t == "Scalable").unwrap_or(false);
+                for r in &roots {
+                    let path = r.join(&t).join(&d);
                     if path.is_dir() {
-                        td.push(ThemeDir { path, size, scalable });
+                        ic.dirs.push(ThemeDir { path, size, scalable, theme: n });
                     }
                 }
-                // ближе к 16 и векторные — раньше
-                td.sort_by_key(|d| if d.scalable { 1 } else { (d.size - 16).abs() * 2 + if d.size < 16 { 1 } else { 0 } });
-                ic.dirs.extend(td);
             }
             if queue.is_empty() && !order.iter().any(|x| x == "hicolor") {
                 queue.push("hicolor".into());
             }
         }
-        ic.dirs.push(ThemeDir { path: "/usr/share/pixmaps".into(), size: 48, scalable: false });
+        ic.dirs.push(ThemeDir { path: "/usr/share/pixmaps".into(), size: 48, scalable: false, theme: u16::MAX });
         ic
     }
 
-    pub fn find(&mut self, name: &str) -> Option<PathBuf> {
+    /// файл значка под размер want: первая тема цепочки, где он есть, а в ней — ровно этого
+    /// размера, векторный (мелким — после ручных 16–24 px) или ближайший крупнее; мельче
+    /// нужного — в последнюю очередь (растянутый вышел бы мыльным или кубиками)
+    pub fn find(&mut self, name: &str, want: i32) -> Option<PathBuf> {
         if name.is_empty() {
             return None;
         }
-        if let Some(p) = self.found.get(name) {
+        let key = (name.to_string(), want);
+        if let Some(p) = self.found.get(&key) {
             return p.clone();
         }
         let r = if name.starts_with('/') {
             Path::new(name).exists().then(|| PathBuf::from(name))
         } else {
-            let mut hit = None;
-            'o: for d in &self.dirs {
-                for ext in ["svg", "png", "xpm"] {
-                    if ext == "xpm" {
-                        continue;
-                    }
-                    let p = d.path.join(format!("{name}.{ext}"));
-                    if p.exists() {
-                        hit = Some(p);
-                        break 'o;
+            let mut best: Option<(i32, u16, PathBuf)> = None;
+            for d in &self.dirs {
+                if let Some((_, th, _)) = &best {
+                    if *th != d.theme {
+                        break;
                     }
                 }
+                let Some(p) = ["svg", "png"].iter().map(|e| d.path.join(format!("{name}.{e}"))).find(|p| p.exists()) else { continue };
+                let score = if d.scalable {
+                    if want > 24 { 0 } else { 3 }
+                } else if d.size == want {
+                    0
+                } else if d.size > want {
+                    1 + (d.size - want) / 16
+                } else {
+                    100 + want - d.size
+                };
+                if best.as_ref().map(|(s, _, _)| score < *s).unwrap_or(true) {
+                    best = Some((score, d.theme, p));
+                }
             }
-            hit
+            best.map(|b| b.2)
         };
-        self.found.insert(name.to_string(), r.clone());
+        self.found.insert(key, r.clone());
         r
     }
 
@@ -139,7 +173,7 @@ impl Icons {
         if let Some(i) = self.imgs.get(&key) {
             return i.clone();
         }
-        let img = self.find(name).and_then(|p| load_file(&p, size)).map(std::rc::Rc::new);
+        let img = self.find(name, size).and_then(|p| load_file(&p, size)).map(std::rc::Rc::new);
         self.imgs.insert(key, img.clone());
         img
     }
@@ -157,19 +191,20 @@ impl Icons {
         img
     }
 
-    /// включить/выключить пиксельные значки программ (тона палитры: обводка, тёмный → светлый)
-    pub fn set_pixel(&mut self, ramp: Option<[u32; 5]>) {
-        if self.pixel != ramp {
-            self.pixel = ramp;
+    /// вид значков программ: тона палитры (ramp), пиксельные ли (iconPixel), в тонах палитры ли (iconTint)
+    pub fn set_style(&mut self, ramp: [u32; 5], pixel: bool, tint: bool) {
+        if (self.ramp, self.pixel, self.tint) != (ramp, pixel, tint) {
+            (self.ramp, self.pixel, self.tint) = (ramp, pixel, tint);
             self.imgs.retain(|k, _| !k.0.starts_with('\0'));
+            self.pixeled.clear();
         }
     }
 
-    /// готовая картинка (значок трея) пиксельной в тонах `ramp`; копии помнятся по отпечатку
-    /// пикселей и палитры, чтобы бар не пересчитывал их каждую секунду
-    pub fn pixeled(&mut self, img: &Img, ramp: &[u32; 5], size: i32) -> std::rc::Rc<Img> {
-        let mut h = crate::fnv(crate::FNV0, &(size as u32).to_le_bytes());
-        for p in ramp.iter().chain(img.px.iter()) {
+    /// готовая картинка (значок трея) пиксельной, как значки программ; копии помнятся по
+    /// отпечатку пикселей и вида, чтобы бар не пересчитывал их каждую секунду
+    pub fn pixeled(&mut self, img: &Img, size: i32) -> std::rc::Rc<Img> {
+        let mut h = crate::fnv(crate::FNV0, &[size as u32, self.tint as u32].map(u32::to_le_bytes).concat());
+        for p in self.ramp.iter().chain(img.px.iter()) {
             h = crate::fnv(h, &p.to_le_bytes());
         }
         if let Some(i) = self.pixeled.get(&h) {
@@ -179,96 +214,257 @@ impl Icons {
         if self.pixeled.len() > 64 {
             self.pixeled.clear();
         }
-        let out = std::rc::Rc::new(pixelate(img, ramp, size));
+        let out = std::rc::Rc::new(pixelate(img, size, &self.ramp, self.tint));
         self.pixeled.insert(h, out.clone());
         out
     }
 
-    /// значок программы: как есть или пиксельный (сетка 16×16, тона палитры, дизеринг Байера)
+    /// значок программы: как есть или пиксельный (чистая сетка, см. pixelate); нет ни в теме, ни
+    /// запасного — простое окошко в тонах палитры, чтобы в доке не было дыры
     pub fn app(&mut self, name: &str, size: i32) -> Option<std::rc::Rc<Img>> {
-        let Some(ramp) = self.pixel else { return self.app_raw(name, size) };
+        if !self.pixel {
+            return self.app_raw(name, size).or_else(|| self.generic(size));
+        }
         let key = (format!("\0{name}"), size);
         if let Some(i) = self.imgs.get(&key) {
             return i.clone();
         }
-        let lo = size.min(16);
-        let img = self.app_raw(name, lo).map(|r| std::rc::Rc::new(pixelate(&r, &ramp, size)));
+        // исходник крупный и в кэш не идёт: 128² на программу — лишняя память
+        let (g, _) = grid(size);
+        let src = (g * 4).clamp(64, 128);
+        let img = self.app_path(name, src).and_then(|p| load_file(&p, src)).map(|r| std::rc::Rc::new(pixelate(&r, size, &self.ramp, self.tint))).or_else(|| self.generic(size));
         self.imgs.insert(key, img.clone());
         img
     }
 
-    /// иконка с запасными вариантами: имя, в нижнем регистре, «программа»
-    fn app_raw(&mut self, name: &str, size: i32) -> Option<std::rc::Rc<Img>> {
-        if let Some(i) = self.get(name, size) {
-            return Some(i);
-        }
+    /// файл значка программы с запасными вариантами: имя, в нижнем регистре, «программа»
+    fn app_path(&mut self, name: &str, size: i32) -> Option<PathBuf> {
         let low = name.to_lowercase();
-        if low != name {
-            if let Some(i) = self.get(&low, size) {
-                return Some(i);
+        self.find(name, size).or_else(|| if low != name { self.find(&low, size) } else { None }).or_else(|| self.find("application-x-executable", size))
+    }
+
+    fn app_raw(&mut self, name: &str, size: i32) -> Option<std::rc::Rc<Img>> {
+        let key = (name.to_string(), size);
+        if let Some(i) = self.imgs.get(&key) {
+            return i.clone();
+        }
+        let img = self.app_path(name, size).and_then(|p| load_file(&p, size)).map(std::rc::Rc::new);
+        self.imgs.insert(key, img.clone());
+        img
+    }
+
+    /// запасной значок: окошко с полосой заголовка, клетками и в тонах палитры
+    fn generic(&mut self, size: i32) -> Option<std::rc::Rc<Img>> {
+        const ART: [&str; 12] = ["oooooooooooo", "o3333333232o", "o3333333333o", "oooooooooooo", "o1111111111o", "o1222222221o", "o1211111121o", "o1211111121o", "o1222222221o", "o1111111111o", "o1111111111o", "oooooooooooo"];
+        let key = ("\0\0generic".to_string(), size);
+        if let Some(i) = self.imgs.get(&key) {
+            return i.clone();
+        }
+        let cell = (size / 14).max(1);
+        let off = (size - 12 * cell) / 2;
+        let mut px = vec![0u32; (size * size).max(0) as usize];
+        for (y, row) in ART.iter().enumerate() {
+            for (x, ch) in row.bytes().enumerate() {
+                let c = match ch {
+                    b'o' => self.ramp[0],
+                    b'1' => self.ramp[1],
+                    b'2' => self.ramp[2],
+                    _ => self.ramp[3],
+                } | 0xff000000;
+                for dy in 0..cell {
+                    for dx in 0..cell {
+                        let (px_, py) = (off + x as i32 * cell + dx, off + y as i32 * cell + dy);
+                        if px_ >= 0 && py >= 0 && px_ < size && py < size {
+                            px[(py * size + px_) as usize] = c;
+                        }
+                    }
+                }
             }
         }
-        self.get("application-x-executable", size)
+        let img = (size > 0).then(|| std::rc::Rc::new(Img { w: size, h: size, px }));
+        self.imgs.insert(key, img.clone());
+        img
     }
 
     pub fn drop_cache(&mut self) {
         self.imgs.clear();
+        self.found.clear();
     }
 }
 
-const BAYER4: [[f32; 4]; 4] = [[0.0, 8.0, 2.0, 10.0], [12.0, 4.0, 14.0, 6.0], [3.0, 11.0, 1.0, 9.0], [15.0, 7.0, 13.0, 5.0]];
-
-/// маленькая картинка → пиксельный значок size×size: жёсткая альфа, яркость растянута на
-/// 4 тона палитры с дизерингом Байера, тёмная обводка по контуру, клетки по целому множителю
-pub fn pixelate(src: &Img, ramp: &[u32; 5], size: i32) -> Img {
-    let (w, h) = (src.w, src.h);
-    let lum = |p: u32| {
-        let a = (p >> 24) as f32;
-        if a < 1.0 {
-            return 0.0;
-        }
-        let c = |s: u32| ((p >> s) & 0xff) as f32 / a;
-        0.299 * c(16) + 0.587 * c(8) + 0.114 * c(0)
+/// сетка пиксельного значка размера size: (клеток по стороне, px в клетке). Клетка растёт
+/// ступенями, чтобы значок в любом месте читался как рисунок 16–30 клеток, а не как мыло
+pub fn grid(size: i32) -> (i32, i32) {
+    let cell = match size {
+        ..=29 => 1,
+        30..=59 => 2,
+        60..=89 => 3,
+        _ => 4,
     };
-    let solid = |x: i32, y: i32| x >= 0 && y >= 0 && x < w && y < h && (src.px[(y * w + x) as usize] >> 24) >= 110;
-    let (mut lo, mut hi) = (1.0f32, 0.0f32);
-    for y in 0..h {
-        for x in 0..w {
-            if solid(x, y) {
-                let l = lum(src.px[(y * w + x) as usize]);
-                lo = lo.min(l);
-                hi = hi.max(l);
+    ((size / cell).max(1), cell)
+}
+
+/// картинка → чистый пиксельный значок size×size. Сетка из grid(size) усреднением по площади
+/// (не выборкой: края не рвутся), жёсткий силуэт без одиночных выступов и дырок, свои цвета
+/// значка, сведённые медианным сечением к 5–10, или 4 тона палитры (tint) — без дизеринга,
+/// тёмная обводка снаружи (ramp[0]); клетки по целому множителю, по центру
+pub fn pixelate(src: &Img, size: i32, ramp: &[u32; 5], tint: bool) -> Img {
+    let (g, cell) = grid(size);
+    let (w, h) = (src.w.max(1), src.h.max(1));
+    let gu = g as usize;
+    // 1. усреднение по площади (предумноженные каналы)
+    let mut cells = vec![[0u32; 4]; gu * gu];
+    for ty in 0..g {
+        let (y0, y1) = (ty * h / g, ((ty + 1) * h / g).max(ty * h / g + 1).min(h));
+        for tx in 0..g {
+            let (x0, x1) = (tx * w / g, ((tx + 1) * w / g).max(tx * w / g + 1).min(w));
+            let mut s = [0u32; 4];
+            let mut n = 0u32;
+            for y in y0..y1 {
+                for x in x0..x1 {
+                    let p = src.px.get((y * src.w + x) as usize).copied().unwrap_or(0);
+                    s[0] += p >> 24;
+                    s[1] += (p >> 16) & 255;
+                    s[2] += (p >> 8) & 255;
+                    s[3] += p & 255;
+                    n += 1;
+                }
+            }
+            cells[ty as usize * gu + tx as usize] = if n > 0 { s.map(|v| v / n) } else { [0; 4] };
+        }
+    }
+    // 2. силуэт: половина покрытия; одиночные выступы срезать, одиночные дырки залить
+    let raw: Vec<bool> = cells.iter().map(|c| c[0] >= 128).collect();
+    let at = |m: &[bool], x: i32, y: i32| x >= 0 && y >= 0 && x < g && y < g && m[(y * g + x) as usize];
+    let n4 = |m: &[bool], x: i32, y: i32| at(m, x - 1, y) as u8 + at(m, x + 1, y) as u8 + at(m, x, y - 1) as u8 + at(m, x, y + 1) as u8;
+    let mut solid = raw.clone();
+    for y in 0..g {
+        for x in 0..g {
+            let k = n4(&raw, x, y);
+            let i = (y * g + x) as usize;
+            if raw[i] && k <= 1 {
+                solid[i] = false;
+            } else if !raw[i] && k >= 3 {
+                solid[i] = true;
             }
         }
     }
-    let span = (hi - lo).max(0.2);
-    let mut grid = vec![0u32; (w * h) as usize];
-    for y in 0..h {
-        for x in 0..w {
-            grid[(y * w + x) as usize] = if solid(x, y) {
-                let l = (lum(src.px[(y * w + x) as usize]) - lo) / span;
-                let d = BAYER4[(y & 3) as usize][(x & 3) as usize] / 16.0 - 0.47;
-                let i = (l * 3.0 + d * 0.9).round().clamp(0.0, 3.0) as usize;
-                ramp[1 + i] | 0xff000000
-            } else if solid(x - 1, y) || solid(x + 1, y) || solid(x, y - 1) || solid(x, y + 1) {
-                ramp[0] | 0xff000000
-            } else {
-                0
-            };
+    // 3. цвета: свои (без предумножения), медианное сечение до k
+    let mut cols: Vec<[u8; 3]> = Vec::new();
+    let mut at_col: Vec<usize> = vec![usize::MAX; gu * gu];
+    for (i, c) in cells.iter().enumerate() {
+        if solid[i] {
+            let a = c[0].max(1);
+            let un = |v: u32| (v * 255 / a).min(255) as u8;
+            at_col[i] = cols.len();
+            cols.push([un(c[1]), un(c[2]), un(c[3])]);
         }
     }
-    let cell = (size / w.max(h)).max(1);
-    let (ox, oy) = ((size - w * cell) / 2, (size - h * cell) / 2);
-    let mut px = vec![0u32; (size * size) as usize];
-    for y in 0..h * cell {
-        for x in 0..w * cell {
-            let (dx, dy) = (x + ox, y + oy);
-            if dx < size && dy < size {
-                px[(dy * size + dx) as usize] = grid[((y / cell) * w + x / cell) as usize];
+    let k = (g / 3).clamp(5, 10) as usize;
+    let (pal, which) = median_cut(&cols, k);
+    let lum = |c: &[u8; 3]| 299 * c[0] as u32 + 587 * c[1] as u32 + 114 * c[2] as u32;
+    let tone: Vec<u32> = if tint {
+        // тона по яркости: самый тёмный цвет значка — ramp[1], самый светлый — ramp[4]
+        let mut idx: Vec<usize> = (0..pal.len()).collect();
+        idx.sort_by_key(|&i| lum(&pal[i]));
+        let n = idx.len().max(2) - 1;
+        let mut t = vec![0u32; pal.len()];
+        for (r, &i) in idx.iter().enumerate() {
+            t[i] = ramp[1 + (r * 3 + n / 2) / n] | 0xff000000;
+        }
+        t
+    } else {
+        pal.iter().map(|c| 0xff000000 | (c[0] as u32) << 16 | (c[1] as u32) << 8 | c[2] as u32).collect()
+    };
+    // 4. клетки по cell px, обводка снаружи силуэта
+    let edge = ramp[0] | 0xff000000;
+    let off = (size - g * cell) / 2;
+    let mut px = vec![0u32; (size * size).max(0) as usize];
+    for y in 0..g {
+        for x in 0..g {
+            let i = (y * g + x) as usize;
+            let c = if solid[i] {
+                which.get(at_col[i]).and_then(|&j| tone.get(j)).copied().unwrap_or(edge)
+            } else if at(&solid, x - 1, y) || at(&solid, x + 1, y) || at(&solid, x, y - 1) || at(&solid, x, y + 1) {
+                edge
+            } else {
+                continue;
+            };
+            for dy in 0..cell {
+                let row = (off + y * cell + dy) * size + off + x * cell;
+                for dx in 0..cell {
+                    if let Some(p) = px.get_mut((row + dx) as usize) {
+                        *p = c;
+                    }
+                }
             }
         }
     }
     Img { w: size, h: size, px }
+}
+
+/// медианное сечение: до k цветов (среднее каждой коробки) и номер коробки у каждого цвета
+fn median_cut(cols: &[[u8; 3]], k: usize) -> (Vec<[u8; 3]>, Vec<usize>) {
+    if cols.is_empty() {
+        return (vec![], vec![]);
+    }
+    let range = |b: &[usize]| {
+        (0..3)
+            .map(|ch| {
+                let (lo, hi) = b.iter().fold((255u8, 0u8), |(lo, hi), &i| (lo.min(cols[i][ch]), hi.max(cols[i][ch])));
+                (hi.saturating_sub(lo), ch)
+            })
+            .max()
+            .unwrap_or((0, 0))
+    };
+    let mut boxes: Vec<Vec<usize>> = vec![(0..cols.len()).collect()];
+    while boxes.len() < k {
+        // делится коробка с самым широким разбросом: редкие, но яркие цвета получают свою
+        let Some((bi, (r, ch))) = boxes.iter().enumerate().filter(|(_, b)| b.len() > 1).map(|(i, b)| (i, range(b))).max_by_key(|(_, (r, _))| *r) else { break };
+        if r < 8 {
+            break;
+        }
+        let mut b = boxes.swap_remove(bi);
+        b.sort_by_key(|&i| cols[i][ch]);
+        let rest = b.split_off(b.len() / 2);
+        boxes.push(b);
+        boxes.push(rest);
+    }
+    let mut which = vec![0usize; cols.len()];
+    for (bi, b) in boxes.iter().enumerate() {
+        for &i in b {
+            which[i] = bi;
+        }
+    }
+    // средние коробок, потом три прохода k-средних: каждый цвет — к ближайшему, а не к своей
+    // коробке (иначе редкий блик смешивался с соседями в бурую кашу)
+    let mut pal = vec![[0u8; 3]; boxes.len()];
+    let dist = |a: &[u8; 3], b: &[u8; 3]| {
+        let d = |c: usize, w: i32| w * (a[c] as i32 - b[c] as i32).pow(2);
+        d(0, 3) + d(1, 4) + d(2, 2)
+    };
+    for pass in 0..4 {
+        let mut sum = vec![[0u32; 4]; pal.len()];
+        for (i, c) in cols.iter().enumerate() {
+            let s = &mut sum[which[i]];
+            for ch in 0..3 {
+                s[ch] += c[ch] as u32;
+            }
+            s[3] += 1;
+        }
+        for (j, s) in sum.iter().enumerate() {
+            if s[3] > 0 {
+                pal[j] = [s[0] / s[3], s[1] / s[3], s[2] / s[3]].map(|v| v as u8);
+            }
+        }
+        if pass == 3 {
+            break;
+        }
+        for (i, c) in cols.iter().enumerate() {
+            which[i] = (0..pal.len()).min_by_key(|&j| dist(c, &pal[j])).unwrap_or(0);
+        }
+    }
+    (pal, which)
 }
 
 /// потолки для картинок со стороны (значки уведомлений, обложки, значки трея): файл и память декодера

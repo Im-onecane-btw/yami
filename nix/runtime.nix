@@ -30,7 +30,6 @@ pkgs: {
   look = with pkgs; [
     qt6Packages.qt6ct
     adw-gtk3
-    papirus-icon-theme
   ];
   fonts = with pkgs; [
     noto-fonts

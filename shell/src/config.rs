@@ -124,8 +124,10 @@ pub struct Settings {
     pub stacking: bool,
     pub titlebars: bool,
     pub icon_theme: String,
-    /// значки программ пиксельными, в тонах палитры
+    /// значки программ пиксельными: чистая сетка 16–30 клеток (yami-px pixelate)
     pub icon_pixel: bool,
+    /// пиксельные значки — в 4 тонах палитры, а не в своих цветах
+    pub icon_tint: bool,
     /// свои обои (путь); пусто — пиксельные обои из палитры
     pub wallpaper: String,
     /// папка выбора обоев (walls.rs); пусто — ~/Pictures/Wallpapers, папка текущих обоев или ~/Pictures
@@ -499,6 +501,7 @@ impl Default for Settings {
             titlebars: true,
             icon_theme: String::new(),
             icon_pixel: true,
+            icon_tint: false,
             wallpaper: String::new(),
             wall_dir: String::new(),
             wall_pixel: 1,

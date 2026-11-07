@@ -42,6 +42,8 @@ yami ocr FILE                             # text from an image, the same recogni
 yami theme export FILE | import FILE|URL  # the look as one file: palette, effects, fonts, bar, widgets, wallpaper (never commands); an imported theme is kept in your themes, a URL must be https
 yami theme save [NAME] | list | apply NAME | remove NAME   # your themes in ~/.config/yami/themes (settings → color → themes); save with no name names it after the palette
 yami templates [force NAME]                # render your templates and print what came out of each (force overwrites one changed by hand)
+yami icons [NAME | auto | add PATH]        # icon sets: list them, switch (auto: the system's), install your own from an archive or a folder into ~/.local/share/icons
+yami cursor [NAME | yami | system | size N | add PATH]   # cursors: the yami pixel one, any installed set, system (leave alone); the size; your own set
 yami export FILE | import FILE [--yes]    # every setting as one file; user.kdl, custom keys and bar scripts only with --yes; before an import the current state goes to ~/.local/state/yami/before-import-*.json (undo: yami import that file --yes)
 yami login sync                           # give the login screen the shell's look now (the shell does it on every change)
 yami login status | log | preview         # the login screen: installed, greetd enabled, its last start; its log; it over the desktop (password yami or Esc)
@@ -93,8 +95,9 @@ yami-shell binds list | print | write     # keybindings
 | `wallKanji` | `true` | the 闇 glyph in the wallpaper corner |
 | `wallSkwd` | `false` | the wallpaper comes from [skwd-wall](https://github.com/liixini/skwd-wall): the shell reads what it writes (`~/.cache/skwd-wall-v2/last-wallpaper.json`, `colors.json`; `SKWD_WALL_V2_CACHE` and `paths.cache` respected) and changes nothing in its config. On a monitor where skwd-wall draws (pictures by skwd-paper, videos and scenes by skwd-wall-vk, transitions; seen from its niri layer) the shell hides its own wallpaper; otherwise (skwd-wall's pick-only mode) the shell draws the picked image itself in its cells and tones, a video or scene by its preview frame. The lock and login screens show the same picture. `yami-fx.kdl` gets the layer rule that puts skwd-paper's overview backdrop behind the workspaces |
 | `wallSkwdColors` | `true` | with `wallSkwd`: the accent is skwd-wall's `primary` and the theme follows its background (light or dark), so a palette made in its theme designer recolours the whole rice |
-| `iconTheme` | `""` | icon theme for app icons; empty: auto |
-| `iconPixel` | `true` | app icons redrawn as 16×16 pixel art in the palette tones |
+| `iconTheme` | `""` | the icon set (settings → look → app icons, `yami icons`): the shell and yami's apps use it, and so do GTK and Qt when they are restyled; empty: the one the system already uses |
+| `iconPixel` | `true` | app icons as clean pixel art: the icon is drawn large, averaged down to a grid of 16–30 cells (2 px cells in the dock), in 5–10 of its own colours with a dark outline, no dithering |
+| `iconTint` | `false` | pixel icons in four tones of the palette instead of their own colours |
 | `fetchFull` | `false` | fastfetch with the hardware (kernel, packages, CPU, GPU, memory, disk, display); off: who, OS, wm, shell, terminal, uptime |
 | `lang` | `""` | `ru`, `en`, `pt-BR`, or empty to follow `LC_ALL`, `LC_MESSAGES`, then `$LANG`; `pt_BR.UTF-8` and `pt` are also accepted |
 | `themeApps` | all of them | the other programs theme.py recolours (settings → color → apps, the installer's `--restyle`): `gtk` (gtk.css, settings.ini, gsettings), `qt` (qt6ct, the KDE colour scheme, kdeglobals), `kitty` (its colours and font; off takes the `include yami.conf` line out of `kitty.conf`), `fastfetch` (its `config.jsonc` while that is yami's; your own one is kept and yami's look goes to `yami.jsonc` next to it), `btop`, `firefox` (menus), `mangohud` (only a config yami wrote), `foot` (`foot/yami-colors.ini` and an `include=~/…` line at the end of `foot.ini` under its own `[main]`, so it wins over colours set above; new windows), `cava` (a gradient in the `[color]` section of its config, open cava reloads at once), `starship` (a `[palettes.yami]` table that also retints `red`, `green` and the other names, and `palette = "yami"` unless you chose another palette). A program left out is not touched. Up to 2.6 it was `appThemes` (foot, cava and starship only), read once and carried over |
@@ -129,7 +132,7 @@ text-color={{text}}
 
 ### Fonts
 
-Settings → look → «pixel look» moves these keys, `iconPixel` and `cursor` together in four steps: smooth (the system sans and cursor everywhere), softer (pixel shell panels only), yami only (GTK and Qt apps smooth, the installer's default) and all pixel.
+Settings → look → «pixel look» moves these keys, `iconPixel` and `cursor` (unless it names a cursor set of your own) together in four steps: smooth (the system sans and cursor everywhere), softer (pixel shell panels only), yami only (GTK and Qt apps smooth, the installer's default) and all pixel.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -150,7 +153,7 @@ Settings → look → «pixel look» moves these keys, `iconPixel` and `cursor` 
 | `cpuStyle` | `"gauge"` | `gauge` `graph` `number`, for `cpu` `ram` `gpu` `disk` (`disk` has no history: `graph` draws a gauge) |
 | `tempStyle` | `"full"` | the `temp` module: `full` like `cpu` and `ram` (label and `cpuStyle`), `compact` a small thermometer column and the number |
 | `trayMode` | `"icons"` | `icons`: every tray icon on the bar; `arrow`: one arrow that opens them as a list (clicks work as on the bar; a dot when an app asks for attention). A network applet (`nm-applet` and the like) is left out while the bar has `net` |
-| `trayPixel` | `false` | tray icons (on the bar and in the arrow's list) redrawn in pixel cells in the palette tones, like the dock and the launcher with `iconPixel` (#19) |
+| `trayPixel` | `false` | tray icons (on the bar and in the arrow's list) redrawn in pixel cells like the dock and the launcher with `iconPixel`: own colours, or palette tones with `iconTint` (#19) |
 | `batHideFull` | `false` | the `bat` module hides while the laptop is on power and not charging: full, or held at a charge limit (#21) |
 | `mediaViz` | `"bars"` | the equalizer of the `media` module and the music popup: `bars` `line` `blocks` `wave` `dots`, or `off` (no equalizer, and no audio capture for it) |
 | `mediaView` | `"cover"` | what the music popup shows (the button in its header switches it): `cover` (cover, buttons, equalizer), `both` (cover and lyrics), `lyrics`, `minimal` (title and buttons) |
@@ -181,7 +184,7 @@ Settings → look → «pixel look» moves these keys, `iconPixel` and `cursor` 
 | `winLeft`, `winRight`, `winTop`, `winBottom` | `8` each | from the screen edge to the windows, px (0–128; the top one from the bar): niri `struts` = edge − gap. Struts in `user.kdl` replace these whole |
 | `winRadius` | `0` | window corner radius, px (0–24; 0 square, like pixels): niri `geometry-corner-radius` with `clip-to-geometry`, the border follows it. Games stay square; fullscreen and maximized windows are square anyway; in desk mode with title bars only the bottom corners of floating windows round, so the shell's title bar joins without a gap |
 | `winBorder` | `2` | window border width, px (0–8; 0: none); its colours come from the palette |
-| `cursor`, `cursorSize` | `"yami"`, `24` | `yami` (pixel, in the palette) or `system` |
+| `cursor`, `cursorSize` | `"yami"`, `24` | `yami` (pixel, in the palette), the name of any installed cursor set (settings → look → cursor, `yami cursor`), or `system` (yami leaves the cursor alone) |
 | `dock` | `true` | show the dock |
 | `dockSide` | `"bottom"` | `bottom` `top` `left` `right` |
 | `dockHide` | `"smart"` | `never` `smart` (visible on an empty desk) `always` |

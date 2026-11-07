@@ -82,7 +82,7 @@ c_desc() {
     fork)
       if ((LIGHT)); then t "наш niri из исходников: здесь ($MEM_GB ГБ, $THREADS потоков) сборка идёт около часа, поэтому выключен; пакетный niri — тот же стол" "our niri from source: here ($MEM_GB GB, $THREADS threads) the build takes about an hour, so it is off; the packaged niri is the same desktop" "nosso niri compilado: aqui ($MEM_GB GB, $THREADS threads) a compilação leva cerca de uma hora, por isso está desativada; o niri do pacote oferece o mesmo desktop"
       else t "наш niri из исходников, 5–25 мин: под этот процессор, tearing и realtime для игр; пакетный niri — запасной" "our niri from source, 5–25 min: built for this CPU, tearing and realtime for games; packaged niri stays as a fallback" "nosso niri compilado, 5–25 min: otimizado para esta CPU, tearing e tempo real nos jogos; o niri do pacote fica como alternativa"; fi ;;
-    look) t "qt6ct, adw-gtk3, Papirus" "qt6ct, adw-gtk3, Papirus" "qt6ct, adw-gtk3, Papirus" ;;
+    look) t "qt6ct, adw-gtk3" "qt6ct, adw-gtk3" "qt6ct, adw-gtk3" ;;
   esac
 }
 # on the components page: look follows the restyle page; the NVIDIA row only with its driver

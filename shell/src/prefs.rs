@@ -28,7 +28,13 @@ impl App {
         }
         self.st.t = Theme::new(s.accent_rgb(), s.tint, s.glass, s.lift, s.inner, s.light).apply();
         yami_px::gfx::set_reveal(yami_px::gfx::Reveal::from_id(&s.reveal), s.reveal_grain);
-        self.res.icons.set_pixel(s.icon_pixel.then(|| self.st.t.icon_ramp()));
+        // набор значков сменился (или «авто» и в системе теперь другой) — собрать заново
+        let iset = crate::app::icon_set(&s.icon_theme);
+        if iset != self.res.iset {
+            self.res.icons = crate::icons::Icons::new(&iset);
+            self.res.iset = iset;
+        }
+        self.res.icons.set_style(self.st.t.icon_ramp(), s.icon_pixel, s.icon_tint);
         self.write_palette();
         self.write_fx();
         self.side_sync();
@@ -149,13 +155,15 @@ impl App {
             _ => ("", "", "", true, "yami"),
         };
         let s = &mut self.st.set;
+        // свой набор курсоров (не yami и не system) ползунок не трогает: его выбрали руками
+        let cursor = if matches!(s.cursor.as_str(), "yami" | "system" | "") { cursor } else { s.cursor.as_str() }.to_string();
         let (ui_new, cur_new) = (s.font_ui != ui, s.cursor != cursor);
         s.font_shell = shell.into();
         s.font_files = apps.into();
         s.font_view = apps.into();
         s.font_ui = ui.into();
         s.icon_pixel = icons;
-        s.cursor = cursor.into();
+        s.cursor = cursor;
         self.settings_changed();
         // программы (GTK, Qt) и курсор перекрашивает theme.py — только если они правда сменились,
         // и не на каждое деление, пока ползунок тянут: один раз при отпускании (look_apply)

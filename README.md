@@ -249,7 +249,7 @@ What it does:
    components with its native package manager (niri, portals, polkit, PipeWire, NetworkManager,
    BlueZ, power-profiles-daemon, Noto fonts, cliphist, grim; then kitty, fastfetch, btop, udisks2,
    gvfs with the MTP/PTP/AFC/SMB backends, ffmpegthumbnailer, bsdtar, mpv (libmpv), qt6ct, adw-gtk3,
-   Papirus, greetd as chosen). Names a repository does not carry are reported, not fatal. Enables
+   greetd as chosen). Names a repository does not carry are reported, not fatal. Enables
    Bluetooth and power profiles, and NetworkManager when nothing else manages the network.
 2. Builds the shell and the chosen apps with `cargo build --release --locked` (Rust ≥ 1.89; rustup
    is used when the distribution's toolchain is older) into `~/.local/bin`; registers yami-files
@@ -361,6 +361,7 @@ yami ocr image.png            # text from an image (like «text» in the screens
 yami theme export ~/my.yami   # the look as one file (import: yami theme import FILE or https link)
 yami theme save night         # keep the current look in your themes (list | apply NAME | remove NAME)
 yami templates                # render your templates, show what came out (force NAME overwrites one)
+yami icons add ~/Downloads/set.tar.xz   # install an icon or cursor set (yami icons NAME, yami cursor NAME)
 yami export ~/all.yami        # every setting as one file for a new system (yami import FILE)
 yami version                  # every part, the installed commit, the update channel
 yami update                   # what is new; apply | list | to X.Y.Z | rollback | status | log | need

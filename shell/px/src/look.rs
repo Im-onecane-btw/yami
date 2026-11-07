@@ -16,6 +16,8 @@ pub struct Look {
     pub blur: bool,
     /// значки программ пиксельными в палитре
     pub icon_pixel: bool,
+    /// пиксельные значки в тонах палитры, а не в своих цветах
+    pub icon_tint: bool,
     /// шрифты: шелла и отдельно файлов и просмотрщика ("" — как у шелла; у шелла "" — Tiny5)
     pub font_shell: String,
     pub font_files: String,
@@ -57,6 +59,7 @@ impl Look {
             icon_theme: s("iconTheme"),
             blur: b("blurShell", true) && !b("lite", false),
             icon_pixel: b("iconPixel", true),
+            icon_tint: b("iconTint", false),
             font_shell: s("fontShell"),
             font_files: s("fontFiles"),
             font_view: s("fontView"),

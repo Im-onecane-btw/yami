@@ -12,13 +12,14 @@ UI_FONT="Tiny5"
 UI_PT=12          # 12 pt = 16 px at 96 dpi: Tiny5's grid, not a single blurry pixel
 MONO_FONT="Monocraft"
 fc-list -q Monocraft 2>/dev/null || MONO_FONT="Terminess Nerd Font Mono"
-# icons: Gruvbox-Plus if installed, else Papirus-Dark, else Adwaita
-ICONS=Adwaita
-for i in Gruvbox-Plus-Ink Gruvbox-Plus-Dark Papirus-Dark; do
-  for d in "$HOME/.local/share/icons" "$HOME/.icons" /usr/share/icons; do
-    [[ -d "$d/$i" ]] && { ICONS=$i; break 2; }
-  done
-done
+# icons: the set chosen in the shell (iconTheme), else the one GTK already uses, else Adwaita; yami
+# installs no icon set of its own (its apps draw their icons in the palette, theme.py)
+ICONS=$(python3 -I -c 'import json,sys
+try: print(json.load(open(sys.argv[1])).get("iconTheme") or "")
+except Exception: print("")' "$CFG/yami-shell.json" 2>/dev/null)
+[[ -n $ICONS ]] || ICONS=$(sed -n 's/^gtk-icon-theme-name=//p' "$CFG/gtk-3.0/settings.ini" 2>/dev/null | head -1 || true)
+[[ -n $ICONS ]] || ICONS=$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null | tr -d "'" || true)
+[[ $ICONS =~ ^[A-Za-z0-9._+\ -]{1,64}$ ]] || ICONS=Adwaita
 
 keep() { [[ -e "$1" && ! -e "$1.bak-yami" ]] && cp -a -- "$1" "$1.bak-yami"; return 0; }
 want() { [[ -z ${YAMI_RESTYLE+x} || " $YAMI_RESTYLE " == *" $1 "* ]]; }
@@ -28,7 +29,6 @@ PALETTE="${YAMI_PALETTE:-${XDG_STATE_HOME:-$HOME/.local/state}/yami/palette.json
 GTK_THEME=adw-gtk3-dark PREFER_DARK=true SCHEME=prefer-dark
 if grep -qs '"mode": "light"' "$PALETTE"; then
   GTK_THEME=adw-gtk3 PREFER_DARK=false SCHEME=prefer-light
-  [[ $ICONS == Papirus-Dark ]] && ICONS=Papirus
 fi
 
 # ── colors: back up the old files, then run the generator ──────────────────

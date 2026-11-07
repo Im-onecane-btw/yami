@@ -31,7 +31,7 @@ do_play() { app_desktop yami-play; }
 # an app that is no longer chosen: its binary, .desktop and the defaults pointing at it
 drop_app() {
   local data="${XDG_DATA_HOME:-$HOME/.local/share}"
-  rm -f -- "$BIN/$1" "$data/applications/$1.desktop"
+  rm -f -- "$BIN/$1" "$data/applications/$1.desktop" "$data/icons/hicolor/scalable/apps/$1.svg"
   mime_forget "$1.desktop"
 }
 # mimeapps.list without the given .desktop (xdg-mime default wrote it); other entries stay as they are

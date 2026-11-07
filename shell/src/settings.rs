@@ -231,30 +231,6 @@ pub fn opt_btn(ui: &mut Ui, r: R, label: &str, val: &str, act: Act) {
     ui.zone(r, act, Cur::Pointer);
 }
 
-/// установленные темы значков (с index.theme и не только курсоры)
-pub(crate) fn icon_themes() -> Vec<String> {
-    let mut v = vec![String::new()];
-    let home = crate::config::home();
-    for d in [home.join(".local/share/icons"), home.join(".icons"), "/usr/share/icons".into()] {
-        let Ok(rd) = std::fs::read_dir(&d) else { continue };
-        let mut names: Vec<String> = rd
-            .flatten()
-            .filter(|e| {
-                let p = e.path();
-                p.join("index.theme").exists() && !p.join("cursors").exists() && e.file_name() != "default" && e.file_name() != "hicolor"
-            })
-            .map(|e| e.file_name().to_string_lossy().to_string())
-            .collect();
-        names.sort();
-        for n in names {
-            if !v.contains(&n) {
-                v.push(n);
-            }
-        }
-    }
-    v
-}
-
 /// следующее значение из ряда (после последнего — первое)
 pub fn step_in(list: &[i32], cur: i32) -> i32 {
     list.iter().copied().find(|v| *v > cur).unwrap_or(list[0])
@@ -273,6 +249,7 @@ impl App {
             "games" => self.st.game_probe = crate::gameboost::probe(),
             "wall" => self.st.skwd_here = crate::skwd::installed(),
             "login" => self.st.login_probe = crate::login::probe(),
+            "look" if self.st.sets.is_none() => self.sets_load(),
             _ => {}
         }
     }

@@ -3,7 +3,7 @@
 
 use crate::app::{App, SKind};
 use crate::config::Widget;
-use crate::settings::{cycle, icon_themes};
+use crate::settings::cycle;
 use crate::theme::{parse_hex, PRESETS};
 use crate::ui::Act;
 use crate::widgets::{self, ANIMS, COLORS, SIZES, SOURCES, STYLES};
@@ -71,6 +71,7 @@ impl App {
                     "anim_close" => s.anim_close = !s.anim_close,
                     "scanlines" => s.scanlines = !s.scanlines,
                     "icon_pixel" => s.icon_pixel = !s.icon_pixel,
+                    "icon_tint" => s.icon_tint = !s.icon_tint,
                     "stacking" => {
                         s.stacking = !s.stacking;
                         let on = s.stacking;
@@ -160,6 +161,22 @@ impl App {
                     _ => {}
                 }
                 self.settings_changed();
+                // превью наборов — в новом виде значков
+                if matches!(*k, "icon_pixel" | "icon_tint") && self.st.sets.is_some() {
+                    self.st.sets = None;
+                    self.sets_load();
+                }
+            }
+            Act::SIconSet(i) => {
+                let Some(name) = self.st.sets.as_ref().and_then(|x| x.icons.get(*i)).map(|c| c.name.clone()) else { return true };
+                s.icon_theme = name;
+                self.icons_apply();
+            }
+            Act::SCursorSet(i) => {
+                let Some(name) = self.st.sets.as_ref().and_then(|x| x.cursors.get(*i)).map(|c| c.name.clone()) else { return true };
+                s.cursor = name;
+                self.settings_changed();
+                self.apply_cursor();
             }
             Act::SCycle(k) if k.starts_with("font_") && *k != "font_size" => {
                 let k: &str = k;
@@ -236,14 +253,6 @@ impl App {
                     s.bar_sep_color = cycle(&[("border", ""), ("accent", ""), ("dim", "")], &s.bar_sep_color).into();
                     self.settings_changed();
                 }
-                "icon_theme" => {
-                    let list = icon_themes();
-                    let i = list.iter().position(|x| *x == s.icon_theme).map(|i| (i + 1) % list.len()).unwrap_or(0);
-                    s.icon_theme = list[i].clone();
-                    self.res.icons = crate::icons::Icons::new(&self.st.set.icon_theme);
-                    self.res.icons.set_pixel(self.st.set.icon_pixel.then(|| self.st.t.icon_ramp()));
-                    self.settings_changed();
-                }
                 "reveal" => {
                     s.reveal = cycle(&[("dither", ""), ("scan", ""), ("noise", ""), ("wipe", ""), ("blocks", "")], &s.reveal).into();
                     self.settings_changed();
@@ -287,15 +296,7 @@ impl App {
                     };
                     self.settings_changed();
                 }
-                "cursor" => {
-                    s.cursor = match s.cursor.as_str() {
-                        "system" => "yami",
-                        _ => "system",
-                    }
-                    .into();
-                    self.settings_changed();
-                    self.apply_cursor();
-                }
+                "set_add" => self.sets_add(),
                 "cursor_size" => {
                     s.cursor_size = match s.cursor_size {
                         24 => 32,

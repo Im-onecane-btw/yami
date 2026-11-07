@@ -77,7 +77,7 @@ in
     appTheme = lib.mkOption {
       type = lib.types.bool;
       default = true;
-      description = "qt6ct, adw-gtk3 and Papirus: Qt and GTK apps in the palette (theme.py writes their configs).";
+      description = "qt6ct and adw-gtk3: Qt and GTK apps in the palette (theme.py writes their configs).";
     };
   };
 

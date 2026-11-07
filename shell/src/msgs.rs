@@ -171,6 +171,15 @@ impl App {
                 self.st.restyle = crate::restyle::load();
                 self.dirty(&SKind::Modal);
             }
+            Msg::Sets(b) => {
+                self.st.sets_busy = false;
+                // настройки успели закрыться — превью не нужны
+                if self.st.modal == Some(Modal::Settings) {
+                    self.st.sets = Some(*b);
+                    self.dirty(&SKind::Modal);
+                }
+            }
+            Msg::SetAdded(r) => self.sets_added(r),
         }
     }
 

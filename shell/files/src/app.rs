@@ -174,7 +174,7 @@ pub fn run(fm_init: impl FnOnce(Option<calloop::channel::Sender<Msg>>) -> Fm) ->
     let fx_mgr: Option<ext_background_effect_manager_v1::ExtBackgroundEffectManagerV1> = globals.bind(&qh, 1..=1, ()).ok();
     let (w, h) = if pick { (980, 620) } else { (fm.cfg.width.max(480), fm.cfg.height.max(320)) };
     let mut icons = Icons::new(&fm.look.icon_theme);
-    icons.set_pixel(fm.look.icon_pixel.then(|| fm.look.theme.icon_ramp()));
+    icons.set_style(fm.look.theme.icon_ramp(), fm.look.icon_pixel, fm.look.icon_tint);
     let hidpi = {
         let fm: Option<frac_mgr::WpFractionalScaleManagerV1> = globals.bind(&qh, 1..=1, ()).ok();
         let vpr: Option<wp_viewporter::WpViewporter> = globals.bind(&qh, 1..=1, ()).ok();
@@ -297,7 +297,7 @@ impl App {
                 self.fonts = Fonts::with(self.fm.look.font("files"));
             }
             crate::i18n::set(&self.fm.look.lang);
-            self.icons.set_pixel(self.fm.look.icon_pixel.then(|| self.fm.look.theme.icon_ramp()));
+            self.icons.set_style(self.fm.look.theme.icon_ramp(), self.fm.look.icon_pixel, self.fm.look.icon_tint);
             self.dirty = true;
         }
         // мигание курсора в полях

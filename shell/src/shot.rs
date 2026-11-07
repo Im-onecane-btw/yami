@@ -38,6 +38,7 @@ const TARGETS: &[&str] = &[
     "settings:wall-skwd",
     "settings:widgets",
     "settings:look",
+    "settings:look-sets",
     "settings:wall",
     "settings:system",
     "settings:about",
@@ -114,6 +115,7 @@ const TARGETS: &[&str] = &[
     "settings:updates-pick",
     "settings:updates-need",
     "dock",
+    "icons",
 ];
 
 /// надписи, которые и в английском интерфейсе пишутся по-русски
@@ -163,8 +165,8 @@ pub fn run(args: &[String]) -> i32 {
         set.light = l;
     }
     crate::i18n::set(&set.lang);
-    let mut res = Res { icons: Icons::new(&set.icon_theme), fonts: Fonts::with(&set.font_shell), font: set.font_shell.clone() };
-    res.icons.set_pixel(set.icon_pixel.then(|| crate::theme::Theme::new(set.accent_rgb(), set.tint, set.glass, set.lift, set.inner, set.light).icon_ramp()));
+    let mut res = Res { icons: Icons::new(&set.icon_theme), fonts: Fonts::with(&set.font_shell), font: set.font_shell.clone(), iset: crate::app::icon_set(&set.icon_theme) };
+    res.icons.set_style(crate::theme::Theme::new(set.accent_rgb(), set.tint, set.glass, set.lift, set.inner, set.light).icon_ramp(), set.icon_pixel, set.icon_tint);
     let mut st = State::new(set, mock_niri());
     st.apps = mock_apps();
     mock_tray(&mut st);
@@ -336,6 +338,17 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
                 st.stab = "color";
                 st.sscroll = (400, "color");
                 st.sscroll_h.set(1200);
+            }
+            if arg.starts_with("look") {
+                // наборы значков и курсоров этой машины (как их соберёт нить), на образце — с прокруткой к ним
+                let (ramp, pixel, tint) = (st.t.icon_ramp(), st.set.icon_pixel, st.set.icon_tint);
+                st.sets = Some(crate::iconsets::build(ramp, pixel, tint));
+                st.sets_note = crate::tf!("поставлено: {}", "installed: {}", "instalado: {}", "Bibata-Modern-Ice");
+            }
+            if arg == "look-sets" {
+                st.stab = "look";
+                st.sscroll = (330, "look");
+                st.sscroll_h.set(1400);
             }
             if arg == "system-scroll" {
                 // вкладка пролистана: шапка и полоса прокрутки на месте, зоны под шапкой обрезаны
@@ -585,6 +598,8 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
             }];
             crate::auth::SIZE
         }
+        // значки программ во всех видах и размерах: как есть, пиксельные, в тонах палитры
+        "icons" => (16 + 96 + ICON_APPS.len() as i32 * 56, 16 + 9 * 56),
         "dock" => {
             st.set.dock_pins = vec!["org.kde.dolphin".into(), "kitty".into(), "firefox".into(), "steam".into()];
             crate::dock::size(st)
@@ -640,12 +655,34 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
             "curtain" => crate::curtain::draw(&mut ui, st, "shot", w, h),
             "screenshot" => crate::snap::draw(&mut ui, st, "", w, h),
             "dock" => crate::dock::draw(&mut ui, st, w, h),
+            "icons" => icons_grid(&mut ui, st),
             "auth" => crate::auth::draw(&mut ui, st, w, h),
             "screen-pick" => crate::screen::draw(&mut ui, st, w, h),
             _ => {}
         }
     }
     save_png(&buf, w, h, path);
+}
+
+const ICON_APPS: &[&str] = &["librewolf", "firefox", "kitty", "org.telegram.desktop", "steam", "discord", "chromium", "spotify", "obs", "code", "gimp", "vlc", "yami-files", "yami-view", "yami-play", "no-such-app"];
+
+/// сетка `shot icons`: ряды — вид (как есть / пиксельные / в тонах палитры) × размер (48, 40, 24)
+fn icons_grid(ui: &mut Ui, st: &State) {
+    let t = ui.t;
+    let mut y = 16;
+    for (style, pixel, tint) in [("smooth", false, false), ("pixel", true, false), ("tint", true, true)] {
+        let mut ic = crate::icons::Icons::new(&st.set.icon_theme);
+        ic.set_style(t.icon_ramp(), pixel, tint);
+        for size in [48, 40, 24] {
+            ui.cv.text(ui.f, crate::font::PX, 16, y + 20, &format!("{style} {size}"), t.text_dim);
+            for (i, a) in ICON_APPS.iter().enumerate() {
+                if let Some(img) = ic.app(a, size) {
+                    ui.cv.image(&img, 112 + i as i32 * 56 + (48 - size) / 2, y + (48 - size) / 2, 1.0);
+                }
+            }
+            y += 56;
+        }
+    }
 }
 
 /// кадр из --frame как непрозрачный ARGB; None — нет флага или файл не читается

@@ -10,10 +10,13 @@
 settings.ini, gsettings), qt (qt6ct с qss, схема KDE и kdeglobals), kitty (цвета и шрифт; открытые
 перечитывают по SIGUSR1; выключенный — без нашей строки include в kitty.conf), fastfetch, btop,
 firefox (меню Firefox/LibreWolf, userChrome.css), mangohud, foot, cava, starship. Курсор — по ключу
-cursor (yami или system). Экрану входа (yami-greet) вид отдаёт сам шелл (login.rs).
+cursor (yami — пиксельный в палитре, system — не трогать, иначе имя установленного набора), набор
+значков — по iconTheme (GTK и Qt, пусто — как в системе); свои значки yami-files/-view/-play — в
+~/.local/share/icons/hicolor. Экрану входа (yami-greet) вид отдаёт сам шелл (login.rs).
 
     theme.py --cursor-to DIR [--accent …]                 курсор экрана входа в DIR
     theme.py --cursor             только курсор (после смены его в настройках шелла)
+    theme.py --icons              только набор значков для GTK/Qt и свои значки программ
     theme.py --profiles           вывести профили Firefox/LibreWolf/Floorp/Zen
     theme.py --fonts              только шрифты: размер по сетке Tiny5 под экран (или fontSize)
     theme.py --templates [--force NAME]   только свои шаблоны; NAME — перезаписать изменённый руками
@@ -456,18 +459,36 @@ def gtk_mode(is_light):
             subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "icon-theme", other], check=False, capture_output=True)
 
 
-# тёмные и светлые варианты значков: Papirus-Dark ↔ Papirus, Gruvbox-Plus-Dark ↔ Gruvbox-Plus-Light
-ICON_PAIRS = (("Papirus-Dark", "Papirus"), ("Gruvbox-Plus-Dark", "Gruvbox-Plus-Light"))
+DATA = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local/share")
+ICON_ROOTS = (DATA / "icons", HOME / ".icons", *(Path(d) / "icons" for d in (os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share").split(":") if d.startswith("/")))
+
+
+def _icon_dir(name, cursors=False):
+    """Папка набора значков (или курсоров) с таким именем, если он установлен."""
+    if not name or "/" in name or name.startswith("."):
+        return None
+    for d in ICON_ROOTS:
+        t = d / name
+        if (t / "cursors").is_dir() if cursors else (t / "index.theme").is_file():
+            return t
+    return None
 
 
 def _icon_pair(name, is_light):
-    """Вариант значков под тему, если он установлен; иначе None (тему значков не трогаем)."""
-    for dark, lite in ICON_PAIRS:
-        want, have = (lite, dark) if is_light else (dark, lite)
-        if name == have:
-            for d in (HOME / ".local/share/icons", HOME / ".icons", Path("/usr/share/icons")):
-                if (d / want).is_dir():
-                    return want
+    """Тёмный или светлый вариант набора значков под тему по суффиксу имени (Foo-Dark ↔ Foo /
+    Foo-Light), если он установлен; иначе None. Только для набора «как в системе»: выбранный в
+    шелле руками ставится как есть."""
+    if _settings().get("iconTheme"):
+        return None
+    base = name
+    for suf in ("-Dark", "-dark", "-Light", "-light"):
+        if name.endswith(suf):
+            base = name[: -len(suf)]
+            break
+    want = [base + "-Light", base + "-light", base] if is_light else [base + "-Dark", base + "-dark"]
+    for w in want:
+        if w != name and _icon_dir(w):
+            return w
     return None
 
 
@@ -1552,24 +1573,28 @@ def cursor_theme(p, d, name):
 def cursor(p):
     """Пиксельный курсор в палитре: тема «yami-<акцент>» в ~/.local/share/icons, niri и
     приложения переключаются на неё (~/.config/niri/yami-cursor.kdl). В настройках шелла
-    (окна → курсор): пиксельный или системный, размер."""
+    (вид → курсор): пиксельный, любой установленный набор или «не трогать», размер."""
     st = _settings()
-    kind = st.get("cursor", "yami")
+    kind = st.get("cursor", "yami") or "yami"
     size = int(st.get("cursorSize", 24))
-    icons = HOME / ".local/share/icons"
+    icons = DATA / "icons"
     kdl = CFG / "niri/yami-cursor.kdl"
     if kind == "system":
         if kdl.exists():
             kdl.unlink()
         return
-    # имя меняется с цветом и темой: niri перечитывает курсор, только когда сменилось имя
-    name = "yami-" + p["accent"].lstrip("#").lower() + ("-l" if light(p) else "")
-    cursor_theme(p, icons / name, name)
+    if kind != "yami" and _icon_dir(kind, cursors=True):
+        # свой набор курсоров (настройки → вид → курсор, yami cursor ИМЯ): как есть, только размер
+        name = kind
+    else:
+        # имя меняется с цветом и темой: niri перечитывает курсор, только когда сменилось имя
+        name = "yami-" + p["accent"].lstrip("#").lower() + ("-l" if light(p) else "")
+        cursor_theme(p, icons / name, name)
     # старые цвета — убрать
     for old in icons.glob("yami-*"):
         if old.name != name and re.fullmatch(r"yami-[0-9a-f]{6}(-l)?", old.name) and old.is_dir():
             shutil.rmtree(old, ignore_errors=True)
-    write(kdl, f"// yami: written by tools/theme.py (shell settings → windows → cursor)\ncursor {{\n    xcursor-theme \"{name}\"\n    xcursor-size {size}\n}}\nenvironment {{\n    XCURSOR_THEME \"{name}\"\n    XCURSOR_SIZE \"{size}\"\n}}\n")
+    write(kdl, f"// yami: written by tools/theme.py (shell settings → look → cursor)\ncursor {{\n    xcursor-theme \"{name}\"\n    xcursor-size {size}\n}}\nenvironment {{\n    XCURSOR_THEME \"{name}\"\n    XCURSOR_SIZE \"{size}\"\n}}\n")
     # X11-программам (xwayland-satellite) — тема по умолчанию
     write(icons / "default/index.theme", f"[Icon Theme]\nName=default\nInherits={name}\n")
     for v in ("3.0", "4.0"):
@@ -1579,6 +1604,86 @@ def cursor(p):
     if shutil.which("gsettings"):
         subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "cursor-theme", name], check=False, capture_output=True)
         subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "cursor-size", str(size)], check=False, capture_output=True)
+
+
+def icons(p):
+    """Набор значков, выбранный в шелле (iconTheme; настройки → вид → значки): GTK (settings.ini,
+    gsettings) и Qt (qt6ct, kdeglobals [Icons]) — те, что перекрашиваются (themeApps). Пусто —
+    набор системы не трогаем."""
+    name = _settings().get("iconTheme", "")
+    if not _icon_dir(name):
+        return
+    apps = _apps()
+    if "gtk" in apps:
+        for v in ("3.0", "4.0"):
+            if (CFG / f"gtk-{v}/settings.ini").exists():
+                _ini_set(CFG / f"gtk-{v}/settings.ini", "gtk-icon-theme-name", name)
+        if shutil.which("gsettings"):
+            subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "icon-theme", name], check=False, capture_output=True)
+    if "qt" in apps:
+        if (CFG / "qt6ct/qt6ct.conf").exists():
+            _ini_set(CFG / "qt6ct/qt6ct.conf", "icon_theme", name, "[Appearance]")
+        _ini_section_set(CFG / "kdeglobals", "[Icons]", "Theme", name)
+
+
+def _ini_section_set(path, section, key, val):
+    """key=val только внутри section (в kdeglobals «Theme=» бывает и в других секциях)."""
+    lines = path.read_text().splitlines() if path.exists() else []
+    if section not in lines:
+        lines += ["", section] if lines else [section]
+    i = lines.index(section) + 1
+    j = i
+    while j < len(lines) and not lines[j].startswith("["):
+        if lines[j].split("=", 1)[0].strip() == key:
+            lines[j] = f"{key}={val}"
+            break
+        j += 1
+    else:
+        while j > i and not lines[j - 1].strip():
+            j -= 1
+        lines.insert(j, f"{key}={val}")
+    write(path, "\n".join(lines) + "\n")
+
+
+# свои значки программ yami (16×16, клетками): o — обводка, d/a/b — тёмный, акцент, светлый,
+# w — знак на акценте. Пишутся в цветах палитры в ~/.local/share/icons/hicolor (их .desktop —
+# Icon=yami-files…), так без чужих наборов значков у программ yami есть свой
+APP_ART = {
+    "yami-files": [
+        "................", ".ooooo..........", "oaaaaao.........", "oaaaaaaoooooooo.",
+        "oaaaaaaaaaaaaaao", "oaaaaaaaaaaaaaao", "oooooooooooooooo", "obbbbbbbbbbbbbbo",
+        "obwwbbbbbbbbbbbo", "obbbbbbbbbbbbbbo", "obbbbbbbbbbbbbbo", "obbbbbbbbbbbbbbo",
+        "obbbbbbbbbbbbbbo", "oddddddddddddddo", "oooooooooooooooo", "................"],
+    "yami-view": [
+        "................", "................", ".oooooooooooooo.", "owwwwwwwwwwwwwwo",
+        "owddddddddddddwo", "owddddddddbbddwo", "owddddddddbbddwo", "owdddaddddddddwo",
+        "owddaaaddddaddwo", "owdaaaaaddaaadwo", "owaaaaaaaaaaaawo", "owaaaaaaaaaaaawo",
+        "owwwwwwwwwwwwwwo", ".oooooooooooooo.", "................", "................"],
+    "yami-play": [
+        "................", ".oooooooooooooo.", "obbaaaaaaaaaaaao", "obaaaaaaaaaaaaao",
+        "oaaaaawaaaaaaaao", "oaaaaawwaaaaaaao", "oaaaaawwwaaaaaao", "oaaaaawwwwaaaaao",
+        "oaaaaawwwwwaaaao", "oaaaaawwwwaaaaao", "oaaaaawwwaaaaaao", "oaaaaawwaaaaaaao",
+        "oaaaaawaaaaaaaao", "oddddddddddddddo", ".oooooooooooooo.", "................"],
+}
+
+
+def app_icons(p):
+    """Значки yami-files, yami-view и yami-play в цветах палитры (SVG клетками, crispEdges)."""
+    pal = {"o": mix(p["bg"], "#000000", 0.55), "d": p["deep"], "a": p["accent"], "b": p["bright"], "w": p["onAccent"]}
+    d = DATA / "icons/hicolor/scalable/apps"
+    for name, rows in APP_ART.items():
+        rects = []
+        for y, row in enumerate(rows):
+            x = 0
+            while x < len(row):
+                ch, n = row[x], 1
+                while x + n < len(row) and row[x + n] == ch:
+                    n += 1
+                if ch in pal:
+                    rects.append(f'<rect x="{x}" y="{y}" width="{n}" height="1" fill="{pal[ch]}"/>')
+                x += n
+        write(d / f"{name}.svg", '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" shape-rendering="crispEdges">\n'
+              "<!-- yami: written by tools/theme.py -->\n" + "\n".join(rects) + "\n</svg>\n")
 
 
 def _palette(args=()):
@@ -1594,6 +1699,12 @@ def main():
     args = sys.argv[1:]
     if args[:1] == ["--cursor"]:
         cursor(_palette())
+        return
+    if args[:1] == ["--icons"]:
+        # шелл сменил набор значков (настройки → вид → значки, yami icons): GTK, Qt и свои значки
+        p = _palette()
+        icons(p)
+        app_icons(p)
         return
     if args[:1] == ["--cursor-to"] and len(args) > 1:
         # экрану входа: тема курсора «yami-cursor» в папку args[1], её копируют в /usr/share/icons
@@ -1628,7 +1739,7 @@ def main():
         p = json.loads(path.read_text()) if path.exists() else derive("#c4161c")
     else:
         p = _palette()
-    for step in (wallpaper, qt6ct, kde, gtk, fonts, kitty, foot, cava, starship, btop, mangohud, templates, firefox, fastfetch, niri, cursor):
+    for step in (wallpaper, qt6ct, kde, gtk, icons, app_icons, fonts, kitty, foot, cava, starship, btop, mangohud, templates, firefox, fastfetch, niri, cursor):
         try:
             step(p)
         except Exception as exc:  # одна программа не должна ломать остальные

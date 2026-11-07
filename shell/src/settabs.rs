@@ -259,13 +259,10 @@ pub(crate) fn tab_look(ui: &mut Ui, st: &State, b: R) {
     y += 34;
     ui.toggle(R::new(b.x, y, b.w, 26), "строки развёртки на панелях шелла (как на старом мониторе)", "", s.scanlines, Act::SBool("scanlines"));
     y += 38;
-    y = title(ui, b.x, y, b.w, "значки");
-    let it = if s.icon_theme.is_empty() { "авто" } else { &s.icon_theme };
-    opt_btn(ui, R::new(b.x, y, half, 26), "значки программ", it, Act::SCycle("icon_theme"));
-    ui.toggle(R::new(b.x + half + 20, y, half, 26), "пиксельные, в цветах палитры", "", s.icon_pixel, Act::SBool("icon_pixel"));
-    y += 40;
+    y = title(ui, b.x, y, b.w, "значки программ");
+    y = crate::iconsets::draw_icons(ui, st, b, y);
     y = title(ui, b.x, y, b.w, "курсор");
-    cursor_block(ui, st, R::new(b.x, y, b.w, 58));
+    crate::iconsets::draw_cursors(ui, st, b, y);
 }
 
 /// подпись узора проявления (gfx::Reveal)
@@ -444,41 +441,6 @@ pub(crate) fn tab_windows(ui: &mut Ui, st: &State, b: R) {
     y = title(ui, b.x, y, b.w, "режим «стол»");
     ui.toggle(R::new(b.x, y, half, 40), "окна плавают, как в DE", "Mod+Shift+Space — назад к ленте", s.stacking, Act::SBool("stacking"));
     ui.toggle(R::new(b.x + half + 20, y, half, 40), "заголовки окон", "полоса с кнопками над окном", s.titlebars, Act::SBool("titlebars"));
-}
-
-/// курсор: тема и размер слева, предпросмотр справа (та же стрелка, что рисует tools/theme.py)
-fn cursor_block(ui: &mut Ui, st: &State, b: R) {
-    let s = &st.set;
-    let t = ui.t;
-    let y = b.y;
-    let kind = match s.cursor.as_str() {
-        "system" => "системный",
-        _ => "пиксельный yami — в цвет палитры",
-    };
-    let pw = 64;
-    opt_btn(ui, R::new(b.x, y, b.w - pw - 12, 26), "тема", kind, Act::SCycle("cursor"));
-    opt_btn(ui, R::new(b.x, y + 32, b.w - pw - 12, 26), "размер", &format!("{} px", s.cursor_size), Act::SCycle("cursor_size"));
-    // предпросмотр: та же стрелка, что рисует tools/theme.py
-    let pr = R::new(b.right() - pw, y, pw, 58);
-    ui.cv.pxbox(pr, &BoxStyle::new(t.code_bg, t.border));
-    if s.cursor == "yami" {
-        const ARROW: [&str; 12] = ["o...........", "oo..........", "obo.........", "oaao........", "oaaao.......", "oaaaao......", "oaaaaao.....", "oaaaaaao....", "oaaaoooo....", "oaoao.......", "oo.oao......", "o...oo......"];
-        let k = 4;
-        let (ox, oy) = (pr.x + (pw - 12 * k) / 2 + 6, pr.y + 5);
-        for (j, row) in ARROW.iter().enumerate() {
-            for (i, ch) in row.bytes().enumerate() {
-                let c = match ch {
-                    b'o' => t.bg.lerp(C(0xff000000), 0.5),
-                    b'a' => t.red,
-                    b'b' => t.ember,
-                    _ => continue,
-                };
-                ui.cv.fill(R::new(ox + i as i32 * k, oy + j as i32 * k, k, k), c);
-            }
-        }
-    } else {
-        ui.cv.icon("cursor", pr.x + (pw - 28) / 2, pr.y + 15, 4, t.text_dim);
-    }
 }
 
 pub(crate) fn tab_shots(ui: &mut Ui, st: &State, b: R) {

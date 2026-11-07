@@ -126,6 +126,9 @@ impl App {
         if self.st.modal == Some(Modal::Walls) {
             self.walls_free();
         }
+        if self.st.modal == Some(Modal::Settings) {
+            self.sets_free();
+        }
         if self.st.modal == Some(Modal::Launcher) {
             self.st.launcher.thumbs_free();
         }

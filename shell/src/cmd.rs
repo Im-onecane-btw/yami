@@ -82,6 +82,8 @@ fn help(y: &Sty, me: &str) {
     y.section(&crate::tf!("вид", "look", "visual"));
     y.row("palette [name|#hex]", &crate::tf!("палитры или сменить: blood ash sakura …", "list palettes or switch: blood ash sakura …", "listar paletas ou trocar: blood ash sakura …"));
     y.row("wallpaper [path]", &crate::tf!("свои обои; без пути — пиксельные из палитры", "own picture; no path: the palette's pixel art", "imagem personalizada; sem caminho: pixel art da paleta"));
+    y.row("icons [name|auto|add path]", &crate::tf!("наборы значков: список, сменить, поставить свой из архива или папки", "icon sets: list, switch, install your own from an archive or a folder", "conjuntos de ícones: listar, trocar, instalar o seu de um arquivo ou pasta"));
+    y.row("cursor [name|size N|add path]", &crate::tf!("курсоры: yami, любой установленный, system; размер; свой набор", "cursors: yami, any installed one, system; size; your own set", "cursores: yami, qualquer instalado, system; tamanho; o seu conjunto"));
     y.section(&crate::tf!("настройки", "config", "configuração"));
     y.row("theme export | import FILE|URL", &crate::tf!("тема одним файлом: поделиться и поставить чужую (только вид)", "a theme as one file: share yours, apply others' (the look only)", "um tema em um arquivo: compartilhe o seu e aplique outros (apenas a aparência)"));
     y.row("theme save | list | apply NAME", &crate::tf!("свои темы: сохранить вид, список, применить (remove — удалить)", "your themes: keep the look, list, apply (remove deletes)", "seus temas: salvar o visual, listar e aplicar (remove exclui)"));
@@ -506,6 +508,8 @@ pub fn run(args: &[String], me: &str) -> i32 {
             _ => crate::bundle::run(&y, "", &[]),
         },
         Some("templates") => crate::restyle::cli(&y, &a[1..]),
+        Some("icons") => crate::iconsets::cli(&y, false, &a[1..]),
+        Some("cursor") => crate::iconsets::cli(&y, true, &a[1..]),
         Some("export") => crate::bundle::run(&y, "export", &a[1..]),
         Some("import") => crate::bundle::run(&y, "import", &a[1..]),
         Some("clean") => crate::clean::run(&y, &a[1..]),

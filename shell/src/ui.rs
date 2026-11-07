@@ -31,6 +31,9 @@ pub enum Act {
     PowerDo(usize),
     // настройки
     STab(&'static str),
+    /// настройки → вид: набор значков / курсоров по номеру карточки (iconsets.rs)
+    SIconSet(usize),
+    SCursorSet(usize),
     /// колесо над содержимым вкладки и над списком вкладок
     SScroll,
     SSideScroll,

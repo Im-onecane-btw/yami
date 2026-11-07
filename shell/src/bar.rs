@@ -184,10 +184,12 @@ pub fn tray_icon(ui: &mut Ui, it: &crate::dbus::TrayItem, x: i32, y: i32, pixel:
     let t = ui.t;
     // свой файл программы, потом имя в теме значков, потом её картинка (IconPixmap)
     let name = &it.icon;
-    let img = it.file.as_ref().and_then(|f| ui.ic.file(std::path::Path::new(f), 16)).or_else(|| if name.is_empty() { None } else { ui.ic.get(name, 16) }).or_else(|| it.pixmap.clone());
+    // пиксельному — исходник крупнее: сетка усредняется по площади
+    let src = if pixel { 64 } else { 16 };
+    let img = it.file.as_ref().and_then(|f| ui.ic.file(std::path::Path::new(f), src)).or_else(|| if name.is_empty() { None } else { ui.ic.get(name, src) }).or_else(|| it.pixmap.clone());
     match img {
         Some(img) if pixel => {
-            let p = ui.ic.pixeled(&img, &t.icon_ramp(), 16);
+            let p = ui.ic.pixeled(&img, 16);
             ui.cv.image(&p, x, y, 1.0);
         }
         Some(img) => ui.cv.image(&img, x, y, 1.0),

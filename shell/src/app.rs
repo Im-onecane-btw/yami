@@ -177,6 +177,10 @@ pub enum Msg {
     Theme,
     /// theme.py --templates закончил: итог в restyle.json (restyle.rs)
     Restyled,
+    /// превью наборов значков и курсоров (iconsets.rs)
+    Sets(Box<crate::iconsets::Sets>),
+    /// свой набор поставлен (имена) или нет; None — выбор отменён
+    SetAdded(Option<Result<Vec<String>, String>>),
     /// кадры шторки готовы: номер включения, картинки по мониторам
     Curtain(u64, HashMap<String, crate::gfx::Img>),
     /// обои готовы (wall.rs): номер задания, картинка, акцент из неё
@@ -206,6 +210,8 @@ pub struct Res {
     pub icons: Icons,
     /// семейство, из которого собраны fonts (fontShell)
     pub font: String,
+    /// набор, из которого собраны icons (iconTheme, «авто» — уже разрешённый в системный)
+    pub iset: String,
 }
 
 pub struct Popup {
@@ -264,6 +270,10 @@ pub struct State {
     /// итог перекраски программ и своих шаблонов (restyle.rs) и слепок папки шаблонов
     pub restyle: crate::restyle::Status,
     pub tpl_stamp: Option<u64>,
+    /// наборы значков и курсоров для настроек → вид (None — не собраны), сборка идёт, итог установки своего
+    pub sets: Option<crate::iconsets::Sets>,
+    pub sets_busy: bool,
+    pub sets_note: String,
     pub themes: Vec<crate::bundle::Card>,
     pub theme_note: String,
     pub viz: Vec<f32>,
@@ -470,6 +480,9 @@ impl State {
             color_page: 0,
             restyle: crate::restyle::load(),
             tpl_stamp: None,
+            sets: None,
+            sets_busy: false,
+            sets_note: String::new(),
             themes: vec![],
             theme_note: String::new(),
             viz: vec![],
@@ -525,6 +538,15 @@ impl State {
     }
 }
 
+/// набор значков шелла: выбранный (iconTheme) или, при «авто», тот, что сейчас у системы
+pub fn icon_set(theme: &str) -> String {
+    if theme.is_empty() {
+        crate::icons::system_theme()
+    } else {
+        theme.to_string()
+    }
+}
+
 pub fn run() {
     crate::proc::note_inherited();
     // из TTY или по ssh: понятная строка вместо паники
@@ -558,8 +580,9 @@ pub fn run() {
 
     let set = Settings::load();
     crate::i18n::set(&set.lang);
-    let mut icons = Icons::new(&set.icon_theme);
-    icons.set_pixel(set.icon_pixel.then(|| Theme::new(set.accent_rgb(), set.tint, set.glass, set.lift, set.inner, set.light).icon_ramp()));
+    let iset = icon_set(&set.icon_theme);
+    let mut icons = Icons::new(&iset);
+    icons.set_style(Theme::new(set.accent_rgb(), set.tint, set.glass, set.lift, set.inner, set.light).icon_ramp(), set.icon_pixel, set.icon_tint);
     let set_saved = set.to_json();
     let set_font = set.font_shell.clone();
 
@@ -605,7 +628,7 @@ pub fn run() {
         last_click: None,
         kb_surf: None,
         mods: Modifiers::default(),
-        res: Res { fonts: Fonts::with(&set_font), icons, font: set_font },
+        res: Res { fonts: Fonts::with(&set_font), icons, font: set_font, iset },
         st,
         set_saved,
         set_seen: Settings::default(),

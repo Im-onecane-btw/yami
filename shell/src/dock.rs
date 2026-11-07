@@ -213,8 +213,8 @@ pub fn draw(ui: &mut Ui, st: &State, w: i32, h: i32) {
             _ => 0.0,
         }
     };
-    // пиксельные значки растут целой клеткой (16 → 64), обычные — на 8 px
-    let grow_max = if st.set.icon_pixel { 16 - sz % 16 } else { 8 };
+    // и пиксельные, и обычные растут на 8 px: пиксельный рисуется сразу нужного размера своей сеткой
+    let grow_max = 8;
     for (i, it) in list.iter().enumerate() {
         let r = slot(pos);
         let hov = now_hov == Some(i);

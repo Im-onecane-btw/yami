@@ -89,7 +89,7 @@ pub fn run(args: &[String]) -> i32 {
     let _ = std::fs::create_dir_all(&out);
     let mut fonts = Fonts::new();
     let mut icons = Icons::new(&look.icon_theme);
-    icons.set_pixel(look.icon_pixel.then(|| look.theme.icon_ramp()));
+    icons.set_style(look.theme.icon_ramp(), look.icon_pixel, look.icon_tint);
     let mut bad = 0;
     for t in &targets {
         let mut cfg = crate::cfg::Cfg { info: false, ..Default::default() };

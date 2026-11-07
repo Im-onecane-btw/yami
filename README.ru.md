@@ -254,7 +254,7 @@ yami-play вместе со своими ассоциациями файлов.
 1. Дистрибутив определяется по `/etc/os-release`, пакеты выбранных компонентов ставятся его
    родным менеджером (niri, порталы, polkit, PipeWire, NetworkManager, BlueZ, power-profiles-daemon,
    шрифты Noto, cliphist, grim; дальше по выбору kitty, fastfetch, btop, udisks2, gvfs с бэкендами
-   MTP/PTP/AFC/SMB, ffmpegthumbnailer, bsdtar, mpv (libmpv), qt6ct, adw-gtk3, Papirus, greetd).
+   MTP/PTP/AFC/SMB, ffmpegthumbnailer, bsdtar, mpv (libmpv), qt6ct, adw-gtk3, greetd).
    Пакеты, которых нет в репозиториях, попадают в отчёт и не прерывают установку. Включаются
    Bluetooth и профили питания, NetworkManager — если сетью не управляет что-то другое.
 2. Шелл и выбранные программы собираются через `cargo build --release --locked` (нужен Rust ≥ 1.89;
@@ -367,6 +367,7 @@ yami ocr картинка.png         # текст с картинки (как �
 yami theme export ~/my.yami   # вид одним файлом (поставить: yami theme import ФАЙЛ или https-ссылка)
 yami theme save night         # текущий вид — в свои темы (list | apply ИМЯ | remove ИМЯ)
 yami templates                # собрать свои шаблоны и показать, что вышло (force ИМЯ перезаписывает один)
+yami icons add ~/Downloads/set.tar.xz   # поставить набор значков или курсоров (yami icons ИМЯ, yami cursor ИМЯ)
 yami export ~/all.yami        # все настройки одним файлом для новой системы (yami import ФАЙЛ)
 yami version                  # все части, установленный коммит, канал обновлений
 yami update                   # что нового; apply | list | to X.Y.Z | rollback | status | log | need

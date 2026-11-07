@@ -34,7 +34,7 @@
 | `programs.yami.loginScreen.user` | `null` | пользователь, чей шелл пишет вид экрана входа (палитра, обои, язык, экраны, раскладки) |
 | `programs.yami.apps` | `true` | kitty, fastfetch, pavucontrol, btop, миниатюры видео, bsdtar |
 | `programs.yami.tools` | `true` | ночной свет, текст и QR-коды со скриншотов |
-| `programs.yami.appTheme` | `true` | qt6ct, adw-gtk3 и Papirus для программ Qt и GTK в палитре |
+| `programs.yami.appTheme` | `true` | qt6ct и adw-gtk3 для программ Qt и GTK в палитре |
 
 Параметры Home Manager: `settings` (ключи `yami-shell.json`, сливаются при каждой активации: эти главнее, остальное из панели настроек остаётся), `niriConfig` (`config.kdl` от yami, копируется, пока `~/.config/niri/.yami` помечает его как файл yami; свои правки — в `user.kdl`), `kitty`, `defaultApplications`, `extraPackages`.
 

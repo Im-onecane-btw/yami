@@ -34,7 +34,7 @@ NixOS options:
 | `programs.yami.loginScreen.user` | `null` | the user whose shell writes the login screen's look (palette, wallpaper, language, screens, keyboard layouts) |
 | `programs.yami.apps` | `true` | kitty, fastfetch, pavucontrol, btop, video thumbnails, bsdtar |
 | `programs.yami.tools` | `true` | night light, text and QR codes from screenshots |
-| `programs.yami.appTheme` | `true` | qt6ct, adw-gtk3 and Papirus for Qt and GTK apps in the palette |
+| `programs.yami.appTheme` | `true` | qt6ct and adw-gtk3 for Qt and GTK apps in the palette |
 
 Home Manager options: `settings` (keys of `yami-shell.json`, merged on every activation: these win, the rest set in the settings panel stays), `niriConfig` (yami's `config.kdl`, copied while `~/.config/niri/.yami` marks it as yami's; your own changes go into `user.kdl`), `kitty`, `defaultApplications`, `extraPackages`.
 
