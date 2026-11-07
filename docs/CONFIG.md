@@ -18,6 +18,7 @@ of the file is kept), unknown keys are ignored: `yami-shell config check` lists 
 | `~/.config/niri/yami-outputs.kdl` | the shell (settings → screens) | no, rewritten |
 | `~/.config/niri/yami-local.kdl` | the installer (GPU environment) | no |
 | `/var/lib/yami-greet/look/` | the shell: what the login screen is drawn from (`look.json`: palette, language, monitors, layouts; `wall.png`: the wallpaper), yours since the install | no, rewritten |
+| `/var/lib/yami-greet/log/` | the login screen: `greet.log` (its starts, niri's messages), `last` (how the last start went) | no, read with `yami login status` / `log` |
 | `~/.local/state/yami/palette.json` | the shell: the derived palette other apps are coloured from | no |
 | `~/.config/xdg-desktop-portal/niri-portals.conf` | the shell (settings → services); kept as is once it no longer starts with `# yami:` | through the settings |
 | `~/.local/state/yami/install.json` | the installer and `tools/deploy.sh`: version, commit, source, components | no |
@@ -42,6 +43,7 @@ yami theme export FILE | import FILE|URL  # the look as one file: palette, effec
 yami theme save [NAME] | list | apply NAME | remove NAME   # your themes in ~/.config/yami/themes (settings → color → themes); save with no name names it after the palette
 yami export FILE | import FILE [--yes]    # every setting as one file; user.kdl, custom keys and bar scripts only with --yes; before an import the current state goes to ~/.local/state/yami/before-import-*.json (undo: yami import that file --yes)
 yami login sync                           # give the login screen the shell's look now (the shell does it on every change)
+yami login status | log | preview         # the login screen: installed, greetd enabled, its last start; its log; it over the desktop (password yami or Esc)
 yami clean [--dry-run]                    # remove the build cache (yami-niri sources, the shell's target: gigabytes); --force also drops a tree with your patch work
 yami version                              # every part with the installed commit
 yami update [check|apply|list|to X.Y.Z|rollback|status|log|need]
@@ -188,6 +190,21 @@ Settings → look → «pixel look» moves these keys, `iconPixel` and `cursor` 
 | `nightGeo` | `""` | `"lat, lon"`: from sunset to sunrise there; empty: by the clock |
 | `nightOnH`, `nightOffH` | `20`, `7` | the clock: warm from / until this hour |
 | `dnd`, `notifTimeout` | `false`, `7` | do not disturb; seconds a notification stays |
+
+### Login screen
+
+Settings → system → login screen. The shell publishes these keys with its palette, language and
+monitors to `/var/lib/yami-greet/look`; the login screen reads them at its next start.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `greetWall` | `"desktop"` | its wallpaper: `desktop` the same picture as the desktop, `pixel` the palette's pixel wallpaper, `plain` none (the theme colour) |
+| `greetDim` | `0.55` | the veil over the wallpaper (0.2–0.9) |
+| `greetClock`, `greetHost` | `true` | the big clock and date; the machine name in the corner |
+| `greetUsers` | `"list"` | `list`: the users to pick from with arrows (and «another user»); `name`: no list, the name is typed |
+| `greetPower` | `true` | sleep, reboot and power off buttons (where logind or elogind allows them) |
+| `greetOff` | `2` | minutes before the screens go off; 0: never |
+| `greetNumlock` | `true` | numlock on |
 
 ### Games
 

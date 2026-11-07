@@ -76,7 +76,8 @@ Everything it does and its flags: [Installation](#installation).
 - **Login screen.** Our own: yami-greet draws the lock screen's face inside niri, greetd (a 650 KB
   daemon in Rust) checks the password and starts the session. No Qt, no SDDM. It follows the shell:
   palette, wallpaper, language, monitors, keyboard layouts; if it ever cannot start, greetd's text
-  login takes that one boot, so the machine always lets you in.
+  login takes that one boot, so the machine always lets you in. Settings → system → login screen:
+  its wallpaper, veil, clock, user list, power buttons, a preview and how its last start went.
 - **Desk mode.** Toggle niri between tiling and a classic floating desktop with DE-style title
   bars, a resize corner on every window, click to focus and raise, minimize/restore and a task
   list in the bar.
@@ -237,8 +238,8 @@ What it does:
 6. With the «login screen» component: installs greetd, yami-greet (root-owned, in `/usr/local/bin`),
    its safety net `greet-session` and the pixel cursor, and makes greetd the login manager from the
    next boot (off by default when another login manager is set; an SDDM with the old yami theme is
-   replaced). `--uninstall` removes it, gives greetd its own config back and brings back the login
-   manager it replaced.
+   replaced; systemd, OpenRC and runit). `--uninstall` removes it, gives greetd its own config back and
+   brings back the login manager it replaced.
 7. Builds yami-niri (5–25 minutes, output shown) and enables it from the next login.
 
 An existing install under the old name DARK-4RMY is moved over: settings, palette, widgets
