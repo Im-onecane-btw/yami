@@ -83,11 +83,11 @@ if [[ -x $GREET ]]; then
 fi
 
 step "scripts"
-for f in "$ROOT"/install.sh "$ROOT"/tools/*.sh "$ROOT"/fork/*.sh; do
+for f in "$ROOT"/install.sh "$ROOT"/installer/*.sh "$ROOT"/tools/*.sh "$ROOT"/fork/*.sh; do
   bash -n "$f" || bad "syntax: ${f#"$ROOT"/}"
 done
 if command -v shellcheck >/dev/null; then
-  shellcheck -S error "$ROOT"/install.sh "$ROOT"/tools/*.sh "$ROOT"/fork/*.sh || bad "shellcheck"
+  shellcheck -S error -x "$ROOT"/install.sh "$ROOT"/installer/*.sh "$ROOT"/tools/*.sh "$ROOT"/fork/*.sh || bad "shellcheck"
 fi
 python3 -I -c 'import ast,sys; [ast.parse(open(f).read(), f) for f in sys.argv[1:]]' "$ROOT"/tools/*.py || bad "python syntax"
 ok "scripts parsed"
@@ -108,13 +108,16 @@ fi
 if ((!FAST)); then
   step "installer dry run (throwaway HOME)"
   mkdir -p "$TMP/home"
-  if HOME="$TMP/home" NIRI_SOCKET='' XDG_CONFIG_HOME='' XDG_CACHE_HOME='' XDG_STATE_HOME='' XDG_DATA_HOME='' \
-    timeout 60 "$ROOT/install.sh" --yes --dry-run --no-anim --no-sudo --lang en >"$TMP/dry.log" 2>&1; then
-    ok "install.sh --dry-run"
-  else
-    tail -20 "$TMP/dry.log"
-    bad "install.sh --dry-run"
-  fi
+  # a first install, the same with root (the plan only: --dry-run never asks for it), an update
+  for args in "--no-sudo" "" "--update"; do
+    if HOME="$TMP/home" NIRI_SOCKET='' XDG_CONFIG_HOME='' XDG_CACHE_HOME='' XDG_STATE_HOME='' XDG_DATA_HOME='' \
+      timeout 60 "$ROOT/install.sh" --yes --dry-run --no-anim --lang en $args >"$TMP/dry.log" 2>&1; then
+      ok "install.sh --dry-run $args"
+    else
+      tail -20 "$TMP/dry.log"
+      bad "install.sh --dry-run $args"
+    fi
+  done
 fi
 
 echo

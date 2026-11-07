@@ -3,9 +3,9 @@ name: distros
 on:
   push:
     branches: [main]
-    paths: [install.sh, shell/**, tools/ci-distro.sh, .github/workflows/distros.yml]
+    paths: [install.sh, installer/**, shell/**, tools/ci-distro.sh, .github/workflows/distros.yml]
   pull_request:
-    paths: [install.sh, shell/**, tools/ci-distro.sh, .github/workflows/distros.yml]
+    paths: [install.sh, installer/**, shell/**, tools/ci-distro.sh, .github/workflows/distros.yml]
   schedule:
     # weekly: repositories change under us even when the code does not
     - cron: "17 5 * * 1"

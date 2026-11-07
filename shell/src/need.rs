@@ -1,5 +1,5 @@
 // Пакеты, которых не хватает выбранным частям установки (ночной свет, текст со скриншота,
-// GameMode…). Установщик (install.sh, do_need_pkgs) пишет
+// GameMode…). Установщик (installer/packages.sh, do_need_pkgs) пишет
 // ~/.local/state/yami/packages-needed: «pm pacman» и «pkgs a b c» — только то, что есть в
 // репозиториях и не стоит; «login ПУТЬ» — экран входа (greet-install.sh того дерева, из которого
 // шло обновление): нового нет или он старее сборки. Обновление идёт без sudo и само их не поставит: `yami update need`
