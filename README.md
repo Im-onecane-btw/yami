@@ -477,6 +477,12 @@ log in, `~/.local/lib/yami-niri/yami-niri.sh off`. Details: [fork/README.md](for
 | `tools/release.sh X.Y.Z` | cut a release: changelog, versions, check, signed tag, push (`--keygen` once for the key) |
 | `tools/deploy.sh` | build, install to `~/.local/bin` and restart the running shell (refuses while a game has focus); `--files-only` installs yami-files, yami-view and yami-play only |
 
+## Thanks
+
+- [Minish777](https://github.com/Minish777) hunts bugs and gaps and writes them up with fixes to
+  pick from: player switching, lyrics, the wallpaper picker, the floating bar, weather, app
+  templates and more started as those reports.
+
 ## Made with Claude
 
 yami is written with the help of [Claude](https://claude.ai) by Anthropic, through Claude Code:
