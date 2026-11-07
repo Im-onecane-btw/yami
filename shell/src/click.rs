@@ -4,7 +4,7 @@
 use crate::app::{App, Modal, SKind};
 use crate::gfx::R;
 use crate::ui::Act;
-use crate::{audio, media, net};
+use crate::{audio, net};
 
 const LMB: u32 = 0x110;
 const RMB: u32 = 0x111;
@@ -87,8 +87,8 @@ impl App {
                 ("sound", RMB) => audio::toggle_mute(),
                 ("sound", MMB) => App::spawn(&["pavucontrol".into()]),
                 // музыка: ПКМ — пауза/играть, СКМ — следующий трек
-                ("media", RMB) => media::ctl("play-pause"),
-                ("media", MMB) => media::ctl("next"),
+                ("media", RMB) => self.media_ctl("play-pause"),
+                ("media", MMB) => self.media_ctl("next"),
                 ("net", RMB) | ("bt", RMB) => App::spawn(&[if k == "net" { "nm-connection-editor" } else { "blueman-manager" }.into()]),
                 ("cal", RMB) => {
                     self.st.set.dnd = !self.st.set.dnd;
@@ -124,9 +124,11 @@ impl App {
             Act::AppMute(i) => audio::mute_stream(i),
             Act::Sink(name) => audio::set_sink(&name),
             Act::Source(name) => audio::set_source(&name),
-            Act::MediaPlay => media::ctl("play-pause"),
-            Act::MediaNext => media::ctl("next"),
-            Act::MediaPrev => media::ctl("previous"),
+            Act::MediaPlay => self.media_ctl("play-pause"),
+            Act::MediaNext => self.media_ctl("next"),
+            Act::MediaPrev => self.media_ctl("previous"),
+            // шапка всплывашки музыки: ЛКМ — следующий плеер, ПКМ — прошлый
+            Act::MediaPlayer => self.media_step(if button == RMB { -1 } else { 1 }),
             Act::MediaView => self.media_view_next(),
             Act::Wifi(on) => net::wifi_cmd(vec!["radio".into(), "wifi".into(), if on { "on" } else { "off" }.into()], self.tx.clone(), self.st.net.clone()),
             Act::WifiNet(ssid) => self.wifi_connect(&ssid),

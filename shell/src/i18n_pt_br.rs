@@ -541,6 +541,7 @@ const PT_BR: &[(&str, &str)] = &[
     ("new", "novo"),
     ("new window", "nova janela"),
     ("next power profile", "próximo perfil de energia"),
+    ("to the player shown in the bar; player switches to another one", "ao player mostrado na barra; player troca para outro"),
     ("night light", "luz noturna"),
     ("night light on-off", "ativar/desativar luz noturna"),
     ("night light: by the sun or by the clock", "luz noturna: pelo sol ou pelo relógio"),

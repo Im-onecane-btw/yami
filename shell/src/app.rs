@@ -147,6 +147,8 @@ pub enum Msg {
     Audio(audio::AudioState),
     Viz(Vec<f32>),
     Media(media::MediaState),
+    /// живые плееры MPRIS (имена без «org.mpris.MediaPlayer2.»)
+    Players(Vec<String>),
     Notif(notif::Incoming),
     NotifClose(u32),
     Tray(dbus::TrayEv),
@@ -242,7 +244,10 @@ pub struct State {
     /// шторка для трансляций опущена
     pub curtain: Option<crate::curtain::Curtain>,
     pub audio: audio::AudioState,
+    /// показанный плеер (media_pick_sync), все живые и выбранный в шапке всплывашки (#24)
     pub media: media::MediaState,
+    pub players: Vec<media::MediaState>,
+    pub media_pick: String,
     pub art: HashMap<String, Option<std::rc::Rc<crate::gfx::Img>>>,
     /// текст песни текущего трека (#13): ищется, только когда всплывашка его показывает
     pub lyrics: crate::lyrics::Lyrics,
@@ -449,6 +454,8 @@ impl State {
             curtain: None,
             audio: audio::AudioState::default(),
             media: media::MediaState::default(),
+            players: Vec::new(),
+            media_pick: String::new(),
             art: HashMap::new(),
             lyrics: Default::default(),
             weather: crate::weather::cached(),

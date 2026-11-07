@@ -318,7 +318,7 @@ impl App {
             if m.length > 0.0 {
                 m.pos = f as f64 * m.length;
                 m.at = Instant::now();
-                crate::media::seek(m.pos);
+                crate::media::seek(&m.inst, m.pos);
             }
             self.dirty_where(|k| matches!(k, SKind::Popup | SKind::Widget(_)));
         }

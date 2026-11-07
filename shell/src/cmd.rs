@@ -119,6 +119,7 @@ fn help_msg(y: &Sty) {
         ("minimize | restore", "свернуть / вернуть окно", "minimize / restore a window"),
         ("wallpaper [path] | curtain [on|off]", "обои / шторка для трансляций", "wallpaper / privacy curtain"),
         ("walls", "выбор обоев: картинки папки обоев", "wallpaper picker: the wallpaper folder's pictures"),
+        ("media play-pause|next|previous|player", "плееру, что в баре; player — другой плеер", "to the player shown in the bar; player switches to another one"),
         ("profile", "следующий профиль питания", "next power profile"),
         ("night", "ночной свет вкл-выкл", "night light on-off"),
         ("reload | restart | quit", "перечитать настройки / перезапуск / выход", "reload settings / restart / quit"),
@@ -163,6 +164,7 @@ pub fn msg_ok(cmd: &str) -> bool {
         "popup" => w.next().is_some_and(|k| crate::popups::KINDS.contains(&k)) && one(&mut w),
         "screenshot" => w.next().is_none_or(|m| matches!(m, "area" | "window" | "screen")) && w.next().is_none_or(|d| d.parse::<u32>().is_ok()) && one(&mut w),
         "curtain" => w.next().is_none_or(|a| matches!(a, "on" | "off" | "toggle")) && one(&mut w),
+        "media" => w.next().is_some_and(|a| matches!(a, "play-pause" | "play" | "pause" | "stop" | "next" | "previous" | "player")) && one(&mut w),
         // путь к картинке (с пробелами) или пусто — пиксельные из палитры
         "wallpaper" => true,
         h => h.starts_with("update-"),

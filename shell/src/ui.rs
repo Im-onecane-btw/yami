@@ -91,6 +91,8 @@ pub enum Act {
     MediaSeek,
     /// вид всплывашки музыки — следующий (#13)
     MediaView,
+    /// шапка всплывашки музыки: другой плеер (#24)
+    MediaPlayer,
     Wifi(bool),
     WifiNet(String),
     WifiRescan,

@@ -301,7 +301,17 @@ fn media(ui: &mut Ui, st: &State, b: R) {
     let bw = ui.w(PX, name) + 20;
     let mut y = head(ui, b, "music", "музыка", "");
     let tw = ui.w(PX, "музыка");
-    ui.cv.text_in(ui.f, PX, R::new(b.x + 30 + tw, b.y, b.w - bw - 40 - tw, 20), &m.player, t.text_faint);
+    let nr = R::new(b.x + 30 + tw, b.y, b.w - bw - 40 - tw, 20);
+    let n = st.players.len();
+    if n > 1 {
+        // плееров несколько: имя — переключатель (ЛКМ — следующий, ПКМ — прошлый), «2/3» — который (#24)
+        let k = st.players.iter().position(|p| p.inst == m.inst).map_or(1, |i| i + 1);
+        let label = format!("{} {k}/{n}", m.player);
+        let lw = (ui.w(PX, &label) + 16).min(nr.w);
+        ui.button(R::new(nr.x - 8, b.y - 2, lw, 22), &label, "", Tone::Ghost, false, true, Act::MediaPlayer);
+    } else {
+        ui.cv.text_in(ui.f, PX, nr, &m.player, t.text_faint);
+    }
     ui.button(R::new(b.right() - bw, b.y - 2, bw, 22), name, "", Tone::Ghost, false, true, Act::MediaView);
     // обложка с эквалайзером; без эквалайзера и в остальных видах — строка плеера высотой в обложку
     let viz = if view == "cover" { st.set.media_viz.as_str() } else { "off" };

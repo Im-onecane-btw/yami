@@ -124,6 +124,12 @@ impl crate::app::App {
             "ping" => {}
             "restart" => self.restart = true,
             c if self.update_ipc(c) => {}
+            // медиаклавиши и бар: команда показанному плееру; player — другой плеер (#24)
+            c if c.starts_with("media ") => match c[6..].trim() {
+                "player" => self.media_step(1),
+                a @ ("play-pause" | "play" | "pause" | "stop" | "next" | "previous") => self.media_ctl(a),
+                _ => {}
+            },
             c if c.starts_with("settings ") => self.open_settings_tab(c[9..].trim()),
             c if c == "screenshot" || c.starts_with("screenshot ") => {
                 let mode = match c.split_whitespace().nth(1) {

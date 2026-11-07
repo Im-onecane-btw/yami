@@ -411,7 +411,10 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
                 // играет: эквалайзер виден; за миг снимка позиция не сдвинется (во всплывашке звука
                 // плеер виден, только когда модуля media в баре нет: --defaults)
                 let at = std::time::Instant::now();
-                st.media = crate::media::MediaState { player: "mpv".into(), status: "Playing".into(), artist: "Ash Field".into(), title: "Pixel Rain".into(), art: String::new(), length: 245.0, pos: 83.0, at };
+                st.media = crate::media::MediaState { inst: "mpv".into(), player: "mpv".into(), status: "Playing".into(), artist: "Ash Field".into(), title: "Pixel Rain".into(), art: String::new(), length: 245.0, pos: 83.0, at, played: Some(at) };
+                // второй плеер на паузе: в шапке всплывашки — переключатель «mpv 1/2» (#24)
+                let other = crate::media::MediaState { inst: "spotify".into(), player: "spotify".into(), status: "Paused".into(), title: "Dust".into(), ..Default::default() };
+                st.players = vec![st.media.clone(), other];
                 st.viz = (0..32).map(|i| ((i * 7 % 11) as f32 / 11.0) * 0.8 + 0.1).collect();
             }
             // виды всплывашки музыки (#13): без эквалайзера, с текстом (с метками, простым), коротко, текста нет

@@ -2,7 +2,7 @@
 // ложатся в State; что поменялось — помечается к перерисовке.
 
 use crate::app::*;
-use crate::{dbus, media, niri};
+use crate::{dbus, niri};
 use std::time::Duration;
 
 impl App {
@@ -65,21 +65,8 @@ impl App {
                     _ => false,
                 });
             }
-            Msg::Media(m) => {
-                if !m.art.is_empty() && !self.st.art.contains_key(&m.art) {
-                    // обложки прошлых треков не копим: за долгий вечер с плеером их были бы тысячи
-                    if self.st.art.len() >= 8 {
-                        let cur = self.st.media.art.clone();
-                        self.st.art.retain(|k, _| *k == cur);
-                    }
-                    self.st.art.insert(m.art.clone(), None);
-                    media::fetch_art(m.art.clone(), self.st.set.media_art_net, self.tx.clone());
-                }
-                self.st.media = m;
-                self.lyrics_want();
-                self.viz_sync();
-                self.dirty_where(|k| matches!(k, SKind::Bar | SKind::Popup | SKind::Widget(_)));
-            }
+            Msg::Media(m) => self.media_got(m),
+            Msg::Players(l) => self.media_players(l),
             Msg::Themes(l, note, applied) => self.themes_listed(l, note, applied),
             Msg::Weather(w) => self.weather_got(w),
             Msg::Lyrics(l) => {

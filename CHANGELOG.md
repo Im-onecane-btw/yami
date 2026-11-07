@@ -9,6 +9,7 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 
 ## Unreleased
 
+- Switch between players (#24): the bar and the music popup follow the player that started playing last, so a YouTube tab no longer pushes Spotify out; with several players the name in the popup is a button that switches to the next one (right click: back), and `yami msg media player` does it from a key. Play/pause, next and previous keys go to the player the bar shows.
 - Keybindings in any layout: in Russian and other non-Latin layouts the keys with punctuation (`Mod+/`, `Mod+.`, `Mod+[`, `Mod+-`…) used to miss or hit the wrong bind, because niri looked at the symbol the current layout prints. yami-niri 26.04-yami.6 matches them by the key of your Latin layout, as letters already were; the power menu's letters work in any layout too. Active from the next login after the fork is rebuilt.
 
 ## 2.6.0

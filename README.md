@@ -390,7 +390,8 @@ yami-shell binds list                  # keybindings: id, keys, action
 - **IPC**: `yami-shell msg <command>`, where the command is one of `launcher`, `clipboard`,
   `power`, `settings`, `lock`, `bar`, `stacking`, `minimize`, `restore`, `edit`, `reload`,
   `restart`, `quit`, `settings TAB`, `profile` (next power profile), `popup cal|sound|media|net|bt|sys|profile|tray`, `screenshot [area|window|screen]`,
-  `walls` (the wallpaper picker), `wallpaper [PATH]` (no path: the generated pixel wallpaper), `curtain [on|off]` (privacy curtain), `night` (night light on/off).
+  `walls` (the wallpaper picker), `wallpaper [PATH]` (no path: the generated pixel wallpaper), `curtain [on|off]` (privacy curtain), `night` (night light on/off),
+  `media play-pause|next|previous|player` (to the player the bar shows; `player` switches to the next one, as a click on its name in the music popup does).
 - **yami-files**: `~/.config/yami-files.json` (also from its ≡ menu → settings). `yami-files
   --pick open|save|dir …` is the dialog the portal runs; `yami-files --portal` is the portal and
   FileManager1 service, started by D-Bus; `yami-files --portal-reload` hands it over to a newly
