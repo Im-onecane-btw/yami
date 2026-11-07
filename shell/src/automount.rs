@@ -90,6 +90,8 @@ pub struct Am {
     next_note: u32,
     /// неудачные попытки по тому (телефон заблокирован): ещё раз, пока не кончатся
     tries: HashMap<String, u8>,
+    /// вставили при заблокированном экране: подключим после разблокировки
+    held: bool,
 }
 
 /// сокет событий udev с фильтром в ядре; None — нет netlink (контейнер) или ошибка
@@ -280,6 +282,13 @@ impl App {
         self.st.am.again = AGAIN.len();
     }
 
+    /// экран разблокировали: тома, вставленные под блокировкой, — подключить сейчас
+    pub(crate) fn automount_unlocked(&mut self) {
+        if std::mem::take(&mut self.st.am.held) {
+            self.automount_poke();
+        }
+    }
+
     /// из tick: подошло время — спросить gio в нити
     pub(crate) fn automount_tick(&mut self) {
         let am = &mut self.st.am;
@@ -306,6 +315,14 @@ impl App {
         am.busy = false;
         let first = am.seen.is_none();
         let seen = am.seen.take().unwrap_or_default();
+        // экран заблокирован: чужую флешку без хозяина не подключаем (драйвер ФС — мишень для
+        // кривого образа, как и в GNOME). Новые тома не запоминаем — их подключит взгляд после
+        // разблокировки (automount_unlocked)
+        if self.st.locked && self.st.set.automount && !(first && crate::proc::restarted()) {
+            am.held = true;
+            am.seen = Some(if first { vols.iter().filter(|v| !v.mount.is_empty()).map(Vol::key).collect() } else { seen.into_iter().filter(|k| vols.iter().any(|v| v.key() == *k)).collect() });
+            return;
+        }
         am.seen = Some(vols.iter().map(Vol::key).collect());
         // вынутые тома забываем вместе с их попытками
         am.tries.retain(|k, _| vols.iter().any(|v| v.key() == *k));

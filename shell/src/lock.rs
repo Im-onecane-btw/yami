@@ -151,6 +151,7 @@ impl App {
         self.drop_lock_surfs();
         self.st.locked = false;
         self.st.lock_field.wipe();
+        self.automount_unlocked();
         let _ = self.conn.roundtrip();
         self.dirty_all();
     }
