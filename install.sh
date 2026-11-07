@@ -1581,7 +1581,7 @@ uninstall_login() {
   ((SYSTEMD)) || cmd="$ROOT/tools/greet-install.sh --uninit; $cmd"
   ((ours)) && cmd+="; mv -f /etc/greetd/config.toml.yami-orig /etc/greetd/config.toml"
   [[ -n $dm ]] && cmd+="; systemctl enable -f $dm.service"
-  if ((EUID != 0)) && { [[ -z $SU ]] || ! root_start; }; then
+  if ((EUID != 0)) && { ((!SUDO)) || [[ -z $SU ]] || ! root_start; }; then
     warn "$(t "экран входа не убран, нужен root:" "the login screen is not removed, root is needed:") sudo sh -c '$cmd'"
     return 0
   fi
