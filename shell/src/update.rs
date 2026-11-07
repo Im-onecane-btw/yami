@@ -137,7 +137,7 @@ impl Upd {
         if what == "updates-need" {
             // вышла версия с новыми функциями, а пакетов к ним нет: кнопка «поставить»
             i.available = false;
-            u.need = Some(crate::need::Need { pm: "pacman".into(), pkgs: vec!["wlsunset".into(), "tesseract".into(), "tesseract-data-eng".into(), "zbar".into()] });
+            u.need = Some(crate::need::Need { pm: "pacman".into(), pkgs: vec!["wlsunset".into(), "tesseract".into(), "tesseract-data-eng".into(), "zbar".into()], login: Some("/home/you/.local/share/yami/src/tools/greet-install.sh".into()) });
         }
         if what == "updates-pick" {
             // выбор версии: прошлой сборки в образце нет, три выпуска, один не подписан

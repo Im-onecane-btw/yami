@@ -605,8 +605,8 @@ KNOWN_F="$STATE/components-known"
 # what was installed (the shell's `update stamp`): an update repeats the same choice
 INSTALLED="$STATE/install.json"
 COMP=""
-if ((UPDATE)) && [[ -f $INSTALLED ]]; then
-  COMP="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("components",""))' "$INSTALLED" 2>/dev/null)"
+if ((UPDATE)); then
+  [[ -f $INSTALLED ]] && COMP="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("components",""))' "$INSTALLED" 2>/dev/null)"
   if [[ -n $COMP ]]; then
     known="$(cat "$KNOWN_F" 2>/dev/null || echo "core apps look login nvidia fork")"
     for i in "${!C_ID[@]}"; do
@@ -1687,8 +1687,29 @@ if ((UPDATE)); then
     say "$(t "yami-niri: новая серия патчей — сборка (5–25 минут)" "yami-niri: a new patch series, building (5–25 minutes)")"
     if need_rust && "$ROOT/fork/yami-niri.sh" build 2>&1 | tee -a "$LOG"; then fork_tidy; else FAILED+=("yami-niri"); fi
   fi
-  if on login && ((!DRY)) && greet_stale; then
-    note "$(t "экран входа обновился — поставь его: $ROOT/tools/greet-install.sh (нужен sudo)" "the login screen changed, install it: $ROOT/tools/greet-install.sh (needs sudo)")"
+  # the login screen is root's (greetd, /usr/local/bin): an update without sudo only offers it. From
+  # a terminal it asks now; from the shell (no terminal) settings → updates gets a button for the
+  # same command (packages-needed: «login PATH», need.rs). SDDM is turned off, never removed
+  # (wants, not on: without sudo every root component is off in C_ON)
+  if wants login && ((!DRY && !BUILD_FAILED)) && greet_stale; then
+    mkdir -p "$STATE" && printf 'login %s\n' "$ROOT/tools/greet-install.sh" >>"$STATE/packages-needed"
+    if [[ -d /usr/share/sddm/themes/yami ]]; then
+      msg="$(t "новый экран входа: свой, вместо SDDM (SDDM выключится, но останется — ./install.sh --uninstall вернёт его)" "the new login screen: our own instead of SDDM (SDDM is turned off, not removed; ./install.sh --uninstall brings it back)")"
+    else
+      msg="$(t "экран входа обновился" "the login screen changed")"
+    fi
+    if [[ -t 0 && -t 1 && -n $SU ]]; then
+      printf '\n  %s%s%s\n  %s %s[%s]%s ' "$T" "$msg" "$R" "$(t "поставить сейчас?" "install it now?")" "$F" "$(t "enter — да, n — потом" "enter yes, n later")" "$R"
+      read -r a || a=n
+      if [[ ! $a =~ ^[nNнН] ]] && "$ROOT/tools/greet-install.sh"; then
+        sed -i '/^login /d' "$STATE/packages-needed"
+        grep -q '^pkgs ' "$STATE/packages-needed" || rm -f "$STATE/packages-needed"
+      else
+        note "$(t "потом: настройки → обновления, или $ROOT/tools/greet-install.sh" "later: settings → updates, or $ROOT/tools/greet-install.sh")"
+      fi
+    else
+      note "$msg: $(t "настройки → обновления, одна кнопка (или $ROOT/tools/greet-install.sh, нужен sudo)" "settings → updates, one button (or $ROOT/tools/greet-install.sh, needs sudo)")"
+    fi
   fi
   if ((${#FAILED[@]})); then
     warn "$(t "не вышло:" "failed:") ${FAILED[*]}"

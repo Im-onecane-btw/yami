@@ -201,14 +201,17 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     ui.cv.fill(R::new(b.x, y + 7, 6, 6), col);
     ui.text_in(px, R::new(b.x + 14, y, b.w - 14, 20), &line, col);
     y += 24;
-    // новым функциям не хватает пакетов: обновление без sudo их не ставит — одна кнопка
+    // новым функциям не хватает пакетов или экран входа не поставлен: обновление без sudo их не
+    // ставит — одна кнопка (терминал, sudo спросит там)
     if let Some(n) = &u.need {
-        let txt = crate::tf!("не хватает пакетов: {}", "missing packages: {}", n.pkgs.join(" "));
-        let txt = ui.f.elide(px, &txt, b.w - 150);
-        ui.cv.fill(R::new(b.x, y + 10, 6, 6), t.warn);
-        ui.cv.text_in(ui.f, px, R::new(b.x + 14, y + 3, b.w - 150, 20), &txt, t.warn);
         ui.button(R::new(b.right() - 130, y, 130, 26), "поставить", "down", Tone::Primary, false, u.busy.is_none(), Act::SCycle("need_run"));
-        y += 34;
+        for (i, txt) in n.items().iter().enumerate() {
+            let txt = ui.f.elide(px, txt, b.w - 150);
+            let ty = y + 3 + i as i32 * 22;
+            ui.cv.fill(R::new(b.x, ty + 7, 6, 6), t.warn);
+            ui.cv.text_in(ui.f, px, R::new(b.x + 14, ty, b.w - 150, 20), &txt, t.warn);
+        }
+        y += 34 + (n.items().len() as i32 - 1).max(0) * 22;
     }
     let by = b.bottom() - 62;
     // прогресс по шагам установщика («[k/n]»); до них — первые деления

@@ -196,8 +196,8 @@ pub fn run(y: &Sty) -> i32 {
     services(y, &mut problems);
     // новым функциям не хватает пакетов (установщик записал, обновление без sudo не поставило)
     if let Some(n) = crate::need::load() {
-        y.section(&crate::tf!("пакеты для выбранного при установке", "packages for what the install chose"));
-        line(y, &y.warn("·"), &n.pkgs.join(" "), &crate::tf!("не стоят", "not installed"));
+        y.section(&crate::tf!("не поставлено из выбранного при установке", "not installed of what the install chose"));
+        line(y, &y.warn("·"), &n.what(), "");
         println!("   {}  {}", y.bold(&n.line()), y.dim("yami update need --run"));
     }
     y.section(&crate::tf!("настройки", "config"));
