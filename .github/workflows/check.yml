@@ -25,3 +25,17 @@ jobs:
         with:
           workspaces: shell
       - run: tools/check.sh
+  nix:
+    # flake.nix and nix/: the package builds from Cargo.lock in the Nix sandbox and the NixOS module
+    # evaluates (docs/PACKAGING.md). The official nixos/nix image, pinned by digest: no third-party
+    # action and no install script piped into a shell
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: nix flake check
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src \
+            nixos/nix:2.35.4@sha256:f159a58f390677f41e8e900a74b6e2f9c7f27b364122ae6acf7a652ce6c551c0 \
+            sh -c 'git config --global --add safe.directory /src 2>/dev/null; nix --extra-experimental-features "nix-command flakes" flake check -L --show-trace'

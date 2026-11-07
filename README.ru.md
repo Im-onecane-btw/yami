@@ -201,9 +201,11 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
 ```
 
 или из клона: `git clone https://github.com/Trendorin/yami yami && yami/install.sh`.
-Установщик интерактивный: язык, компоненты, палитра, панели, шрифт программ, затем сводка — до
-неё ничего не меняется. Потом перезагрузись (или выйди из сеанса) и выбери сессию **Niri** —
-попадёшь в готовый стол. Полезные флаги:
+Установщик спрашивает язык и показывает, что поставит, подобрав под эту машину: Enter ставит,
+`c` сначала проводит по выбору (компоненты, палитра, панели, тема, шрифт программ). Запускай от
+себя, не через sudo: пароль он спросит сам, один раз и там, где нужно. Потом перезагрузись (или
+выйди из сеанса) и выбери сессию **Niri** — попадёшь в готовый стол. Для обычной установки флаги
+не нужны; эти — для остального:
 
 | Флаг | Что делает |
 |---|---|
@@ -228,7 +230,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
 
 1. Дистрибутив определяется по `/etc/os-release`, пакеты ставятся его родным менеджером (niri,
    порталы, polkit, PipeWire, NetworkManager, BlueZ, power-profiles-daemon, шрифты Noto,
-   cliphist, grim/slurp, kitty, fastfetch, btop, udisks2, ffmpegthumbnailer, bsdtar, mpv (libmpv), gvfs с бэкендами MTP/PTP/AFC/SMB, qt6ct,
+   cliphist, grim, kitty, fastfetch, btop, udisks2, ffmpegthumbnailer, bsdtar, mpv (libmpv), gvfs с бэкендами MTP/PTP/AFC/SMB, qt6ct,
    adw-gtk3, Papirus, greetd). Пакеты, которых нет в репозиториях, попадают в отчёт и не прерывают
    установку. Включаются Bluetooth и профили питания, NetworkManager — если сетью не управляет
    что-то другое.
@@ -252,8 +254,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
 
 Установка под старым именем DARK-4RMY переносится сама: настройки, палитра, виджеты и
 закреплённое в буфере сохраняются, старые файлы удаляются; старый форк dark-niri — тоже. Лог —
-`~/.cache/yami/install.log`. На NixOS установщик ставит конфиги и шелл и выводит список пакетов
-для `configuration.nix`.
+`~/.cache/yami/install.log`. На NixOS вместо него — flake: модуль NixOS для системной половины и
+модуль Home Manager для домашней ([docs/PACKAGING.ru.md](docs/PACKAGING.ru.md#nix)).
 
 ### Сборка шелла вручную
 
@@ -421,7 +423,9 @@ yami-shell binds list                  # клавиши: id, сочетание,
 | `tools/apply-theme.sh` | шрифты и стиль Qt и GTK |
 | `fonts/` | пиксельные шрифты (SIL OFL) |
 | `fork/` | yami-niri: патчи поверх официального niri, сборка, обёртка сеанса |
-| `docs/` | справочник настроек, заметки по безопасности (каждый и по-русски: `*.ru.md`) |
+| `install.sh`, `installer/` | установщик: вход и порядок шагов, по модулю на каждую работу |
+| `flake.nix`, `nix/` | пакет Nix и модули NixOS и Home Manager |
+| `docs/` | справочник настроек, заметки по безопасности, сборка пакетов и Nix (каждый и по-русски: `*.ru.md`) |
 | `keys/` | ключи подписи выпусков (`allowed_signers`), их читает `yami update` |
 | `VERSION`, `CHANGELOG.md` | версия выпуска и что менялось в каждом (`CHANGELOG.ru.md` — по-русски) |
 | `system/nvidia/` | профиль драйвера против роста VRAM у композитора; опции modeset для раннего KMS (установщик ещё кладёт драйвер в initramfs, а на драйверах эпохи Pascal ставит obs-gstreamer: OBS 33 нужен NVENC API 13.1, драйвер 610+) |

@@ -195,9 +195,11 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Trendorin/yami/main/install.
 ```
 
 or from a checkout: `git clone https://github.com/Trendorin/yami yami && yami/install.sh`.
-The installer is interactive: language, components, palette, panels, app font, then a summary
-before anything changes. Reboot afterwards (or log out) and pick the **Niri** session: you land
-in the finished desktop. Useful flags:
+The installer asks the language and shows what it will install, picked for this machine: Enter
+installs it, `c` walks through the choices (components, palette, panels, theme, app font) first.
+Run it as yourself, not with sudo: it asks for the password once, where it is needed. Reboot
+afterwards (or log out) and pick the **Niri** session: you land in the finished desktop. No flag
+is needed for a normal install; these are for the rest:
 
 | Flag | Effect |
 |---|---|
@@ -222,7 +224,7 @@ What it does:
 
 1. Detects the distribution from `/etc/os-release` and installs packages with its native package
    manager (niri, portals, polkit, PipeWire, NetworkManager, BlueZ, power-profiles-daemon, Noto
-   fonts, cliphist, grim/slurp, kitty, fastfetch, btop, udisks2, ffmpegthumbnailer, bsdtar, mpv (libmpv), gvfs with the MTP/PTP/AFC/SMB backends, qt6ct,
+   fonts, cliphist, grim, kitty, fastfetch, btop, udisks2, ffmpegthumbnailer, bsdtar, mpv (libmpv), gvfs with the MTP/PTP/AFC/SMB backends, qt6ct,
    adw-gtk3, Papirus, greetd). Names a repository does not carry are reported, not fatal. Enables
    Bluetooth and power profiles, and NetworkManager when nothing else manages the network.
 2. Builds the workspace with `cargo build --release --locked` (Rust ≥ 1.89; rustup is used
@@ -244,8 +246,8 @@ What it does:
 
 An existing install under the old name DARK-4RMY is moved over: settings, palette, widgets
 and clipboard pins are kept, the old files are removed; the old dark-niri fork is removed too.
-Everything is logged to `~/.cache/yami/install.log`. On NixOS the installer sets up the dotfiles
-and the shell and prints the packages to add to `configuration.nix`.
+Everything is logged to `~/.cache/yami/install.log`. On NixOS use the flake instead: a NixOS module
+for the system half and a Home Manager module for the home half ([docs/PACKAGING.md](docs/PACKAGING.md#nix)).
 
 ### Building the shell by hand
 
@@ -410,7 +412,9 @@ yami-shell binds list                  # keybindings: id, keys, action
 | `tools/apply-theme.sh` | fonts and widget style for Qt and GTK |
 | `fonts/` | bundled pixel fonts (SIL OFL) |
 | `fork/` | yami-niri: patch series on upstream niri, build script, session wrapper |
-| `docs/` | configuration reference, security notes (each also in Russian: `*.ru.md`) |
+| `install.sh`, `installer/` | the installer: the entry and the order of its steps, one module per job |
+| `flake.nix`, `nix/` | the Nix package and the NixOS and Home Manager modules |
+| `docs/` | configuration reference, security notes, packaging and Nix (each also in Russian: `*.ru.md`) |
 | `keys/` | release signing keys (`allowed_signers`), read by `yami update` |
 | `VERSION`, `CHANGELOG.md` | the release version and what changed in each release (`CHANGELOG.ru.md` in Russian) |
 | `system/nvidia/` | driver profile against VRAM growth in the compositor; modeset options for early KMS (the installer also puts the driver into the initramfs, and on Pascal-era drivers adds obs-gstreamer: OBS 33 needs NVENC API 13.1, driver 610+) |
