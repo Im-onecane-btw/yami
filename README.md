@@ -484,7 +484,8 @@ log in, `~/.local/lib/yami-niri/yami-niri.sh off`. Details: [fork/README.md](for
 
 - [Minish777](https://github.com/Minish777) hunts bugs and gaps and writes them up with fixes to
   pick from: player switching, lyrics, the wallpaper picker, the floating bar, weather, app
-  templates and more started as those reports.
+  templates and more started as those reports, and so did the template audit (#27), the windows
+  module in any bar group (#28) and the palette from the wallpaper (#26).
 
 ## Made with Claude
 
