@@ -390,8 +390,8 @@ impl App {
         let back = g.first_phase();
         g.bad = matches!(e, Ev::Error(_) | Ev::Lost(_) | Ev::Info { error: true, .. });
         match e {
-            Ev::Prompt { secret, text } => {
-                g.phase = Phase::Prompt { secret };
+            Ev::Prompt { hidden, text } => {
+                g.phase = Phase::Prompt { hidden };
                 g.prompt = text;
                 g.status.clear();
             }

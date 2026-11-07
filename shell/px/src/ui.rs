@@ -306,12 +306,12 @@ impl<'a, 'b, A: Action> Ui<'a, 'b, A> {
     }
 
     /// поле ввода: тёмное, рамка, при фокусе — акцент, курсор-уголь
-    pub fn field(&mut self, r: R, f: &Field, placeholder: &str, focused: bool, password: bool, act: A) {
+    pub fn field(&mut self, r: R, f: &Field, placeholder: &str, focused: bool, masked: bool, act: A) {
         let t = self.t;
         self.cv.pxbox(r, &BoxStyle::new(t.code_bg, if focused { t.red } else { t.border }));
         let inner = R::new(r.x + 10, r.y, r.w - 20, r.h);
         let face = font::PX;
-        let shown: String = if password { "■".repeat(f.text.chars().count()) } else { f.text.clone() };
+        let shown: String = if masked { "■".repeat(f.text.chars().count()) } else { f.text.clone() };
         let before: String = shown.chars().take(f.cur).collect();
         // введённое — как есть, без перевода интерфейса (набранное «сон» не станет «sleep»)
         let bw = self.f.width(face, &before);

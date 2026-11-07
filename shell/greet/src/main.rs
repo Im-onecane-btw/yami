@@ -191,11 +191,11 @@ fn shot(args: &[String]) -> i32 {
         g.sessions = vec![data::Session { id: "niri".into(), name: "Niri".into(), cmd: vec!["niri-session".into()], desktops: "niri".into() }];
         g.session = 0;
         match target {
-            "pass" => g.field.set("secret"),
+            "pass" => g.field.set("xxxxxx"),
             "busy" => g.phase = Phase::Busy,
             "wrong" => g.fails = 2,
             "prompt" => {
-                g.phase = Phase::Prompt { secret: false };
+                g.phase = Phase::Prompt { hidden: false };
                 g.prompt = "Verification code:".into();
             }
             "name" => {

@@ -17,8 +17,8 @@ pub enum Ask {
 
 /// что окно узнаёт
 pub enum Ev {
-    /// PAM спрашивает: secret — скрытый ввод
-    Prompt { secret: bool, text: String },
+    /// PAM спрашивает: hidden — скрытый ввод (тип «secret»)
+    Prompt { hidden: bool, text: String },
     /// PAM сообщает (error — сообщение об ошибке)
     Info { text: String, error: bool },
     /// неверный пароль
@@ -184,7 +184,7 @@ fn login(c: &mut Conn, rx: &Receiver<Ask>, tx: &impl Fn(Ev), user: &str, pass: &
                         r?;
                     }
                     t @ ("secret" | "visible") => {
-                        tx(Ev::Prompt { secret: t == "secret", text });
+                        tx(Ev::Prompt { hidden: t == "secret", text });
                         match rx.recv() {
                             Ok(Ask::Answer(mut a)) => {
                                 let r = c.answer(a.as_deref());
@@ -222,7 +222,7 @@ pub fn spawn_demo(rx: Receiver<Ask>, tx: impl Fn(Ev) + Send + 'static) {
             std::thread::sleep(std::time::Duration::from_millis(400));
             match pass.as_deref() {
                 Some("yami") => tx(Ev::Started),
-                None => tx(Ev::Prompt { secret: true, text: "Password:".into() }),
+                None => tx(Ev::Prompt { hidden: true, text: "Password:".into() }),
                 _ => tx(Ev::Failed),
             }
         }
@@ -293,7 +293,7 @@ mod tests {
         assert!(matches!(erx.recv().unwrap(), Ev::Failed));
         atx.send(login("right")).unwrap();
         assert!(matches!(erx.recv().unwrap(), Ev::Info { ref text, error: false } if text == "hello"));
-        assert!(matches!(erx.recv().unwrap(), Ev::Prompt { secret: false, ref text } if text == "Code:"));
+        assert!(matches!(erx.recv().unwrap(), Ev::Prompt { hidden: false, ref text } if text == "Code:"));
         atx.send(Ask::Answer(Some("123456".into()))).unwrap();
         assert!(matches!(erx.recv().unwrap(), Ev::Started));
         assert_eq!(srv.join().unwrap(), vec!["wr\"ong", "right", "123456"]);

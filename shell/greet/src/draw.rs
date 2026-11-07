@@ -42,7 +42,7 @@ pub enum Phase {
     /// ждём greetd
     Busy,
     /// отвечаем на вопрос PAM (второй фактор, смена пароля)
-    Prompt { secret: bool },
+    Prompt { hidden: bool },
     /// сеанс запущен, экран уходит
     Done,
 }
@@ -231,13 +231,15 @@ fn draw_login(ui: &mut Ui, g: &G, w: i32, dy: i32) {
     }
     let fr = R::new(fx, fy, fw, 36);
     ui.cv.pxbox(R::new(fr.x - 6, fr.y - 6, fr.w + 12, fr.h + 12), &BoxStyle::new(t.glass_panel(), t.border).shadow(4));
-    let (hint, secret) = match g.phase {
-        Phase::Name => ("имя пользователя".to_string(), false),
-        Phase::Prompt { secret } => (g.prompt.trim().trim_end_matches(':').to_lowercase(), secret),
-        _ => ("пароль".to_string(), true),
+    // скрыт ли ввод — из фазы, подсказка — отдельно (CodeQL принимал литерал рядом с ней за пароль)
+    let masked = !matches!(g.phase, Phase::Name | Phase::Prompt { hidden: false });
+    let hint = match g.phase {
+        Phase::Name => "имя пользователя".to_string(),
+        Phase::Prompt { .. } => g.prompt.trim().trim_end_matches(':').to_lowercase(),
+        _ => "пароль".to_string(),
     };
     let focused = g.phase != Phase::Busy && g.phase != Phase::Done;
-    ui.field(fr, &g.field, &hint, focused, secret, Act::Field);
+    ui.field(fr, &g.field, &hint, focused, masked, Act::Field);
     // состояние: проверка, ошибка, caps lock, подсказка
     let (status, sc) = if !g.status.is_empty() {
         (g.status.clone(), if g.bad || g.fails > 0 { t.ember } else { t.text_dim })
