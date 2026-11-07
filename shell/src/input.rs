@@ -396,7 +396,7 @@ impl App {
             _ => {
                 if mods.ctrl {
                     // Ctrl+A/U/V — и в русской раскладке (по положению), и в AZERTY/Dvorak (по букве)
-                    match crate::keys::ctrl_letter(e) {
+                    match crate::keys::latin_letter(e) {
                         Some('U') => f.clear(),
                         Some('A') => f.select_all(),
                         Some('V') => {

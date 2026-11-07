@@ -53,9 +53,9 @@ impl App {
                 self.power_do(c);
             }
             _ => {
-                if let Some(s) = &e.utf8 {
-                    let up = s.to_uppercase();
-                    if let Some(i) = ACTIONS.iter().position(|a| a.2 == up) {
+                // буква — и в русской раскладке (по месту клавиши), и в AZERTY (по подписи)
+                if let Some(c) = crate::keys::latin_letter(e) {
+                    if let Some(i) = ACTIONS.iter().position(|a| a.2.starts_with(c)) {
                         self.power_do(i);
                     }
                 }

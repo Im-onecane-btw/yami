@@ -1,0 +1,167 @@
+From 5a6535ca208a7e6c3d8de35c2472fad63ea3dce1 Mon Sep 17 00:00:00 2001
+From: yami <yami@localhost>
+Date: Sat, 7 Nov 2026 22:23:39 +0300
+Subject: [PATCH 2/2] input: bindings by the Latin layout's key in non-Latin
+ layouts
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+raw_latin_sym_or_raw_current_sym returned the current layout's sym whenever it was ASCII. Russian
+(and Ukrainian, Belarusian…) types «.» on the key where US has «/», so with Russian active Mod+/
+did nothing and Mod+. fired instead. A non-Latin layout now takes the sym of the first Latin
+layout for the same key, punctuation included; Latin layouts keep their own labels as before.
+---
+ src/input/keyboard/mod.rs | 132 ++++++++++++++++++++++++++++----------
+ 1 file changed, 97 insertions(+), 35 deletions(-)
+
+diff --git a/src/input/keyboard/mod.rs b/src/input/keyboard/mod.rs
+index 3fa1a7d9..a36abe9a 100644
+--- a/src/input/keyboard/mod.rs
++++ b/src/input/keyboard/mod.rs
+@@ -437,41 +437,8 @@ impl<'a> KeysymHandle<'a> {
+     /// The `None` is returned when the underlying keycode doesn't produce a valid keysym.
+     pub fn raw_latin_sym_or_raw_current_sym(&self) -> Option<Keysym> {
+         let xkb = self.xkb.lock().unwrap();
+-        let effective_layout = Layout(xkb.state.key_get_layout(self.keycode));
+-
+-        // don't call `self.raw_syms()` to avoid a deadlock
+-        // and an unnecessary allocation into a Vec
+-        let raw_syms =
+-            xkb.keymap
+-                .key_get_syms_by_level(self.keycode, xkb.state.key_get_layout(self.keycode), 0);
+-        // NOTE: There's always a keysym in the current layout given that we have modified_sym.
+-        let base_sym = *raw_syms.first()?;
+-
+-        // If the character is ascii or non-printable, return it.
+-        if base_sym.key_char().map(|ch| ch.is_ascii()).unwrap_or(true) {
+-            return Some(base_sym);
+-        };
+-
+-        // Try to look other layouts and find the one with ascii character.
+-        for layout in xkb.layouts() {
+-            if layout == effective_layout {
+-                continue;
+-            }
+-
+-            if let Some(keysym) = xkb.raw_syms_for_key_in_layout(self.keycode, layout).first() {
+-                // NOTE: Only check for ascii non-control characters, since control ones are
+-                // layout agnostic.
+-                if keysym
+-                    .key_char()
+-                    .map(|key| key.is_ascii() && !key.is_ascii_control())
+-                    .unwrap_or(false)
+-                {
+-                    return Some(*keysym);
+-                }
+-            }
+-        }
+-
+-        Some(base_sym)
++        let effective_layout = xkb.state.key_get_layout(self.keycode);
++        latin_sym(&xkb.keymap, self.keycode, effective_layout)
+     }
+ 
+     /// Returns the raw code in X keycode system (shifted by 8)
+@@ -550,6 +517,101 @@ impl fmt::Debug for XkbContext<'_> {
+ #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+ pub struct Layout(pub xkb::LayoutIndex);
+ 
++/// yami: whether a layout types Latin letters: the key QWERTY has «A» on (AC01) gives an ASCII
++/// letter there (q in AZERTY, a in Dvorak; ф in Russian, α in Greek).
++fn is_latin(keymap: &xkb::Keymap, layout: u32) -> bool {
++    keymap
++        .key_get_syms_by_level(Keycode::new(38), layout, 0)
++        .first()
++        .and_then(|k| k.key_char())
++        .is_some_and(|c| c.is_ascii_alphabetic())
++}
++
++/// The keysym a binding sees for a key: the layout's own in a Latin layout, else the key's sym in the
++/// first Latin layout, punctuation included. Russian has «.» where US has «/», so «Mod+/» used to turn
++/// into «Mod+.» with Russian active. Keys whose current sym is not ASCII fall back to any layout that
++/// has ASCII there, as before.
++fn latin_sym(keymap: &xkb::Keymap, keycode: Keycode, current: u32) -> Option<Keysym> {
++    let base = *keymap.key_get_syms_by_level(keycode, current, 0).first()?;
++    let printable = |k: &Keysym| k.key_char().is_some_and(|c| c.is_ascii() && !c.is_ascii_control());
++    let base_char = base.key_char();
++
++    // Non-printable and control keys are layout agnostic.
++    if base_char.map(|c| c.is_ascii_control()).unwrap_or(true) {
++        return Some(base);
++    }
++
++    // A non-Latin layout: the same key in the first Latin layout.
++    if !is_latin(keymap, current) {
++        let latin = (0..keymap.num_layouts()).find(|&l| l != current && is_latin(keymap, l));
++        if let Some(sym) = latin
++            .and_then(|l| keymap.key_get_syms_by_level(keycode, l, 0).first().copied())
++            .filter(printable)
++        {
++            return Some(sym);
++        }
++    }
++
++    // If the character is ascii, return it.
++    if base_char.is_some_and(|c| c.is_ascii()) {
++        return Some(base);
++    }
++
++    // Try to look other layouts and find the one with ascii character.
++    for layout in (0..keymap.num_layouts()).filter(|&l| l != current) {
++        if let Some(sym) = keymap.key_get_syms_by_level(keycode, layout, 0).first() {
++            // NOTE: Only check for ascii non-control characters, since control ones are
++            // layout agnostic.
++            if printable(sym) {
++                return Some(*sym);
++            }
++        }
++    }
++
++    Some(base)
++}
++
++#[cfg(test)]
++mod latin_tests {
++    use super::{latin_sym, xkb, Keycode, Keysym};
++
++    fn keymap(layouts: &str) -> xkb::Keymap {
++        let ctx = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
++        xkb::Keymap::new_from_names(&ctx, "", "", layouts, "", None, xkb::COMPILE_NO_FLAGS).expect("keymap")
++    }
++    // evdev code + 8
++    fn key(evdev: u32) -> Keycode {
++        Keycode::new(evdev + 8)
++    }
++
++    #[test]
++    fn non_latin_layouts_bind_by_the_latin_key() {
++        for (layouts, ru) in [("us,ru", 1), ("ru,us", 0)] {
++            let k = keymap(layouts);
++            // «/» (AB10): «.» in Russian
++            assert_eq!(latin_sym(&k, key(53), ru), Some(Keysym::slash), "{layouts}");
++            assert_eq!(latin_sym(&k, key(30), ru), Some(Keysym::a), "{layouts}");
++            assert_eq!(latin_sym(&k, key(52), ru), Some(Keysym::period), "{layouts}");
++            assert_eq!(latin_sym(&k, key(26), ru), Some(Keysym::bracketleft), "{layouts}");
++            assert_eq!(latin_sym(&k, key(2), ru), Some(Keysym::_1), "{layouts}");
++            assert_eq!(latin_sym(&k, key(28), ru), Some(Keysym::Return), "{layouts}");
++            assert_eq!(latin_sym(&k, key(53), 1 - ru), Some(Keysym::slash), "{layouts}");
++        }
++    }
++
++    #[test]
++    fn latin_layouts_keep_their_own_keys() {
++        let k = keymap("us,de");
++        // Z in US is Y in German: German binds follow German labels, as before
++        assert_eq!(latin_sym(&k, key(44), 1), Some(Keysym::y));
++        assert_eq!(latin_sym(&k, key(44), 0), Some(Keysym::z));
++        // ü has no ASCII: the US key
++        assert_eq!(latin_sym(&k, key(26), 1), Some(Keysym::bracketleft));
++        let k = keymap("fr");
++        assert_eq!(latin_sym(&k, key(16), 0), Some(Keysym::a));
++    }
++}
++
+ /// Result for key input filtering (see [`KeyboardHandle::input`])
+ #[derive(Debug)]
+ pub enum FilterResult<T> {

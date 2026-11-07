@@ -389,9 +389,10 @@ pub fn key_name(e: &KeyEvent) -> Option<String> {
     Some(n)
 }
 
-/// буква сочетания с Ctrl в полях шелла (Ctrl+A/C/V/U/P): в латинской раскладке — та, что
-/// подписана на клавише (AZERTY, Dvorak, Colemak), в другой (русская) — по положению, как у QWERTY
-pub fn ctrl_letter(e: &KeyEvent) -> Option<char> {
+/// буква клавиши для сочетаний шелла (Ctrl+A/C/V/U/P в полях, буквы меню питания): в латинской
+/// раскладке — та, что подписана на клавише (AZERTY, Dvorak, Colemak), в другой (русская) — по
+/// положению, как у QWERTY
+pub fn latin_letter(e: &KeyEvent) -> Option<char> {
     let k = e.keysym.raw();
     if (0x41..=0x5a).contains(&k) || (0x61..=0x7a).contains(&k) {
         return Some((k as u8 as char).to_ascii_uppercase());
@@ -715,18 +716,18 @@ impl App {
 mod tests {
     /// Ctrl+буква: QWERTY и русская — по положению, AZERTY и Dvorak — по подписи на клавише
     #[test]
-    fn ctrl_letters_in_any_layout() {
+    fn latin_letters_in_any_layout() {
         use smithay_client_toolkit::seat::keyboard::{KeyEvent, Keysym};
         let ev = |code: u32, sym: Keysym| KeyEvent { time: 0, raw_code: code, keysym: sym, utf8: None };
         // evdev 30 — место «A» в QWERTY; 16 — место «Q»; 47 — «V»; 52 — «.»
-        assert_eq!(super::ctrl_letter(&ev(30, Keysym::a)), Some('A'));
-        assert_eq!(super::ctrl_letter(&ev(30, Keysym::Cyrillic_ef)), Some('A'));
-        assert_eq!(super::ctrl_letter(&ev(47, Keysym::Cyrillic_em)), Some('V'));
-        assert_eq!(super::ctrl_letter(&ev(16, Keysym::a)), Some('A'), "AZERTY: A where QWERTY has Q");
-        assert_eq!(super::ctrl_letter(&ev(30, Keysym::q)), Some('Q'), "AZERTY: Q where QWERTY has A");
-        assert_eq!(super::ctrl_letter(&ev(52, Keysym::v)), Some('V'), "Dvorak: V where QWERTY has the period");
-        assert_eq!(super::ctrl_letter(&ev(30, Keysym::A)), Some('A'), "Caps Lock");
-        assert_eq!(super::ctrl_letter(&ev(2, Keysym::_1)), None);
+        assert_eq!(super::latin_letter(&ev(30, Keysym::a)), Some('A'));
+        assert_eq!(super::latin_letter(&ev(30, Keysym::Cyrillic_ef)), Some('A'));
+        assert_eq!(super::latin_letter(&ev(47, Keysym::Cyrillic_em)), Some('V'));
+        assert_eq!(super::latin_letter(&ev(16, Keysym::a)), Some('A'), "AZERTY: A where QWERTY has Q");
+        assert_eq!(super::latin_letter(&ev(30, Keysym::q)), Some('Q'), "AZERTY: Q where QWERTY has A");
+        assert_eq!(super::latin_letter(&ev(52, Keysym::v)), Some('V'), "Dvorak: V where QWERTY has the period");
+        assert_eq!(super::latin_letter(&ev(30, Keysym::A)), Some('A'), "Caps Lock");
+        assert_eq!(super::latin_letter(&ev(2, Keysym::_1)), None);
     }
 
     #[test]

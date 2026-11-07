@@ -9,6 +9,8 @@ has its Russian line in CHANGELOG.ru.md: `tools/check.sh` checks that.
 
 ## Unreleased
 
+- Keybindings in any layout: in Russian and other non-Latin layouts the keys with punctuation (`Mod+/`, `Mod+.`, `Mod+[`, `Mod+-`…) used to miss or hit the wrong bind, because niri looked at the symbol the current layout prints. yami-niri 26.04-yami.6 matches them by the key of your Latin layout, as letters already were; the power menu's letters work in any layout too. Active from the next login after the fork is rebuilt.
+
 ## 2.6.0
 
 - Our own login screen instead of SDDM: yami-greet draws the lock screen's face (wallpaper under the veil, the big clock, the password field) inside niri, and greetd, a small daemon in Rust, checks the password and starts the session. No Qt, no QML, no theme files: it follows the shell by itself (palette, wallpaper, language, monitors and keyboard layouts, published to `/var/lib/yami-greet/look` on every change; `yami login sync` does it at once), remembers who logged in and the session, shows caps lock and the layout, asks second factors and password changes from PAM, offers sleep, reboot and power off, wipes a half-typed password after a minute and turns the screens off after two. If niri or yami-greet ever cannot start, greetd's text login takes that one boot. The installer switches an SDDM with the old yami theme over; by hand: `tools/greet-install.sh`.

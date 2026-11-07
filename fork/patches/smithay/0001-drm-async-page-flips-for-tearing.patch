@@ -1,7 +1,7 @@
 From e074766dbe444634da4b51812e09b5459f3e315c Mon Sep 17 00:00:00 2001
 From: yami <yami@localhost>
 Date: Tue, 3 Nov 2026 07:55:49 +0300
-Subject: [PATCH] drm: async page flips for tearing
+Subject: [PATCH 1/2] drm: async page flips for tearing
 
 DrmCompositor::set_allow_tearing(true): a frame that changes only the
 primary plane's buffer (same src, dst, format; no other plane touched)

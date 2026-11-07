@@ -19,7 +19,7 @@ NIRI_REV="8ed0da44d974c32c6877d2f4630c314da0717ecb" # v26.04
 SMITHAY_REPO="https://github.com/Smithay/smithay.git"
 SMITHAY_REV="ff5fa7df392cecfba049ffed55cdaa4e98a8e7ef" # what niri v26.04 pins
 # .N is the series level (number of patches): the shell writes only config the running niri knows
-VERSION="26.04-yami.5"
+VERSION="26.04-yami.6"
 SRC="${YAMI_NIRI_SRC:-${XDG_CACHE_HOME:-$HOME/.cache}/yami/niri-src}"
 LIB="$HOME/.local/lib/yami-niri"
 UNITS="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/niri.service.d"

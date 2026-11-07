@@ -43,6 +43,10 @@ Installed layout: `~/.local/lib/yami-niri/<rev>/niri`, `current` → the live bu
    recordings with it. A window screencast draws `show-only-in "screencast"` layers over the
    window too, shifted to where the window is on the monitor, so the curtain also covers a single
    shared window.
+6. **Binds in any layout** (smithay): with a non-Latin layout active (Russian, Ukrainian, Greek…) a
+   bind matches the key of the first Latin layout, punctuation included. Upstream took the current
+   layout's sym whenever it was ASCII, and Russian types «.» where US has «/»: `Mod+Shift+/` did
+   nothing and `Mod+/` ran the `Mod+.` bind. Latin layouts keep their own labels, as before.
 
 `niri --version` says `26.04-yami.N (<rev>)`, where N is the series level (the number of patches).
 The shell detects the fork by `yami` and writes a fork-only key only when the running build's
