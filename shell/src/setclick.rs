@@ -77,6 +77,7 @@ impl App {
                     "blur_term" => s.blur_term = !s.blur_term,
                     "clock_seconds" => s.clock_seconds = !s.clock_seconds,
                     "tray_pixel" => s.tray_pixel = !s.tray_pixel,
+                    "bat_hide_full" => s.bat_hide_full = !s.bat_hide_full,
                     "app_foot" | "app_cava" | "app_starship" => {
                         let app = &k[4..];
                         match s.app_themes.iter().position(|a| a == app) {

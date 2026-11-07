@@ -355,6 +355,10 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
         "bat" => {
             // батарея ноутбука: нет батареи — модуля нет. Значок — клетками по 2 px, как все значки бара
             let Some(bat) = st.sys.bat else { return 0 };
+            // от сети и не заряжается (полная или держит порог): по желанию модуля нет (#21)
+            if st.set.bat_hide_full && bat.plugged && !bat.charging {
+                return 0;
+            }
             let txt = format!("{}%", bat.pct);
             let bw = if bat.charging { 16 } else { 0 };
             let w = bw + 22 + 6 + ui.w(PX, &txt);

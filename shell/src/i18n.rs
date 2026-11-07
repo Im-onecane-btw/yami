@@ -799,6 +799,7 @@ const PAIRS: &[(&str, &str)] = &[
     ("сразу открывать в файлах", "open in files at once"),
     ("иначе — карточка «открыть»", "otherwise a card with “open”"),
     ("трей и пароли — после перезапуска; порталы — после входа", "tray and passwords — after a restart; portals — after the next login"),
+    ("прятать полную батарею", "hide a full battery"),
     ("трей клетками", "pixel tray"),
     ("программы в цветах палитры", "apps in the palette colours"),
     ("терминал: include в foot.ini", "terminal: include in foot.ini"),

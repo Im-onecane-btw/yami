@@ -158,6 +158,8 @@ pub struct Settings {
     pub tray_mode: String,
     /// значки трея клетками в тонах палитры, как пиксельные значки дока и лаунчера (#19)
     pub tray_pixel: bool,
+    /// модуль bat прячется от сети без зарядки: полная или держит порог заряда (#21)
+    pub bat_hide_full: bool,
     /// какие программы theme.py красит по палитре сверх постоянных (#17): foot, cava, starship
     pub app_themes: Vec<String>,
     pub clock_seconds: bool,
@@ -496,6 +498,7 @@ impl Default for Settings {
             temp_style: "full".into(),
             tray_mode: "icons".into(),
             tray_pixel: false,
+            bat_hide_full: false,
             app_themes: vec!["foot".into(), "cava".into(), "starship".into()],
             clock_seconds: false,
             clock_date: true,
