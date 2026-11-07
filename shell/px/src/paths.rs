@@ -156,13 +156,24 @@ pub fn pids(exe: &str, arg: &str) -> Vec<u32> {
 /// файл, путь к которому дал чужой процесс (уведомление, плеер), читаем с потолком: /dev/zero,
 /// fifo или гигантский файл не съедят память и не подвесят нить. Не обычный файл — None.
 pub fn read_capped(p: &Path, max: u64) -> Option<Vec<u8>> {
+    read_capped_with(p, max, 0)
+}
+
+/// то же, но сам файл не может быть ссылкой (O_NOFOLLOW): файлы из папки, которую пишет другой
+/// пользователь (вид для экрана входа), — ссылка на чужой файл не прочтётся с нашими правами
+pub fn read_capped_nofollow(p: &Path, max: u64) -> Option<Vec<u8>> {
+    read_capped_with(p, max, libc::O_NOFOLLOW)
+}
+
+fn read_capped_with(p: &Path, max: u64, flags: i32) -> Option<Vec<u8>> {
     use std::io::Read;
     use std::os::unix::fs::OpenOptionsExt;
-    if !std::fs::metadata(p).ok()?.is_file() {
+    let m = if flags & libc::O_NOFOLLOW != 0 { std::fs::symlink_metadata(p) } else { std::fs::metadata(p) };
+    if !m.ok()?.is_file() {
         return None;
     }
     // O_NONBLOCK: если файл подменили на fifo между проверкой и открытием, open не повиснет
-    let f = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK).open(p).ok()?;
+    let f = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | flags).open(p).ok()?;
     let m = f.metadata().ok()?;
     if !m.is_file() || m.len() > max {
         return None;

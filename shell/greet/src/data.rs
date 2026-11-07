@@ -188,9 +188,9 @@ pub fn remember(user: &str, session: &str) {
 }
 
 /// вид, выложенный шеллом: настройки в формате yami-shell.json. Файл пишет пользователь: читается
-/// только обычный файл и не больше мегабайта (fifo или /dev/zero под этим именем не подвесят вход)
+/// только обычный файл (не ссылка) и не больше мегабайта (fifo или /dev/zero под этим именем не подвесят вход)
 pub fn look_json() -> serde_json::Value {
-    yami_px::paths::read_capped(&look_dir().join("look.json"), 1 << 20).and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(serde_json::Value::Null)
+    yami_px::paths::read_capped_nofollow(&look_dir().join("look.json"), 1 << 20).and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(serde_json::Value::Null)
 }
 
 /// что настроено для экрана входа (вкладка шелла «экран входа», ключи greet* в look.json)
@@ -226,7 +226,7 @@ impl Opts {
 /// обои: картинка шелла, уже обрезанная и в тонах палитры (размер первого монитора). Читается с
 /// потолками: файл ≤ 48 МБ, сторона ≤ 8K, память декодера ≤ 160 МБ; RGB сразу в пиксели холста
 pub fn wall() -> Option<Img> {
-    let bytes = yami_px::paths::read_capped(&look_dir().join("wall.png"), 48 << 20)?;
+    let bytes = yami_px::paths::read_capped_nofollow(&look_dir().join("wall.png"), 48 << 20)?;
     let mut r = image::ImageReader::with_format(std::io::Cursor::new(&bytes), image::ImageFormat::Png);
     let mut lim = image::Limits::default();
     lim.max_image_width = Some(8192);
