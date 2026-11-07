@@ -66,17 +66,15 @@ Built from source on your machine (Arch, Fedora, Debian/Ubuntu, openSUSE, Void, 
   [[ $newest == "v$v" ]] && latest=true
   # the install counter (docs/SECURITY.md, «Install count»): install.sh downloads this file from
   # the latest release once per machine; never --clobber, a re-upload would zero its download count.
-  # Releases are immutable once published (docs/SECURITY.md, «The repository»): the file goes in with
-  # the release itself, files cannot be added to a published one
+  # It goes in with the release itself, so a release is never public without it
   local f; f="$(mktemp -d)/yami-installs.txt"
   printf '%s\n' "yami install counter: install.sh downloads this file once per machine, so its download" \
     "count is the number of installs. Nothing is sent with it. See docs/SECURITY.md, «Install count»." >"$f"
   if gh release view "v$v" >/dev/null 2>&1; then
-    # notes and title stay editable on an immutable release
     gh release edit "v$v" --title "yami $v" --notes "$body" --latest="$latest" >/dev/null
     if ! gh release view "v$v" --json assets -q '.assets[].name' 2>/dev/null | grep -qx yami-installs.txt; then
       gh release upload "v$v" "$f" >/dev/null && say "$(t "счётчик установок прикреплён" "install counter attached")" ||
-        say "$(t "счётчик не прикрепить: выпуск уже неизменяемый" "the counter cannot be attached: the release is immutable")"
+        say "$(t "счётчик не прикрепился" "the counter was not attached")"
     fi
   else
     gh release create "v$v" --verify-tag --title "yami $v" --notes "$body" --latest="$latest" "$f" >/dev/null
