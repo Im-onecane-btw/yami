@@ -9,7 +9,9 @@
 # system log (journalctl -t yami-greet, or syslog). Nothing is written to the terminal: text there
 # makes the console take the screen over between the login screen and the session.
 umask 077
-G=/usr/local/bin/yami-greet
+# yami-greet next to this script's prefix: /usr/local/lib/yami → /usr/local/bin (the installer),
+# libexec/yami → bin (a package); YAMI_GREET names another
+G=${YAMI_GREET:-$(dirname -- "$0")/../../bin/yami-greet}
 ST=/var/lib/yami-greet/state
 LG=/var/lib/yami-greet/log
 LOG=$LG/greet.log

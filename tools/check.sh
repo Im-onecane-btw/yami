@@ -67,6 +67,8 @@ if [[ -x $PLAY ]]; then
 fi
 step "unit tests"
 cargo test --release --locked --workspace --quiet --manifest-path "$ROOT/shell/Cargo.toml" >"$TMP/test.log" 2>&1 && ok "cargo test" || { tail -20 "$TMP/test.log"; bad "cargo test"; }
+# a package manager's build (Nix, distro packages): the updater is off (docs/PACKAGING.md)
+cargo test --release --locked -p yami-shell --features package-managed --quiet --manifest-path "$ROOT/shell/Cargo.toml" package_manager_owns_updates >"$TMP/managed.log" 2>&1 && ok "cargo test (package-managed)" || { tail -20 "$TMP/managed.log"; bad "cargo test --features package-managed"; }
 
 step "login screen (yami-greet: offscreen states, niri config)"
 GREET="$ROOT/shell/target/release/yami-greet"

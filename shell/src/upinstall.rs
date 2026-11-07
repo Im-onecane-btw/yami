@@ -70,6 +70,7 @@ pub(crate) fn copy_bins(from: &Path, to: &Path) -> std::io::Result<()> {
 
 /// поставить найденное обновление; Err — почему нет
 pub fn apply(set: &Settings) -> Result<String, String> {
+    require_enabled()?;
     let Some(_l) = lock() else { return Err(crate::tf!("обновление уже идёт", "an update is already running")) };
     progress(&crate::tf!("проверяю, что нового", "checking what is new"));
     let i = check(set);
@@ -89,6 +90,7 @@ pub fn apply(set: &Settings) -> Result<String, String> {
 /// перейти на выбранный выпуск (тег vX.Y.Z или X.Y.Z), старее или новее установленного.
 /// Ставится только то, что проходит правило подписей, как и обычное обновление
 pub fn install_tag(set: &Settings, want: &str) -> Result<String, String> {
+    require_enabled()?;
     let Some(_l) = lock() else { return Err(crate::tf!("обновление уже идёт", "an update is already running")) };
     let tag = format!("v{}", want.trim().trim_start_matches('v'));
     if ver(&tag).is_empty() || !tag[1..].chars().all(|c| c.is_ascii_digit() || c == '.') {
@@ -116,6 +118,7 @@ pub fn install_tag(set: &Settings, want: &str) -> Result<String, String> {
 
 /// сборка и установка коммита i.target из своего клона; прежние бинари — в откат
 pub(crate) fn build_install(i: &Info) -> Result<(), String> {
+    require_enabled()?;
     let dir = clone_dir();
     if !git(&dir, &["status", "--porcelain", "--untracked-files=no"]).unwrap_or_default().is_empty() {
         return Err(crate::tf!("в {} есть правки — убери их, и обновлю", "{} has local edits: remove them and update again", dir.display()));
@@ -278,6 +281,7 @@ pub(crate) fn strip_ansi(s: &str) -> String {
 
 /// вернуть бинари, что стояли до последнего обновления
 pub fn rollback() -> Result<String, String> {
+    require_enabled()?;
     let Some(_l) = lock() else { return Err(crate::tf!("обновление уже идёт", "an update is already running")) };
     let p = prev_dir();
     if !p.join("yami-shell").exists() {

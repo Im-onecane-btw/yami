@@ -22,6 +22,7 @@ const KEYS: [&str; 22] = [
     "greetHost", "greetPower", "greetOff", "greetNumlock",
 ];
 
+/// куда ставит установщик (tools/greet-install.sh)
 const GREET: &str = "/usr/local/bin/yami-greet";
 const LOG_DIR: &str = "/var/lib/yami-greet/log";
 
@@ -36,8 +37,17 @@ pub fn writable() -> bool {
     unsafe { libc::access(c.as_ptr(), libc::W_OK) == 0 }
 }
 
+/// yami-greet: установленный установщиком, а у сборки пакетного менеджера (Nix) — рядом с шеллом
+pub fn greet_bin() -> Option<PathBuf> {
+    if Path::new(GREET).exists() {
+        return Some(GREET.into());
+    }
+    let near = yami_px::paths::self_exe().with_file_name("yami-greet");
+    (!crate::update::ENABLED && near.is_file()).then_some(near)
+}
+
 pub fn installed() -> bool {
-    Path::new(GREET).exists()
+    greet_bin().is_some()
 }
 
 pub fn look(set: &Settings) -> String {
@@ -275,7 +285,7 @@ impl App {
                 // вид отдаётся сразу: «посмотреть» показывает то, что сейчас в настройках
                 publish(&self.st.set);
                 self.close_modal();
-                App::spawn(&[GREET.into(), "--demo".into()]);
+                App::spawn(&[greet_bin().unwrap_or_else(|| GREET.into()).display().to_string(), "--demo".into()]);
                 return true;
             }
             "login_log" => {
@@ -317,7 +327,7 @@ pub fn cli(a: &[&str]) -> i32 {
                 return 1;
             }
             publish(&Settings::load());
-            std::process::Command::new(GREET).arg("--demo").status().map(|s| s.code().unwrap_or(1)).unwrap_or(1)
+            std::process::Command::new(greet_bin().unwrap_or_else(|| GREET.into())).arg("--demo").status().map(|s| s.code().unwrap_or(1)).unwrap_or(1)
         }
         _ => {
             eprintln!("yami login [sync|status|log|preview]");
@@ -329,7 +339,7 @@ pub fn cli(a: &[&str]) -> i32 {
 fn status() -> i32 {
     let p = probe();
     let yes = |b: bool| if b { "✓" } else { "·" };
-    println!("{} yami-greet   {}", yes(p.installed), if p.installed { GREET } else { "—" });
+    println!("{} yami-greet   {}", yes(p.installed), greet_bin().map(|p| p.display().to_string()).unwrap_or_else(|| "—".into()));
     let dm = match p.dm {
         Some(true) => crate::tf!("greetd — менеджер входа", "greetd is the login manager"),
         Some(false) => crate::tf!("greetd не включён", "greetd is not enabled"),

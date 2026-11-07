@@ -165,6 +165,10 @@ pub fn tab(ui: &mut Ui, st: &State, b: R) {
     }
     y += 10;
     y = title(ui, b.x, y, b.w, "обновления");
+    if !ENABLED {
+        ui.text_in(px, R::new(b.x, y, b.w, 22), &managed_message(), t.text_dim);
+        return;
+    }
     let chan = if s.update_channel == "main" { "каждый коммит" } else { "выпуски" };
     opt_btn(ui, R::new(b.x, y, half, 26), "канал", chan, Act::SCycle("update_channel"));
     let ver_l = match s.update_verify.as_str() {

@@ -21,6 +21,16 @@ pub const KEYS: &str = "keys/allowed_signers";
 pub const REPO: &str = "https://github.com/Trendorin/yami.git";
 const NOTE_ID: u32 = 9_400_001;
 
+pub const ENABLED: bool = !cfg!(feature = "package-managed");
+
+pub fn managed_message() -> String {
+    crate::tf!("Обновлениями управляет пакетный менеджер.", "Updates are managed by your package manager.")
+}
+
+pub(crate) fn require_enabled() -> Result<(), String> {
+    if ENABLED { Ok(()) } else { Err(managed_message()) }
+}
+
 /// что установлено: пишет `yami-shell update stamp` (установщик, tools/deploy.sh)
 #[derive(Serialize, Deserialize, Default, Clone, Debug, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
@@ -260,6 +270,9 @@ pub(crate) fn ver(s: &str) -> Vec<u64> {
 
 /// проверить, что нового (сеть, git): из нити или из терминала
 pub fn check(set: &Settings) -> Info {
+    if !ENABLED {
+        return Info { err: managed_message(), ..Default::default() };
+    }
     let mut i = Info { at: now(), ..Default::default() };
     if let Err(e) = check_into(set, &mut i) {
         i.err = e;
@@ -269,6 +282,7 @@ pub fn check(set: &Settings) -> Info {
 }
 
 pub(crate) fn check_into(set: &Settings, i: &mut Info) -> Result<(), String> {
+    require_enabled()?;
     let st = installed();
     let dir = ensure_clone(set, &st)?;
     // теги без --force: тег, переписанный на сервере, не заменит уже виденный
@@ -437,7 +451,7 @@ pub fn sig_text(sig: &str) -> String {
 // ── шелл: проверка по расписанию, вкладка, команды от `yami update` ─────────
 impl App {
     pub fn update_check(&mut self) {
-        if self.st.upd.checking {
+        if !ENABLED || self.st.upd.checking {
             return;
         }
         self.st.upd.checking = true;
@@ -456,7 +470,7 @@ impl App {
     /// раз в минуту: пора ли проверить (не раньше минуты после старта; ошибка — снова через час)
     pub fn update_tick(&mut self) {
         let s = &self.st.set;
-        if !s.update_check || s.update_every == 0 || self.st.upd.checking || self.st.upd.busy.is_some() || self.st.started.elapsed().as_secs() < 60 {
+        if !ENABLED || !s.update_check || s.update_every == 0 || self.st.upd.checking || self.st.upd.busy.is_some() || self.st.started.elapsed().as_secs() < 60 {
             return;
         }
         let every = match &self.st.upd.info {
@@ -544,6 +558,9 @@ impl App {
 
     /// кнопки вкладки
     pub fn update_cycle(&mut self, k: &str) -> bool {
+        if !ENABLED {
+            return false;
+        }
         let s = &mut self.st.set;
         match k {
             "update_channel" => {
@@ -622,6 +639,18 @@ pub(crate) fn spawn_detached(what: &[&str]) {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "package-managed")]
+    #[test]
+    fn package_manager_owns_updates() {
+        let set = crate::config::Settings::default();
+        assert!(!super::ENABLED);
+        assert!(!super::check(&set).err.is_empty());
+        assert!(super::apply(&set).is_err());
+        assert!(super::install_tag(&set, "2.5.0").is_err());
+        assert!(super::rollback().is_err());
+        assert!(super::build_install(&super::Info::default()).is_err());
+    }
+
     #[test]
     fn notes_as_plain_text() {
         assert_eq!(super::plain("**Bar shape** ([#5](https://github.com/Trendorin/yami/issues/5)): `barFloat`"), "Bar shape (#5): barFloat");

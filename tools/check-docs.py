@@ -15,9 +15,9 @@ import unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PAIRS = ["README.md", "CHANGELOG.md", "docs/CONFIG.md", "docs/SECURITY.md", "fork/README.md"]
+PAIRS = ["README.md", "CHANGELOG.md", "docs/CONFIG.md", "docs/SECURITY.md", "docs/PACKAGING.md", "fork/README.md"]
 # headings that are a name, not words: the same in both languages
-SAME = re.compile(r"^(\d+\.\d+\.\d+|[\w.]*[.\-][\w.\-]*|yami)$")
+SAME = re.compile(r"^(\d+\.\d+\.\d+|[\w.]*[.\-][\w.\-]*|yami|Nix)$")
 HEADS = {"Unreleased": "Не выпущено"}
 CYR = re.compile("[а-яёА-ЯЁ]")
 ITEM = re.compile(r"\s*([-*]|\d+\.) ")

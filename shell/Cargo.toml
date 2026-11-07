@@ -12,6 +12,10 @@ license = "MIT"
 name = "yami-shell"
 path = "src/main.rs"
 
+[features]
+# Package managers own upgrades; disable the CLI/GUI updater and scheduled checks.
+package-managed = []
+
 [dependencies]
 yami-px = { path = "px" }
 smithay-client-toolkit = "0.20"

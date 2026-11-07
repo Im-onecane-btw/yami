@@ -17,7 +17,7 @@ mod kdl;
 mod niri;
 
 use draw::{Phase, G};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Instant;
 use yami_px::font::Fonts;
 use yami_px::look::Look;
@@ -47,7 +47,7 @@ fn main() {
 fn fonts(look: &Look) -> Fonts {
     let own = look.font("shell");
     if own.is_empty() {
-        Fonts::bundled(Path::new(data::FONTS))
+        Fonts::bundled(&data::fonts_dir())
     } else {
         Fonts::with(own)
     }

@@ -13,8 +13,15 @@ pub fn look_dir() -> PathBuf {
 }
 /// память экрана входа (последний пользователь и сеанс): папка пользователя greetd
 pub const STATE: &str = "/var/lib/yami-greet/state";
-/// шрифты экрана входа (Tiny5, DotGothic16): кладёт установщик
-pub const FONTS: &str = "/usr/local/share/yami-greet/fonts";
+/// шрифты экрана входа (Tiny5, DotGothic16): YAMI_GREET_FONTS, рядом с бинарником (пакет: bin/ и
+/// share/yami-greet/fonts), иначе куда кладёт установщик
+pub fn fonts_dir() -> PathBuf {
+    if let Some(d) = std::env::var_os("YAMI_GREET_FONTS").filter(|d| !d.is_empty()) {
+        return d.into();
+    }
+    let near = yami_px::paths::self_exe().parent().map(|b| b.join("../share/yami-greet/fonts"));
+    near.filter(|d| d.is_dir()).unwrap_or_else(|| "/usr/local/share/yami-greet/fonts".into())
+}
 
 #[derive(Clone, Debug)]
 pub struct User {

@@ -267,6 +267,10 @@ fn restart(y: &Sty, force: bool) -> i32 {
 }
 
 fn update(y: &Sty, args: &[&str]) -> i32 {
+    if !crate::update::ENABLED {
+        eprintln!("{}", crate::update::managed_message());
+        return 1;
+    }
     let set = Settings::load();
     let notify = args.contains(&"--notify");
     let raw = args;
