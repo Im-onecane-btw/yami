@@ -6,8 +6,12 @@
 # --size`: its own drawing code at the screen's size, with a made-up user and host, on the look the
 # shell published); in English and Russian. yami-greet comes from this tree's build. Runs on an empty workspace with do-not-disturb on (no live notification or
 # window gets into a picture), the generated pixel wallpaper instead of your own picture, sound
-# devices under plain names (audioNames) and drives hidden in yami-files, and puts the workspace,
-# language, do-not-disturb, wallpaper and names back after.
+# devices under plain names (audioNames), drives hidden in yami-files, the network widget shown as
+# a temperature graph (it names the interface: a VPN's, a Wi-Fi card's), no old update log in
+# the updates tab, a plain bar (no tray, night light or Bluetooth: they show your programs and
+# devices) and the apps listed in ~/.config/yami/shots-hide (desktop ids, one per line; a local
+# file, never in the repository) hidden from the launcher; it puts the workspace, language,
+# do-not-disturb, wallpaper, names, widgets, bar, the log and those apps back after.
 # Refuses while a game or a fullscreen window has focus. Needs niri, grim, python3 with Pillow.
 # Usage: tools/readme-shots.sh
 set -euo pipefail
@@ -44,6 +48,12 @@ lang0="$(yami config get lang)"
 dnd0="$(yami config get dnd)"
 names0="$(yami config get audioNames)"
 wall0="$(yami config get wallpaper)"
+widgets0="$(yami config get widgets)"
+bar0=("$(yami config get barLeft)" "$(yami config get barCenter)" "$(yami config get barRight)")
+apps_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+hide_list="${XDG_CONFIG_HOME:-$HOME/.config}/yami/shots-hide"
+hidden=()
+ulog="${XDG_CACHE_HOME:-$HOME/.cache}/yami/update.log"
 pids=()
 # демо-папка с коротким путём для строки адреса; удаляется, только если её создали мы
 demo="${TMPDIR:-/tmp}/yami"
@@ -55,6 +65,12 @@ restore() {
   yami config set dnd "$dnd0" >/dev/null
   yami config set audioNames "$names0" >/dev/null
   yami config set wallpaper "$wall0" >/dev/null
+  yami config set widgets "$widgets0" >/dev/null
+  yami config set barLeft "${bar0[0]}" >/dev/null
+  yami config set barCenter "${bar0[1]}" >/dev/null
+  yami config set barRight "${bar0[2]}" >/dev/null
+  for a in "${hidden[@]}"; do rm -f -- "$apps_dir/$a.desktop"; done
+  [[ -f $TMP/update.log ]] && mv -f "$TMP/update.log" "$ulog"
   niri msg action focus-workspace "$back" >/dev/null 2>&1 || true
   rm -rf "$TMP"
   ((made)) && rm -rf "$demo"
@@ -158,6 +174,30 @@ full() { python3 -I -c 'import sys; from PIL import Image; Image.open(sys.argv[1
 say "$(t "пустой рабочий стол $empty, не беспокоить, пиксельные обои" "empty workspace $empty, do not disturb, the pixel wallpaper")"
 yami config set dnd true >/dev/null
 yami config set wallpaper '""' >/dev/null
+# the network widget names the interface: a temperature graph in its place, same spot and size
+yami config set widgets "$(python3 -I -c '
+import json, sys
+ws = json.loads(sys.argv[1])
+for w in ws:
+    if w.get("kind") == "net":
+        w.update(kind="graph", source="temp", style="line")
+print(json.dumps(ws))' "$widgets0")" >/dev/null
+# a plain bar: what the README is about, nothing of this machine
+yami config set barLeft '["launcher", "sep", "workspaces"]' >/dev/null
+yami config set barCenter '["tasks"]' >/dev/null
+yami config set barRight '["kb", "sep", "cpu", "ram", "temp", "sep", "vol", "clock", "sep", "settings", "power"]' >/dev/null
+# apps of yours kept out of the launcher: a user .desktop with Hidden=true overrides the system one
+# (only where you have no file of your own under that name; removed again in restore)
+if [[ -r $hide_list ]]; then
+  mkdir -p "$apps_dir"
+  while read -r a; do
+    [[ $a =~ ^[A-Za-z0-9._-]+$ && ! -e $apps_dir/$a.desktop ]] || continue
+    printf '[Desktop Entry]\nType=Application\nName=%s\nHidden=true\n' "$a" >"$apps_dir/$a.desktop"
+    hidden+=("$a")
+  done <"$hide_list"
+fi
+# the updates tab draws the tail of the last update's log: an older version there would contradict the header
+[[ -f $ulog ]] && mv -f "$ulog" "$TMP/update.log"
 niri msg action focus-workspace "$empty"
 for lang in en ru; do
   say "$(t "язык" "language"): $lang"

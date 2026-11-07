@@ -27,7 +27,7 @@ shell, **yami-shell**, draws the bar, launcher, dock, notifications, lock screen
 settings itself, in Rust and shared memory, in one ~6 MB binary that uses **about 15 MB of RAM**.
 Files, images, the login screen and every other app follow the same palette.
 
-<img src=".github/assets/features-en.png" width="100%" alt="What is inside: a ~15 MB shell, one accent for everything, made for games, files and viewer, screenshots, a curtain for streams, signed updates, any distribution">
+<img src=".github/assets/features-en.png" width="100%" alt="What is inside: a ~15 MB shell, one accent for everything, our own login screen, made for games, files, viewer and player, screenshots, a curtain for streams, signed updates, any distribution, three languages">
 
 Install on any of eight distributions with one command, built from source:
 
@@ -143,6 +143,10 @@ Everything it does and its flags: [Installation](#installation).
 ## Screenshots
 
 Real screenshots of a yami session (`tools/readme-shots.sh`).
+
+**Login screen** · our own greeter: the lock screen's face, greetd checks the password
+
+<img src=".github/assets/login-en.png" width="100%" alt="The login screen: the big clock, the user and the password field on the pixel wallpaper under the veil">
 
 **yami-files** · thumbnails, places, tabs and split view; the file dialog of every app
 
