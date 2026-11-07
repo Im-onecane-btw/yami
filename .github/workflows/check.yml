@@ -3,18 +3,25 @@ on:
   push:
     branches: [main]
   pull_request:
+# third-party actions are pinned to a commit (a moved tag cannot change what runs); dependabot bumps them
+permissions:
+  contents: read
 jobs:
   check:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
       - name: system libraries and fonts
         run: |
           sudo apt-get update -q
           sudo apt-get install -y -q --no-install-recommends libxkbcommon-dev libpam0g-dev pkg-config fontconfig fonts-dejavu-core
           mkdir -p ~/.local/share/fonts && cp fonts/*.ttf ~/.local/share/fonts/ && fc-cache -f
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: shell
       - run: tools/check.sh

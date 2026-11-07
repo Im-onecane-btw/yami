@@ -9,11 +9,14 @@ on:
   schedule:
     - cron: "17 3 * * *"
   workflow_dispatch:
-permissions:
-  contents: write
+permissions: {}
 jobs:
   badge:
     runs-on: ubuntu-latest
+    # writes only badge.json on the stats branch
+    permissions:
+      contents: write
+    timeout-minutes: 5
     steps:
       - name: count and write the badge
         env:
