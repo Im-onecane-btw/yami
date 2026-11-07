@@ -441,7 +441,7 @@ fn icon_file(name: &str, dir: &str) -> Option<String> {
                 continue;
             }
             // размер из пути: …/22x22/… ; без него — как средний
-            let n = p.iter().filter_map(|c| c.to_str()?.split_once('x')?.0.parse::<i32>().ok()).next();
+            let n = p.iter().find_map(|c| c.to_str()?.split_once('x')?.0.parse::<i32>().ok());
             let score = match (ext, n) {
                 ("svg", _) => 70,
                 (_, Some(n)) if n >= 16 => n,

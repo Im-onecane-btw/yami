@@ -6,11 +6,9 @@ use crate::gfx::R;
 use crate::icons::{self};
 use crate::{launcher, menu, net, popups};
 
-use smithay_client_toolkit::{
-    shell::{
-        wlr_layer::{Anchor, KeyboardInteractivity, Layer},
-        WaylandSurface,
-    },
+use smithay_client_toolkit::shell::{
+    wlr_layer::{Anchor, KeyboardInteractivity, Layer},
+    WaylandSurface,
 };
 
 impl App {
