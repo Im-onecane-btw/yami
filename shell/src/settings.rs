@@ -68,6 +68,7 @@ pub const GROUPS: &[(&str, &[Tab])] = &[
         "система",
         &[
             tab("system", "система", "gear", "система язык сон блокировка ожидание ночной свет system language idle sleep lock night light", tab_system), // i18n-ok
+            tab("login", "экран входа", "lock", "экран входа вход логин greetd пользователи пароль numlock вуаль менеджер входа login screen greeter display manager users password numlock veil", crate::login::tab), // i18n-ok
             tab("notif", "уведомления", "bell", "уведомления не беспокоить место история osd громкость яркость notifications do not disturb position history osd volume brightness", tab_notif), // i18n-ok
             tab("agents", "службы", "bolt", "службы трей polkit порталы флешки телефоны автоподключение обложки тексты погода services tray portals automount drives phones covers lyrics weather", crate::agents::tab), // i18n-ok
             tab("updates", "обновления", "down", "обновления версия откат updates version rollback", crate::update::tab), // i18n-ok
@@ -271,6 +272,7 @@ impl App {
         match self.st.stab {
             "games" => self.st.game_probe = crate::gameboost::probe(),
             "wall" => self.st.skwd_here = crate::skwd::installed(),
+            "login" => self.st.login_probe = crate::login::probe(),
             _ => {}
         }
     }

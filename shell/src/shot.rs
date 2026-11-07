@@ -98,6 +98,9 @@ const TARGETS: &[&str] = &[
     "settings:keys-custom",
     "settings:keys-layout",
     "settings:agents",
+    "settings:login",
+    "settings:login-fail",
+    "settings:login-none",
     "settings:notif",
     "settings:system-scroll",
     "settings:updates",
@@ -299,6 +302,20 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
                 st.stab = "system";
                 st.sscroll = (90, "system");
                 st.sscroll_h.set(900);
+            }
+            if let Some(k) = arg.strip_prefix("login") {
+                // образец: стоит и вошли / не поднялся / не установлен
+                st.stab = "login";
+                st.login_probe = crate::login::Probe {
+                    installed: k != "-none",
+                    look: k != "-none",
+                    dm: Some(k != "-none"),
+                    last: match k {
+                        "-fail" => "2026-11-07 10:58:27 text it did not come up 2 times in a row".into(),
+                        "-none" => String::new(),
+                        _ => "2026-11-07 10:59:43 ok 412".into(),
+                    },
+                };
             }
             if arg.starts_with("updates") {
                 // образец, а не то, что стоит на этой машине

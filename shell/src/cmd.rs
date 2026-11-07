@@ -98,6 +98,8 @@ fn help(y: &Sty, me: &str) {
     y.row("ocr FILE", &crate::tf!("текст с картинки (как «текст» на скриншоте)", "text from an image (like «text» in screenshots)"));
     y.row("report [-o FILE]", &crate::tf!("архив для issue: версии, doctor, журнал, конфиги без секретов", "an archive for an issue: versions, doctor, journal, configs without secrets"));
     y.row("login sync", &crate::tf!("отдать экрану входа вид шелла сейчас (шелл делает это сам)", "give the login screen the shell's look now (the shell does it by itself)"));
+    y.row("login status | log", &crate::tf!("экран входа: стоит ли, как прошёл последний запуск, его журнал", "the login screen: installed or not, how its last start went, its log"));
+    y.row("login preview", &crate::tf!("экран входа поверх стола (пароль yami или Esc)", "the login screen over the desktop (password yami or Esc)"));
     y.row("clean [--dry-run]", &crate::tf!("убрать кеш сборки: исходники yami-niri и target шелла (гигабайты)", "remove the build cache: yami-niri sources and the shell's target (gigabytes)"));
     y.row("version", &crate::tf!("версии всех частей", "versions of every part"));
     y.row("shot …", &crate::tf!("панели в PNG без Wayland (разработка)", "panels to PNG without Wayland (development)"));

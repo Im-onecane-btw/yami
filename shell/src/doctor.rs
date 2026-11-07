@@ -88,10 +88,10 @@ fn line(y: &Sty, mark: &str, what: &str, note: &str) {
     println!("   {mark} {}{}{}", what, " ".repeat(pad), y.dim(note));
 }
 
-/// экран входа: yami-greet стоит, greetd — менеджер входа, вид шелла до него доходит
+/// экран входа: yami-greet стоит, greetd — менеджер входа, вид шелла до него доходит, как прошёл
+/// последний запуск (greet-session пишет его в /var/lib/yami-greet/log)
 fn login(y: &Sty) {
-    let dm = std::fs::read_link("/etc/systemd/system/display-manager.service").map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
-    let greet = std::path::Path::new("/usr/local/bin/yami-greet").exists();
+    let greet = crate::login::installed();
     if !greet && !std::path::Path::new("/usr/share/sddm/themes/yami").exists() {
         return;
     }
@@ -101,15 +101,20 @@ fn login(y: &Sty) {
         return;
     }
     line(y, &y.ok("✓"), "yami-greet", "/usr/local/bin/yami-greet");
-    if dm.is_empty() || dm.contains("greetd") {
-        line(y, &y.ok("✓"), "greetd", &crate::tf!("менеджер входа", "the login manager"));
-    } else {
-        line(y, &y.warn("·"), "greetd", &crate::tf!("не менеджер входа: sudo systemctl enable -f greetd", "not the login manager: sudo systemctl enable -f greetd"));
+    match crate::login::dm() {
+        Some(false) => line(y, &y.warn("·"), "greetd", &crate::tf!("не менеджер входа: tools/greet-install.sh", "not the login manager: tools/greet-install.sh")),
+        _ => line(y, &y.ok("✓"), "greetd", &crate::tf!("менеджер входа", "the login manager")),
     }
     if crate::login::writable() {
         line(y, &y.ok("✓"), &crate::tf!("вид", "look"), &crate::login::dir().display().to_string());
     } else {
         line(y, &y.warn("·"), &crate::tf!("вид", "look"), &crate::tf!("папка не твоя: экран входа не идёт за шеллом", "the folder is not yours: the login screen does not follow the shell"));
+    }
+    let last = crate::login::last_result();
+    if !last.is_empty() {
+        let bad = last.split(' ').nth(2).is_some_and(|w| w == "fail" || w == "text");
+        let mark = if bad { y.warn("·") } else { y.ok("✓") };
+        line(y, &mark, &crate::tf!("последний запуск", "last start"), &format!("{last} · yami login log"));
     }
 }
 

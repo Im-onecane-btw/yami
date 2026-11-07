@@ -192,6 +192,21 @@ pub struct Settings {
     /// модули середины: "center" — по центру бара, "after-left" — сразу за левыми
     pub bar_center_align: String,
 
+    // экран входа (yami-greet: login.rs выкладывает их в look.json)
+    /// "list" — пользователи списком, "name" — имя вводят сами (список не показывается)
+    pub greet_users: String,
+    /// обои экрана входа: "desktop" — как на столе, "pixel" — пиксельные из палитры, "plain" — цвет темы
+    pub greet_wall: String,
+    /// плотность вуали над обоями экрана входа (0.2–0.9)
+    pub greet_dim: f32,
+    pub greet_clock: bool,
+    pub greet_host: bool,
+    /// кнопки сна, перезагрузки и выключения (там, где их пускает logind)
+    pub greet_power: bool,
+    /// погасить мониторы экрана входа через столько минут простоя (0 — никогда)
+    pub greet_off: u32,
+    pub greet_numlock: bool,
+
     // система
     pub lock_after: u32,
     pub screen_off_after: u32,
@@ -499,6 +514,14 @@ impl Default for Settings {
             bar_outputs: vec![],
             bar_margin: 6,
             bar_center_align: "center".into(),
+            greet_users: "list".into(),
+            greet_wall: "desktop".into(),
+            greet_dim: 0.55,
+            greet_clock: true,
+            greet_host: true,
+            greet_power: true,
+            greet_off: 2,
+            greet_numlock: true,
             lock_after: 10,
             screen_off_after: 15,
             dnd: false,

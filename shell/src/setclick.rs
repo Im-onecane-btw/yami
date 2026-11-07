@@ -125,6 +125,7 @@ impl App {
                         self.dirty(&SKind::Modal);
                         return true;
                     }
+                    k if crate::login::toggle(s, k) => {}
                     k if crate::agents::toggle(s, k) => {
                         // тексты из сети включили: «не нашлось» для текущего трека — искать заново
                         if k == "lyrics_net" {
@@ -379,7 +380,7 @@ impl App {
                     self.lock_now();
                 }
                 "reload" => self.ipc("reload"),
-                k if self.update_cycle(k) || self.agents_cycle(k) => {}
+                k if self.update_cycle(k) || self.agents_cycle(k) || self.login_cycle(k) => {}
                 "open_config" => {
                     // на диске должно быть то, что сейчас в настройках
                     let j = self.st.set.to_json();

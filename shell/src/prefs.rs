@@ -237,6 +237,8 @@ pub fn settings_set_f32(s: &mut Settings, key: &str, v: f32) {
         "task_width" => s.task_width = (v / 10.0).round() as i32 * 10,
         "wall_pixel" => s.wall_pixel = v.round().max(1.0) as i32,
         "wall_dim" => s.wall_dim = (v * 20.0).round() / 20.0,
+        "greet_dim" => s.greet_dim = ((v * 20.0).round() / 20.0).clamp(0.2, 0.9),
+        "greet_off" => s.greet_off = v.round() as u32,
         "curtain_cell" => s.curtain_cell = ((v / 4.0).round() * 4.0) as i32,
         _ => {}
     }
@@ -260,6 +262,8 @@ pub fn settings_get_f32(s: &Settings, key: &str) -> f32 {
         "task_width" => s.task_width as f32,
         "wall_pixel" => s.wall_pixel as f32,
         "wall_dim" => s.wall_dim,
+        "greet_dim" => s.greet_dim,
+        "greet_off" => s.greet_off as f32,
         "curtain_cell" => s.curtain_cell as f32,
         _ => 0.0,
     }

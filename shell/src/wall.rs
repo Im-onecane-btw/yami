@@ -413,19 +413,26 @@ impl App {
         let (w, h) = self.output_size(&self.focus_out());
         let job = Job::new(&self.st.set, &self.st.t, w, h, source(&self.st));
         let key = job.key();
-        if key == self.wall_key {
+        // и обои экрана входа: сменили их вид — пересчитать, даже если стол прежний
+        let lmode = crate::login::wall_mode(&self.st.set);
+        let full = format!("{key}|{lmode}");
+        if full == self.wall_key {
             return;
         }
-        self.wall_key = key.clone();
+        self.wall_key = full;
         self.wall_job += 1;
         let (n, tx) = (self.wall_job, self.tx.clone());
+        let ljob = (lmode == "pixel").then(|| Job::new(&self.st.set, &self.st.t, w, h, None));
         std::thread::spawn(move || {
             let (img, accent) = prepare(&job);
-            // экрану входа — та же картинка; PNG пишется уже после отправки её шеллу
-            let login = if crate::login::wanted(&key) { img.clone() } else { None };
+            // экрану входа — та же картинка (или своя: greetWall); PNG пишется уже после отправки
+            // картинки шеллу
+            let login = if lmode == "desktop" && crate::login::wanted(&key) { img.clone() } else { None };
             let _ = tx.send(Msg::Wall(n, img, accent));
             if let Some(i) = login {
                 crate::login::wall(&i, &key);
+            } else if lmode != "desktop" {
+                crate::login::wall_other(ljob);
             }
         });
     }
