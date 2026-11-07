@@ -25,6 +25,10 @@ const TARGETS: &[&str] = &[
     "bar:sys",
     "bar:sys-graph",
     "bar:sys-number",
+    "bar:tasks-left",
+    "bar:tasks-mid",
+    "bar:tasks-right",
+    "bar:tasks-crowd",
     "settings:color",
     "settings:bar",
     "settings:bar-look",
@@ -193,7 +197,7 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
     let (kind, arg) = target.split_once(':').unwrap_or((target, ""));
     // образцы формы бара: свои настройки — только на этот снимок
     if kind == "bar" && !arg.is_empty() {
-        let (set, media) = (st.set.clone(), st.media.title.clone());
+        let (set, media, wins) = (st.set.clone(), st.media.title.clone(), st.niri.wins.clone());
         let v = |xs: &[&str]| xs.iter().map(|s| s.to_string()).collect::<Vec<_>>();
         st.set.bar_float = true;
         st.set.bar_center_align = "center".into();
@@ -210,6 +214,21 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
             st.set.tray_mode = "arrow".into();
             st.set.temp_style = "compact".into();
             st.set.bar_right = v(&["tray", "sep", "net", "cpu", "temp", "sep", "vol", "sep", "clock", "sep", "settings", "power"]);
+        } else if arg.starts_with("tasks") {
+            // #28: окна стола в любой группе, своей ширины; в тесноте сжимаются только они
+            st.set.bar_width_pc = 100;
+            st.media.title = "Midnight City".into();
+            let (l, c, r): (&[&str], &[&str], &[&str]) = match arg {
+                "tasks-left" => (&["launcher", "sep", "workspaces", "sep", "tasks"], &["clock"], &["tray", "net", "vol", "sep", "settings", "power"]),
+                "tasks-right" => (&["launcher", "sep", "workspaces"], &["clock"], &["tasks", "sep", "net", "vol", "sep", "settings", "power"]),
+                _ => (&["launcher", "sep", "workspaces"], &["tasks", "sep", "clock", "media"], &["tray", "net", "vol", "sep", "settings", "power"]),
+            };
+            (st.set.bar_left, st.set.bar_center, st.set.bar_right) = (v(l), v(c), v(r));
+            if arg == "tasks-crowd" {
+                for i in 3..=14u64 {
+                    st.niri.wins.push(Win { id: i, app_id: "kitty".into(), title: format!("~/src/project-{i}"), ws: Some(1), ..Default::default() });
+                }
+            }
         } else if arg.starts_with("sys") {
             // #8: видеокарта и диск рядом с цп, озу и температурой; sys-graph — стилем «график»
             st.set.bar_width_pc = 100;
@@ -227,6 +246,7 @@ fn shoot(st: &mut State, res: &mut Res, target: &str, path: &Path) {
         shoot(st, res, "bar", path);
         st.set = set;
         st.media.title = media;
+        st.niri.wins = wins;
         return;
     }
     st.modal = None;

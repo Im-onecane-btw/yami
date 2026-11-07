@@ -83,56 +83,43 @@ pub fn draw(ui: &mut Ui, st: &State, out: &str, w: i32) {
         pw
     };
 
-    let gap = set.num("bar_gap");
-    let sw = set.num("bar_sep_w");
     let mid = set.num("bar_mid");
     let (pad_l, pad_r) = (set.num("bar_pad_l"), set.num("bar_pad_r"));
-    let left_end = row(ui, st, out, &mut set.bar_left.iter(), pad_l, 1, true);
-    let right_start = row(ui, st, out, &mut set.bar_right.iter().rev(), w - pad_r, -1, true);
+    // окна стола (#28) — модуль как все, в любой группе: своя ширина по числу окон, а когда места
+    // не хватает, сжимается он один (кнопки уже, заголовки короче). Достаётся первой группе с ним
+    let has = |l: &[String]| l.iter().any(|m| m == "tasks");
+    let at = if has(&set.bar_left) { 0 } else if has(&set.bar_center) { 1 } else if has(&set.bar_right) { 2 } else { 3 };
+    let nat = tasks_width(st, out, i32::MAX);
+    let tw = |g: usize, full: i32| if g == at { full } else { 0 };
+    let mut grow = |full: i32| {
+        let lw = row(ui, st, out, &mut set.bar_left.iter(), 0, 1, false, tw(0, full));
+        let cw = row(ui, st, out, &mut set.bar_center.iter(), 0, 1, false, tw(1, full));
+        let rw = row(ui, st, out, &mut set.bar_right.iter(), 0, 1, false, tw(2, full));
+        let mids = mid * ((lw > 0 && (cw > 0 || rw > 0)) as i32 + (cw > 0 && rw > 0) as i32);
+        lw + cw + rw + mids
+    };
+    let over = if at < 3 && nat > 0 { grow(nat) - (w - pad_l - pad_r) } else { 0 };
+    let tw_now = if over > 0 { tasks_width(st, out, nat - over) } else { nat };
+    let left_end = row(ui, st, out, &mut set.bar_left.iter(), pad_l, 1, true, tw(0, tw_now));
+    let right_start = row(ui, st, out, &mut set.bar_right.iter().rev(), w - pad_r, -1, true, tw(2, tw_now));
 
     // середина: между левыми и правыми модулями
     let x0 = if left_end > pad_l { left_end + mid } else { left_end };
     let x1 = if right_start < w - pad_r { right_start - mid } else { right_start };
-    let stretch = set.bar_center.iter().any(|m| m == "tasks");
-    if !stretch && set.bar_center_align != "after-left" {
-        // по центру бара, как часы в большинстве шеллов; длинная левая группа (трек в «музыке»)
-        // сдвигает середину ровно настолько, чтобы не наехать
-        let gw = row(ui, st, out, &mut set.bar_center.iter(), 0, 1, false);
-        let cx = (w / 2 - gw / 2).clamp(x0, (x1 - gw).max(x0));
-        ui.cv.push_clip(R::new(x0, 0, (x1 - x0).max(0), H));
-        row(ui, st, out, &mut set.bar_center.iter(), cx, 1, true);
-        ui.cv.pop_clip();
-        return;
-    }
-    // окна стола (растягиваются до правых модулей) и модули середины — сразу за левыми
-    let mut cx = x0;
-    let mut pending = false;
-    for m in set.bar_center.iter() {
-        if m == "sep" {
-            pending = cx > x0;
-            continue;
-        }
-        if pending {
-            sep(ui, st, cx, sw);
-            cx += sw + gap;
-            pending = false;
-        }
-        if m == "tasks" {
-            tasks(ui, st, out, R::new(cx, 0, x1 - cx, H - 1));
-            cx = x1;
-        } else {
-            let mw = module(ui, st, out, m, cx, false);
-            if mw > 0 {
-                cx += mw + gap;
-            }
-        }
-    }
+    let ctw = tw(1, tw_now);
+    let gw = row(ui, st, out, &mut set.bar_center.iter(), 0, 1, false, ctw);
+    // по центру бара, как часы в большинстве шеллов; длинная левая группа (трек в «музыке»)
+    // сдвигает середину ровно настолько, чтобы не наехать; after-left — сразу за левыми
+    let cx = if set.bar_center_align == "after-left" { x0 } else { (w / 2 - gw / 2).clamp(x0, (x1 - gw).max(x0)) };
+    ui.cv.push_clip(R::new(x0, 0, (x1 - x0).max(0), H));
+    row(ui, st, out, &mut set.bar_center.iter(), cx, 1, true, ctw);
+    ui.cv.pop_clip();
 }
 
 /// ряд модулей от x0 в сторону dir (1 — вправо, -1 — влево). Разделитель — только между двумя
 /// видимыми модулями: без пар и висячих по краям. Возвращает внешний край последнего модуля (x0,
-/// если модулей нет); draw = false — только меряет
-fn row(ui: &mut Ui, st: &State, out: &str, list: &mut dyn Iterator<Item = &String>, x0: i32, dir: i32, draw: bool) -> i32 {
+/// если модулей нет); draw = false — только меряет; tw — ширина окон стола в этом ряду (0 — их нет)
+fn row(ui: &mut Ui, st: &State, out: &str, list: &mut dyn Iterator<Item = &String>, x0: i32, dir: i32, draw: bool, tw: i32) -> i32 {
     let (gap, sw) = (st.set.num("bar_gap"), st.set.num("bar_sep_w"));
     let mut x = x0;
     let (mut pending, mut any) = (false, false);
@@ -141,7 +128,7 @@ fn row(ui: &mut Ui, st: &State, out: &str, list: &mut dyn Iterator<Item = &Strin
             pending = any;
             continue;
         }
-        let mw = module(ui, st, out, m, 0, true);
+        let mw = if m == "tasks" { tw } else { module(ui, st, out, m, 0, true) };
         if mw == 0 {
             continue;
         }
@@ -156,7 +143,12 @@ fn row(ui: &mut Ui, st: &State, out: &str, list: &mut dyn Iterator<Item = &Strin
             pending = false;
         }
         if draw {
-            module(ui, st, out, m, if dir > 0 { x } else { x - mw }, false);
+            let mx = if dir > 0 { x } else { x - mw };
+            if m == "tasks" {
+                tasks(ui, st, out, R::new(mx, 0, mw, H - 1));
+            } else {
+                module(ui, st, out, m, mx, false);
+            }
         }
         x += dir * mw;
         any = true;
@@ -597,18 +589,41 @@ fn module(ui: &mut Ui, st: &State, out: &str, m: &str, x: i32, measure: bool) ->
     }
 }
 
+/// окна стола на мониторе: на его активном столе и свёрнутые
+fn task_list(st: &State, out: &str) -> Vec<crate::niri::Win> {
+    let Some(ws) = st.niri.active_ws(out) else { return Vec::new() };
+    let mut list = st.niri.windows_on(ws.id);
+    list.extend(st.niri.minimized());
+    list
+}
+
+/// ширина окон стола не больше max: кнопки по taskWidth, теснее — уже, но не меньше MIN_TASK
+/// (тогда влезают не все); 0 — окон нет или нет места даже под одну кнопку
+const MIN_TASK: i32 = 24;
+fn tasks_width(st: &State, out: &str, max: i32) -> i32 {
+    let n = task_list(st, out).len() as i32;
+    if n == 0 {
+        return 0;
+    }
+    let tg = st.set.num("bar_task_gap");
+    let iw = st.set.num("task_width").min((max.saturating_add(tg)) / n - tg).max(MIN_TASK);
+    let fit = (max.saturating_add(tg) / (iw + tg)).clamp(0, n);
+    if fit == 0 {
+        return 0;
+    }
+    fit * iw + (fit - 1) * tg
+}
+
 /// окна стола: активное — в акценте с яркой полоской, свёрнутое — блёклое, со значком
 fn tasks(ui: &mut Ui, st: &State, out: &str, area: R) {
     let t = ui.t;
-    let Some(ws) = st.niri.active_ws(out) else { return };
-    let mut list = st.niri.windows_on(ws.id);
-    list.extend(st.niri.minimized());
+    let list = task_list(st, out);
     if list.is_empty() || area.w <= 0 {
         return;
     }
     let n = list.len() as i32;
     let tg = st.set.num("bar_task_gap");
-    let iw = st.set.num("task_width").min((area.w + tg) / n - tg).max(24);
+    let iw = st.set.num("task_width").min((area.w + tg) / n - tg).max(MIN_TASK);
     ui.cv.push_clip(area);
     let mut x = area.x;
     for w in list {

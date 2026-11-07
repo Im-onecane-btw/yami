@@ -146,7 +146,7 @@ Settings → look → «pixel look» moves these keys, `iconPixel` and `cursor` 
 | `mediaViz` | `"bars"` | the equalizer of the `media` module and the music popup: `bars` `line` `blocks` `wave` `dots`, or `off` (no equalizer, and no audio capture for it) |
 | `mediaView` | `"cover"` | what the music popup shows (the button in its header switches it): `cover` (cover, buttons, equalizer), `both` (cover and lyrics), `lyrics`, `minimal` (title and buttons) |
 | `clockSeconds`, `clockDate` | `false`, `true` | |
-| `taskWidth` | `190` | width of a task button, px (60–400) |
+| `taskWidth` | `190` | width of a task button, px (60–400); `tasks` works in any group and is the one module that narrows when the bar runs out of room |
 | `barTaskGap` | `4` | gap between task buttons, px (0–16) |
 | `barSep` | `"dots"` | separator look: `dots` `line` `blocks` `gap` |
 | `barSepW`, `barSepColor` | `10`, `"border"` | separator width, px (2–32); colour `border` `accent` `dim` |
@@ -157,7 +157,7 @@ Settings → look → «pixel look» moves these keys, `iconPixel` and `cursor` 
 | `barWidthPc` | `100` | bar width, % of the monitor (30–100); below 100 the panel is centred (`barFloat` off: it hangs from the top edge) |
 | `barMargin` | `6` | gap between a floating bar and the screen edges, px (0–32) |
 | `barOutputs` | `[]` | the screens with a bar, by niri name (`["eDP-1"]`; `niri msg outputs`); empty: every screen. When none of them is connected (a laptop away from its monitor) every screen gets one. Settings → screens → «bar on this screen» |
-| `barCenterAlign` | `"center"` | `barCenter` modules: `center` at the middle of the bar (a long left group only pushes them as far as needed), `after-left` right after the left group. With `tasks` in the middle it stretches either way |
+| `barCenterAlign` | `"center"` | `barCenter` modules: `center` at the middle of the bar (a long left group only pushes them as far as needed), `after-left` right after the left group (the windows of `tasks` sat there before 2.7) |
 
 ### Windows, dock, screenshots, system
 

@@ -293,12 +293,12 @@ fn shape_preview(ui: &mut Ui, st: &State, r: R) {
     for i in 0..4 {
         ui.cv.fill(R::new(bar.right() - 8 - i * 6, cy - 1, 4, 4), t.text_faint);
     }
-    if s.bar_center.iter().any(|m| m == "tasks") {
-        ui.cv.fill(R::new(bar.x + 26, cy - 1, (bar.w / 6).max(8), 4), t.text_dim);
-    } else if !s.bar_center.is_empty() {
-        let cw = 18;
+    // середина — часы или окна (#28: окна — обычный модуль, стоят там же, где остальные)
+    if !s.bar_center.is_empty() {
+        let win = s.bar_center.iter().any(|m| m == "tasks");
+        let cw = if win { (bar.w / 6).max(18) } else { 18 };
         let cx = if s.bar_center_align == "after-left" { bar.x + 26 } else { bar.x + bar.w / 2 - cw / 2 };
-        ui.cv.fill(R::new(cx, cy - 1, cw, 4), t.text);
+        ui.cv.fill(R::new(cx, cy - 1, cw, 4), if win { t.text_dim } else { t.text });
     }
     ui.cv.pop_clip();
 }
