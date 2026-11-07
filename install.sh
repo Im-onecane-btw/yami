@@ -262,11 +262,20 @@ fi
 OTHER_DM=""
 if [[ -L /etc/systemd/system/display-manager.service ]]; then
   OTHER_DM="$(basename "$(readlink /etc/systemd/system/display-manager.service)" .service)"
-  case $OTHER_DM in
-    greetd) grep -qs 'yami/greet-session' /etc/greetd/config.toml && OTHER_DM="" ;;
-    sddm) [[ -d /usr/share/sddm/themes/yami ]] && OTHER_DM="" ;;
-  esac
+else
+  # OpenRC (Alpine, Gentoo) and runit (Void): a login manager in the default runlevel / enabled services
+  for _d in /etc/runlevels/default /var/service /etc/runit/runsvdir/default; do
+    [[ -d $_d ]] || continue
+    for _m in greetd sddm gdm lightdm lxdm ly emptty cosmic-greeter plasmalogin display-manager xdm slim; do
+      [[ -e $_d/$_m ]] && { OTHER_DM=$_m; break 2; }
+    done
+  done
+  unset _d _m
 fi
+case $OTHER_DM in
+  greetd) grep -qs 'yami/greet-session' /etc/greetd/config.toml && OTHER_DM="" ;;
+  sddm) [[ -d /usr/share/sddm/themes/yami ]] && OTHER_DM="" ;;
+esac
 LOGIN_ON=1
 [[ -n $OTHER_DM ]] && LOGIN_ON=0
 [[ -n $LOGIN_FLAG ]] && LOGIN_ON=$LOGIN_FLAG
@@ -1568,11 +1577,16 @@ uninstall_login() {
   grep -qs '^# yami:' /etc/greetd/config.toml && ours=1
   ((${#files[@]} || ours)) || [[ -n $dm ]] || return 0
   local cmd="rm -rf ${files[*]}"
+  # OpenRC, runit: greetd off and the managers it replaced back on (greet-install.sh wrote them down)
+  ((SYSTEMD)) || cmd="$ROOT/tools/greet-install.sh --uninit; $cmd"
   ((ours)) && cmd+="; mv -f /etc/greetd/config.toml.yami-orig /etc/greetd/config.toml"
   [[ -n $dm ]] && cmd+="; systemctl enable -f $dm.service"
   if ((EUID != 0)) && { [[ -z $SU ]] || ! root_start; }; then
     warn "$(t "экран входа не убран, нужен root:" "the login screen is not removed, root is needed:") sudo sh -c '$cmd'"
     return 0
+  fi
+  if ((!SYSTEMD)) && [[ -e /var/lib/yami-greet ]]; then
+    $SU "$ROOT/tools/greet-install.sh" --uninit || warn "$(t "greetd не выключен: включи прежний менеджер входа сам" "greetd is not turned off: enable your old login manager yourself")"
   fi
   ((${#files[@]})) && $SU rm -rf -- "${files[@]}"
   if ((ours)); then
