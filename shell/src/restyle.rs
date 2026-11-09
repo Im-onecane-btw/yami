@@ -63,7 +63,7 @@ pub fn stamp() -> u64 {
 /// что с шаблоном, словами
 pub fn note(t: &Tpl) -> String {
     match t.state.as_str() {
-        "ok" => crate::tf!("записан: {}", "written: {}", "gravado: {}", t.output),
+        "ok" => crate::tf!("записан: {}", "written: {}", "gravado: {}", t.output.rsplit('/', 1).next().unwrap_or(&t.output)),
         "hand" => crate::tf!("изменён руками — не перезаписан", "changed by hand: not overwritten", "alterado à mão: não sobrescrito"),
         "unknown" => crate::tf!("нет таких цветов: {} — файл не записан", "no such colours: {}; the file is not written", "cores inexistentes: {}; o arquivo não foi gravado", t.keys.join(", ")),
         "nooutput" => crate::tf!("нет строки «yami-output: ~/путь» — некуда писать", "no “yami-output: ~/path” line: nowhere to write", "sem a linha “yami-output: ~/caminho”: não há onde gravar"),
