@@ -811,6 +811,11 @@ def cava(p):
         key = re.match(r"\s*(\w+)\s*=", line)
         if in_color and key and key.group(1) in ours:
             continue
+        # theme file (theme = noctalia/dms/...) overrides [color] gradient in cava:
+        # comment it out so the yami gradient actually applies (#33)
+        if in_color and key and key.group(1) == "theme":
+            out.append("; " + line + "  # disabled: yami gradient wins")
+            continue
         out.append(line)
     if not done:
         out += ["", "[color]"] + [f"{k} = {v}" for k, v in ours.items()]
